@@ -27,8 +27,11 @@
       ".yaml",
       ".yml"
     ],
+    "allowed_filenames": [
+      ".env.example"
+    ],
     "forbidden_path_patterns": [
-      "(^|/)\\.env($|\\.)",
+      "(^|/)\\.env($|\\.(?!example$))",
       "(^|/)start\\.bat$",
       "(^|/)var/ai_runs/",
       "(^|/)logs/",

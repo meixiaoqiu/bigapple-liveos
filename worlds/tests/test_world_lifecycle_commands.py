@@ -94,7 +94,12 @@ class WorldLifecycleCommandTests(TestCase):
         )
         output = StringIO()
 
-        with patch("worlds.management.commands.migrate_world.call_command") as migrate_call:
+        with (
+            patch("worlds.management.commands.migrate_world.call_command") as migrate_call,
+            patch(
+                "worlds.management.commands.migrate_world.Command._ensure_world_session_table"
+            ) as ensure_session_table,
+        ):
             call_command("migrate_world", "simulation_migrate", "--noinput", stdout=output)
 
         migrate_call.assert_called_once()
@@ -102,4 +107,5 @@ class WorldLifecycleCommandTests(TestCase):
         self.assertEqual(_command_name, "migrate")
         self.assertEqual(migrate_call.call_args.kwargs["database"], "default")
         self.assertEqual(migrate_call.call_args.kwargs["interactive"], False)
+        ensure_session_table.assert_called_once_with("default", interactive=False)
         self.assertIn("migrated", output.getvalue())

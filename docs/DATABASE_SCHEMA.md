@@ -939,7 +939,7 @@ Runtime database routing is request/world aware:
 | App label | No world context | Fixed world request context | Migration target |
 | --- | --- | --- | --- |
 | `worlds` | `default` | `default` | `default` only |
-| `sessions` | `default` | `default` | `default` only |
+| `sessions` | `default` | `default` | `default` and every world alias |
 | `admin` | `default` | `default` | `default` only |
 | `auth` | `default` | current world alias | `default` and every world alias |
 | `contenttypes` | `default` | current world alias | `default` and every world alias |

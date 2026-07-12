@@ -13,6 +13,9 @@ class WorldDatabaseRouter:
     world_apps = {"core"}
     world_context_apps = {"auth", "contenttypes"}
     control_core_models = {"simulationsnapshot", "simulationsnapshotitem", "simulationrundisposition"}
+    # Split runtime settings use one world database as default and no routers,
+    # so each world database needs a django_session table for login.
+    world_migrated_control_apps = {"sessions"}
 
     def _routing_enabled(self) -> bool:
         return bool(getattr(settings, "WORLD_DATABASE_ROUTING_ENABLED", True))
@@ -60,6 +63,8 @@ class WorldDatabaseRouter:
 
         world_aliases = self._world_aliases()
         if app_label in self.control_only_apps:
+            if app_label in self.world_migrated_control_apps:
+                return db == "default" or db in world_aliases
             return db == "default"
         if app_label == "core" and model_name in self.control_core_models:
             return db == "default"

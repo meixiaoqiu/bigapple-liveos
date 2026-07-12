@@ -6,6 +6,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+[Console]::InputEncoding = $utf8NoBom
+[Console]::OutputEncoding = $utf8NoBom
+$OutputEncoding = $utf8NoBom
 
 function Get-RepoRoot {
     $root = git rev-parse --show-toplevel
@@ -25,8 +29,9 @@ function Get-CodeBuddyConfig {
     return [pscustomobject]@{
         patch_guard = [pscustomobject]@{
             allowed_extensions = @(".css", ".html", ".js", ".json", ".md", ".ps1", ".py", ".toml", ".txt", ".yaml", ".yml")
+            allowed_filenames = @(".env.example")
             forbidden_path_patterns = @(
-                "(^|/)\.env($|\.)",
+                "(^|/)\.env($|\.(?!example$))",
                 "(^|/)start\.bat$",
                 "(^|/)[^/]+/migrations/",
                 "(?i)(^|/)(secrets?|passwords?)(\.[^/]+)?$",
@@ -85,7 +90,12 @@ function Assert-PatchPathAllowed {
 
     $extension = [IO.Path]::GetExtension($Path).ToLowerInvariant()
     $allowedExtensions = @($Config.patch_guard.allowed_extensions)
-    if ($allowedExtensions -notcontains $extension) {
+    $allowedFilenames = @()
+    if ($Config.patch_guard.PSObject.Properties.Name -contains "allowed_filenames") {
+        $allowedFilenames = @($Config.patch_guard.allowed_filenames)
+    }
+    $fileName = [IO.Path]::GetFileName($Path)
+    if (($allowedExtensions -notcontains $extension) -and ($allowedFilenames -notcontains $fileName)) {
         throw "Patch touches a file extension that is not allowed: $Path"
     }
 
@@ -103,7 +113,9 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $config = Get-CodeBuddyConfig -ScriptDir $scriptDir
 $repoRoot = Get-RepoRoot
 $resolvedPatch = (Resolve-Path -LiteralPath $PatchFile).Path
-$patchText = Get-Content -LiteralPath $resolvedPatch -Raw
+$patchText = Get-Content -LiteralPath $resolvedPatch -Raw -Encoding UTF8
+$patchText = ($patchText.TrimStart([char]0xFEFF) -replace "`r`n", "`n") -replace "`r", "`n"
+$patchText = $patchText.TrimEnd() + "`n"
 if ([string]::IsNullOrWhiteSpace($patchText)) {
     throw "Patch file is empty: $PatchFile"
 }
@@ -120,21 +132,32 @@ foreach ($path in $paths) {
     Assert-PatchPathAllowed -Path $path -Config $config
 }
 
-git apply --check -- $resolvedPatch
-if ($LASTEXITCODE -ne 0) {
-    throw "git apply --check failed for patch: $PatchFile"
-}
+$normalizedPatchFile = Join-Path ([IO.Path]::GetTempPath()) ("codebuddy-guard-{0}.patch" -f ([guid]::NewGuid().ToString("N")))
+[IO.File]::WriteAllText($normalizedPatchFile, $patchText, $utf8NoBom)
 
-Write-Output "Patch guard passed."
-Write-Output "Touched paths:"
-$paths | ForEach-Object { Write-Output " - $_" }
-
-if ($Apply) {
-    git apply -- $resolvedPatch
+Push-Location $repoRoot
+try {
+    git apply --check -- $normalizedPatchFile
     if ($LASTEXITCODE -ne 0) {
-        throw "git apply failed for patch: $PatchFile"
+        throw "git apply --check failed for patch: $PatchFile"
     }
-    Write-Output "Patch applied."
-} else {
-    Write-Output "Dry run only. Re-run with -Apply to apply after Codex/human review."
+
+    Write-Output "Patch guard passed."
+    Write-Output "Touched paths:"
+    $paths | ForEach-Object { Write-Output " - $_" }
+
+    if ($Apply) {
+        git apply -- $normalizedPatchFile
+        if ($LASTEXITCODE -ne 0) {
+            throw "git apply failed for patch: $PatchFile"
+        }
+        Write-Output "Patch applied."
+    } else {
+        Write-Output "Dry run only. Re-run with -Apply to apply after Codex/human review."
+    }
+} finally {
+    Pop-Location
+    if (Test-Path -LiteralPath $normalizedPatchFile) {
+        Remove-Item -LiteralPath $normalizedPatchFile -Force
+    }
 }

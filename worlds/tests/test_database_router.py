@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.contrib.auth import get_user_model
+from django.contrib.sessions.models import Session
 from django.core.exceptions import ImproperlyConfigured
 from django.test import SimpleTestCase, override_settings
 
@@ -51,6 +52,10 @@ class WorldDatabaseRouterTests(SimpleTestCase):
     def test_auth_models_use_control_database_without_world_context(self) -> None:
         self.assertEqual(self.router.db_for_read(get_user_model()), "default")
 
+    def test_sessions_read_write_route_to_default(self) -> None:
+        self.assertEqual(self.router.db_for_read(Session), "default")
+        self.assertEqual(self.router.db_for_write(Session), "default")
+
     def test_missing_current_world_alias_fails_closed(self) -> None:
         token = set_current_world(
             WorldContext(
@@ -91,3 +96,6 @@ class WorldDatabaseRouterTests(SimpleTestCase):
         self.assertTrue(self.router.allow_migrate("simulation0001", "core"))
         self.assertTrue(self.router.allow_migrate("default", "auth"))
         self.assertTrue(self.router.allow_migrate("realworld", "auth"))
+        self.assertTrue(self.router.allow_migrate("default", "sessions"))
+        self.assertTrue(self.router.allow_migrate("realworld", "sessions"))
+        self.assertTrue(self.router.allow_migrate("simulation0001", "sessions"))

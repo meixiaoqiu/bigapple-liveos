@@ -44,6 +44,8 @@ python manage.py bootstrap_world --world-id realworld --control-password "..." -
 
 该命令会创建 control DB 的 `/admin/` 技术 root，并在目标 world DB 中创建一个 `is_staff=False`、`is_superuser=False` 的世界治理管理员成员。世界治理管理员的业务权限来自 `Member -> RoleAssignment -> RolePermission -> Permission`，不是来自 staff 或 superuser。
 
+仿真 world 可以通过 `.env` 中的 `BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_*` 变量配置首个治理管理员账号。只有显式设置 `BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_ENABLED=true`，并同时提供用户名和密码时，`seed_world` 才会在成功初始化目标仿真 world 后复用 `bootstrap_world --skip-control-admin` 创建或更新该账号；模板占位密码 `CHANGE_ME` 会被拒绝。这样重置后的 `bigsim.local` 仍可用同一个成员账号登录 `/workspace/`。
+
 写入演示数据：
 
 ```bash

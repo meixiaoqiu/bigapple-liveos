@@ -1,4 +1,8 @@
+name: big-apple-live-os
+
 services:
+  # Use --noreload so Docker dev services keep one Django process per site.
+  # Restart the service after Python code changes.
   big-apple-admin:
     image: big-apple-live-os:dev
     build:
@@ -8,7 +12,7 @@ services:
     env_file:
       - .env
     working_dir: /app
-    command: python manage.py runserver 0.0.0.0:20100 --settings=live_os.settings_admin
+    command: python manage.py runserver 0.0.0.0:20100 --noreload --settings=live_os.settings_admin
     volumes:
       - .:/app
     ports:
@@ -25,7 +29,7 @@ services:
     env_file:
       - .env
     working_dir: /app
-    command: python manage.py runserver 0.0.0.0:20101 --settings=live_os.settings_real
+    command: python manage.py runserver 0.0.0.0:20101 --noreload --settings=live_os.settings_real
     volumes:
       - .:/app
     ports:
@@ -42,7 +46,7 @@ services:
     env_file:
       - .env
     working_dir: /app
-    command: python manage.py runserver 0.0.0.0:20102 --settings=live_os.settings_sim
+    command: python manage.py runserver 0.0.0.0:20102 --noreload --settings=live_os.settings_sim
     volumes:
       - .:/app
     ports:

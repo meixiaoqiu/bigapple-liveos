@@ -75,7 +75,7 @@ start.bat
 - 通过 `docker compose -f docker-compose.dev.yml up -d --force-recreate big-apple-admin big-apple-real big-apple-sim` 启动三个 Django 站点。
 - 启动已有的 `nginx` 容器并连接到 `dev-net`。
 - 输出直连 Django 和 nginx gateway 访问地址。
-- 启用 Django 默认自动重载，不再使用 `--noreload`；模板小改后刷新页面即可看到，Python 代码改动会触发开发服务自动重启。
+- 使用 `--noreload` 启动 Django 开发服务，避免 autoreload 在 Docker 开发环境中派生额外进程。模板小改后刷新页面即可看到；Python 代码改动后需要重新运行 `start.bat` 或手动重建对应服务。
 
 容器启动后，control plane 和 world 迁移命令通常通过 `big-apple-admin` 执行：
 
@@ -366,7 +366,7 @@ Run migrations for each database alias after creating the physical databases and
 .\.venv\Scripts\python.exe manage.py migrate --database=simulation0001
 ```
 
-`default` owns `worlds.WorldRegistry`, Django Admin technical accounts and sessions. World databases own their own `auth_user` rows and business tables. This keeps real and simulation users on the same code path while avoiding cross-world business data mixing.
+`default` owns `worlds.WorldRegistry` and Django Admin technical accounts. World databases own their own `auth_user`, `django_session` rows and business tables so `bigreal.local` and `bigsim.local` can handle login with their split runtime settings. Under routed admin settings, session reads and writes still use `default`, but `migrate_world` also creates the `django_session` table in each world database. This keeps real and simulation users on the same code path while avoiding cross-world business data mixing.
 
 The optional environment variables are:
 
@@ -420,6 +420,19 @@ docker compose -f docker-compose.dev.yml exec big-apple-admin python manage.py b
 
 该命令是幂等的；重复执行不会重复创建同一个 `Permission`、`Role`、`Member`、`User` 或 active `RoleAssignment`。control plane 的 `/admin/` 登录使用 control DB 技术账号；固定 world 站点的 `/login/` 登录使用对应 world DB 内的账号。
 world 登录成功后统一进入 `/workspace/`。真实世界和仿真世界 runtime 不暴露独立业务后台；需要执行底层维护或高影响操作时，使用 control plane 的 `/admin/`，账号名固定使用 `member_no`。
+
+仿真 world 的首个治理管理员可以通过 `.env` 配置：
+
+```env
+BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_ENABLED=true
+BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_USERNAME=your-simulation-admin
+BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_PASSWORD=CHANGE_ME
+BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_EMAIL=
+BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_MEMBER_NO=your-simulation-admin
+BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_DISPLAY_NAME=Simulation admin
+```
+
+只有显式启用并同时提供用户名和密码时，`seed_world` 每次成功初始化目标仿真 world 后才会确保该账号存在并拥有治理管理员角色。`BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_PASSWORD=CHANGE_ME` 是模板占位符，启用前必须改掉，否则命令会失败。这样重置 `simulation0001` 对应数据库后，再运行 `seed_world simulation0001 --template ...`，即可继续使用该账号登录 `bigsim.local/workspace/`。
 
 ## World Lifecycle Commands
 
