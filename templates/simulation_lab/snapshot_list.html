@@ -1,0 +1,55 @@
+{% extends "simulation_lab/base.html" %}
+
+{% block lab_breadcrumbs %}
+  <a href="{% url 'simulation-lab-page' %}">仿真实验后台</a>
+  &rsaquo; 仿真快照
+{% endblock %}
+
+{% block object-tools %}
+  <ul class="object-tools">
+    <li><a href="{% url 'simulation-lab-page' %}">返回实验后台</a></li>
+    <li><a href="{% url 'admin:index' %}">返回系统管理</a></li>
+  </ul>
+{% endblock %}
+
+{% block content %}
+  <div id="content-main">
+    <p>查看每次仿真的归档索引、失败摘要和原始归档校验入口。</p>
+
+    <div class="module">
+      <h2>已归档快照</h2>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">快照</th>
+            <th scope="col">世界</th>
+            <th scope="col">运行</th>
+            <th scope="col">运行状态</th>
+            <th scope="col">失败类型</th>
+            <th scope="col">失败标题</th>
+            <th scope="col">归档时间</th>
+            <th scope="col">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for snapshot in snapshots %}
+            <tr class="{% cycle 'row1' 'row2' %}">
+              <th scope="row">
+                <a href="{% url 'simulation-lab-snapshot-detail' snapshot.snapshot_id %}">{{ snapshot.snapshot_id }}</a>
+              </th>
+              <td>{{ snapshot.source_world_id }}</td>
+              <td>{{ snapshot.source_run_id }}</td>
+              <td>{{ snapshot.run_status }}</td>
+              <td>{{ snapshot.failure_type|default:"-" }}</td>
+              <td>{{ snapshot.failure_title|default:"-" }}</td>
+              <td>{{ snapshot.archived_at|date:"Y-m-d H:i" }}</td>
+              <td><a href="{% url 'simulation-lab-snapshot-detail' snapshot.snapshot_id %}">查看</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="8">暂无仿真快照。完成仿真后运行 archive_simulation_run 生成快照。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}

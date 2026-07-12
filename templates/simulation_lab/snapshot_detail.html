@@ -1,0 +1,142 @@
+{% extends "simulation_lab/base.html" %}
+
+{% block lab_breadcrumbs %}
+  <a href="{% url 'simulation-lab-page' %}">仿真实验后台</a>
+  &rsaquo; <a href="{% url 'simulation-lab-snapshot-list' %}">仿真快照</a>
+  &rsaquo; {{ snapshot.snapshot_id }}
+{% endblock %}
+
+{% block object-tools %}
+  <ul class="object-tools">
+    <li><a href="{% url 'simulation-lab-snapshot-list' %}">返回快照列表</a></li>
+  </ul>
+{% endblock %}
+
+{% block content %}
+  <div id="content-main">
+    <form method="post" action="{% url 'simulation-lab-verify-snapshot' snapshot.snapshot_id %}">
+      {% csrf_token %}
+      <div class="submit-row">
+        <input class="default" type="submit" value="校验快照">
+      </div>
+    </form>
+
+    <div class="module">
+      <h2>快照概览</h2>
+      <table>
+        <tbody>
+          <tr><th scope="row">标题</th><td>{{ snapshot.title }}</td></tr>
+          <tr><th scope="row">来源世界</th><td>{{ snapshot.source_world_id }} / {{ snapshot.source_database_name|default:snapshot.source_database_alias }}</td></tr>
+          <tr><th scope="row">仿真运行</th><td>{{ snapshot.source_run_id }} / {{ snapshot.run_status }}</td></tr>
+          <tr><th scope="row">失败类型</th><td>{{ snapshot.failure_type|default:"-" }}</td></tr>
+          <tr><th scope="row">失败标题</th><td>{{ snapshot.failure_title|default:"无失败记录" }}</td></tr>
+          <tr><th scope="row">归档时间</th><td>{{ snapshot.archived_at|date:"Y-m-d H:i" }}</td></tr>
+          <tr><th scope="row">schema</th><td>v{{ snapshot.snapshot_schema_version }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="module">
+      <h2>失败摘要</h2>
+      {% for failure in failures %}
+        <table>
+          <tbody>
+            <tr><th scope="row">标题</th><td>{{ failure.title }}</td></tr>
+            <tr><th scope="row">类型</th><td>{{ failure.failure_type }}</td></tr>
+            <tr><th scope="row">说明</th><td>{{ failure.description }}</td></tr>
+          </tbody>
+        </table>
+      {% empty %}
+        <p>该快照没有失败记录。</p>
+      {% endfor %}
+    </div>
+
+    <div class="module">
+      <h2>标准化索引</h2>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">类型</th>
+            <th scope="col">数量</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in item_counts %}
+            <tr class="{% cycle 'row1' 'row2' %}">
+              <td>{{ item.item_type }}</td>
+              <td>{{ item.total }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="2">暂无标准化明细。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="module">
+      <h2>快照明细</h2>
+      <p class="help">最多显示前 200 条。</p>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">顺序</th>
+            <th scope="col">类型</th>
+            <th scope="col">标题</th>
+            <th scope="col">来源</th>
+            <th scope="col">摘要</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+            <tr class="{% cycle 'row1' 'row2' %}">
+              <td>{{ item.sort_order }}</td>
+              <td>{{ item.get_item_type_display }}</td>
+              <td>
+                <strong>{{ item.display_title }}</strong>
+                {% if item.display_title != item.title %}
+                  <br><span class="help">{{ item.title }}</span>
+                {% endif %}
+              </td>
+              <td>{{ item.display_source }}<br><span class="help">{{ item.source_pk }}</span></td>
+              <td>{{ item.summary|truncatechars:160 }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5">暂无快照明细。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="module">
+      <h2>原始归档包</h2>
+      <table>
+        <tbody>
+          <tr><th scope="row">路径</th><td>{{ snapshot.raw_archive_path }}</td></tr>
+          <tr><th scope="row">哈希</th><td><code>{{ snapshot.raw_archive_hash }}</code></td></tr>
+          <tr><th scope="row">报告</th><td>{{ snapshot.report_path|default:"-" }}</td></tr>
+          <tr><th scope="row">代码版本</th><td>{{ snapshot.code_version|default:"-" }}</td></tr>
+        </tbody>
+      </table>
+
+      <h3>原始表记录数</h3>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">模型</th>
+            <th scope="col">记录数</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in raw_table_counts %}
+            <tr class="{% cycle 'row1' 'row2' %}">
+              <td>{{ row.label }}<br><span class="help">{{ row.model }}</span></td>
+              <td>{{ row.count }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="2">暂无原始表计数。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,7 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: corporate --default, bumblebee, light, dark --prefersdark;
+}
+
+/* 扫描 Django 模板、Python 和 JS 文件中的 Tailwind class，生成最终 CSS。 */
+@source "../../../**/*.{html,py,js}";

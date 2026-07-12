@@ -1,0 +1,71 @@
+{% extends "applications/base.html" %}
+
+{% block title %}成员报名 · 大苹果{% endblock %}
+{% block heading %}成员报名{% endblock %}
+{% block subtitle %}这里面向明确想参加项目的人。请说明你能稳定投入的时间、能力和是否具备可追责文件责任能力。{% endblock %}
+
+{% block content %}
+  <form class="grid gap-4 lg:grid-cols-2" method="post">
+    {% csrf_token %}
+    {% for error in form.non_field_errors %}
+      <div class="alert alert-error lg:col-span-2">{{ error }}</div>
+    {% endfor %}
+
+    <label class="form-control w-full">
+      <div class="label"><span class="label-text">{{ form.applicant_name.label }}</span></div>
+      {{ form.applicant_name }}
+      {% for error in form.applicant_name.errors %}<div class="label"><span class="label-text-alt text-error">{{ error }}</span></div>{% endfor %}
+    </label>
+
+    <label class="form-control w-full">
+      <div class="label"><span class="label-text">{{ form.contact.label }}</span></div>
+      {{ form.contact }}
+      {% for error in form.contact.errors %}<div class="label"><span class="label-text-alt text-error">{{ error }}</span></div>{% endfor %}
+    </label>
+
+    <label class="form-control w-full">
+      <div class="label"><span class="label-text">{{ form.availability_hours_per_week.label }}</span></div>
+      {{ form.availability_hours_per_week }}
+      {% for error in form.availability_hours_per_week.errors %}<div class="label"><span class="label-text-alt text-error">{{ error }}</span></div>{% endfor %}
+    </label>
+
+    <label class="form-control w-full">
+      <div class="label"><span class="label-text">{{ form.requested_member_no.label }}</span></div>
+      {{ form.requested_member_no }}
+      {% for error in form.requested_member_no.errors %}<div class="label"><span class="label-text-alt text-error">{{ error }}</span></div>{% endfor %}
+    </label>
+
+    <label class="form-control w-full lg:col-span-2">
+      <div class="label"><span class="label-text">{{ form.motivation.label }}</span></div>
+      {{ form.motivation }}
+      {% for error in form.motivation.errors %}<div class="label"><span class="label-text-alt text-error">{{ error }}</span></div>{% endfor %}
+    </label>
+
+    <label class="form-control w-full lg:col-span-2">
+      <div class="label">
+        <span class="label-text">{{ form.capabilities_text.label }}</span>
+        <span class="label-text-alt">{{ form.capabilities_text.help_text }}</span>
+      </div>
+      {{ form.capabilities_text }}
+      {% for error in form.capabilities_text.errors %}<div class="label"><span class="label-text-alt text-error">{{ error }}</span></div>{% endfor %}
+    </label>
+
+    <label class="label cursor-pointer justify-start gap-3 lg:col-span-2">
+      {{ form.can_issue_responsibility_documents }}
+      <span class="label-text">{{ form.can_issue_responsibility_documents.label }}</span>
+    </label>
+
+    <label class="form-control w-full lg:col-span-2">
+      <div class="label">
+        <span class="label-text">{{ form.document_authority_domains_text.label }}</span>
+        <span class="label-text-alt">{{ form.document_authority_domains_text.help_text }}</span>
+      </div>
+      {{ form.document_authority_domains_text }}
+      {% for error in form.document_authority_domains_text.errors %}<div class="label"><span class="label-text-alt text-error">{{ error }}</span></div>{% endfor %}
+    </label>
+
+    <div class="flex justify-end lg:col-span-2">
+      <button class="btn btn-primary" type="submit">提交成员报名</button>
+    </div>
+  </form>
+{% endblock %}

@@ -1,0 +1,152 @@
+{% extends "simulation_lab/base.html" %}
+
+{% block lab_breadcrumbs %}仿真实验后台{% endblock %}
+
+{% block object-tools %}
+  <ul class="object-tools">
+    <li><a href="{% url 'admin:index' %}">返回系统管理</a></li>
+  </ul>
+{% endblock %}
+
+{% block content %}
+  <div id="content-main">
+    <p>
+      仿真实验后台只负责选择仿真槽位、启动或继续仿真、人工中止运行，以及进入运行详情完成审阅、归档、废弃和计划变更采纳。
+    </p>
+
+    <div class="module">
+      <h2>仿真槽位</h2>
+      <form method="get">
+        <div class="form-row">
+          <label for="id_world_id">当前槽位：</label>
+          <select id="id_world_id" name="world_id" onchange="this.form.submit()">
+            {% for world in simulation_worlds %}
+              <option value="{{ world.world_id }}" {% if selected_world and world.world_id == selected_world.world_id %}selected{% endif %}>
+                {{ world.world_id }} - {{ world.name }}
+              </option>
+            {% empty %}
+              <option value="">暂无仿真世界</option>
+            {% endfor %}
+          </select>
+          <div class="help">
+            当前阶段一个仿真槽位即可反复使用；每轮结束后必须归档或废弃，再启动下一轮。
+          </div>
+        </div>
+      </form>
+
+      {% if selected_world %}
+        <table>
+          <tbody>
+            <tr><th scope="row">世界ID</th><td>{{ selected_world.world_id }}</td></tr>
+            <tr><th scope="row">数据库别名</th><td>{{ selected_world.database_alias }}</td></tr>
+            <tr><th scope="row">数据库名称</th><td>{{ selected_world.database_name }}</td></tr>
+            <tr>
+              <th scope="row">当前运行</th>
+              <td>
+                {% if active_zero_start_run %}
+                  {{ active_zero_start_run.run_id }} / {{ active_zero_start_run.get_status_display }}
+                  <br>
+                  <a href="{% url 'simulation-lab-run-detail' active_zero_start_run.run_id %}?world_id={{ selected_world.world_id }}">查看运行详情</a>
+                {% elif can_start_simulation %}
+                  当前没有运行中的零起点仿真，可以启动下一轮。
+                {% else %}
+                  存在已结束但未处置的仿真运行，必须先归档或废弃
+                {% endif %}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      {% endif %}
+    </div>
+
+    <div class="module">
+      <h2>运行控制</h2>
+      {% if active_zero_start_run %}
+        <form method="post" action="{% url 'simulation-lab-run-until-failure' %}" onsubmit="return confirm('确认继续推进当前零起点仿真 {{ active_zero_start_run.run_id }} 吗？');">
+          {% csrf_token %}
+          {% if selected_world %}<input type="hidden" name="world_id" value="{{ selected_world.world_id }}">{% endif %}
+          <fieldset class="module aligned">
+            <div class="form-row">
+              <label for="id_hours">继续推进小时数：</label>
+              <input id="id_hours" type="number" name="hours" value="{{ sync_simulation_max_hours }}" min="1" max="{{ sync_simulation_max_hours }}">
+              <div class="help">继续写入同一个 run，不新建第二条运行。网页单次最多推进 {{ sync_simulation_max_hours }} 个虚拟小时，长周期仿真请分多次继续。</div>
+            </div>
+          </fieldset>
+          <div class="submit-row">
+            <input class="default" type="submit" value="继续当前仿真">
+          </div>
+        </form>
+
+        <form method="post" action="{% url 'simulation-lab-abort-run' active_zero_start_run.run_id %}">
+          {% csrf_token %}
+          {% if selected_world %}<input type="hidden" name="world_id" value="{{ selected_world.world_id }}">{% endif %}
+          <div class="form-row">
+            <label for="id_abort_reason">中止原因：</label>
+            <input id="id_abort_reason" type="text" name="reason" required>
+            <div class="help">确认这轮模型、参数或输入条件没有继续价值时再中止。中止后才能归档或废弃。</div>
+          </div>
+          <div class="submit-row">
+            <input type="submit" value="中止当前仿真">
+          </div>
+        </form>
+      {% else %}
+        <form method="post" action="{% url 'simulation-lab-run-until-failure' %}" onsubmit="return confirm('确认启动新的零起点仿真吗？');">
+          {% csrf_token %}
+          {% if selected_world %}<input type="hidden" name="world_id" value="{{ selected_world.world_id }}">{% endif %}
+          <fieldset class="module aligned">
+            <div class="form-row">
+              <label for="id_hours_new">虚拟小时数：</label>
+              <input id="id_hours_new" type="number" name="hours" value="{{ sync_simulation_max_hours }}" min="1" max="{{ sync_simulation_max_hours }}">
+              <div class="help">从真正的零起点开始推进网络报名和筛选流程。网页单次最多推进 {{ sync_simulation_max_hours }} 个虚拟小时，未达启动门槛时可继续推进。</div>
+            </div>
+          </fieldset>
+          <div class="submit-row">
+            <input class="default" type="submit" value="启动零起点仿真" {% if not can_start_simulation %}disabled{% endif %}>
+          </div>
+        </form>
+      {% endif %}
+    </div>
+
+    {% if unresolved_runs %}
+      <div class="module">
+        <h2>待处置仿真运行</h2>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">运行</th>
+              <th scope="col">状态</th>
+              <th scope="col">失败摘要</th>
+              <th scope="col">审阅</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for run in unresolved_runs %}
+              <tr class="{% cycle 'row1' 'row2' %}">
+                <th scope="row">{{ run.run_id }}</th>
+                <td>{{ run.status }}</td>
+                <td>{{ run.failure_summary|default:"-" }}</td>
+                <td>
+                  <a href="{% url 'simulation-lab-run-detail' run.run_id %}{% if selected_world %}?world_id={{ selected_world.world_id }}{% endif %}">查看详情并处置</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+    <div class="module">
+      <h2>仿真写库边界自检（待遗弃功能）</h2>
+      <div class="form-row">
+        <form method="post" action="{% url 'simulation-lab-advance' %}">
+          {% csrf_token %}
+          <p class="help">这是旧的开发自检入口，不是仿真推进功能。它只验证未绑定 simulation world/run 时，仿真代码不能默认写入真实世界数据；未来若删除，应连同 URL、view 和对应页面测试一起删除。</p>
+          <div class="submit-row">
+            <input type="submit" value="执行边界自检">
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+{% endblock %}

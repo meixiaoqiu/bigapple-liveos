@@ -1,0 +1,22 @@
+<div class="grid gap-3">
+  {% for event in dashboard_context.events %}
+    <article class="card border border-base-300 bg-base-100">
+      <div class="card-body gap-2 p-4">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="badge {% if event.level == 'urgent' or event.level == 'high' %}badge-error{% elif event.level == 'medium' %}badge-warning{% elif event.level == 'notice' %}badge-accent{% else %}badge-info{% endif %} badge-outline">
+            {{ event.level }}
+          </span>
+          <span class="text-sm text-base-content/60">{{ event.time }}</span>
+        </div>
+        <h3 class="font-bold">{{ event.title }}</h3>
+        <p class="text-sm text-base-content/70">{{ event.summary }}</p>
+        <div class="flex flex-wrap gap-2">
+          {% if event.location %}<span class="badge badge-ghost">{{ event.location }}</span>{% endif %}
+          {% if event.heat %}<span class="badge badge-ghost">{{ event.heat }}</span>{% endif %}
+        </div>
+      </div>
+    </article>
+  {% empty %}
+    <div class="alert">暂无事件</div>
+  {% endfor %}
+</div>

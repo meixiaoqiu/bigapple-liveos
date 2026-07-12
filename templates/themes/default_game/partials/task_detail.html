@@ -1,0 +1,31 @@
+{% with task=dashboard_context.task_detail %}
+  {% if task %}
+    <article class="card border border-base-300 bg-base-100">
+      <div class="card-body gap-3 p-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 class="card-title">{{ task.title }}</h3>
+            <p class="text-sm text-base-content/70">{{ task.chapter_title }} / {{ task.map_point_label }}</p>
+          </div>
+          <span class="badge badge-outline">{{ task.status }}</span>
+        </div>
+        <p>{{ task.description }}</p>
+        <div class="grid gap-3 md:grid-cols-2">
+          <div class="alert alert-info">
+            <span>现实行动：{{ task.real_world_action }}</span>
+          </div>
+          <div class="alert alert-success">
+            <span>游戏化表现：{{ task.game_expression }}</span>
+          </div>
+        </div>
+        {% if task.unlock_condition %}
+          <div class="alert alert-warning">
+            <span>解锁条件：{{ task.unlock_condition }}</span>
+          </div>
+        {% endif %}
+      </div>
+    </article>
+  {% else %}
+    <div class="alert">任务详情还在整理</div>
+  {% endif %}
+{% endwith %}

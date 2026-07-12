@@ -1,0 +1,21 @@
+services:
+  web:
+    image: big-apple-live-os-dev:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: big-apple-live-os-dev-web
+    env_file:
+      - .env.dev
+    working_dir: /app
+    command: python manage.py runserver 0.0.0.0:20100
+    volumes:
+      - .:/app
+    ports:
+      - "127.0.0.1:20100:20100"
+    networks:
+      - big-apple-live-os-dev-net
+
+networks:
+  big-apple-live-os-dev-net:
+    name: big-apple-live-os-dev-net

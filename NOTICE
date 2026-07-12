@@ -1,0 +1,14 @@
+Big Apple Live OS
+
+本仓库的项目自有代码和文档默认按 `AGPL-3.0-or-later` 发布，除非单个文件另有说明。完整许可证正文见 `LICENSE`。
+
+`AGPL-3.0-or-later` 表示 GNU Affero General Public License v3.0 或 Free Software Foundation 发布的任何后续版本。
+
+第三方声明：
+
+- Python 和 npm 依赖通过 `pyproject.toml`、`theme/static_src/package.json` 和 lock file 管理，依赖按其各自许可证发布。
+- `theme/static/js/dist/lucide.min.js` 由 `lucide` npm 包生成，该包使用 ISC License。
+- `theme/static/css/dist/styles.css` 包含 Tailwind CSS、daisyUI、PostCSS 等前端构建产物；相关依赖按其各自许可证发布。
+- `static/themes/` 下的主题图片和 SVG 文件默认为本原型的项目资产，除非资产旁另有更具体的归属说明。
+
+`.env`、密钥、私有 token、生成缓存、数据库导出、生产日志和 `output/` 产物被有意排除在仓库之外。

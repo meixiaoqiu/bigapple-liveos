@@ -1,0 +1,160 @@
+{% extends "themes/default_game/base.html" %}
+{% load world_urls %}
+
+{% block title %}{{ report.headline }}{% endblock %}
+
+{% block body %}
+  <div class="min-h-screen">
+    <div class="navbar bg-base-100 shadow-sm">
+      <div class="navbar-start">
+        <div class="px-2">
+          <p class="text-sm text-base-content/70">仿真报告</p>
+          <h1 class="text-xl font-bold tracking-normal">{{ report.headline }}</h1>
+        </div>
+      </div>
+      <div class="navbar-end gap-2">
+        <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-simulation-reports' %}">仿真档案馆</a>
+        <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-page' %}">观察台</a>
+      </div>
+    </div>
+
+    <main class="mx-auto grid max-w-7xl gap-6 p-4 lg:p-6">
+      <section class="card bg-base-100 shadow">
+        <div class="card-body">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p class="text-sm text-base-content/60">{{ report.snapshot.source_world_id }} / {{ report.snapshot.source_run_id }}</p>
+              <h2 class="card-title text-3xl">{{ report.headline }}</h2>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <span class="badge badge-outline">{{ report.snapshot.run_status }}</span>
+              {% if report.snapshot.failure_type %}
+                <span class="badge badge-warning">{{ report.snapshot.failure_type }}</span>
+              {% endif %}
+            </div>
+          </div>
+          <p class="text-lg text-base-content/80">{{ report.conclusion }}</p>
+        </div>
+      </section>
+
+      <section class="grid gap-4 md:grid-cols-4">
+        <div class="stat rounded-box bg-base-100 shadow">
+          <div class="stat-title">推演步数</div>
+          <div class="stat-value text-primary">{{ report.counts.turns|default:0 }}</div>
+          <div class="stat-desc">标准化推演日志</div>
+        </div>
+        <div class="stat rounded-box bg-base-100 shadow">
+          <div class="stat-title">事件</div>
+          <div class="stat-value text-primary">{{ report.counts.events|default:0 }}</div>
+          <div class="stat-desc">公开可追溯事件</div>
+        </div>
+        <div class="stat rounded-box bg-base-100 shadow">
+          <div class="stat-title">失败</div>
+          <div class="stat-value text-primary">{{ report.counts.failures|default:0 }}</div>
+          <div class="stat-desc">阻断性发现</div>
+        </div>
+        <div class="stat rounded-box bg-base-100 shadow">
+          <div class="stat-title">变更</div>
+          <div class="stat-value text-primary">{{ report.counts.change_operations|default:0 }}</div>
+          <div class="stat-desc">计划修订操作</div>
+        </div>
+      </section>
+
+      <section class="grid gap-6 lg:grid-cols-3">
+        <div class="card bg-base-100 shadow">
+          <div class="card-body">
+            <h2 class="card-title">关键发现</h2>
+            <ul class="list-disc space-y-2 pl-5 text-base-content/80">
+              {% for finding in report.key_findings %}
+                <li>{{ finding }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+
+        <div class="card bg-base-100 shadow">
+          <div class="card-body">
+            <h2 class="card-title">修订方向</h2>
+            <ul class="list-disc space-y-2 pl-5 text-base-content/80">
+              {% for improvement in report.improvements %}
+                <li>{{ improvement }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+
+        <div class="card bg-base-100 shadow">
+          <div class="card-body">
+            <h2 class="card-title">仍需回答</h2>
+            <ul class="list-disc space-y-2 pl-5 text-base-content/80">
+              {% for question in report.unresolved_questions %}
+                <li>{{ question }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="card bg-base-100 shadow">
+        <div class="card-body">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="card-title">可追溯时间线</h2>
+            <span class="badge badge-outline">来自归档快照标准化索引</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="table table-zebra">
+              <thead>
+                <tr>
+                  <th>序号</th>
+                  <th>类型</th>
+                  <th>标题</th>
+                  <th>摘要</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in report.timeline %}
+                  <tr>
+                    <td>{{ row.order }}</td>
+                    <td><span class="badge badge-outline">{{ row.type }}</span></td>
+                    <td>
+                      <div class="font-medium">{{ row.title }}</div>
+                      <div class="text-xs text-base-content/60">{{ row.source }}</div>
+                    </td>
+                    <td>{{ row.summary|truncatechars:220 }}</td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="4">暂无公开时间线明细。</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="card bg-base-100 shadow">
+        <div class="card-body">
+          <h2 class="card-title">证据边界</h2>
+          <div class="grid gap-3 md:grid-cols-3">
+            <div class="rounded-box bg-base-200 p-4">
+              <h3 class="font-semibold">快照编号</h3>
+              <p class="mt-1 break-all text-sm text-base-content/70">{{ report.snapshot.snapshot_id }}</p>
+            </div>
+            <div class="rounded-box bg-base-200 p-4">
+              <h3 class="font-semibold">归档时间</h3>
+              <p class="mt-1 text-sm text-base-content/70">{{ report.snapshot.archived_at|date:"Y-m-d H:i" }}</p>
+            </div>
+            <div class="rounded-box bg-base-200 p-4">
+              <h3 class="font-semibold">原始归档哈希</h3>
+              <p class="mt-1 break-all text-sm text-base-content/70">{{ report.short_hash|default:"-" }}</p>
+            </div>
+          </div>
+          <div class="alert alert-info mt-4">
+            <span>公开页面展示的是可读报告和标准化索引；内部 raw 归档包用于校验和复盘，不直接公开成员隐私、数据库路径或内部备注。</span>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+{% endblock %}

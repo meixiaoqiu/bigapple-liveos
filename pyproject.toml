@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "big-apple-live-os"
+version = "0.1.0"
+description = "Big Apple Live OS prototype implementing the v0.1 contracts."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "AGPL-3.0-or-later"
+dependencies = [
+  "Django>=5.0,<6.0",
+  "django-htmx>=1.27,<2.0",
+  "django-tailwind>=4.2,<5.0"
+]
+
+[project.optional-dependencies]
+mysql = [
+  "mysqlclient>=2.2,<3.0"
+]
+dev = [
+  "pytest>=8.0,<9.0",
+  "pytest-django>=4.8,<5.0"
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "live_os.test_settings"
+python_files = ["test_*.py", "*_test.py"]
+
+[tool.setuptools.packages.find]
+include = [
+  "applications*",
+  "core*",
+  "live_os*",
+  "observer*",
+  "simulation*",
+  "simulation_lab*",
+  "theme*",
+  "workspace*",
+  "worlds*"
+]

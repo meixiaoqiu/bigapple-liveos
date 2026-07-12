@@ -1,0 +1,14 @@
+{% load tailwind_tags django_htmx %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="{{ daisy_theme|default:'light' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}大苹果观察台{% endblock %}</title>
+  {% tailwind_css %}
+  {% htmx_script %}
+</head>
+<body class="min-h-screen bg-base-200 text-base-content" hx-headers='{"x-csrftoken": "{{ csrf_token }}"}'>
+  {% block body %}{% endblock %}
+</body>
+</html>

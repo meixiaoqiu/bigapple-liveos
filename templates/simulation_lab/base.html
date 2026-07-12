@@ -1,0 +1,9 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">首页</a>
+    &rsaquo; {% block lab_breadcrumbs %}仿真实验后台{% endblock %}
+  </div>
+{% endblock %}
+

@@ -1,0 +1,14 @@
+{% if dashboard_context.photos %}
+  <div class="grid gap-3">
+    {% for photo in dashboard_context.photos %}
+      <article class="card border border-base-300 bg-base-100">
+        <div class="card-body gap-2 p-4">
+          <h3 class="font-bold">{{ photo.title }}</h3>
+          <p class="text-sm text-base-content/70">{{ photo.summary }}</p>
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="alert">照片故事还在整理</div>
+{% endif %}

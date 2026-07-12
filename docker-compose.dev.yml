@@ -1,0 +1,55 @@
+services:
+  big-apple-admin:
+    image: big-apple-live-os:dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: big-apple-admin
+    env_file:
+      - .env
+    working_dir: /app
+    command: python manage.py runserver 0.0.0.0:20100 --settings=live_os.settings_admin
+    volumes:
+      - .:/app
+    ports:
+      - "127.0.0.1:20100:20100"
+    networks:
+      - dev-net
+
+  big-apple-real:
+    image: big-apple-live-os:dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: big-apple-real
+    env_file:
+      - .env
+    working_dir: /app
+    command: python manage.py runserver 0.0.0.0:20101 --settings=live_os.settings_real
+    volumes:
+      - .:/app
+    ports:
+      - "127.0.0.1:20101:20101"
+    networks:
+      - dev-net
+
+  big-apple-sim:
+    image: big-apple-live-os:dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: big-apple-sim
+    env_file:
+      - .env
+    working_dir: /app
+    command: python manage.py runserver 0.0.0.0:20102 --settings=live_os.settings_sim
+    volumes:
+      - .:/app
+    ports:
+      - "127.0.0.1:20102:20102"
+    networks:
+      - dev-net
+
+networks:
+  dev-net:
+    external: true

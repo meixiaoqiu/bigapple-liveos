@@ -1,0 +1,17 @@
+<div class="grid gap-4">
+  <progress class="progress progress-primary w-full" value="{{ dashboard_context.capacity.percent }}" max="100"></progress>
+  <div class="grid gap-2 text-sm">
+    <div class="flex justify-between gap-3">
+      <span>当前容量</span>
+      <strong>{{ dashboard_context.capacity.current }} / {{ dashboard_context.capacity.total }}</strong>
+    </div>
+    <div class="flex justify-between gap-3">
+      <span>安全阈值</span>
+      <strong>{{ dashboard_context.capacity.safe_label|default:"< 85%" }}</strong>
+    </div>
+    <div class="flex justify-between gap-3">
+      <span>剩余容量</span>
+      <strong>{{ dashboard_context.capacity.remaining }}</strong>
+    </div>
+  </div>
+</div>

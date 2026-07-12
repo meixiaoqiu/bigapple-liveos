@@ -1,0 +1,140 @@
+{% extends "themes/default_game/base.html" %}
+{% load world_urls %}
+
+{% block title %}大苹果观察台{% endblock %}
+
+{% block body %}
+  {% with dashboard=dashboard_context %}
+    <div class="min-h-screen">
+      <div class="navbar bg-base-100 shadow-sm">
+        <div class="navbar-start">
+          <div class="px-2">
+            <h1 class="text-xl font-bold tracking-normal">{{ dashboard.hero.title }}</h1>
+            <p class="text-sm text-base-content/70">{{ dashboard.hero.subtitle }}</p>
+          </div>
+        </div>
+        <div class="navbar-end gap-2">
+          <span class="badge {% if dashboard.hero.status_level == 'risk' %}badge-error{% elif dashboard.hero.status_level == 'watch' %}badge-warning{% else %}badge-success{% endif %}">
+            {{ dashboard.hero.status_label }}
+          </span>
+          <form action="{% world_url 'switch-theme' %}" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <select class="select select-bordered select-sm" name="theme" aria-label="切换主题" onchange="this.form.submit()">
+              {% for theme in available_themes %}
+                <option value="{{ theme.key }}" {% if theme.key == active_theme %}selected{% endif %}>{{ theme.name }}</option>
+              {% endfor %}
+            </select>
+          </form>
+          <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-page' %}">刷新</a>
+          <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-simulation-reports' %}">仿真档案馆</a>
+          <a class="btn btn-sm btn-ghost" href="{% world_url 'world-observer-summary' %}">数据日志</a>
+        </div>
+      </div>
+
+      {% if messages %}
+        <section class="mx-auto grid max-w-7xl gap-2 p-4" aria-label="系统消息">
+          {% for message in messages %}
+            <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-error{% else %}alert-info{% endif %}">
+              <span>{{ message }}</span>
+            </div>
+          {% endfor %}
+        </section>
+      {% endif %}
+
+      <main class="mx-auto grid max-w-7xl gap-6 p-4 lg:p-6">
+        <section class="stats stats-vertical bg-base-100 shadow md:stats-horizontal" aria-label="核心指标">
+          {% for stat in dashboard.stats %}
+            <div class="stat">
+              <div class="stat-title">{{ stat.label }}</div>
+              <div class="stat-value text-primary">{{ stat.value }}</div>
+              <div class="stat-desc">{{ stat.trend }}</div>
+            </div>
+          {% empty %}
+            <div class="stat">
+              <div class="stat-title">核心指标</div>
+              <div class="stat-value">0</div>
+              <div class="stat-desc">暂无可展示数据</div>
+            </div>
+          {% endfor %}
+        </section>
+
+        <section class="grid gap-6 lg:grid-cols-3">
+          <div class="card bg-base-100 shadow lg:col-span-2">
+            <div class="card-body">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <h2 class="card-title">任务与提案线索</h2>
+                <span class="badge badge-outline">{{ dashboard.missions|length }} 项</span>
+              </div>
+              <div id="dashboard-missions" hx-get="{% world_url 'dashboard-missions-partial' %}" hx-trigger="every 30s" hx-swap="innerHTML">
+                {% include "themes/default_game/partials/mission_list.html" %}
+              </div>
+            </div>
+          </div>
+
+          <div class="card bg-base-100 shadow">
+            <div class="card-body">
+              <h2 class="card-title">容量评估</h2>
+              {% include "themes/default_game/partials/capacity_panel.html" %}
+            </div>
+          </div>
+        </section>
+
+        <section class="grid gap-6 lg:grid-cols-2">
+          <div class="card bg-base-100 shadow">
+            <div class="card-body">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <h2 class="card-title">事件时间线</h2>
+                <span class="badge badge-outline">{{ dashboard.events|length }} 条</span>
+              </div>
+              <div id="dashboard-events" hx-get="{% world_url 'dashboard-events-partial' %}" hx-trigger="every 30s" hx-swap="innerHTML">
+                {% include "themes/default_game/partials/event_feed.html" %}
+              </div>
+            </div>
+          </div>
+
+          <div class="card bg-base-100 shadow">
+            <div class="card-body">
+              <h2 class="card-title">当前风险总览</h2>
+              {% include "themes/default_game/partials/risk_panel.html" %}
+            </div>
+          </div>
+        </section>
+
+        <section class="grid gap-6 lg:grid-cols-2">
+          <div class="card bg-base-100 shadow">
+            <div class="card-body">
+              <h2 class="card-title">地点与线索</h2>
+              <div id="dashboard-map-points" hx-get="{% world_url 'dashboard-map-points-partial' %}" hx-trigger="every 60s" hx-swap="innerHTML">
+                {% include "themes/default_game/partials/map_points.html" %}
+              </div>
+            </div>
+          </div>
+
+          <div class="card bg-base-100 shadow">
+            <div class="card-body">
+              <h2 class="card-title">成员进度</h2>
+              <div class="grid gap-3">
+                <progress class="progress progress-primary w-full" value="{{ dashboard.user_progress.xp }}" max="{{ dashboard.user_progress.xp_next }}"></progress>
+                <div class="grid gap-2 sm:grid-cols-3">
+                  <div class="stat bg-base-200">
+                    <div class="stat-title">等级</div>
+                    <div class="stat-value text-primary">Lv.{{ dashboard.user_progress.level }}</div>
+                  </div>
+                  <div class="stat bg-base-200">
+                    <div class="stat-title">积分</div>
+                    <div class="stat-value">{{ dashboard.user_progress.points }}</div>
+                  </div>
+                  <div class="stat bg-base-200">
+                    <div class="stat-title">徽章</div>
+                    <div class="stat-value">{{ dashboard.user_progress.badges_count }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  {% endwith %}
+{% endblock %}

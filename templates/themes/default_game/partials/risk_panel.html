@@ -1,0 +1,86 @@
+<div class="grid gap-4">
+  <div class="stats stats-vertical bg-base-200 shadow-sm sm:stats-horizontal">
+    <div class="stat">
+      <div class="stat-title">高风险</div>
+      <div class="stat-value text-error">{{ dashboard_context.risk_summary.high }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">中风险</div>
+      <div class="stat-value text-warning">{{ dashboard_context.risk_summary.medium }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">低风险</div>
+      <div class="stat-value text-info">{{ dashboard_context.risk_summary.low }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">已处理</div>
+      <div class="stat-value text-success">{{ dashboard_context.risk_summary.resolved }}</div>
+    </div>
+  </div>
+  {% if dashboard_context.simulation_failures %}
+    <div class="grid gap-3">
+      <h3 class="font-semibold">仿真失败核心原因</h3>
+      {% for failure in dashboard_context.simulation_failures %}
+        <article class="card border border-error/30 bg-base-100">
+          <div class="card-body gap-3 p-4">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div class="text-sm text-base-content/60">失败节点：{{ failure.node }}</div>
+                <h4 class="font-bold">{{ failure.title }}</h4>
+              </div>
+              <span class="badge badge-error badge-outline">失败类型：{{ failure.type }}</span>
+            </div>
+            <p class="text-sm text-base-content/80">{{ failure.description }}</p>
+            {% if failure.missing_closures %}
+              <div>
+                <div class="mb-2 text-sm font-semibold">缺失责任闭环</div>
+                <ul class="grid gap-2">
+                  {% for closure in failure.missing_closures %}
+                    <li class="flex flex-wrap items-center justify-between gap-2 rounded-box bg-base-200 px-3 py-2 text-sm">
+                      <span>{{ closure.label }}</span>
+                      <span class="badge badge-warning">{{ closure.status }}</span>
+                    </li>
+                  {% endfor %}
+                </ul>
+              </div>
+            {% endif %}
+            {% if failure.cannot_continue_reasons %}
+              <div>
+                <div class="mb-2 text-sm font-semibold">当前不能继续的原因</div>
+                <ul class="list-disc space-y-1 pl-5 text-sm text-base-content/80">
+                  {% for reason in failure.cannot_continue_reasons %}
+                    <li>{{ reason }}</li>
+                  {% endfor %}
+                </ul>
+              </div>
+            {% endif %}
+            {% if failure.recommended_actions %}
+              <div>
+                <div class="mb-2 text-sm font-semibold">建议动作</div>
+                <ul class="list-disc space-y-1 pl-5 text-sm text-base-content/80">
+                  {% for action in failure.recommended_actions %}
+                    <li>{{ action }}</li>
+                  {% endfor %}
+                </ul>
+              </div>
+            {% endif %}
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% if dashboard_context.role_pressure %}
+    <div class="grid gap-3">
+      <h3 class="font-semibold">高负载角色</h3>
+      {% for role in dashboard_context.role_pressure %}
+        <div>
+          <div class="mb-1 flex justify-between gap-3 text-sm">
+            <span>{{ role.name }}</span>
+            <strong>{{ role.value }}%</strong>
+          </div>
+          <progress class="progress progress-warning w-full" value="{{ role.value }}" max="100"></progress>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>

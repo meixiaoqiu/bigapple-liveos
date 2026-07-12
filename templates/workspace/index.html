@@ -1,0 +1,420 @@
+{% load tailwind_tags world_urls %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="bumblebee">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>成员工作台 · {{ member.member_no }}</title>
+  {% tailwind_css %}
+</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+  <main class="mx-auto grid w-full max-w-7xl gap-6 p-4 lg:p-8">
+    <header class="card bg-primary text-primary-content shadow-xl">
+      <div class="card-body gap-4">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div class="text-sm opacity-80">
+              {% if request.world %}当前世界：{{ request.world.world_id }}{% else %}当前世界{% endif %}
+            </div>
+            <h1 class="text-3xl font-bold tracking-normal">成员工作台</h1>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <span class="badge badge-primary-content badge-outline">{{ member.member_no }}</span>
+              <span class="badge badge-primary-content badge-outline">{{ member.active_roles_display|default:"暂无角色" }}</span>
+              <span class="badge badge-primary-content badge-outline">模拟第 {{ simulation_day }} 天</span>
+            </div>
+          </div>
+          <nav class="flex flex-wrap justify-end gap-2" aria-label="成员工作台导航">
+            <a class="btn btn-sm" href="{% world_url 'observer-page' %}">观察台</a>
+            <form method="post" action="{% world_url 'world-logout' %}">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline border-primary-content text-primary-content hover:border-base-100 hover:bg-base-100 hover:text-primary" type="submit">退出</button>
+            </form>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    {% if messages %}
+      <section class="grid gap-2" aria-label="操作结果">
+        {% for message in messages %}
+          <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-error{% else %}alert-info{% endif %}">
+            <span>{{ message }}</span>
+          </div>
+        {% endfor %}
+      </section>
+    {% endif %}
+
+    <section class="stats stats-vertical bg-base-100 shadow md:stats-horizontal" aria-label="成员核心状态">
+      <div class="stat">
+        <div class="stat-title">成员状态</div>
+        <div class="stat-value text-primary">{{ member.get_status_display }}</div>
+        <div class="stat-desc">{{ member.active_roles_display|default:"暂无角色" }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">当前积分</div>
+        <div class="stat-value">{{ credit_balance }}</div>
+        <div class="stat-desc">积分下限 {{ member.credit_floor }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">可领取任务</div>
+        <div class="stat-value text-info">{{ available_tasks|length }}</div>
+        <div class="stat-desc">开放状态任务</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">资源预警</div>
+        <div class="stat-value text-warning">{{ resource_warnings|length }}</div>
+        <div class="stat-desc">低于预警线</div>
+      </div>
+    </section>
+
+    <section class="card bg-base-100 shadow">
+      <div class="card-body">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="card-title">下一步动作</h2>
+          <span class="badge badge-outline">{{ next_action_rows|length }} 项</span>
+        </div>
+        <div class="grid gap-3 md:grid-cols-3">
+          {% for action in next_action_rows %}
+            <article class="card border border-base-300 bg-base-100">
+              <div class="card-body gap-2 p-4">
+                <div>
+                  <span class="badge {% if action.value == 'check_resource_warning' or action.value == 'review_dispute' %}badge-warning{% elif action.value == 'no_action' %}badge-success{% else %}badge-info{% endif %} badge-outline">
+                    {{ action.label }}
+                  </span>
+                </div>
+                <p class="text-sm leading-6 text-base-content/70">
+                  {% if action.value == "claim_task" %}
+                    查看开放任务并选择合适任务领取。
+                  {% elif action.value == "submit_labor" %}
+                    已领取任务需要提交劳动说明和证据。
+                  {% elif action.value == "wait_for_review" %}
+                    已提交任务正在等待验收。
+                  {% elif action.value == "review_dispute" %}
+                    有未关闭申诉需要查看处理进展。
+                  {% elif action.value == "check_resource_warning" %}
+                    当前存在资源低于预警线。
+                  {% else %}
+                    当前没有需要立即处理的动作。
+                  {% endif %}
+                </p>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="card bg-base-100 shadow">
+      <div class="card-body">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="card-title">个人任务历史</h2>
+          <span class="badge badge-outline">{{ task_history|length }} 条</span>
+        </div>
+        {% if task_history %}
+          <div class="overflow-x-auto">
+            <table class="table table-zebra">
+              <thead>
+                <tr>
+                  <th>任务</th>
+                  <th>结果</th>
+                  <th>提交</th>
+                  <th>验收</th>
+                  <th>说明</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for task in task_history %}
+                  <tr>
+                    <td>
+                      <div class="font-medium">{{ task.title }}</div>
+                      <div class="text-xs text-base-content/60">{{ task.task_id }}</div>
+                    </td>
+                    <td>
+                      <span class="badge {% if task.status == 'accepted' %}badge-success{% elif task.status == 'rejected' or task.status == 'reversed' %}badge-error{% else %}badge-warning{% endif %} badge-outline">
+                        {{ task.get_status_display }}
+                      </span>
+                    </td>
+                    <td>{% if task.submitted_at %}{{ task.submitted_at|date:"Y-m-d H:i" }}{% else %}未记录{% endif %}</td>
+                    <td>{% if task.reviewed_at %}{{ task.reviewed_at|date:"Y-m-d H:i" }}{% else %}未记录{% endif %}</td>
+                    <td>
+                      {% if task.metadata.labor_note %}
+                        {{ task.metadata.labor_note }}
+                      {% elif task.metadata.review_reason %}
+                        {{ task.metadata.review_reason }}
+                      {% else %}
+                        暂无说明
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="alert">暂无已结束任务</div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="grid gap-6 lg:grid-cols-2">
+      <div class="card bg-base-100 shadow">
+        <div class="card-body">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="card-title">当前任务</h2>
+            <span class="badge badge-outline">{{ active_tasks|length }} 个</span>
+          </div>
+          {% if active_tasks %}
+            <div class="overflow-x-auto">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>任务</th>
+                    <th>状态</th>
+                    <th>截止</th>
+                    <th>积分</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for task in active_tasks %}
+                    <tr>
+                      <td>
+                        <div class="font-medium">{{ task.title }}</div>
+                        <div class="text-xs text-base-content/60">{{ task.task_id }}</div>
+                      </td>
+                      <td><span class="badge badge-warning badge-outline">{{ task.get_status_display }}</span></td>
+                      <td>{% if task.due_at %}{{ task.due_at|date:"Y-m-d H:i" }}{% else %}未设置{% endif %}</td>
+                      <td>{{ task.base_points }}</td>
+                    </tr>
+                    {% if task.status == "claimed" or task.status == "in_progress" %}
+                      <tr>
+                        <td colspan="4">
+                          <form class="grid gap-3 rounded-box border border-base-300 bg-base-200 p-4" method="post" action="{% world_url 'workspace-submit-labor' task.task_id %}">
+                            {% csrf_token %}
+                            <label class="form-control w-full">
+                              <div class="label"><span class="label-text">劳动说明</span></div>
+                              <textarea class="textarea textarea-bordered w-full" name="labor_note" required></textarea>
+                            </label>
+                            <label class="form-control w-full">
+                              <div class="label"><span class="label-text">证据引用</span></div>
+                              <textarea class="textarea textarea-bordered w-full" name="evidence_refs" placeholder="每行一个事件、图片或文档引用"></textarea>
+                            </label>
+                            <div>
+                              <button class="btn btn-primary" type="submit">提交劳动</button>
+                            </div>
+                          </form>
+                        </td>
+                      </tr>
+                    {% endif %}
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="alert">暂无当前任务</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card bg-base-100 shadow">
+        <div class="card-body">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="card-title">可领取任务</h2>
+            <span class="badge badge-outline">{{ available_tasks|length }} 个</span>
+          </div>
+          {% if available_tasks %}
+            <div class="grid gap-3">
+              {% for task in available_tasks %}
+                <article class="card border border-base-300 bg-base-100">
+                  <div class="card-body gap-3 p-4">
+                    <div>
+                      <h3 class="font-bold">{{ task.title }}</h3>
+                      <p class="text-sm text-base-content/70">{{ task.get_task_type_display }} · {{ task.base_points }} 分 · {{ task.standard_hours }} 小时</p>
+                      <p class="text-sm text-base-content/60">截止：{% if task.due_at %}{{ task.due_at|date:"Y-m-d H:i" }}{% else %}未设置{% endif %}</p>
+                    </div>
+                    <form method="post" action="{% world_url 'workspace-claim-task' task.task_id %}">
+                      {% csrf_token %}
+                      <button class="btn btn-outline btn-primary btn-sm" type="submit">领取任务</button>
+                    </form>
+                  </div>
+                </article>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="alert">暂无开放任务</div>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+
+    <section class="grid gap-6 lg:grid-cols-2">
+      <div class="card bg-base-100 shadow">
+        <div class="card-body">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="card-title">近期积分流水</h2>
+            <span class="badge badge-outline">{{ recent_ledger_entries|length }} 条</span>
+          </div>
+          {% if recent_ledger_entries %}
+            <div class="overflow-x-auto">
+              <table class="table table-zebra">
+                <thead>
+                  <tr>
+                    <th>序号</th>
+                    <th>变化</th>
+                    <th>类型</th>
+                    <th>原因</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for entry in recent_ledger_entries %}
+                    <tr>
+                      <td>{{ entry.immutable_sequence }}</td>
+                      <td><span class="font-mono">{{ entry.amount }}</span></td>
+                      <td>{{ entry.get_entry_type_display }}</td>
+                      <td>{{ entry.reason }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="alert">暂无积分流水</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card bg-base-100 shadow">
+        <div class="card-body">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="card-title">资源预警</h2>
+            <span class="badge badge-outline">{{ resource_warnings|length }} 类</span>
+          </div>
+          {% if resource_warnings %}
+            <div class="grid gap-3">
+              {% for resource in resource_warnings %}
+                <article class="alert alert-warning">
+                  <div>
+                    <div class="font-bold">{{ resource.get_resource_type_display }}</div>
+                    <div>{{ resource.current_stock }} {{ resource.get_unit_display }}</div>
+                    <div class="text-sm">预警线：{{ resource.warning_threshold }} {{ resource.get_unit_display }}</div>
+                  </div>
+                </article>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="alert alert-success">暂无资源预警</div>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+
+    <section class="grid gap-6 lg:grid-cols-2">
+      <div class="card bg-base-100 shadow">
+        <div class="card-body">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="card-title">相关事件</h2>
+            <span class="badge badge-outline">{{ recent_events|length }} 条</span>
+          </div>
+          {% if recent_events %}
+            <div class="grid gap-3">
+              {% for event in recent_events %}
+                <article class="card border border-base-300 bg-base-100">
+                  <div class="card-body gap-2 p-4">
+                    <div>
+                      <span class="badge {% if event.severity == 'warning' %}badge-warning{% elif event.severity == 'critical' %}badge-error{% else %}badge-info{% endif %} badge-outline">
+                        {{ event.get_severity_display }}
+                      </span>
+                    </div>
+                    <h3 class="font-bold">{{ event.title }}</h3>
+                    <p class="text-sm text-base-content/70">{{ event.summary }}</p>
+                    <p class="text-xs text-base-content/60">第 {{ event.simulation_day }} 天 · {{ event.occurred_at|date:"Y-m-d H:i" }}</p>
+                  </div>
+                </article>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="alert">暂无相关事件</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card bg-base-100 shadow">
+        <div class="card-body">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="card-title">申诉状态</h2>
+            <span class="badge badge-outline">{{ dispute_history|length }} 条</span>
+          </div>
+          <form class="grid gap-3 rounded-box border border-base-300 bg-base-200 p-4" method="post" action="{% world_url 'workspace-create-dispute' %}">
+            {% csrf_token %}
+            <div class="grid gap-3 md:grid-cols-2">
+              <label class="form-control w-full">
+                <div class="label"><span class="label-text">申诉类型</span></div>
+                <select class="select select-bordered w-full" name="dispute_type" required>
+                  {% for option in dispute_type_options %}
+                    <option value="{{ option.value }}">{{ option.label }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label class="form-control w-full">
+                <div class="label"><span class="label-text">关联任务</span></div>
+                <select class="select select-bordered w-full" name="related_task_id">
+                  <option value="">不关联具体任务</option>
+                  {% for task in dispute_task_options %}
+                    <option value="{{ task.task_id }}">{{ task.title }} · {{ task.get_status_display }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+            </div>
+            <label class="form-control w-full">
+              <div class="label"><span class="label-text">事实陈述</span></div>
+              <textarea class="textarea textarea-bordered w-full" name="facts" required></textarea>
+            </label>
+            <label class="form-control w-full">
+              <div class="label"><span class="label-text">证据引用</span></div>
+              <textarea class="textarea textarea-bordered w-full" name="evidence_refs" placeholder="每行一个事件、图片或文档引用"></textarea>
+            </label>
+            <div>
+              <button class="btn btn-primary" type="submit">提交申诉</button>
+            </div>
+          </form>
+
+          {% if dispute_history %}
+            <div class="grid gap-3">
+              {% for dispute in dispute_history %}
+                <article class="card border border-base-300 bg-base-100">
+                  <div class="card-body gap-2 p-4">
+                    <div>
+                      <span class="badge {% if dispute.status == 'resolved' %}badge-success{% elif dispute.status == 'rejected' or dispute.status == 'reversed' %}badge-error{% else %}badge-warning{% endif %} badge-outline">
+                        {{ dispute.get_status_display }}
+                      </span>
+                    </div>
+                    <h3 class="font-bold">{{ dispute.get_dispute_type_display }} · {{ dispute.dispute_id }}</h3>
+                    <p class="text-sm text-base-content/70">{{ dispute.facts }}</p>
+                    <dl class="grid gap-1 text-sm text-base-content/70">
+                      <div><dt class="inline font-semibold text-base-content">提交：</dt><dd class="inline">{{ dispute.submitted_at|date:"Y-m-d H:i" }}</dd></div>
+                      {% if dispute.resolved_at %}
+                        <div><dt class="inline font-semibold text-base-content">关闭：</dt><dd class="inline">{{ dispute.resolved_at|date:"Y-m-d H:i" }}</dd></div>
+                      {% endif %}
+                      {% if dispute.related_task %}
+                        <div><dt class="inline font-semibold text-base-content">关联任务：</dt><dd class="inline">{{ dispute.related_task.title }} · {{ dispute.related_task.get_status_display }}</dd></div>
+                      {% endif %}
+                      {% if dispute.evidence_refs %}
+                        <div><dt class="inline font-semibold text-base-content">证据：</dt><dd class="inline">{{ dispute.evidence_refs|join:", " }}</dd></div>
+                      {% endif %}
+                      {% if dispute.resolution %}
+                        <div><dt class="inline font-semibold text-base-content">处理结果：</dt><dd class="inline">{{ dispute.resolution }}</dd></div>
+                      {% endif %}
+                      <div><dt class="inline font-semibold text-base-content">路径：</dt><dd class="inline">{{ dispute.appeal_path }}</dd></div>
+                    </dl>
+                  </div>
+                </article>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="alert">暂无申诉记录</div>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

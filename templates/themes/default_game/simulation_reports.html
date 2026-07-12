@@ -1,0 +1,123 @@
+{% extends "themes/default_game/base.html" %}
+{% load world_urls %}
+
+{% block title %}仿真档案馆{% endblock %}
+
+{% block body %}
+  <div class="min-h-screen">
+    <div class="navbar bg-base-100 shadow-sm">
+      <div class="navbar-start">
+        <div class="px-2">
+          <h1 class="text-xl font-bold tracking-normal">仿真档案馆</h1>
+          <p class="text-sm text-base-content/70">公开记录每一次推演、失败、修订和方案进步。</p>
+        </div>
+      </div>
+      <div class="navbar-end gap-2">
+        <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-page' %}">观察台</a>
+      </div>
+    </div>
+
+    <main class="mx-auto grid max-w-7xl gap-6 p-4 lg:p-6">
+      <section class="hero rounded-box bg-base-100 shadow">
+        <div class="hero-content max-w-5xl py-10 text-center">
+          <div>
+            <h2 class="text-4xl font-bold tracking-normal">把失败提前发生在仿真里</h2>
+            <p class="mx-auto mt-4 max-w-3xl text-base text-base-content/70">
+              这些档案不是宣传稿，而是每次推演留下的证据：我们从哪里开始，哪里失败，为什么失败，以及下一轮如何修正。
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid gap-4 md:grid-cols-3">
+        <div class="stat rounded-box bg-base-100 shadow">
+          <div class="stat-title">已归档推演</div>
+          <div class="stat-value text-primary">{{ reports|length }}</div>
+          <div class="stat-desc">每次快照都保留可校验证据</div>
+        </div>
+        <div class="stat rounded-box bg-base-100 shadow">
+          <div class="stat-title">公开目标</div>
+          <div class="stat-value text-lg">降低现实试错</div>
+          <div class="stat-desc">先在模拟中暴露风险</div>
+        </div>
+        <div class="stat rounded-box bg-base-100 shadow">
+          <div class="stat-title">当前阶段</div>
+          <div class="stat-value text-lg">持续修订</div>
+          <div class="stat-desc">每轮推演推动计划变清楚</div>
+        </div>
+      </section>
+
+      <section class="grid gap-4">
+        {% for report in reports %}
+          <article class="card bg-base-100 shadow">
+            <div class="card-body">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p class="text-sm text-base-content/60">{{ report.snapshot.source_world_id }} / {{ report.snapshot.source_run_id }}</p>
+                  <h2 class="card-title">{{ report.headline }}</h2>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <span class="badge badge-outline">{{ report.snapshot.run_status }}</span>
+                  {% if report.snapshot.failure_type %}
+                    <span class="badge badge-warning">{{ report.snapshot.failure_type }}</span>
+                  {% endif %}
+                </div>
+              </div>
+
+              <p class="text-base text-base-content/80">{{ report.conclusion }}</p>
+
+              <div class="grid gap-3 lg:grid-cols-3">
+                <div class="rounded-box bg-base-200 p-4">
+                  <h3 class="font-semibold">关键发现</h3>
+                  <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-base-content/75">
+                    {% for finding in report.key_findings|slice:":2" %}
+                      <li>{{ finding }}</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+                <div class="rounded-box bg-base-200 p-4">
+                  <h3 class="font-semibold">修订方向</h3>
+                  <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-base-content/75">
+                    {% for improvement in report.improvements|slice:":2" %}
+                      <li>{{ improvement }}</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+                <div class="rounded-box bg-base-200 p-4">
+                  <h3 class="font-semibold">可追溯信息</h3>
+                  <dl class="mt-2 grid gap-1 text-sm text-base-content/75">
+                    <div class="flex justify-between gap-3">
+                      <dt>归档时间</dt>
+                      <dd>{{ report.snapshot.archived_at|date:"Y-m-d H:i" }}</dd>
+                    </div>
+                    <div class="flex justify-between gap-3">
+                      <dt>快照</dt>
+                      <dd>{{ report.snapshot.snapshot_id }}</dd>
+                    </div>
+                    <div class="flex justify-between gap-3">
+                      <dt>哈希</dt>
+                      <dd>{{ report.short_hash|default:"-" }}</dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
+
+              <div class="card-actions justify-end">
+                <a class="btn btn-primary" href="{% world_url 'observer-simulation-report-detail' report.snapshot.snapshot_id %}">查看报告</a>
+              </div>
+            </div>
+          </article>
+        {% empty %}
+          <div class="hero rounded-box bg-base-100 shadow">
+            <div class="hero-content py-12 text-center">
+              <div>
+                <h2 class="text-2xl font-bold tracking-normal">还没有公开仿真档案</h2>
+                <p class="mt-2 text-base-content/70">完成一次仿真并归档后，这里会展示可公开追溯的推演报告。</p>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </section>
+    </main>
+  </div>
+{% endblock %}

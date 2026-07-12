@@ -1,0 +1,493 @@
+{% extends "simulation_lab/base.html" %}
+
+{% block lab_breadcrumbs %}
+  <a href="{% url 'simulation-lab-page' %}{% if world %}?world_id={{ world.world_id }}{% endif %}">仿真实验后台</a>
+  &rsaquo; 仿真运行详情
+  &rsaquo; {{ run.run_id }}
+{% endblock %}
+
+{% block object-tools %}
+  <ul class="object-tools">
+    <li><a href="{% url 'simulation-lab-page' %}{% if world %}?world_id={{ world.world_id }}{% endif %}">返回实验后台</a></li>
+  </ul>
+{% endblock %}
+
+{% block content %}
+  <div id="content-main">
+    <div class="module">
+      <h2>运行控制</h2>
+      {% if is_resolved %}
+        <p>该仿真运行已经归档或废弃，当前页面仅供复查。计划变更是否采纳由下方“计划变更处置”单独显示。</p>
+      {% elif can_abort %}
+        <p>该仿真运行仍可继续推进。如果已经确认本轮模型或参数没有继续价值，可以先中止本轮，再选择归档或废弃。</p>
+        <form method="post" action="{% url 'simulation-lab-run-until-failure' %}" onsubmit="return confirm('确认继续推进当前零起点仿真 {{ run.run_id }} 吗？');">
+          {% csrf_token %}
+          <input type="hidden" name="world_id" value="{{ world.world_id }}">
+          <div class="form-row">
+            <label for="id_detail_hours">继续推进小时数：</label>
+            <input id="id_detail_hours" type="number" name="hours" value="{{ sync_simulation_max_hours }}" min="1" max="{{ sync_simulation_max_hours }}">
+            <div class="help">继续写入当前零起点 run，不新建第二条运行。网页单次最多推进 {{ sync_simulation_max_hours }} 个虚拟小时，长周期仿真请分多次继续。</div>
+          </div>
+          <div class="submit-row">
+            <input class="default" type="submit" value="继续当前仿真">
+          </div>
+        </form>
+        <form method="post" action="{% url 'simulation-lab-abort-run' run.run_id %}">
+          {% csrf_token %}
+          <input type="hidden" name="world_id" value="{{ world.world_id }}">
+          <div class="form-row">
+            <label for="id_abort_reason">中止原因：</label>
+            <input id="id_abort_reason" type="text" name="reason" required>
+            <div class="help">例如：合作方生成模型不完整，本轮不作为正式仿真结论。</div>
+          </div>
+          <div class="submit-row">
+            <input type="submit" value="中止本轮仿真">
+          </div>
+        </form>
+      {% elif can_dispose %}
+        <p>这里处理的是本次 run 是否进入正式仿真历史。归档只保存本次仿真档案，不等于采纳计划变更。</p>
+        <form method="post" action="{% url 'simulation-lab-archive-run' run.run_id %}">
+          {% csrf_token %}
+          <input type="hidden" name="world_id" value="{{ world.world_id }}">
+          <input type="hidden" name="reason" value="通过仿真实验后台审阅详情后归档。">
+          <div class="submit-row">
+            <input class="default" type="submit" value="归档本次仿真运行">
+          </div>
+        </form>
+        <form method="post" action="{% url 'simulation-lab-discard-run' run.run_id %}">
+          {% csrf_token %}
+          <input type="hidden" name="world_id" value="{{ world.world_id }}">
+          <div class="form-row">
+            <label for="id_discard_reason">废弃原因：</label>
+            <input id="id_discard_reason" type="text" name="reason" required>
+            <div class="help">只有误运行、参数误设或不应进入正式历史时才废弃。本动作不会自动弃用计划变更集。</div>
+          </div>
+          <div class="submit-row">
+            <input type="submit" value="废弃本次仿真运行">
+          </div>
+        </form>
+      {% else %}
+        <p>该仿真运行尚未结束，暂不能归档或废弃。</p>
+      {% endif %}
+    </div>
+
+    <div class="module">
+      <h2>仿真审阅报告</h2>
+      <table>
+        <tbody>
+          <tr><th scope="row">审阅结论</th><td>{{ run_review.verdict }}</td></tr>
+          <tr><th scope="row">处置建议</th><td>{{ run_review.decision_hint }}</td></tr>
+        </tbody>
+      </table>
+      {% if run_review.intermediate_resolution_note %}
+        <p class="help">{{ run_review.intermediate_resolution_note }}</p>
+      {% endif %}
+
+      <h3>关键统计</h3>
+      <table>
+        <tbody>
+          {% for item in run_review.stats %}
+            <tr class="{% cycle 'row1' 'row2' %}">
+              <th scope="row">{{ item.label }}</th>
+              <td>{{ item.value }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <h3>审阅证据清单</h3>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">类型</th>
+            <th scope="col">标题</th>
+            <th scope="col">说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in run_review.evidence_rows %}
+            <tr class="{% cycle 'row1' 'row2' %}">
+              <td>{{ item.kind }}</td>
+              <td>{{ item.title }}</td>
+              <td>{{ item.detail }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="3">暂无失败证据或门槛缺口。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <h3>计划变更吸收状态</h3>
+      <table>
+        <tbody>
+          <tr><th scope="row">变更集总数</th><td>{{ run_review.change_set_summary.total }}</td></tr>
+          <tr><th scope="row">可采纳</th><td>{{ run_review.change_set_summary.applicable }}</td></tr>
+          <tr><th scope="row">结构阻塞</th><td>{{ run_review.change_set_summary.blocked }}</td></tr>
+          <tr><th scope="row">已采纳</th><td>{{ run_review.change_set_summary.applied }}</td></tr>
+          <tr><th scope="row">已弃用</th><td>{{ run_review.change_set_summary.rejected }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="module">
+      <h2>运行概览</h2>
+      <table>
+        <tbody>
+          <tr><th scope="row">运行ID</th><td>{{ run.run_id }}</td></tr>
+          <tr><th scope="row">世界</th><td>{{ world.world_id }} / {{ source_alias }}</td></tr>
+          <tr><th scope="row">状态</th><td>{{ run.get_status_display }}</td></tr>
+          <tr><th scope="row">计划版本</th><td>{{ run.plan_revision_id }} / {{ run.plan_revision.title }}</td></tr>
+          <tr><th scope="row">当前模拟日</th><td>第 {{ run.current_day }} 天</td></tr>
+          <tr><th scope="row">最大推进步数</th><td>{{ run.max_turns }}</td></tr>
+          <tr><th scope="row">开始时间</th><td>{{ run.started_at|date:"Y-m-d H:i" }}</td></tr>
+          <tr><th scope="row">结束时间</th><td>{{ run.ended_at|date:"Y-m-d H:i"|default:"-" }}</td></tr>
+          <tr><th scope="row">失败摘要</th><td>{{ run.failure_summary|default:"-" }}</td></tr>
+        </tbody>
+      </table>
+      {% if show_raw_metadata and run_metadata %}
+        <h3>运行扩展数据</h3>
+        <pre>{{ run_metadata }}</pre>
+      {% else %}
+        <p class="help"><a href="?world_id={{ world.world_id }}&show_raw_metadata=1">显示原始 JSON 数据</a>。默认隐藏原始数据以加快详情页打开速度。</p>
+      {% endif %}
+    </div>
+
+    <div class="module">
+      <h2>失败证据</h2>
+      {% for failure in failures %}
+        <table>
+          <tbody>
+            <tr><th scope="row">标题</th><td>{{ failure.title }}</td></tr>
+            <tr><th scope="row">类型</th><td>{{ failure.get_failure_type_display }} / {{ failure.failure_type }}</td></tr>
+            <tr><th scope="row">严重程度</th><td>{{ failure.get_severity_display }}</td></tr>
+            <tr><th scope="row">当前影响</th><td>{{ failure.current_effect_label }}</td></tr>
+            <tr><th scope="row">关联节点</th><td>{{ failure.plan_node.title|default:"-" }}</td></tr>
+            <tr><th scope="row">模拟日期</th><td>第 {{ failure.simulation_day }} 天</td></tr>
+            <tr><th scope="row">发现时间</th><td>{{ failure.detected_at|date:"Y-m-d H:i" }}</td></tr>
+            <tr><th scope="row">说明</th><td>{{ failure.description }}</td></tr>
+          </tbody>
+        </table>
+
+        {% if failure.missing_responsibility_domains %}
+          <h3>缺失责任闭环</h3>
+          <ul>
+            {% for item in failure.missing_responsibility_domains %}
+              <li>{{ item }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+
+        {% if failure.missing_capabilities %}
+          <h3>成员能力缺口</h3>
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">需求</th>
+                <th scope="col">需要</th>
+                <th scope="col">已覆盖</th>
+                <th scope="col">缺口</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in failure.missing_capabilities %}
+                <tr class="{% cycle 'row1' 'row2' %}">
+                  <td>{{ item.name }}</td>
+                  <td>{{ item.required_count }}</td>
+                  <td>{{ item.covered_count }}</td>
+                  <td>{{ item.missing_count }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+
+        {% if failure.missing_document_signers %}
+          <h3>责任文件签署方缺口</h3>
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">责任文件</th>
+                <th scope="col">需要</th>
+                <th scope="col">已覆盖</th>
+                <th scope="col">示例文件</th>
+                <th scope="col">可接受签署方</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in failure.missing_document_signers %}
+                <tr class="{% cycle 'row1' 'row2' %}">
+                  <td>{{ item.name }}</td>
+                  <td>{{ item.required_count }}</td>
+                  <td>{{ item.covered_count }}</td>
+                  <td>{{ item.document_examples|join:"、" }}</td>
+                  <td>{{ item.acceptable_signers|join:"、" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+
+        {% if failure.cannot_continue_reasons %}
+          <h3>当前不能继续的原因</h3>
+          <ul>
+            {% for item in failure.cannot_continue_reasons %}
+              <li>{{ item }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+
+        {% if failure.recommended_actions %}
+          <h3>建议动作</h3>
+          <ul>
+            {% for item in failure.recommended_actions %}
+              <li>{{ item }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+
+        {% if failure.display_metadata %}
+          <h3>失败扩展数据</h3>
+          <pre>{{ failure.display_metadata }}</pre>
+        {% endif %}
+      {% empty %}
+        <p>该运行没有失败记录。</p>
+      {% endfor %}
+    </div>
+
+    <div class="module">
+      <h2>修订建议</h2>
+      {% for proposal in proposals %}
+        <table>
+          <tbody>
+            <tr><th scope="row">建议ID</th><td>{{ proposal.proposal_id }}</td></tr>
+            <tr><th scope="row">标题</th><td>{{ proposal.title }}</td></tr>
+            <tr><th scope="row">类型</th><td>{{ proposal.get_proposal_type_display }} / {{ proposal.proposal_type }}</td></tr>
+            <tr><th scope="row">状态</th><td>{{ proposal.get_status_display }}</td></tr>
+            <tr><th scope="row">来源失败</th><td>{{ proposal.source_failure_id|default:"-" }}</td></tr>
+            <tr>
+              <th scope="row">当前关系</th>
+              <td>
+                {% if proposal.is_naturally_absorbed %}
+                  对应中途阻塞已在本轮后续推进中解除；该建议可作为经验吸收到计划基线，也可弃用并记录原因。
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+            </tr>
+            <tr><th scope="row">关联节点</th><td>{{ proposal.plan_node.title|default:"-" }}</td></tr>
+            <tr><th scope="row">依据</th><td>{{ proposal.rationale }}</td></tr>
+          </tbody>
+        </table>
+        {% if proposal.display_suggested_changes %}
+          <h3>建议变更</h3>
+          <pre>{{ proposal.display_suggested_changes }}</pre>
+        {% endif %}
+      {% empty %}
+        <p>该运行尚未生成修订建议。</p>
+      {% endfor %}
+    </div>
+
+    <div class="module">
+      <h2>计划变更处置</h2>
+      {% for change_set in change_sets %}
+        <table>
+          <tbody>
+            <tr><th scope="row">变更集ID</th><td>{{ change_set.change_set_id }}</td></tr>
+            <tr><th scope="row">标题</th><td>{{ change_set.title }}</td></tr>
+            <tr><th scope="row">状态</th><td>{{ change_set.get_status_display }}</td></tr>
+            <tr><th scope="row">源计划版本</th><td>{{ change_set.plan_revision_id }}</td></tr>
+            <tr>
+              <th scope="row">来源修订建议</th>
+              <td>
+                {% if change_set.missing_proposal %}
+                  <strong>缺失</strong> / {{ change_set.proposal_id }}
+                {% else %}
+                  {{ change_set.proposal_id }}
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">应用状态</th>
+              <td>
+                {% if change_set.is_next_baseline %}
+                  已设为下一轮基线 {{ change_set.applied_revision.revision_code }} / {{ change_set.applied_revision_id }}
+                {% elif change_set.applied_revision_id %}
+                  已生成但尚未设为基线 {{ change_set.applied_revision.revision_code }} / {{ change_set.applied_revision_id }}
+                {% else %}
+                  尚未吸收到下一轮仿真基线
+                {% endif %}
+                {% if change_set.is_naturally_absorbed %}
+                  <br><span class="help">本轮后续推进已自然补齐该问题；如不准备把它固化进计划基线，可以弃用此变更集并说明原因。</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr><th scope="row">摘要</th><td>{{ change_set.summary }}</td></tr>
+            <tr>
+              <th scope="row">结构校验</th>
+              <td>
+                {% if change_set.validation_errors %}
+                  <strong>不可应用</strong>
+                  <ul>
+                    {% for error in change_set.validation_errors %}
+                      <li>{{ error }}</li>
+                    {% endfor %}
+                  </ul>
+                {% else %}
+                  可应用
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">系统建议</th>
+              <td>
+                <strong>{{ change_set.recommendation_label }}</strong>
+                <br><span class="help">{{ change_set.recommendation_reason }}</span>
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">变更集处置</th>
+              <td>
+                <span class="help">这里处理的是是否采纳本变更集。采纳会发布为当前仿真世界的下一轮计划基线；弃用只表示不吸收这条建议。</span>
+                {% if change_set.can_apply %}
+                  <form method="post" action="{% url 'simulation-lab-apply-change-set' run.run_id change_set.change_set_id %}" style="margin-top: 8px;">
+                    {% csrf_token %}
+                    <input type="hidden" name="world_id" value="{{ world.world_id }}">
+                    <input type="submit" value="采纳为下一轮仿真基线">
+                  </form>
+                {% endif %}
+                {% if change_set.can_reject %}
+                  <form method="post" action="{% url 'simulation-lab-reject-change-set' run.run_id change_set.change_set_id %}" style="margin-top: 8px;">
+                    {% csrf_token %}
+                    <input type="hidden" name="world_id" value="{{ world.world_id }}">
+                    <input type="hidden" name="reason" value="通过仿真运行详情审阅后弃用。">
+                    <input type="submit" value="弃用此计划变更">
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>变更操作</h3>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">顺序</th>
+              <th scope="col">类型</th>
+              <th scope="col">目标</th>
+              <th scope="col">依据</th>
+              <th scope="col">新值</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for operation in change_set.display_operations %}
+              <tr class="{% cycle 'row1' 'row2' %}">
+                <td>{{ operation.sequence }}</td>
+                <td>{{ operation.get_operation_type_display }}<br><span class="help">{{ operation.operation_type }}</span></td>
+                <td>{{ operation.target_model }}<br><span class="help">{{ operation.target_id|default:"-" }} {{ operation.target_field|default:"" }}</span></td>
+                <td>{{ operation.rationale }}</td>
+                <td>{% if operation.display_new_value %}<pre>{{ operation.display_new_value }}</pre>{% else %}-{% endif %}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5">暂无变更操作。</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% empty %}
+        <p>该运行尚未生成结构化变更集。</p>
+      {% endfor %}
+    </div>
+
+    <div class="module">
+      <h2>推进日志</h2>
+      <p class="help">当前显示最近 {{ visible_turn_count }} / {{ total_turn_count }} 条推进日志。原始 JSON 默认不渲染，以避免长时间运行的详情页打开过慢。</p>
+      {% if run_review.key_timeline %}
+        <h3>关键时间线</h3>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">小时</th>
+              <th scope="col">成员报名</th>
+              <th scope="col">成员筛选</th>
+              <th scope="col">合作方报名</th>
+              <th scope="col">合作方筛选</th>
+              <th scope="col">累计候选成员</th>
+              <th scope="col">能力/文件缺口</th>
+              <th scope="col">工程前置</th>
+              <th scope="col">摘要</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for turn in run_review.key_timeline %}
+              <tr class="{% cycle 'row1' 'row2' %}">
+                <td>{% if turn.simulation_hour != "" %}{{ turn.simulation_hour }}{% else %}-{% endif %}</td>
+                <td>{{ turn.applicant_applied_count }}</td>
+                <td>{{ turn.screened_count }}</td>
+                <td>{{ turn.partner_applied_count }}</td>
+                <td>{{ turn.partner_screened_count }}</td>
+                <td>{{ turn.candidate_members|default:"-" }}</td>
+                <td>{{ turn.missing_capability_count }} / {{ turn.missing_document_signer_count }}</td>
+                <td>
+                  {% if turn.pre_engineering_active %}
+                    {{ turn.pre_engineering_completed_milestones }} / {{ turn.pre_engineering_pending_milestones }}
+                    {% if turn.selected_site_code %}<br>{{ turn.selected_site_code }}{% endif %}
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+                <td>{{ turn.summary }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">步序号</th>
+            <th scope="col">虚拟小时</th>
+            <th scope="col">模拟日</th>
+            <th scope="col">报名/筛选</th>
+            <th scope="col">累计状态</th>
+            <th scope="col">摘要</th>
+            <th scope="col">时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for turn in turns %}
+            <tr class="{% cycle 'row1' 'row2' %}">
+              <td>{{ turn.turn_number }}</td>
+              <td>{% if turn.simulation_hour != "" %}{{ turn.simulation_hour }}{% else %}-{% endif %}</td>
+              <td>第 {{ turn.simulation_day }} 天</td>
+              <td>
+                成员报名 {{ turn.applicant_applied_count }} / 成员筛选 {{ turn.screened_count }}<br>
+                合作方报名 {{ turn.partner_applied_count }} / 合作方筛选 {{ turn.partner_screened_count }}
+              </td>
+              <td>
+                报名 {{ turn.registered_applicants|default:"-" }}，
+                候选 {{ turn.candidate_members|default:"-" }}，
+                合作方 {{ turn.partner_applications|default:"-" }}，
+                合格 {{ turn.qualified_partners|default:"-" }}<br>
+                能力缺口 {{ turn.missing_capability_count }}，
+                文件签署方缺口 {{ turn.missing_document_signer_count }}<br>
+                {% if turn.pre_engineering_active %}
+                  工程前置 {{ turn.pre_engineering_completed_milestones }} / {{ turn.pre_engineering_pending_milestones }}
+                  {% if turn.selected_site_code %}，场地 {{ turn.selected_site_code }}{% endif %}
+                {% else %}
+                  工程前置 -
+                {% endif %}
+              </td>
+              <td>
+                {{ turn.summary }}
+              </td>
+              <td>{{ turn.occurred_at|date:"Y-m-d H:i" }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7">该运行没有推进日志。</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}
