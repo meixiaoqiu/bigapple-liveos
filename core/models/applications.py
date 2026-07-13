@@ -13,6 +13,7 @@ class MemberApplication(models.Model):
         SUBMITTED = "submitted", "已提交"
         UNDER_REVIEW = "under_review", "审核中"
         CANDIDATE = "candidate", "进入候选池"
+        ADMITTED = "admitted", "已接纳"
         STANDBY = "standby", "备用"
         REJECTED = "rejected", "已拒绝"
         WITHDREW = "withdrew", "已退出"
@@ -23,7 +24,21 @@ class MemberApplication(models.Model):
     motivation = models.TextField("报名动机")
     availability_hours_per_week = models.PositiveIntegerField(
         "每周可投入小时",
-        help_text="报名人自述的稳定可投入时间。",
+        default=0,
+        help_text="历史兼容字段；当前报名表以 availability_slots 表达可参与时段。",
+    )
+    role_gap = models.CharField(
+        "意向角色缺口",
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="报名人选择的当前社区角色缺口，例如 settled_resident 或 developer_ai_engineer。",
+    )
+    availability_slots = models.JSONField(
+        "可参与时段",
+        default=list,
+        blank=True,
+        help_text="当前报名表的多选时段，例如 any_time、off_hours、weekend。",
     )
     capability_scores = models.JSONField(
         "能力自评",
@@ -51,7 +66,7 @@ class MemberApplication(models.Model):
         on_delete=models.PROTECT,
         related_name="member_applications",
         verbose_name="报名账号",
-        help_text="成员报名时创建的登录账号；审核通过后绑定到成员身份。",
+        help_text="成员报名时创建或复用的登录账号；提交后立即绑定到最小权限成员身份。",
     )
     linked_member = models.ForeignKey(
         Member,
@@ -60,6 +75,27 @@ class MemberApplication(models.Model):
         on_delete=models.PROTECT,
         related_name="member_applications",
         verbose_name="关联成员",
+    )
+    dynamic_answers = models.JSONField(
+        "动态问答",
+        default=list,
+        blank=True,
+        help_text="报名表中会随业务调整的 textarea 问答数组，元素包含 key、label、type、answer。",
+    )
+    frozen_at = models.DateTimeField(
+        "提交确认时间",
+        null=True,
+        blank=True,
+        help_text="报名提交并二次确认的时间；业务入口不提供提交后的撤回或修改。",
+    )
+    admission_proposal = models.ForeignKey(
+        "Proposal",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="member_admission_applications",
+        verbose_name="准入提案",
+        help_text="用于接纳该报名成员的治理提案；通过后仍需显式执行。",
     )
     reviewed_by = models.ForeignKey(
         Member,

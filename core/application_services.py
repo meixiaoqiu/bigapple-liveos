@@ -14,8 +14,14 @@ from django.utils import timezone
 from core.db import atomic_for_model
 from core.event_ledger import append_event
 from core.exceptions import DomainError
-from core.member_roles import ROLE_CANDIDATE, ensure_member_role, ensure_role_assignment
-from core.models import Member, MemberApplication, PartnerApplication, SystemEvent
+from core.member_roles import (
+    ROLE_CANDIDATE,
+    ROLE_FORMAL_MEMBER,
+    ROLE_GOVERNANCE_MEMBER,
+    ensure_member_role,
+    ensure_role_assignment,
+)
+from core.models import Member, MemberApplication, PartnerApplication, Proposal, SystemEvent
 
 from .event_payloads import member_display_name
 from .identity_services import register_member
@@ -56,6 +62,41 @@ def _list_payload(value: object) -> list[str]:
     return [str(value).strip()] if str(value).strip() else []
 
 
+def _json_answer_payload(value: object) -> list[dict[str, Any]]:
+    if not value:
+        return []
+    if not isinstance(value, (list, tuple)):
+        raise DomainError("动态问答必须是数组。")
+    answers: list[dict[str, Any]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise DomainError("动态问答条目必须是对象。")
+        answers.append(
+            {
+                "key": str(item.get("key") or "").strip(),
+                "label": str(item.get("label") or "").strip(),
+                "type": str(item.get("type") or "textarea").strip() or "textarea",
+                "answer": str(item.get("answer") or "").strip(),
+            }
+        )
+    return answers
+
+
+def _application_member_profile(application: MemberApplication) -> dict[str, Any]:
+    return {
+        "source": "member_application",
+        "application_id": application.application_id,
+        "role_gap": application.role_gap,
+        "motivation": application.motivation,
+        "skills": application.capability_scores,
+        "availability_hours_per_week": application.availability_hours_per_week,
+        "availability_slots": application.availability_slots,
+        "dynamic_answers": application.dynamic_answers,
+        "document_authority_domains": application.document_authority_domains,
+        "can_issue_responsibility_documents": application.can_issue_responsibility_documents,
+    }
+
+
 def generate_member_application_id() -> str:
     for _ in range(5):
         application_id = f"member-application-{uuid4().hex[:12]}"
@@ -80,10 +121,15 @@ def member_application_payload(application: MemberApplication) -> dict[str, Any]
         "requested_member_no": application.requested_member_no,
         "account_username": application.account_user.get_username() if application.account_user_id else "",
         "linked_member_no": application.linked_member.member_no if application.linked_member_id else "",
+        "role_gap": application.role_gap,
         "availability_hours_per_week": application.availability_hours_per_week,
+        "availability_slots": application.availability_slots,
         "capability_scores": application.capability_scores,
         "can_issue_responsibility_documents": application.can_issue_responsibility_documents,
         "document_authority_domains": application.document_authority_domains,
+        "dynamic_answers": application.dynamic_answers,
+        "frozen_at": application.frozen_at.isoformat() if application.frozen_at else None,
+        "admission_proposal_id": application.admission_proposal_id,
         "submitted_at": application.submitted_at.isoformat() if application.submitted_at else None,
         "reviewed_at": application.reviewed_at.isoformat() if application.reviewed_at else None,
         "metadata": application.metadata,
@@ -116,7 +162,10 @@ def submit_member_application(
     applicant_name: str,
     contact: str,
     motivation: str,
-    availability_hours_per_week: int,
+    availability_hours_per_week: int = 0,
+    role_gap: str = "",
+    availability_slots: object = None,
+    dynamic_answers: object = None,
     capability_scores: dict[str, int] | None = None,
     can_issue_responsibility_documents: bool = False,
     document_authority_domains: object = None,
@@ -127,7 +176,12 @@ def submit_member_application(
     metadata: dict[str, Any] | None = None,
     submitted_at=None,
 ) -> MemberApplication:
-    """Submit a member application through the same authority path used by UI and simulations."""
+    """Submit a member application and create the applicant's minimal member identity.
+
+    The account and ``Member`` are created before admission approval so the
+    applicant can enter a restricted workspace. Full member capabilities still
+    require proposal-driven admission.
+    """
 
     if availability_hours_per_week < 0:
         raise DomainError("每周可投入小时不能为负数。")
@@ -145,24 +199,79 @@ def submit_member_application(
             cleaned_requested_member_no = account_user_username
         if cleaned_requested_member_no != account_user_username:
             raise DomainError("成员编号必须与报名登录账号一致。")
-    if cleaned_requested_member_no and Member.objects.filter(member_no=cleaned_requested_member_no).exists():
-        raise DomainError("成员编号已存在。")
     if account_user is None and (account_username or account_password):
         account_user = _create_application_account(username=account_username, password=account_password)
+    existing_member = None
+    if account_user is not None:
+        existing_member = Member.objects.filter(user=account_user).first()
+    if cleaned_requested_member_no:
+        member_with_no = Member.objects.filter(member_no=cleaned_requested_member_no).first()
+        if member_with_no is not None and member_with_no != existing_member:
+            raise DomainError("成员编号已存在。")
+        if existing_member is not None and existing_member.member_no != cleaned_requested_member_no:
+            raise DomainError("当前账号已绑定其他成员编号。")
+    active_application_statuses = {
+        MemberApplication.Status.SUBMITTED,
+        MemberApplication.Status.UNDER_REVIEW,
+        MemberApplication.Status.CANDIDATE,
+        MemberApplication.Status.STANDBY,
+        MemberApplication.Status.ADMITTED,
+    }
+    if existing_member is not None:
+        if existing_member.status in {Member.Status.ACTIVE, Member.Status.ADMITTED}:
+            raise DomainError("当前账号已经是正式成员，不能重复报名。")
+        active_application_exists = MemberApplication.objects.filter(
+            linked_member=existing_member,
+            status__in=active_application_statuses,
+        ).exists()
+        if active_application_exists:
+            raise DomainError("当前账号已有未结束的成员报名，不能重复提交。")
     application = MemberApplication.objects.create(
         application_id=generate_member_application_id(),
         applicant_name=_nonblank(applicant_name, "报名人名称"),
         contact=_nonblank(contact, "联系方式"),
         motivation=_nonblank(motivation, "报名动机"),
         availability_hours_per_week=availability_hours_per_week,
+        role_gap=str(role_gap or "").strip(),
+        availability_slots=_list_payload(availability_slots),
         capability_scores=dict(capability_scores or {}),
         can_issue_responsibility_documents=can_issue_responsibility_documents,
         document_authority_domains=_list_payload(document_authority_domains),
+        dynamic_answers=_json_answer_payload(dynamic_answers),
         requested_member_no=cleaned_requested_member_no,
         account_user=account_user,
         submitted_at=now,
+        frozen_at=now,
         metadata=dict(metadata or {}),
     )
+    if existing_member is None:
+        if not cleaned_requested_member_no:
+            cleaned_requested_member_no = f"applicant-{application.application_id[-8:]}"
+            application.requested_member_no = cleaned_requested_member_no
+        existing_member = register_member(
+            member_no=cleaned_requested_member_no,
+            display_name=application.applicant_name,
+            status=Member.Status.PENDING_REVIEW,
+            batch_id=str(application.metadata.get("batch_id") or ""),
+            joined_simulation_day=None,
+            credit_floor=-100,
+            profile=_application_member_profile(application),
+            created_by={"actor_type": "member_application", "display_name": application.applicant_name},
+        )
+        if account_user is not None:
+            existing_member.user = account_user
+            existing_member.save(update_fields=["user"])
+    else:
+        existing_member.status = Member.Status.PENDING_REVIEW
+        existing_member.display_name = existing_member.display_name or application.applicant_name
+        existing_member.profile = {
+            **(existing_member.profile or {}),
+            **_application_member_profile(application),
+        }
+        existing_member.save(update_fields=["status", "display_name", "profile"])
+    ensure_role_assignment(existing_member, ensure_member_role(ROLE_CANDIDATE))
+    application.linked_member = existing_member
+    application.save(update_fields=["requested_member_no", "linked_member"])
     append_event(
         event_type=SystemEvent.EventType.MEMBER_APPLICATION_SUBMITTED,
         aggregate_type="MemberApplication",
@@ -230,7 +339,7 @@ def review_member_application(
     review_note: str = "",
     member_no: str = "",
 ) -> MemberApplication:
-    """Review one member application and create a candidate member only when accepted."""
+    """Review one member application and update the linked minimal member identity."""
 
     valid_statuses = {
         MemberApplication.Status.CANDIDATE,
@@ -255,19 +364,11 @@ def review_member_application(
         member = register_member(
             member_no=cleaned_member_no,
             display_name=application.applicant_name,
-            status=Member.Status.PENDING_TRAINING,
+            status=Member.Status.PENDING_REVIEW,
             batch_id=str(application.metadata.get("batch_id") or ""),
             joined_simulation_day=None,
             credit_floor=-100,
-            profile={
-                "source": "member_application",
-                "application_id": application.application_id,
-                "motivation": application.motivation,
-                "skills": application.capability_scores,
-                "availability_hours_per_week": application.availability_hours_per_week,
-                "document_authority_domains": application.document_authority_domains,
-                "can_issue_responsibility_documents": application.can_issue_responsibility_documents,
-            },
+            profile=_application_member_profile(application),
             created_by={"actor_type": "application_review", "display_name": member_display_name(reviewed_by) if reviewed_by else "system"},
         )
         if application.account_user_id:
@@ -279,12 +380,157 @@ def review_member_application(
             member.save(update_fields=["user"])
         ensure_role_assignment(member, ensure_member_role(ROLE_CANDIDATE))
         application.linked_member = member
+    if application.linked_member_id:
+        member = application.linked_member
+        update_fields = ["status", "metadata", "profile"]
+        if status == MemberApplication.Status.CANDIDATE:
+            member.status = Member.Status.PENDING_TRAINING
+            ensure_role_assignment(member, ensure_member_role(ROLE_CANDIDATE), granted_by=reviewed_by)
+        elif status in {MemberApplication.Status.REJECTED, MemberApplication.Status.WITHDREW}:
+            member.status = Member.Status.APPLICATION_REJECTED
+        else:
+            member.status = Member.Status.PENDING_REVIEW
+        member.metadata = {
+            **(member.metadata or {}),
+            "application_status": status,
+            "latest_application_id": application.application_id,
+        }
+        member.profile = {
+            **(member.profile or {}),
+            **_application_member_profile(application),
+        }
+        member.save(update_fields=update_fields)
     application.save(update_fields=["status", "reviewed_by", "reviewed_at", "metadata", "linked_member"])
     append_event(
         event_type=SystemEvent.EventType.MEMBER_APPLICATION_REVIEWED,
         aggregate_type="MemberApplication",
         aggregate_id=application.application_id,
         actor_member=reviewed_by,
+        payload_json=member_application_payload(application),
+        occurred_at=now,
+    )
+    return application
+
+
+@atomic_for_model(MemberApplication)
+def create_member_application_admission_proposal(
+    *,
+    application: MemberApplication,
+    proposer_member: Member | None = None,
+    reason: str = "",
+    voter_scope_role=None,
+    deadline_at=None,
+) -> Proposal:
+    """Create the governance proposal used to admit a submitted member application."""
+
+    if application.status not in {
+        MemberApplication.Status.SUBMITTED,
+        MemberApplication.Status.UNDER_REVIEW,
+        MemberApplication.Status.CANDIDATE,
+        MemberApplication.Status.STANDBY,
+    }:
+        raise DomainError("只有待审核、候选或备用报名可以发起准入提案。")
+    if application.linked_member_id is None:
+        raise DomainError("成员报名尚未绑定最小成员身份。")
+    if application.admission_proposal_id:
+        return application.admission_proposal
+
+    from core.proposals.lifecycle import create_proposal
+
+    voter_role = voter_scope_role or ensure_member_role(ROLE_GOVERNANCE_MEMBER)
+    body = str(reason or "").strip() or f"接纳 {application.applicant_name} 成为大苹果正式成员。"
+    proposal = create_proposal(
+        title=f"接纳成员报名：{application.applicant_name}",
+        body=body,
+        proposal_type=Proposal.ProposalType.MEMBER_ADMISSION,
+        proposer_member=proposer_member,
+        organization=voter_role.organization,
+        voter_scope_type=Proposal.VoterScopeType.ROLE,
+        voter_scope_role=voter_role,
+        pass_ratio=50,
+        quorum_count=None,
+        allow_vote_change=True,
+        deadline_at=deadline_at,
+        payload_json={
+            "action": "admit_member_application",
+            "application_id": application.application_id,
+            "target_member_id": application.linked_member_id,
+            "target_member_no": application.linked_member.member_no,
+            "applicant_name": application.applicant_name,
+            "role_gap": application.role_gap,
+            "reason": body,
+        },
+        status=Proposal.Status.VOTING,
+    )
+    application.admission_proposal = proposal
+    application.status = MemberApplication.Status.UNDER_REVIEW
+    application.save(update_fields=["admission_proposal", "status"])
+    return proposal
+
+
+@atomic_for_model(MemberApplication)
+def admit_member_application_from_proposal(
+    *,
+    application: MemberApplication,
+    proposal: Proposal,
+    executor_member: Member | None = None,
+    execution=None,
+    admitted_at=None,
+) -> MemberApplication:
+    """Apply a passed member-admission proposal to the application and linked member."""
+
+    if proposal.proposal_type != Proposal.ProposalType.MEMBER_ADMISSION:
+        raise DomainError("提案类型不是成员准入。")
+    if proposal.status != Proposal.Status.PASSED:
+        raise DomainError("只有已通过的成员准入提案才能执行。")
+    if application.linked_member_id is None:
+        raise DomainError("成员报名尚未绑定最小成员身份。")
+    if application.admission_proposal_id and application.admission_proposal_id != proposal.pk:
+        raise DomainError("成员报名关联的准入提案不一致。")
+
+    now = admitted_at or timezone.now()
+    member = application.linked_member
+    formal_role = ensure_member_role(ROLE_FORMAL_MEMBER)
+    from core.role_assignment_services import create_role_assignment
+
+    assignment = create_role_assignment(
+        member=member,
+        role=formal_role,
+        granted_by=executor_member,
+        source_type="proposal",
+        source_proposal=proposal,
+        source_proposal_execution=execution,
+    )
+    member.status = Member.Status.ADMITTED
+    member.metadata = {
+        **(member.metadata or {}),
+        "application_status": MemberApplication.Status.ADMITTED,
+        "latest_application_id": application.application_id,
+        "admission_proposal_id": proposal.pk,
+    }
+    member.profile = {
+        **(member.profile or {}),
+        **_application_member_profile(application),
+        "admission_status": MemberApplication.Status.ADMITTED,
+    }
+    member.save(update_fields=["status", "metadata", "profile"])
+
+    application.status = MemberApplication.Status.ADMITTED
+    application.reviewed_by = executor_member
+    application.reviewed_at = now
+    application.admission_proposal = proposal
+    application.metadata = {
+        **(application.metadata or {}),
+        "review_note": str(proposal.body or "准入提案已执行。").strip(),
+        "reviewed_by": member_display_name(executor_member) if executor_member else "",
+        "formal_role_assignment_id": assignment.pk,
+    }
+    application.save(update_fields=["status", "reviewed_by", "reviewed_at", "admission_proposal", "metadata"])
+    append_event(
+        event_type=SystemEvent.EventType.MEMBER_APPLICATION_REVIEWED,
+        aggregate_type="MemberApplication",
+        aggregate_id=application.application_id,
+        actor_member=executor_member,
         payload_json=member_application_payload(application),
         occurred_at=now,
     )

@@ -7,7 +7,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from core.member_roles import ROLE_CONTRIBUTOR
-from core.models import CapacityAssessment, Dispute, Event, LedgerEntry, Member, Resource, Task
+from core.models import CapacityAssessment, Dispute, Event, LedgerEntry, Member, MemberApplication, Resource, Task
 from core.tests.helpers import create_member, login_as_member
 
 
@@ -163,6 +163,40 @@ class WorkspacePageTests(TestCase):
         self.assertContains(response, "清理公共厨房")
         self.assertContains(response, "申诉状态")
         self.assertContains(response, "standard-review-appeal")
+
+    def test_pending_applicant_sees_minimal_workspace_and_cannot_post_actions(self) -> None:
+        now = timezone.now()
+        applicant = create_member(member_no="pending-applicant", status=Member.Status.PENDING_REVIEW)
+        user = login_as_member(self.client, applicant)
+        applicant.user = user
+        applicant.save(update_fields=["user"])
+        MemberApplication.objects.create(
+            application_id="member-application-pending",
+            applicant_name="待审核申请者",
+            contact="pending@example.test",
+            motivation="等待审核。",
+            role_gap="developer_ai_engineer",
+            availability_slots=["weekend"],
+            capability_scores={"文档": 70},
+            requested_member_no=applicant.member_no,
+            account_user=user,
+            linked_member=applicant,
+            submitted_at=now,
+            frozen_at=now,
+            metadata={},
+        )
+
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "报名工作台")
+        self.assertContains(response, "待审核")
+        self.assertNotContains(response, "可领取任务")
+
+        response = self.client.post("/workspace/tasks/task-0002/claim/")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(Task.objects.get(task_id="task-0002").status, Task.Status.OPEN)
 
     @override_settings(
         SITE_FIXED_WORLD=True,

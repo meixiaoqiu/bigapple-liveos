@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from core.event_ledger import append_event
 from core.event_payloads import proposal_payload
-from core.models import Member, Proposal, ProposalExecution, Role, RoleAssignment, SystemEvent
+from core.models import Member, MemberApplication, Proposal, ProposalExecution, Role, RoleAssignment, SystemEvent
 from core.role_assignment_services import create_role_assignment
 
 
@@ -41,7 +41,9 @@ def execute_proposal(
     if proposal.status != Proposal.Status.PASSED:
         raise ValidationError("只有已通过的提案才能执行。")
 
-    if proposal.proposal_type == Proposal.ProposalType.ROLE_APPOINTMENT:
+    if proposal.proposal_type == Proposal.ProposalType.MEMBER_ADMISSION:
+        action_type = ProposalExecution.ActionType.ADMIT_MEMBER_APPLICATION
+    elif proposal.proposal_type == Proposal.ProposalType.ROLE_APPOINTMENT:
         action_type = ProposalExecution.ActionType.CREATE_ROLE_ASSIGNMENT
     else:
         action_type = ProposalExecution.ActionType.MANUAL
@@ -59,7 +61,33 @@ def execute_proposal(
         payload_json=proposal.payload_json,
     )
     try:
-        if proposal.proposal_type == Proposal.ProposalType.ROLE_APPOINTMENT:
+        if proposal.proposal_type == Proposal.ProposalType.MEMBER_ADMISSION:
+            from core.application_services import admit_member_application_from_proposal
+
+            payload = proposal.payload_json or {}
+            application_id = payload.get("application_id")
+            if not application_id:
+                raise ValidationError("成员准入提案内容必须包含 application_id。")
+            try:
+                application = MemberApplication.objects.select_related("linked_member", "admission_proposal").get(
+                    application_id=application_id
+                )
+            except ObjectDoesNotExist as exc:
+                raise ValidationError(f"成员报名不存在：{application_id}") from exc
+            admit_member_application_from_proposal(
+                application=application,
+                proposal=proposal,
+                executor_member=executor_member,
+                execution=execution,
+                admitted_at=checked_at,
+            )
+            application.refresh_from_db()
+            execution.result_json = {
+                "application_id": application.application_id,
+                "member_no": application.linked_member.member_no if application.linked_member_id else "",
+                "status": application.status,
+            }
+        elif proposal.proposal_type == Proposal.ProposalType.ROLE_APPOINTMENT:
             payload = proposal.payload_json or {}
             target_member = Member.objects.get(pk=payload["target_member_id"])
             role = Role.objects.get(pk=payload["role_id"])

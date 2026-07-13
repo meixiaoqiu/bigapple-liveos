@@ -25,6 +25,35 @@ FIXED_SIM_SETTINGS = {
 }
 
 
+def member_application_post_data(
+    *,
+    username: str,
+    applicant_name: str,
+    contact: str,
+    motivation: str,
+    password: str = "test-password-123",
+    role_gap: str = "developer_ai_engineer",
+    availability_slots: list[str] | None = None,
+    motivation_reasons: list[str] | None = None,
+    capabilities_text: str | None = None,
+) -> dict[str, object]:
+    data: dict[str, object] = {
+        "username": username,
+        "password1": password,
+        "password2": password,
+        "applicant_name": applicant_name,
+        "contact": contact,
+        "role_gap": role_gap,
+        "availability_slots": availability_slots or ["off_hours", "weekend"],
+        "motivation_reasons": motivation_reasons or ["other"],
+        "motivation_other_text": motivation,
+        "confirm_submit": "on",
+    }
+    if capabilities_text is not None:
+        data["capabilities_text"] = capabilities_text
+    return data
+
+
 class PublicApplicationPageTests(TestCase):
     def test_member_application_page_submits_real_form_and_writes_event(self) -> None:
         response = self.client.get("/apply/")
@@ -33,19 +62,21 @@ class PublicApplicationPageTests(TestCase):
         self.assertContains(response, 'name="username"')
         self.assertContains(response, 'name="password1"')
         self.assertContains(response, 'name="applicant_name"')
-        self.assertContains(response, 'name="capabilities_text"')
+        self.assertContains(response, 'name="motivation_reasons"')
+        self.assertContains(response, "联系方式（建议留微信或电话）")
+        self.assertNotContains(response, "能力自述")
+        self.assertNotContains(response, "我能出具责任文件")
 
         response = self.client.post(
             "/apply/",
             {
-                "username": "applicant-a",
-                "password1": "test-password-123",
-                "password2": "test-password-123",
-                "applicant_name": "报名者 A",
-                "contact": "applicant-a@example.test",
-                "motivation": "想参加真实社区建设。",
+                **member_application_post_data(
+                    username="applicant-a",
+                    applicant_name="报名者 A",
+                    contact="applicant-a@example.test",
+                    motivation="想参加真实社区建设。",
+                ),
                 "availability_hours_per_week": "12",
-                "capabilities_text": "做饭:80\n视频剪辑:70",
                 "external_ref": "test-member-application",
                 "simulation_run_id": "forged-run-id",
             },
@@ -55,13 +86,22 @@ class PublicApplicationPageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         application = MemberApplication.objects.get(applicant_name="报名者 A")
         self.assertEqual(application.applicant_name, "报名者 A")
-        self.assertEqual(application.capability_scores["做饭"], 80)
+        self.assertEqual(application.capability_scores, {})
+        self.assertFalse(application.can_issue_responsibility_documents)
+        self.assertEqual(application.document_authority_domains, [])
         self.assertEqual(application.status, MemberApplication.Status.SUBMITTED)
         self.assertEqual(application.requested_member_no, "applicant-a")
         self.assertEqual(application.account_user.username, "applicant-a")
+        self.assertEqual(application.linked_member.member_no, "applicant-a")
+        self.assertEqual(application.linked_member.status, Member.Status.PENDING_REVIEW)
+        self.assertEqual(application.role_gap, "developer_ai_engineer")
+        self.assertEqual(application.availability_slots, ["off_hours", "weekend"])
+        self.assertEqual(application.dynamic_answers[0]["key"], "motivation_reasons")
+        self.assertIn("想参加真实社区建设。", application.motivation)
+        self.assertIsNotNone(application.frozen_at)
         self.assertEqual(application.metadata, {"source": "public_form"})
         self.assertTrue(get_user_model().objects.get(username="applicant-a").check_password("test-password-123"))
-        self.assertContains(response, "报名已提交")
+        self.assertContains(response, "报名工作台")
         self.assertTrue(
             SystemEvent.objects.filter(
                 event_type=SystemEvent.EventType.MEMBER_APPLICATION_SUBMITTED,
@@ -72,19 +112,16 @@ class PublicApplicationPageTests(TestCase):
     def test_member_application_review_binds_registered_account_to_candidate_member(self) -> None:
         application = self.client.post(
             "/apply/",
-            {
-                "username": "candidate-a",
-                "password1": "test-password-123",
-                "password2": "test-password-123",
-                "applicant_name": "候选成员 A",
-                "contact": "candidate-a@example.test",
-                "motivation": "愿意参加。",
-                "availability_hours_per_week": "10",
-                "capabilities_text": "整理:70",
-            },
+            member_application_post_data(
+                username="candidate-a",
+                applicant_name="候选成员 A",
+                contact="candidate-a@example.test",
+                motivation="愿意参加。",
+            ),
         )
         self.assertEqual(application.status_code, 302)
         member_application = MemberApplication.objects.get(requested_member_no="candidate-a")
+        self.assertEqual(member_application.linked_member.status, Member.Status.PENDING_REVIEW)
 
         review_member_application(
             application=member_application,
@@ -107,6 +144,8 @@ class PublicApplicationPageTests(TestCase):
                 contact="applicant-a@example.test",
                 motivation="想参加。",
                 availability_hours_per_week=12,
+                role_gap="developer_ai_engineer",
+                availability_slots=["off_hours"],
                 capability_scores={"整理": 70},
                 requested_member_no="different-member-no",
             )
@@ -125,6 +164,8 @@ class PublicApplicationPageTests(TestCase):
                 contact="applicant-b@example.test",
                 motivation="想参加。",
                 availability_hours_per_week=12,
+                role_gap="developer_ai_engineer",
+                availability_slots=["weekend"],
                 capability_scores={"整理": 70},
             )
 
@@ -140,6 +181,79 @@ class PublicApplicationPageTests(TestCase):
         self.assertContains(response, "你已经是成员")
         self.assertContains(response, "/workspace/")
         self.assertNotContains(response, 'name="password1"')
+
+    def test_member_application_rejects_conflicting_availability_slots(self) -> None:
+        response = self.client.post(
+            "/apply/",
+            member_application_post_data(
+                username="slot-conflict",
+                applicant_name="时段冲突",
+                contact="slot-conflict@example.test",
+                motivation="验证时段冲突。",
+                availability_slots=["any_time", "weekend"],
+            ),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "全天可用")
+        self.assertFalse(MemberApplication.objects.filter(requested_member_no="slot-conflict").exists())
+
+    def test_rejected_applicant_can_reapply_with_same_account_and_member(self) -> None:
+        self.client.post(
+            "/apply/",
+            member_application_post_data(
+                username="reapply-a",
+                applicant_name="再次申请者",
+                contact="reapply-a@example.test",
+                motivation="第一次申请。",
+            ),
+        )
+        first_application = MemberApplication.objects.get(requested_member_no="reapply-a")
+        review_member_application(application=first_application, status=MemberApplication.Status.REJECTED, review_note="先拒绝。")
+        first_application.refresh_from_db()
+        member = first_application.linked_member
+        self.assertEqual(member.status, Member.Status.APPLICATION_REJECTED)
+
+        self.client.force_login(first_application.account_user)
+        response = self.client.post(
+            "/apply/",
+            {
+                **member_application_post_data(
+                    username="reapply-a",
+                    applicant_name="再次申请者",
+                    contact="reapply-a@example.test",
+                    motivation="第二次申请。",
+                    role_gap="service_resident",
+                    availability_slots=["weekend"],
+                ),
+                "password1": "",
+                "password2": "",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        applications = list(MemberApplication.objects.filter(requested_member_no="reapply-a").order_by("submitted_at"))
+        self.assertEqual(len(applications), 2)
+        self.assertEqual(applications[-1].linked_member, member)
+        member.refresh_from_db()
+        self.assertEqual(member.status, Member.Status.PENDING_REVIEW)
+        self.assertContains(response, "报名工作台")
+
+    def test_member_application_review_cannot_directly_admit_without_proposal(self) -> None:
+        application = submit_member_application(
+            account_username="direct-admit",
+            account_password="test-password-123",
+            applicant_name="直接准入测试",
+            contact="direct-admit@example.test",
+            motivation="验证准入边界。",
+            role_gap="developer_ai_engineer",
+            availability_slots=["weekend"],
+            capability_scores={"开发": 70},
+        )
+
+        with self.assertRaises(DomainError):
+            review_member_application(application=application, status=MemberApplication.Status.ADMITTED)
 
     def test_legacy_member_application_path_is_not_exposed(self) -> None:
         response = self.client.get("/apply/member/")
@@ -196,14 +310,14 @@ class PublicApplicationPageTests(TestCase):
             simulation_hour=1,
             external_ref="host-test-member-application",
             data={
-                "username": "host-test-member",
-                "password1": "test-password-123",
-                "password2": "test-password-123",
-                "applicant_name": "Host 测试报名者",
-                "contact": "host-test@example.test",
-                "motivation": "验证仿真表单 driver 使用允许的 Host。",
+                **member_application_post_data(
+                    username="host-test-member",
+                    applicant_name="Host 测试报名者",
+                    contact="host-test@example.test",
+                    motivation="验证仿真表单 driver 使用允许的 Host。",
+                    capabilities_text="文档:70",
+                ),
                 "availability_hours_per_week": "8",
-                "capabilities_text": "文档:70",
                 "requested_member_no": "host-test-member",
             },
         )
@@ -222,14 +336,14 @@ class PublicApplicationPageTests(TestCase):
             simulation_hour=1,
             external_ref="rooted-path-member-application",
             data={
-                "username": "rooted-path-member",
-                "password1": "test-password-123",
-                "password2": "test-password-123",
-                "applicant_name": "Rooted Path Applicant",
-                "contact": "rooted-path@example.test",
-                "motivation": "Verify rooted simulation application path.",
+                **member_application_post_data(
+                    username="rooted-path-member",
+                    applicant_name="Rooted Path Applicant",
+                    contact="rooted-path@example.test",
+                    motivation="Verify rooted simulation application path.",
+                    capabilities_text="Documentation:70",
+                ),
                 "availability_hours_per_week": "8",
-                "capabilities_text": "Documentation:70",
                 "requested_member_no": "rooted-path-member",
             },
         )

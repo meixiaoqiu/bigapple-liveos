@@ -18,14 +18,15 @@ class MemberApplicationAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
         "application_id",
         "applicant_name",
         "status",
+        "role_gap",
         "account_user",
-        "availability_hours_per_week",
         "can_issue_responsibility_documents",
         "linked_member",
+        "admission_proposal",
         "submitted_at",
         "reviewed_at",
     )
-    list_filter = ("status", "can_issue_responsibility_documents", "submitted_at")
+    list_filter = ("status", "role_gap", "can_issue_responsibility_documents", "submitted_at")
     search_fields = (
         "application_id",
         "applicant_name",
@@ -35,7 +36,16 @@ class MemberApplicationAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
         "linked_member__member_no",
         "linked_member__display_name",
     )
-    readonly_fields = ("status", "account_user", "linked_member", "reviewed_by", "submitted_at", "reviewed_at")
+    readonly_fields = (
+        "status",
+        "account_user",
+        "linked_member",
+        "admission_proposal",
+        "frozen_at",
+        "reviewed_by",
+        "submitted_at",
+        "reviewed_at",
+    )
     ordering = ("-submitted_at", "application_id")
     list_per_page = 100
     actions = (

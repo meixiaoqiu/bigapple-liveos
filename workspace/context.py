@@ -12,7 +12,7 @@ from typing import Any
 from django.db.models import Count, F, Q, Sum
 from django.shortcuts import get_object_or_404
 
-from core.models import CapacityAssessment, Dispute, Event, LedgerEntry, Member, Resource, Task
+from core.models import CapacityAssessment, Dispute, Event, LedgerEntry, Member, MemberApplication, Resource, Task
 
 
 NEXT_ACTION_LABELS = {
@@ -23,6 +23,31 @@ NEXT_ACTION_LABELS = {
     "check_resource_warning": "关注资源预警",
     "no_action": "暂无待处理动作",
 }
+
+FULL_WORKSPACE_MEMBER_STATUSES = {Member.Status.ACTIVE, Member.Status.ADMITTED}
+
+
+def member_has_full_workspace_access(member: Member) -> bool:
+    return member.status in FULL_WORKSPACE_MEMBER_STATUSES
+
+
+def applicant_workspace_context(member_no: str) -> dict[str, Any]:
+    member = get_object_or_404(Member, member_no=member_no)
+    latest_application = (
+        MemberApplication.objects.filter(linked_member=member)
+        .select_related("admission_proposal")
+        .order_by("-submitted_at", "application_id")
+        .first()
+    )
+    can_reapply = bool(
+        latest_application
+        and latest_application.status in {MemberApplication.Status.REJECTED, MemberApplication.Status.WITHDREW}
+    )
+    return {
+        "member": member,
+        "application": latest_application,
+        "can_reapply": can_reapply,
+    }
 
 
 def workspace_next_actions(

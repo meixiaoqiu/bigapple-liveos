@@ -4,6 +4,8 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
+from core.application_services import create_member_application_admission_proposal, submit_member_application
+from core.member_roles import ROLE_FORMAL_MEMBER
 from core.permission_services import member_has_permission
 from core.proposals.execution import execute_proposal
 from core.proposals.lifecycle import create_proposal, create_role_appointment_proposal
@@ -172,6 +174,31 @@ class ProposalTests(TestCase):
         self.assertEqual(proposal.status, Proposal.Status.PASSED)
         self.assertEqual(proposal.result_json["required_yes"], 2)
 
+    def test_two_voter_majority_requires_both_votes(self) -> None:
+        two_person_role = Role.objects.create(
+            organization=self.organization,
+            name="two person committee",
+        )
+        create_role_assignment(member=self.voter_1, role=two_person_role)
+        create_role_assignment(member=self.voter_2, role=two_person_role)
+        proposal = create_proposal(
+            title="Two person majority",
+            proposal_type=Proposal.ProposalType.POLICY,
+            voter_scope_type=Proposal.VoterScopeType.ROLE,
+            voter_scope_role=two_person_role,
+            pass_ratio=50,
+        )
+
+        self.vote_yes(proposal, self.voter_1)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, Proposal.Status.VOTING)
+        self.assertEqual(proposal.result_json["required_yes"], 2)
+
+        self.vote_yes(proposal, self.voter_2)
+        proposal.refresh_from_db()
+
+        self.assertEqual(proposal.status, Proposal.Status.PASSED)
+
     def test_pending_proposal_fails_after_deadline(self) -> None:
         now = timezone.now()
         proposal = create_role_appointment_proposal(
@@ -209,6 +236,38 @@ class ProposalTests(TestCase):
         self.assertEqual(assignment.source_proposal, proposal)
         self.assertEqual(assignment.source_proposal_execution, execution)
         self.assertEqual(execution.result_json["source_type"], RoleAssignment.SourceType.PROPOSAL)
+
+    def test_member_admission_proposal_execution_admits_linked_applicant(self) -> None:
+        application = submit_member_application(
+            applicant_name="准入申请者",
+            contact="applicant@example.test",
+            motivation="想加入社区。",
+            role_gap="developer_ai_engineer",
+            availability_slots=["weekend"],
+            capability_scores={"开发": 80},
+            requested_member_no="admission-applicant",
+        )
+
+        proposal = create_member_application_admission_proposal(
+            application=application,
+            proposer_member=self.voter_1,
+            voter_scope_role=self.committee_role,
+            reason="符合当前开发缺口。",
+        )
+        self.vote_yes(proposal, self.voter_1)
+        self.vote_yes(proposal, self.voter_2)
+        proposal.refresh_from_db()
+
+        execution = execute_proposal(proposal=proposal, executor_member=self.voter_1)
+        application.refresh_from_db()
+        member = application.linked_member
+        member.refresh_from_db()
+
+        self.assertEqual(proposal.status, Proposal.Status.EXECUTED)
+        self.assertEqual(execution.action_type, ProposalExecution.ActionType.ADMIT_MEMBER_APPLICATION)
+        self.assertEqual(application.status, application.Status.ADMITTED)
+        self.assertEqual(member.status, member.Status.ADMITTED)
+        self.assertIn(ROLE_FORMAL_MEMBER, member.active_role_names())
 
     def test_repeated_proposal_execution_is_idempotent(self) -> None:
         proposal = create_role_appointment_proposal(target_member=self.target, target_role=self.admin_role)

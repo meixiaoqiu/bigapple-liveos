@@ -15,7 +15,7 @@ from core.models import Member, Task
 from core.tasks.member_workflow import claim_task, submit_labor
 from worlds.routing import world_redirect
 
-from .context import workspace_context
+from .context import applicant_workspace_context, member_has_full_workspace_access, workspace_context
 
 
 def parse_evidence_refs(raw_value: str) -> list[str]:
@@ -32,17 +32,28 @@ def current_member_or_forbidden(request: HttpRequest) -> Member | HttpResponseFo
     return member
 
 
+def current_full_member_or_forbidden(request: HttpRequest) -> Member | HttpResponseForbidden:
+    member = current_member_or_forbidden(request)
+    if isinstance(member, HttpResponseForbidden):
+        return member
+    if not member_has_full_workspace_access(member):
+        return page_forbidden("报名审核完成前不能执行该操作。")
+    return member
+
+
 @require_GET
 def workspace_page(request: HttpRequest):
     member = current_member_or_forbidden(request)
     if isinstance(member, HttpResponseForbidden):
         return member
+    if not member_has_full_workspace_access(member):
+        return render(request, "workspace/applicant.html", applicant_workspace_context(member.member_no))
     return render(request, "workspace/index.html", workspace_context(member.member_no))
 
 
 @require_POST
 def workspace_claim_task(request: HttpRequest, task_id: str):
-    member = current_member_or_forbidden(request)
+    member = current_full_member_or_forbidden(request)
     if isinstance(member, HttpResponseForbidden):
         return member
     task = get_object_or_404(Task, task_id=task_id)
@@ -57,7 +68,7 @@ def workspace_claim_task(request: HttpRequest, task_id: str):
 
 @require_POST
 def workspace_submit_labor(request: HttpRequest, task_id: str):
-    member = current_member_or_forbidden(request)
+    member = current_full_member_or_forbidden(request)
     if isinstance(member, HttpResponseForbidden):
         return member
     task = get_object_or_404(Task, task_id=task_id)
@@ -82,7 +93,7 @@ def workspace_submit_labor(request: HttpRequest, task_id: str):
 
 @require_POST
 def workspace_create_dispute(request: HttpRequest):
-    member = current_member_or_forbidden(request)
+    member = current_full_member_or_forbidden(request)
     if isinstance(member, HttpResponseForbidden):
         return member
     dispute_type = request.POST.get("dispute_type", "")

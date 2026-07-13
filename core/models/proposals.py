@@ -15,6 +15,7 @@ class Proposal(models.Model):
     """
 
     class ProposalType(models.TextChoices):
+        MEMBER_ADMISSION = "member_admission", "成员准入"
         ROLE_APPOINTMENT = "role_appointment", "角色任命"
         ROLE_REVOCATION = "role_revocation", "角色卸任"
         RULE = "rule", "规则"
@@ -188,6 +189,7 @@ class ProposalExecution(models.Model):
     """Execution record for a passed proposal."""
 
     class ActionType(models.TextChoices):
+        ADMIT_MEMBER_APPLICATION = "admit_member_application", "接纳成员报名"
         CREATE_ROLE_ASSIGNMENT = "create_role_assignment", "创建角色任命"
         REVOKE_ROLE_ASSIGNMENT = "revoke_role_assignment", "撤销角色任命"
         CREATE_RULE = "create_rule", "创建规则"

@@ -801,6 +801,34 @@ def _metadata_int(metadata: dict[str, object], key: str, default: int) -> int:
         return default
 
 
+def _availability_slots_for_spec(spec: ApplicantSpec) -> list[str]:
+    if spec.availability_hours_per_week >= 30:
+        return ["any_time"]
+    if spec.availability_hours_per_week >= 8:
+        return ["off_hours", "weekend"]
+    return ["weekend"]
+
+
+def _role_gap_for_spec(spec: ApplicantSpec) -> str:
+    capability_names = " ".join(spec.capability_scores.keys())
+    if any(keyword in capability_names for keyword in ("文档", "表格", "光伏", "结构")):
+        return "developer_ai_engineer"
+    if any(keyword in capability_names for keyword in ("搬运", "现场", "安全", "采购")):
+        return "service_resident"
+    return "community_contributor"
+
+
+def _motivation_reasons_for_spec(spec: ApplicantSpec) -> list[str]:
+    if spec.availability_hours_per_week >= 30:
+        return ["build_community"]
+    capability_names = " ".join(spec.capability_scores.keys())
+    if any(keyword in capability_names for keyword in ("文档", "表格", "光伏", "结构")):
+        return ["remote_system_work", "learn_and_practice"]
+    if spec.availability_hours_per_week <= 2:
+        return ["safe_stable_place"]
+    return ["build_community", "other"]
+
+
 def _submit_member_application_via_form(
     *,
     driver: HttpFormDriver,
@@ -823,10 +851,13 @@ def _submit_member_application_via_form(
             "contact": f"applicant-{spec.index:03d}@simulation.test",
             "motivation": spec.motivation,
             "availability_hours_per_week": spec.availability_hours_per_week,
+            "role_gap": _role_gap_for_spec(spec),
+            "availability_slots": _availability_slots_for_spec(spec),
+            "motivation_reasons": _motivation_reasons_for_spec(spec),
+            "motivation_other_text": spec.motivation,
             "capabilities_text": "\n".join(f"{name}:{score}" for name, score in spec.capability_scores.items()),
-            "can_issue_responsibility_documents": "on" if spec.document_authority_domains else "",
-            "document_authority_domains_text": "\n".join(spec.document_authority_domains),
             "requested_member_no": applicant_username,
+            "confirm_submit": "on",
         },
     )
 

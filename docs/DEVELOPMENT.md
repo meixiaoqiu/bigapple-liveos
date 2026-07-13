@@ -181,7 +181,7 @@ docker compose -f docker-compose.dev.yml exec big-apple-admin python manage.py s
 docker compose -f docker-compose.dev.yml exec big-apple-admin python manage.py run_zero_start_simulation --world-id simulation0001 --hours 168 --settings=live_os.settings_admin
 ```
 
-`zero_start` 模板只预置一个发起人、一个极简计划和一个已发布计划版本，不预置任务、资源、候选场地或成熟成员池。`run_zero_start_simulation` 会按整数小时驱动虚拟主体通过真实 world URL 提交成员报名和合作方报名表单，生成自媒体主动报名、初筛、候选、备用、项目拒绝、主动退出、成员能力矩阵和文件签署方矩阵记录，用于下一轮从真正 0 点继续推演。默认 168 小时只是一个观察窗口；如果启动门槛未满足，run 会保持 `running` 并允许再次执行命令继续推进同一个 run。报名密度会随虚拟曝光时间增加，而不是平均分布。当前 driver 会验证页面和 HTML 表单字段并通过 HTTP POST 提交；浏览器抽样验证后续接入同一 driver 边界。
+`zero_start` 模板只预置一个发起人、一个极简计划和一个已发布计划版本，不预置任务、资源、候选场地或成熟成员池。`run_zero_start_simulation` 会按整数小时驱动虚拟主体通过真实 world URL 提交成员报名和合作方报名表单，生成自媒体主动报名、初筛、候选、备用、项目拒绝、主动退出、成员能力矩阵和文件签署方矩阵记录，用于下一轮从真正 0 点继续推演。成员报名表单使用 `role_gap`、`availability_slots`、动态问答和提交确认；历史小时字段只作为仿真兼容数据随 POST 一起带入，不再是页面主输入。默认 168 小时只是一个观察窗口；如果启动门槛未满足，run 会保持 `running` 并允许再次执行命令继续推进同一个 run。报名密度会随虚拟曝光时间增加，而不是平均分布。当前 driver 会验证页面和 HTML 表单字段并通过 HTTP POST 提交；浏览器抽样验证后续接入同一 driver 边界。
 
 启动门槛满足后，同一个 `zero_start` run 会继续进入 `pre_engineering` 工程前置阶段，而不是立刻结束。该阶段会把候选场地池、并网预筛、场地合法性与附条件租赁审查、结构/光伏/电气/施工/验收责任文件取得过程写入 `SimulationTurn.metadata` 和公开仿真事件；只有工程前置责任闭环完成后，run 才会进入 `completed`。
 

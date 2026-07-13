@@ -18,6 +18,7 @@ class Member(models.Model):
         PENDING_TRAINING = "pending_training", "待培训"
         PENDING_REVIEW = "pending_review", "待审核"
         ADMITTED = "admitted", "已接纳"
+        APPLICATION_REJECTED = "application_rejected", "报名未通过"
         SUSPENDED = "suspended", "已暂停"
         EXITED = "exited", "已退出"
 

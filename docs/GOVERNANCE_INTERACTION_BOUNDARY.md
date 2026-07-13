@@ -96,11 +96,16 @@ Member -> active RoleAssignment -> RolePermission -> Permission
 
 `Proposal` 只处理“是否批准某件事”。它负责提案内容、表决范围、投票资格快照、通过比例、最低参与人数、截止时间和执行结果。
 
+通过比例按严格超过阈值计算。`pass_ratio=50` 表示赞成票必须超过半数，而不是达到一半；因此 1 人需 1 票、2 人需 2 票、3 人需 2 票、4 人需 3 票。
+
 当前重点支持：
 
 ```text
+member_admission Proposal -> ProposalVote -> ProposalExecution -> MemberApplication + Member + RoleAssignment
 role_appointment Proposal -> ProposalVote -> ProposalExecution -> RoleAssignment
 ```
+
+成员报名提交只创建最小权限 `Member` 和 `MemberApplication`。是否接纳为正式成员由 `member_admission` 提案决定，提案通过后仍需显式执行，执行结果落到报名、成员状态和正式成员角色任命上，不新建平行投票表。
 
 未来规则、政策、预算、项目计划、重大申诉裁决和重大任务发布可以使用同一套提案流程，但执行后仍应落到具体业务对象。
 

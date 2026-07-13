@@ -2,7 +2,7 @@
 
 {% block title %}成员报名状态 · 大苹果{% endblock %}
 {% block heading %}成员报名状态{% endblock %}
-{% block subtitle %}成员报名已经和登录账号绑定。审核完成前，账号只能查看报名状态；成为成员后再进入成员工作台。{% endblock %}
+{% block subtitle %}成员报名已经和登录账号绑定。审核完成前，账号可以进入最小权限工作台查看自己的报名状态。{% endblock %}
 
 {% block content %}
   {% if member %}
@@ -28,7 +28,7 @@
     {% endif %}
     {% if application.linked_member %}
       <div class="flex justify-end">
-        <a class="btn btn-primary" href="/workspace/">进入成员工作台</a>
+        <a class="btn btn-primary" href="/workspace/">进入报名工作台</a>
       </div>
     {% endif %}
   {% endif %}

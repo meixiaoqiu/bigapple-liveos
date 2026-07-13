@@ -14,7 +14,9 @@ def calculate_required_approvals(voter_count: int, required_percent: int) -> int
     if voter_count < 1:
         return 1
     normalized_percent = max(1, min(100, required_percent))
-    return max(1, math.ceil(voter_count * normalized_percent / 100))
+    if normalized_percent == 100:
+        return voter_count
+    return max(1, math.floor(voter_count * normalized_percent / 100) + 1)
 
 
 def eligible_voters_for_role(electorate_role: Role, *, at_time=None):

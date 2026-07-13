@@ -48,8 +48,10 @@ class HttpFormDriver:
             "applicant_name",
             "contact",
             "motivation",
-            "availability_hours_per_week",
-            "capabilities_text",
+            "role_gap",
+            "availability_slots",
+            "motivation_reasons",
+            "confirm_submit",
         )
         page_error = self._verify_form_page(world_id, path, required_fields)
         if page_error:

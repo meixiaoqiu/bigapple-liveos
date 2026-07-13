@@ -177,7 +177,12 @@ class SimulationSmokeCommandTests(TestCase):
         self.assertTrue(applications.filter(status=MemberApplication.Status.STANDBY).exists())
         self.assertTrue(applications.filter(status=MemberApplication.Status.REJECTED).exists())
         self.assertTrue(applications.filter(status=MemberApplication.Status.WITHDREW).exists())
-        self.assertEqual(Member.objects.filter(member_applications__metadata__simulation_run_id=run.run_id).count(), 3)
+        simulation_members = Member.objects.filter(member_applications__metadata__simulation_run_id=run.run_id).distinct()
+        self.assertEqual(simulation_members.count(), 6)
+        self.assertEqual(
+            simulation_members.filter(member_applications__status=MemberApplication.Status.CANDIDATE).distinct().count(),
+            3,
+        )
         partners = PartnerApplication.objects.filter(metadata__simulation_run_id=run.run_id)
         self.assertEqual(partners.count(), 2)
         self.assertTrue(partners.filter(status=PartnerApplication.Status.STANDBY).exists())

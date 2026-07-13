@@ -9,7 +9,7 @@ from django.views.decorators.http import require_http_methods
 
 from core.application_services import submit_member_application, submit_partner_application
 from core.exceptions import DomainError
-from core.models import MemberApplication
+from core.models import Member, MemberApplication
 from live_os.access import member_for_request
 from worlds.routing import world_redirect
 from worlds.views import SESSION_WORLD_ID
@@ -18,36 +18,58 @@ from .forms import MemberApplicationForm, PartnerApplicationForm, apply_daisyui_
 from .simulation_metadata import metadata_from_signed_form_post
 
 
+MEMBER_APPLICATION_REAPPLY_STATUSES = {MemberApplication.Status.REJECTED, MemberApplication.Status.WITHDREW}
+MEMBER_FULL_ACCESS_STATUSES = {Member.Status.ACTIVE, Member.Status.ADMITTED}
+
+
+def _latest_member_application(*, user=None, member=None):
+    queryset = MemberApplication.objects.select_related("linked_member", "account_user")
+    if member is not None:
+        queryset = queryset.filter(linked_member=member)
+    elif user is not None and getattr(user, "is_authenticated", False):
+        queryset = queryset.filter(account_user=user)
+    else:
+        return None
+    return queryset.order_by("-submitted_at", "application_id").first()
+
+
 @require_http_methods(["GET", "POST"])
 def member_application_page(request):
     member = member_for_request(request)
-    if member is not None:
+    current_application = _latest_member_application(
+        user=request.user if request.user.is_authenticated else None,
+        member=member,
+    )
+    if member is not None and member.status in MEMBER_FULL_ACCESS_STATUSES:
         return render(request, "applications/member_application_status.html", {"member": member})
-
-    current_application = None
-    if request.user.is_authenticated:
-        current_application = (
-            MemberApplication.objects.filter(account_user=request.user)
-            .select_related("linked_member")
-            .order_by("-submitted_at", "application_id")
-            .first()
+    can_reapply = bool(current_application and current_application.status in MEMBER_APPLICATION_REAPPLY_STATUSES)
+    if current_application is not None and not can_reapply:
+        return render(
+            request,
+            "applications/member_application_status.html",
+            {"application": current_application},
         )
-    if current_application is not None:
-        return render(request, "applications/member_application_status.html", {"application": current_application})
+    existing_user = request.user if request.user.is_authenticated else None
 
     if request.method == "POST":
-        form = apply_daisyui_widgets(MemberApplicationForm(request.POST))
+        form = apply_daisyui_widgets(
+            MemberApplicationForm(request.POST, existing_user=existing_user, existing_member=member)
+        )
         if form.is_valid():
             try:
                 application = submit_member_application(
-                    account_username=form.cleaned_data["username"],
-                    account_password=form.cleaned_data["password1"],
+                    account_username="" if existing_user is not None else form.cleaned_data["username"],
+                    account_password="" if existing_user is not None else form.cleaned_data["password1"],
+                    account_user=existing_user,
                     applicant_name=form.cleaned_data["applicant_name"],
                     contact=form.cleaned_data["contact"],
-                    motivation=form.cleaned_data["motivation"],
+                    motivation=form.motivation_text(),
                     availability_hours_per_week=form.cleaned_data["availability_hours_per_week"],
+                    role_gap=form.cleaned_data["role_gap"],
+                    availability_slots=form.cleaned_data["availability_slots"],
+                    dynamic_answers=form.dynamic_answers(),
                     capability_scores=form.capability_scores(),
-                    can_issue_responsibility_documents=form.cleaned_data["can_issue_responsibility_documents"],
+                    can_issue_responsibility_documents=False,
                     document_authority_domains=form.document_authority_domains(),
                     requested_member_no=form.cleaned_data["requested_member_no"],
                     metadata=metadata_from_signed_form_post(request.POST),
@@ -60,10 +82,14 @@ def member_application_page(request):
                     login(request, application.account_user, backend="django.contrib.auth.backends.ModelBackend")
                     if getattr(request, "world", None) is not None:
                         request.session[SESSION_WORLD_ID] = request.world.world_id
-                return world_redirect(request, "member-application-page")
+                return world_redirect(request, "workspace-page")
     else:
-        form = apply_daisyui_widgets(MemberApplicationForm())
-    return render(request, "applications/member_application.html", {"form": form})
+        form = apply_daisyui_widgets(MemberApplicationForm(existing_user=existing_user, existing_member=member))
+    return render(
+        request,
+        "applications/member_application.html",
+        {"form": form, "is_reapply": can_reapply, "previous_application": current_application},
+    )
 
 
 @require_http_methods(["GET", "POST"])
