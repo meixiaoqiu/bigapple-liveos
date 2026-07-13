@@ -1,5 +1,6 @@
 """Public application records for members and project partners."""
 
+from django.conf import settings
 from django.db import models
 
 from .identity import Member
@@ -43,6 +44,15 @@ class MemberApplication(models.Model):
     )
     status = models.CharField("状态", max_length=32, choices=Status.choices, default=Status.SUBMITTED)
     requested_member_no = models.CharField("期望成员编号", max_length=64, blank=True)
+    account_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="member_applications",
+        verbose_name="报名账号",
+        help_text="成员报名时创建的登录账号；审核通过后绑定到成员身份。",
+    )
     linked_member = models.ForeignKey(
         Member,
         null=True,

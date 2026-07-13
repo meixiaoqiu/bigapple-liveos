@@ -809,12 +809,16 @@ def _submit_member_application_via_form(
     spec: ApplicantSpec,
     hour: int,
 ) -> FormSubmissionResult:
+    applicant_username = f"applicant-{run.run_id[-6:]}-{spec.index:03d}"
     return driver.submit_member_application(
         world_id=world_id,
         run_id=run.run_id,
         simulation_hour=hour,
         external_ref=f"{run.run_id}:member:{spec.index}",
         data={
+            "username": applicant_username,
+            "password1": f"simulation-{run.run_id[-6:]}-{spec.index:03d}",
+            "password2": f"simulation-{run.run_id[-6:]}-{spec.index:03d}",
             "applicant_name": spec.display_name,
             "contact": f"applicant-{spec.index:03d}@simulation.test",
             "motivation": spec.motivation,
@@ -822,7 +826,7 @@ def _submit_member_application_via_form(
             "capabilities_text": "\n".join(f"{name}:{score}" for name, score in spec.capability_scores.items()),
             "can_issue_responsibility_documents": "on" if spec.document_authority_domains else "",
             "document_authority_domains_text": "\n".join(spec.document_authority_domains),
-            "requested_member_no": f"applicant-{run.run_id[-6:]}-{spec.index:03d}",
+            "requested_member_no": applicant_username,
         },
     )
 

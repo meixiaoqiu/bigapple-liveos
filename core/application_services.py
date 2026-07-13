@@ -5,6 +5,10 @@ from __future__ import annotations
 from typing import Any
 from uuid import uuid4
 
+from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import IntegrityError
 from django.utils import timezone
 
 from core.db import atomic_for_model
@@ -22,6 +26,24 @@ def _nonblank(value: object, field_label: str) -> str:
     if not text:
         raise DomainError(f"{field_label}不能为空。")
     return text
+
+
+def _create_application_account(*, username: str, password: str):
+    cleaned_username = _nonblank(username, "登录账号")
+    cleaned_password = _nonblank(password, "登录密码")
+    if Member.objects.filter(member_no=cleaned_username).exists():
+        raise DomainError("该登录账号已被成员编号使用。")
+    try:
+        validate_password(cleaned_password)
+    except DjangoValidationError as exc:
+        raise DomainError(f"登录密码不符合要求：{'；'.join(exc.messages)}") from exc
+    user_model = get_user_model()
+    if user_model.objects.filter(username=cleaned_username).exists():
+        raise DomainError("登录账号已存在。")
+    try:
+        return user_model.objects.create_user(username=cleaned_username, password=cleaned_password)
+    except IntegrityError as exc:
+        raise DomainError("登录账号已存在。") from exc
 
 
 def _list_payload(value: object) -> list[str]:
@@ -56,6 +78,7 @@ def member_application_payload(application: MemberApplication) -> dict[str, Any]
         "applicant_name": application.applicant_name,
         "status": application.status,
         "requested_member_no": application.requested_member_no,
+        "account_username": application.account_user.get_username() if application.account_user_id else "",
         "linked_member_no": application.linked_member.member_no if application.linked_member_id else "",
         "availability_hours_per_week": application.availability_hours_per_week,
         "capability_scores": application.capability_scores,
@@ -98,6 +121,9 @@ def submit_member_application(
     can_issue_responsibility_documents: bool = False,
     document_authority_domains: object = None,
     requested_member_no: str = "",
+    account_username: str = "",
+    account_password: str = "",
+    account_user=None,
     metadata: dict[str, Any] | None = None,
     submitted_at=None,
 ) -> MemberApplication:
@@ -106,6 +132,23 @@ def submit_member_application(
     if availability_hours_per_week < 0:
         raise DomainError("每周可投入小时不能为负数。")
     now = submitted_at or timezone.now()
+    cleaned_requested_member_no = str(requested_member_no or "").strip()
+    if account_user is None and account_username:
+        cleaned_account_username = str(account_username or "").strip()
+        if not cleaned_requested_member_no:
+            cleaned_requested_member_no = cleaned_account_username
+        if cleaned_requested_member_no != cleaned_account_username:
+            raise DomainError("成员编号必须与报名登录账号一致。")
+    elif account_user is not None:
+        account_user_username = str(account_user.get_username() or "").strip()
+        if not cleaned_requested_member_no:
+            cleaned_requested_member_no = account_user_username
+        if cleaned_requested_member_no != account_user_username:
+            raise DomainError("成员编号必须与报名登录账号一致。")
+    if cleaned_requested_member_no and Member.objects.filter(member_no=cleaned_requested_member_no).exists():
+        raise DomainError("成员编号已存在。")
+    if account_user is None and (account_username or account_password):
+        account_user = _create_application_account(username=account_username, password=account_password)
     application = MemberApplication.objects.create(
         application_id=generate_member_application_id(),
         applicant_name=_nonblank(applicant_name, "报名人名称"),
@@ -115,7 +158,8 @@ def submit_member_application(
         capability_scores=dict(capability_scores or {}),
         can_issue_responsibility_documents=can_issue_responsibility_documents,
         document_authority_domains=_list_payload(document_authority_domains),
-        requested_member_no=str(requested_member_no or "").strip(),
+        requested_member_no=cleaned_requested_member_no,
+        account_user=account_user,
         submitted_at=now,
         metadata=dict(metadata or {}),
     )
@@ -226,6 +270,13 @@ def review_member_application(
             },
             created_by={"actor_type": "application_review", "display_name": member_display_name(reviewed_by) if reviewed_by else "system"},
         )
+        if application.account_user_id:
+            if member.member_no != application.account_user.get_username():
+                raise DomainError("报名账号与成员编号不一致，不能绑定成员身份。")
+            if Member.objects.filter(user=application.account_user).exists():
+                raise DomainError("报名账号已绑定其他成员。")
+            member.user = application.account_user
+            member.save(update_fields=["user"])
         ensure_role_assignment(member, ensure_member_role(ROLE_CANDIDATE))
         application.linked_member = member
     application.save(update_fields=["status", "reviewed_by", "reviewed_at", "metadata", "linked_member"])

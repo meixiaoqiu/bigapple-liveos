@@ -10,6 +10,25 @@
     {% for error in form.non_field_errors %}
       <div class="alert alert-error lg:col-span-2">{{ error }}</div>
     {% endfor %}
+    {{ form.requested_member_no }}
+
+    <label class="form-control w-full">
+      <div class="label"><span class="label-text">{{ form.username.label }}</span></div>
+      {{ form.username }}
+      {% for error in form.username.errors %}<div class="label"><span class="label-text-alt text-error">{{ error }}</span></div>{% endfor %}
+    </label>
+
+    <label class="form-control w-full">
+      <div class="label"><span class="label-text">{{ form.password1.label }}</span></div>
+      {{ form.password1 }}
+      {% for error in form.password1.errors %}<div class="label"><span class="label-text-alt text-error">{{ error }}</span></div>{% endfor %}
+    </label>
+
+    <label class="form-control w-full">
+      <div class="label"><span class="label-text">{{ form.password2.label }}</span></div>
+      {{ form.password2 }}
+      {% for error in form.password2.errors %}<div class="label"><span class="label-text-alt text-error">{{ error }}</span></div>{% endfor %}
+    </label>
 
     <label class="form-control w-full">
       <div class="label"><span class="label-text">{{ form.applicant_name.label }}</span></div>
@@ -27,12 +46,6 @@
       <div class="label"><span class="label-text">{{ form.availability_hours_per_week.label }}</span></div>
       {{ form.availability_hours_per_week }}
       {% for error in form.availability_hours_per_week.errors %}<div class="label"><span class="label-text-alt text-error">{{ error }}</span></div>{% endfor %}
-    </label>
-
-    <label class="form-control w-full">
-      <div class="label"><span class="label-text">{{ form.requested_member_no.label }}</span></div>
-      {{ form.requested_member_no }}
-      {% for error in form.requested_member_no.errors %}<div class="label"><span class="label-text-alt text-error">{{ error }}</span></div>{% endfor %}
     </label>
 
     <label class="form-control w-full lg:col-span-2">

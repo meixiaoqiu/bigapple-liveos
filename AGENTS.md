@@ -25,8 +25,11 @@
 
 - 优先做小而明确的改动，先理解现有结构，再增加抽象。
 - 优先使用项目已有脚本、已有配置和已有测试命令。
-- 轻中度分析、diff 初审、测试失败归因和 patch 草稿优先委派给 CodeBuddy；默认模型由 `scripts/ai/codebuddy.config.json` 固定为 `glm-5.2`。
-- CodeBuddy 可以通过 `scripts/ai/codebuddy_make_patch.ps1` 生成 `proposal.patch`，但不能直接改工作区；必须先由 Codex 或人工审查，并通过 `scripts/ai/codebuddy_apply_patch_guard.ps1` 校验后才能应用。
+- 轻中度分析、diff 初审、测试失败归因和简单/中等开发任务优先委派给 CodeBuddy；默认模型由 `scripts/ai/codebuddy.config.json` 固定为 `glm-5.2`。
+- 本仓库源码已按开源边界处理，CodeBuddy 可以直接读取和修改当前工作区源码；Codex 必须先检查 `git status --short`，必要时先做或建议做 checkpoint commit，再让 CodeBuddy 开发。
+- CodeBuddy 直接开发时禁止读取或修改真实 `.env`、密钥、cookie、私密配置、`start.bat`、`.git`、生成缓存和上传/日志目录；默认禁止 Bash/shell、数据库、Docker、Git、删除、重置、推送和发布操作。
+- CodeBuddy 直接开发后，Codex 必须审查 `git diff`、检查敏感信息、运行相关测试，并按开源提交标准判断是否提交。CodeBuddy 不应自行 stage、commit、push 或 publish。
+- `scripts/ai/codebuddy_make_patch.ps1` 仍可用于极小 patch 草稿；生成的 `proposal.patch` 必须先由 Codex 或人工审查，并通过 `scripts/ai/codebuddy_apply_patch_guard.ps1` 校验后才能应用。
 - CodeBuddy 额度耗尽时不要自动切换贵模型，直接提示用户切换账号。
 - 会改变权威状态的 service 函数必须写 docstring。
 - 含义不明显的 model 字段必须写 `help_text`。

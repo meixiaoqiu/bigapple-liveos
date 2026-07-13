@@ -64,7 +64,7 @@ MySQL
 当前默认运行入口分为三个站点：
 
 - `bigadmin.local` / `live_os.settings_admin`：control plane。`/admin/` 是技术后台、原始数据和兜底维护入口；`/admin/simulation-lab/` 是仿真实验后台，负责启动、推进、归档和废弃仿真实验。
-- `bigreal.local` / `live_os.settings_real`：真实世界 runtime。固定绑定 `realworld`，使用根路径 `/api/v0.1/`、`/observer/`、`/workspace/`、`/apply/member/` 和 `/apply/partner/`。
+- `bigreal.local` / `live_os.settings_real`：真实世界 runtime。固定绑定 `realworld`，使用根路径 `/api/v0.1/`、`/observer/`、`/workspace/`、成员报名 `/apply/` 和合作方报名 `/apply/partner/`。
 - `bigsim.local` / `live_os.settings_sim`：仿真世界 runtime。固定绑定 `simulation0001`，使用与真实世界相同的根路径和同一套页面/服务代码。
 
 The old world-prefixed route family has been removed from runtime URLConfs. Real and simulation worlds are bound by fixed host settings, not by a world id in the URL.

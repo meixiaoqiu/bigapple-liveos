@@ -102,7 +102,7 @@ python manage.py seed_demo --world-id realworld
 - 任务创建、发布、指派、领取、劳动提交、验收和关闭的正式状态变化应优先通过 API 或 `core.tasks.*` 领域服务完成，这些服务会追加 `task_*` 统一事件账本记录。
 - 申诉提交、受理和处理结论应优先通过 API 或 `core.dispute_services` 完成，这些服务会追加 `dispute_*` 统一事件账本记录。
 - 当前 Admin 可以用于早期维护资源、供应商报价、成员和申诉数据，但涉及审计链的操作后续应迁移到运营后台。库存流水是只读查账记录，不能通过 Admin 新增、修改或删除。资源运营页会基于已发布计划需求、当前库存和有效供应商报价展示资源缺口，并展示近期库存流水；这不是完整采购系统，也不会自动创建采购单。
-- Public application entrypoints on fixed-world sites are `/apply/member/` and `/apply/partner/`. Zero-start simulation submits these real forms; field, validation, or save-chain failures end the simulation run as a system-interaction failure. The first driver does not execute browser JavaScript yet; browser sampling should attach to the same flow later.
+- Public application entrypoints on fixed-world sites are `/apply/` for member application/account registration and `/apply/partner/` for partner application. Zero-start simulation submits these real forms; field, validation, or save-chain failures end the simulation run as a system-interaction failure. The first driver does not execute browser JavaScript yet; browser sampling should attach to the same flow later.
 
 ## 治理权限迁移
 

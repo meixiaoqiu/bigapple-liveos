@@ -1,6 +1,8 @@
 param(
     [Parameter(Mandatory=$true)]
-    [string]$Requirement
+    [string]$Requirement,
+
+    [int]$TimeoutSeconds = 180
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,5 +12,5 @@ $taskFile = Join-Path $scriptDir "tasks\feature-merge-review.md"
 $runner = Join-Path $scriptDir "Invoke-CodeBuddyTask.ps1"
 $contextPaths = @("core", "simulation", "simulation_lab", "observer", "workspace", "worlds", "docs")
 
-& $runner -TaskFile $taskFile -Requirement $Requirement -ContextPath $contextPaths
+& $runner -TaskFile $taskFile -Requirement $Requirement -ContextPath $contextPaths -TimeoutSeconds $TimeoutSeconds
 exit $LASTEXITCODE

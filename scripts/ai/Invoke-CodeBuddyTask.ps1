@@ -28,6 +28,8 @@ param(
 
     [int]$MaxReportOutputChars = 12000,
 
+    [int]$TimeoutSeconds = 180,
+
     [switch]$NoExit,
 
     [string]$MetadataPathFile = ""
@@ -75,6 +77,75 @@ try {
     $repoRoot = ((git rev-parse --show-toplevel 2>$null) | Select-Object -First 1).Trim()
 } catch {
     $repoRoot = ""
+}
+
+function Normalize-ContextPathList {
+    param([string[]]$Paths)
+
+    $normalized = @()
+    foreach ($item in @($Paths)) {
+        if ([string]::IsNullOrWhiteSpace($item)) {
+            continue
+        }
+        foreach ($part in ([string]$item -split ",")) {
+            $trimmed = $part.Trim()
+            if (-not [string]::IsNullOrWhiteSpace($trimmed)) {
+                $normalized += $trimmed
+            }
+        }
+    }
+    return @($normalized)
+}
+
+$ContextPath = @(Normalize-ContextPathList -Paths $ContextPath)
+
+function ConvertTo-ProcessArgument {
+    param([AllowNull()][string]$Argument)
+
+    if ($null -eq $Argument) {
+        return '""'
+    }
+    $value = [string]$Argument
+    if ($value.Length -eq 0) {
+        return '""'
+    }
+    if ($value -notmatch '[\s"]') {
+        return $value
+    }
+
+    $builder = [System.Text.StringBuilder]::new()
+    [void]$builder.Append('"')
+    $backslashCount = 0
+    foreach ($char in $value.ToCharArray()) {
+        if ($char -eq [char]'\') {
+            $backslashCount++
+            continue
+        }
+        if ($char -eq [char]'"') {
+            if ($backslashCount -gt 0) {
+                [void]$builder.Append('\' * ($backslashCount * 2))
+                $backslashCount = 0
+            }
+            [void]$builder.Append('\"')
+            continue
+        }
+        if ($backslashCount -gt 0) {
+            [void]$builder.Append('\' * $backslashCount)
+            $backslashCount = 0
+        }
+        [void]$builder.Append($char)
+    }
+    if ($backslashCount -gt 0) {
+        [void]$builder.Append('\' * ($backslashCount * 2))
+    }
+    [void]$builder.Append('"')
+    return $builder.ToString()
+}
+
+function Join-ProcessArgumentList {
+    param([string[]]$Arguments)
+
+    return ((@($Arguments) | ForEach-Object { ConvertTo-ProcessArgument $_ }) -join " ")
 }
 
 function Write-Utf8NoBom {
@@ -354,7 +425,8 @@ function Invoke-CodeBuddy {
         [string]$StdoutFile,
         [string]$StderrFile,
         [string]$Model,
-        [string]$Tools
+        [string]$Tools,
+        [int]$TimeoutSeconds = 180
     )
 
     $args = @(
@@ -364,10 +436,10 @@ function Invoke-CodeBuddy {
         "--max-turns",
         "1",
         "--append-system-prompt",
-        "You are a text-only review assistant. Do not use tools. Do not ask to inspect files. Use only the supplied prompt and return the requested review directly."
+        "You are a text-only assistant. Do not use tools. Do not ask to inspect files. Use only the supplied prompt and follow the current Task Instructions exactly."
     )
     if ([string]::IsNullOrEmpty($Tools)) {
-        $args += "--tools="
+        $args += @("--tools", "")
     } else {
         $args += @("--tools", $Tools)
     }
@@ -375,12 +447,74 @@ function Invoke-CodeBuddy {
         $args += @("--model", $Model)
     }
 
-    $combined = $Prompt | & codebuddy @args 2>&1
-    $exitCode = $LASTEXITCODE
-    $combinedText = ($combined | Out-String)
-    Write-Utf8NoBom -Path $StdoutFile -Text $combinedText
-    Write-Utf8NoBom -Path $StderrFile -Text ""
-    return $exitCode
+    $command = Get-Command codebuddy -ErrorAction Stop
+    if ($command.CommandType -eq "ExternalScript") {
+        $fileName = (Get-Command powershell.exe -ErrorAction Stop).Source
+        $processArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $command.Source) + $args
+    } else {
+        $fileName = $command.Source
+        $processArgs = $args
+    }
+
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $fileName
+    $startInfo.Arguments = Join-ProcessArgumentList -Arguments $processArgs
+    $startInfo.UseShellExecute = $false
+    $startInfo.RedirectStandardInput = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.CreateNoWindow = $true
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    [void]$process.Start()
+    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+    $stderrTask = $process.StandardError.ReadToEndAsync()
+    $process.StandardInput.Write($Prompt)
+    $process.StandardInput.Close()
+
+    $timedOut = -not $process.WaitForExit([math]::Max(1, $TimeoutSeconds) * 1000)
+    if ($timedOut) {
+        try {
+            $process.Kill($true)
+        } catch {
+            try {
+                & taskkill.exe /PID $process.Id /T /F | Out-Null
+            } catch {
+                try {
+                    $process.Kill()
+                } catch {
+                }
+            }
+        }
+        try {
+            $process.WaitForExit(5000) | Out-Null
+        } catch {
+        }
+    }
+
+    $stdoutText = ""
+    $stderrText = ""
+    try {
+        $stdoutText = $stdoutTask.GetAwaiter().GetResult()
+    } catch {
+        $stderrText += ($_ | Out-String)
+    }
+    try {
+        $stderrText += $stderrTask.GetAwaiter().GetResult()
+    } catch {
+        $stderrText += ($_ | Out-String)
+    }
+    if ($timedOut) {
+        $stderrText = "CodeBuddy timed out after $TimeoutSeconds seconds; process tree termination was requested.`n" + $stderrText
+        Write-Utf8NoBom -Path $StdoutFile -Text $stdoutText
+        Write-Utf8NoBom -Path $StderrFile -Text $stderrText
+        return 124
+    }
+
+    Write-Utf8NoBom -Path $StdoutFile -Text $stdoutText
+    Write-Utf8NoBom -Path $StderrFile -Text $stderrText
+    return $process.ExitCode
 }
 
 function Test-CodeBuddyCreditExhausted {
@@ -458,7 +592,7 @@ Write-Utf8NoBom -Path $promptFile -Text $prompt
 $startedAt = Get-Date
 $exitCode = 999
 try {
-    $exitCode = Invoke-CodeBuddy -Prompt $prompt -StdoutFile $stdoutFile -StderrFile $stderrFile -Model $Model -Tools $Tools
+    $exitCode = Invoke-CodeBuddy -Prompt $prompt -StdoutFile $stdoutFile -StderrFile $stderrFile -Model $Model -Tools $Tools -TimeoutSeconds $TimeoutSeconds
 } catch {
     $exitCode = 998
     Write-Utf8NoBom -Path $stdoutFile -Text ""
@@ -497,6 +631,8 @@ $metadata = [ordered]@{
     started_at = $startedAt.ToString("o")
     ended_at = $endedAt.ToString("o")
     duration_seconds = [math]::Round(($endedAt - $startedAt).TotalSeconds, 3)
+    timed_out = $rawExitCode -eq 124
+    timeout_seconds = $TimeoutSeconds
     prompt_chars = $prompt.Length
     stdout_chars = $stdoutText.Length
     stderr_chars = $stderrText.Length

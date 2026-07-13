@@ -39,8 +39,12 @@ class HttpFormDriver:
         external_ref: str,
         data: Mapping[str, object],
     ) -> FormSubmissionResult:
+        self.client.logout()
         path = self._application_path(world_id, "member")
         required_fields = (
+            "username",
+            "password1",
+            "password2",
             "applicant_name",
             "contact",
             "motivation",
@@ -77,6 +81,7 @@ class HttpFormDriver:
         external_ref: str,
         data: Mapping[str, object],
     ) -> FormSubmissionResult:
+        self.client.logout()
         path = self._application_path(world_id, "partner")
         required_fields = (
             "organization_name",
@@ -141,6 +146,8 @@ class HttpFormDriver:
         return f"{fallback} HTTP {response.status_code}: {content[:500]}"
 
     def _application_path(self, world_id: str, application_type: str) -> str:
+        if application_type == "member":
+            return "/apply/"
         return f"/apply/{application_type}/"
 
     def _fixed_world_urlconf(self, world_id: str):

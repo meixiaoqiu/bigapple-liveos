@@ -8,7 +8,9 @@ param(
 
     [int]$MaxInputChars = 90000,
 
-    [int]$MaxReportOutputChars = 12000
+    [int]$MaxReportOutputChars = 12000,
+
+    [int]$TimeoutSeconds = 180
 )
 
 $ErrorActionPreference = "Stop"
@@ -133,6 +135,12 @@ if ($ContextPath.Count -eq 0 -and -not $IncludeGitDiff) {
     exit 1
 }
 
+$existingContextPaths = @($ContextPath | Where-Object { Test-Path -LiteralPath $_ })
+if ($ContextPath.Count -gt 0 -and $existingContextPaths.Count -eq 0) {
+    Write-Error "None of the supplied -ContextPath entries exist after normalization: $($ContextPath -join ', ')"
+    exit 1
+}
+
 $runnerArgs = @{
     TaskFile = $taskFile
     Requirement = $Requirement
@@ -142,6 +150,7 @@ $runnerArgs = @{
     MaxContextDirectoryChars = 70000
     MaxContextDirectoryFileChars = 16000
     MaxReportOutputChars = $MaxReportOutputChars
+    TimeoutSeconds = $TimeoutSeconds
     NoExit = $true
     MetadataPathFile = $metadataPathFile
 }

@@ -23,11 +23,17 @@ FIXED_REALWORLD_SETTINGS = {
 class SplitSiteEntrypointTests(TestCase):
     @override_settings(**FIXED_REALWORLD_SETTINGS)
     def test_fixed_world_public_application_url_does_not_require_world_prefix(self) -> None:
-        response = self.client.get("/apply/member/")
+        response = self.client.get("/apply/")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.wsgi_request.world_id, "realworld")
         self.assertContains(response, "成员报名")
+
+    @override_settings(**FIXED_REALWORLD_SETTINGS)
+    def test_legacy_member_application_url_is_removed(self) -> None:
+        response = self.client.get("/apply/member/")
+
+        self.assertEqual(response.status_code, 404)
 
     @override_settings(**FIXED_REALWORLD_SETTINGS)
     def test_fixed_world_workspace_uses_root_links(self) -> None:

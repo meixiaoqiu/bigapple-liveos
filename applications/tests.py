@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 
+from core.application_services import review_member_application, submit_member_application
+from core.exceptions import DomainError
 from core.models import MemberApplication, PartnerApplication, SystemEvent
+from core.models import Member
+from core.tests.helpers import create_member, login_as_member
 from simulation.form_drivers import HttpFormDriver
 
 
@@ -22,21 +27,25 @@ FIXED_SIM_SETTINGS = {
 
 class PublicApplicationPageTests(TestCase):
     def test_member_application_page_submits_real_form_and_writes_event(self) -> None:
-        response = self.client.get("/apply/member/")
+        response = self.client.get("/apply/")
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="username"')
+        self.assertContains(response, 'name="password1"')
         self.assertContains(response, 'name="applicant_name"')
         self.assertContains(response, 'name="capabilities_text"')
 
         response = self.client.post(
-            "/apply/member/",
+            "/apply/",
             {
+                "username": "applicant-a",
+                "password1": "test-password-123",
+                "password2": "test-password-123",
                 "applicant_name": "报名者 A",
                 "contact": "applicant-a@example.test",
                 "motivation": "想参加真实社区建设。",
                 "availability_hours_per_week": "12",
                 "capabilities_text": "做饭:80\n视频剪辑:70",
-                "requested_member_no": "applicant-a",
                 "external_ref": "test-member-application",
                 "simulation_run_id": "forged-run-id",
             },
@@ -48,13 +57,94 @@ class PublicApplicationPageTests(TestCase):
         self.assertEqual(application.applicant_name, "报名者 A")
         self.assertEqual(application.capability_scores["做饭"], 80)
         self.assertEqual(application.status, MemberApplication.Status.SUBMITTED)
+        self.assertEqual(application.requested_member_no, "applicant-a")
+        self.assertEqual(application.account_user.username, "applicant-a")
         self.assertEqual(application.metadata, {"source": "public_form"})
+        self.assertTrue(get_user_model().objects.get(username="applicant-a").check_password("test-password-123"))
+        self.assertContains(response, "报名已提交")
         self.assertTrue(
             SystemEvent.objects.filter(
                 event_type=SystemEvent.EventType.MEMBER_APPLICATION_SUBMITTED,
                 aggregate_id=application.application_id,
             ).exists()
         )
+
+    def test_member_application_review_binds_registered_account_to_candidate_member(self) -> None:
+        application = self.client.post(
+            "/apply/",
+            {
+                "username": "candidate-a",
+                "password1": "test-password-123",
+                "password2": "test-password-123",
+                "applicant_name": "候选成员 A",
+                "contact": "candidate-a@example.test",
+                "motivation": "愿意参加。",
+                "availability_hours_per_week": "10",
+                "capabilities_text": "整理:70",
+            },
+        )
+        self.assertEqual(application.status_code, 302)
+        member_application = MemberApplication.objects.get(requested_member_no="candidate-a")
+
+        review_member_application(
+            application=member_application,
+            status=MemberApplication.Status.CANDIDATE,
+            review_note="测试通过。",
+        )
+
+        member_application.refresh_from_db()
+        member = member_application.linked_member
+        self.assertEqual(member.member_no, "candidate-a")
+        self.assertEqual(member.status, Member.Status.PENDING_TRAINING)
+        self.assertEqual(member.user, member_application.account_user)
+
+    def test_member_application_service_rejects_account_and_member_no_mismatch(self) -> None:
+        with self.assertRaises(DomainError):
+            submit_member_application(
+                account_username="account-a",
+                account_password="test-password-123",
+                applicant_name="报名者 A",
+                contact="applicant-a@example.test",
+                motivation="想参加。",
+                availability_hours_per_week=12,
+                capability_scores={"整理": 70},
+                requested_member_no="different-member-no",
+            )
+
+        self.assertFalse(get_user_model().objects.filter(username="account-a").exists())
+        self.assertFalse(MemberApplication.objects.filter(applicant_name="报名者 A").exists())
+
+    def test_member_application_service_rejects_existing_member_no(self) -> None:
+        create_member(member_no="existing-member-no")
+
+        with self.assertRaises(DomainError):
+            submit_member_application(
+                account_username="existing-member-no",
+                account_password="test-password-123",
+                applicant_name="报名者 B",
+                contact="applicant-b@example.test",
+                motivation="想参加。",
+                availability_hours_per_week=12,
+                capability_scores={"整理": 70},
+            )
+
+        self.assertFalse(get_user_model().objects.filter(username="existing-member-no").exists())
+
+    def test_existing_member_sees_member_status_instead_of_application_form(self) -> None:
+        member = create_member(member_no="mem-apply-existing", status=Member.Status.ACTIVE)
+        login_as_member(self.client, member)
+
+        response = self.client.get("/apply/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "你已经是成员")
+        self.assertContains(response, "/workspace/")
+        self.assertNotContains(response, 'name="password1"')
+
+    def test_legacy_member_application_path_is_not_exposed(self) -> None:
+        response = self.client.get("/apply/member/")
+
+        self.assertEqual(response.status_code, 404)
 
     def test_partner_application_page_submits_real_form_and_writes_event(self) -> None:
         response = self.client.get("/apply/partner/")
@@ -106,6 +196,9 @@ class PublicApplicationPageTests(TestCase):
             simulation_hour=1,
             external_ref="host-test-member-application",
             data={
+                "username": "host-test-member",
+                "password1": "test-password-123",
+                "password2": "test-password-123",
                 "applicant_name": "Host 测试报名者",
                 "contact": "host-test@example.test",
                 "motivation": "验证仿真表单 driver 使用允许的 Host。",
@@ -129,6 +222,9 @@ class PublicApplicationPageTests(TestCase):
             simulation_hour=1,
             external_ref="rooted-path-member-application",
             data={
+                "username": "rooted-path-member",
+                "password1": "test-password-123",
+                "password2": "test-password-123",
                 "applicant_name": "Rooted Path Applicant",
                 "contact": "rooted-path@example.test",
                 "motivation": "Verify rooted simulation application path.",
@@ -139,6 +235,6 @@ class PublicApplicationPageTests(TestCase):
         )
 
         self.assertTrue(result.success, result.errors)
-        self.assertEqual(result.path, "/apply/member/")
+        self.assertEqual(result.path, "/apply/")
         self.assertEqual(driver.host, "bigsim.local")
         self.assertTrue(MemberApplication.objects.filter(metadata__external_ref="rooted-path-member-application").exists())

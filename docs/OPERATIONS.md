@@ -7,7 +7,7 @@
 ```text
 /workspace/
 /observer/
-/apply/member/
+/apply/
 /apply/partner/
 /api/v0.1/
 ```
@@ -36,12 +36,12 @@ control 后台负责：
 ```text
 bigreal.local/workspace/
 bigreal.local/observer/
-bigreal.local/apply/member/
+bigreal.local/apply/
 bigreal.local/apply/partner/
 
 bigsim.local/workspace/
 bigsim.local/observer/
-bigsim.local/apply/member/
+bigsim.local/apply/
 bigsim.local/apply/partner/
 ```
 

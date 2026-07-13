@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from io import StringIO
+from unittest.mock import patch
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -94,7 +95,10 @@ class SimulationSmokeCommandTests(TestCase):
     def test_seed_world_zero_start_creates_only_founder_baseline(self) -> None:
         output = StringIO()
 
-        call_command("seed_world", "simulation0001", "--template", "zero_start", stdout=output)
+        # Local .env may enable a bootstrap admin for manual bigsim login; this
+        # baseline test verifies the zero_start template itself.
+        with patch.dict("os.environ", {"BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_ENABLED": "false"}):
+            call_command("seed_world", "simulation0001", "--template", "zero_start", stdout=output)
 
         self.assertTrue(Member.objects.filter(member_no="founder-0001", status=Member.Status.ACTIVE).exists())
         self.assertTrue(ProjectPlan.objects.filter(plan_id="plan-zero-start", status=ProjectPlan.Status.ACTIVE).exists())

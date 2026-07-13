@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 from django import forms
+from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.forms import UsernameField
+
+from core.models import Member
 
 
 def _text_list(value: str) -> list[str]:
@@ -30,6 +35,9 @@ def _capability_scores(value: str) -> dict[str, int]:
 
 
 class MemberApplicationForm(forms.Form):
+    username = UsernameField(label="登录账号", max_length=150)
+    password1 = forms.CharField(label="登录密码", widget=forms.PasswordInput)
+    password2 = forms.CharField(label="确认密码", widget=forms.PasswordInput)
     applicant_name = forms.CharField(label="姓名或称呼", max_length=255)
     contact = forms.CharField(label="联系方式", max_length=255)
     motivation = forms.CharField(label="为什么想参加", widget=forms.Textarea)
@@ -46,7 +54,35 @@ class MemberApplicationForm(forms.Form):
         help_text="例如结构安全、电气并网；不能签字盖章可留空。",
         widget=forms.Textarea,
     )
-    requested_member_no = forms.CharField(label="期望成员编号", max_length=64, required=False)
+    requested_member_no = forms.CharField(max_length=64, required=False, widget=forms.HiddenInput)
+
+    def clean_username(self) -> str:
+        username = str(self.cleaned_data["username"] or "").strip()
+        user_model = get_user_model()
+        if user_model.objects.filter(username=username).exists():
+            raise forms.ValidationError("登录账号已存在。")
+        if Member.objects.filter(member_no=username).exists():
+            raise forms.ValidationError("该账号已被成员编号使用。")
+        return username
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password1 = cleaned_data.get("password1")
+        password2 = cleaned_data.get("password2")
+        if password1 and password2 and password1 != password2:
+            self.add_error("password2", "两次输入的密码不一致。")
+        if password1:
+            try:
+                validate_password(password1)
+            except forms.ValidationError as exc:
+                self.add_error("password1", exc)
+        requested_member_no = str(cleaned_data.get("requested_member_no") or "").strip()
+        username = str(cleaned_data.get("username") or "").strip()
+        if not requested_member_no and username:
+            cleaned_data["requested_member_no"] = username
+        elif requested_member_no and Member.objects.filter(member_no=requested_member_no).exists():
+            self.add_error("requested_member_no", "该成员编号已存在。")
+        return cleaned_data
 
     def capability_scores(self) -> dict[str, int]:
         return _capability_scores(self.cleaned_data["capabilities_text"])

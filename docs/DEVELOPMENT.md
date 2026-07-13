@@ -249,7 +249,7 @@ http://127.0.0.1:20101/workspace/
 http://127.0.0.1:20102/workspace/
 ```
 
-真实世界和仿真世界 runtime 不暴露 `/live-admin/` 或 `/admin/`。底层维护、仿真实验和高影响操作统一进入 control plane 的 `http://127.0.0.1:20100/admin/`；成员日常使用 `/workspace/`，公开观察使用 `/observer/`，报名使用 `/apply/member/` 和 `/apply/partner/`。
+真实世界和仿真世界 runtime 不暴露 `/live-admin/` 或 `/admin/`。底层维护、仿真实验和高影响操作统一进入 control plane 的 `http://127.0.0.1:20100/admin/`；成员日常使用 `/workspace/`，公开观察使用 `/observer/`，成员报名使用 `/apply/`，合作方报名使用 `/apply/partner/`。
 
 观察台：
 
