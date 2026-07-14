@@ -44,9 +44,10 @@ from .ids import (
 from .disposition import CONTROL_DATABASE_ALIAS, is_continuable_zero_start_observation_run
 from .form_drivers import FormSubmissionResult, HttpFormDriver
 from .projections import (
-    candidate_members_for_run,
     candidate_summary_for_run,
-    partner_applications_for_run,
+    partner_snapshot,
+    skills_match_requirement,
+    startup_gate_summary_for_run,
 )
 from .run_state import create_simulation_turn_and_event
 
@@ -1188,7 +1189,7 @@ def _document_signer_for_code(*, run: SimulationRun, document_code: str) -> dict
     )
     for partner in partners:
         if document_code in (partner.responsibility_document_domains or []):
-            return _partner_snapshot(partner)
+            return partner_snapshot(partner)
     return {}
 
 
@@ -1294,7 +1295,7 @@ def _screening_decision(*, spec: ApplicantSpec, screened_hour: int) -> str:
     if spec.withdraw_hour is not None and screened_hour >= spec.withdraw_hour:
         return APPLICATION_STATUS_WITHDREW
     matches_startup_capability = any(
-        _skills_match_requirement(spec.capability_scores, requirement)
+        skills_match_requirement(spec.capability_scores, requirement)
         for requirement in STARTUP_CAPABILITY_REQUIREMENTS
     )
     if spec.availability_hours_per_week >= 8 and matches_startup_capability:
@@ -1305,104 +1306,12 @@ def _screening_decision(*, spec: ApplicantSpec, screened_hour: int) -> str:
 
 
 def _startup_gate_summary(run: SimulationRun) -> dict[str, object]:
-    members = candidate_members_for_run(run, founder_member_no=ZERO_START_FOUNDER_MEMBER_NO)
-    partner_applications = list(
-        partner_applications_for_run(run)
-        .filter(status=PartnerApplication.Status.QUALIFIED, can_issue_responsibility_documents=True)
-        .order_by("application_id")
+    return startup_gate_summary_for_run(
+        run,
+        founder_member_no=ZERO_START_FOUNDER_MEMBER_NO,
+        capability_requirements=STARTUP_CAPABILITY_REQUIREMENTS,
+        responsibility_document_requirements=STARTUP_DOCUMENT_SIGNER_REQUIREMENTS,
     )
-    capability_coverage = [_capability_coverage_row(members, requirement) for requirement in STARTUP_CAPABILITY_REQUIREMENTS]
-    document_signer_coverage = [
-        _document_signer_coverage_row(
-            members=members,
-            partner_applications=partner_applications,
-            requirement=requirement,
-        )
-        for requirement in STARTUP_DOCUMENT_SIGNER_REQUIREMENTS
-    ]
-    missing_capabilities = [row for row in capability_coverage if row["missing_count"] > 0]
-    missing_document_signers = [row for row in document_signer_coverage if row["missing_count"] > 0]
-    return {
-        "project_phase": "ready_to_start" if not missing_capabilities and not missing_document_signers else "preparation",
-        "startup_gate_satisfied": not missing_capabilities and not missing_document_signers,
-        "capability_coverage": capability_coverage,
-        "document_signer_coverage": document_signer_coverage,
-        "missing_capabilities": missing_capabilities,
-        "missing_document_signers": missing_document_signers,
-    }
-
-
-def _capability_coverage_row(members: list[Member], requirement: dict[str, object]) -> dict[str, object]:
-    covered_by = [
-        _member_snapshot(member)
-        for member in members
-        if _skills_match_requirement(_member_skills(member), requirement)
-    ]
-    required_count = int(requirement["min_count"])
-    return {
-        "code": requirement["code"],
-        "name": requirement["name"],
-        "required_count": required_count,
-        "covered_count": len(covered_by),
-        "missing_count": max(required_count - len(covered_by), 0),
-        "need_written_document": False,
-        "covered_by": covered_by,
-    }
-
-
-def _document_signer_coverage_row(
-    *,
-    members: list[Member],
-    partner_applications: list[PartnerApplication],
-    requirement: dict[str, object],
-) -> dict[str, object]:
-    code = str(requirement["code"])
-    covered_by = [
-        _member_snapshot(member)
-        for member in members
-        if code in (member.profile.get("document_authority_domains") or [])
-    ]
-    covered_by.extend(
-        _partner_snapshot(application)
-        for application in partner_applications
-        if code in (application.responsibility_document_domains or [])
-    )
-    return {
-        "code": code,
-        "name": requirement["name"],
-        "required_count": 1,
-        "covered_count": len(covered_by),
-        "missing_count": max(1 - len(covered_by), 0),
-        "need_written_document": True,
-        "document_examples": requirement["document_examples"],
-        "acceptable_signers": requirement["acceptable_signers"],
-        "covered_by": covered_by,
-    }
-
-
-def _skills_match_requirement(skills: dict[str, int], requirement: dict[str, object]) -> bool:
-    aliases = [str(alias) for alias in requirement["skill_aliases"]]
-    return any(int(skills.get(alias, 0) or 0) >= 50 for alias in aliases)
-
-
-def _member_skills(member: Member) -> dict[str, int]:
-    return {str(key): int(value or 0) for key, value in (member.profile.get("skills") or {}).items()}
-
-
-def _member_snapshot(member: Member) -> dict[str, object]:
-    return {
-        "member_no": member.member_no,
-        "display_name": member.display_name or member.member_no,
-        "skills": member.profile.get("skills") or {},
-    }
-
-
-def _partner_snapshot(application: PartnerApplication) -> dict[str, object]:
-    return {
-        "application_id": application.application_id,
-        "organization_name": application.organization_name,
-        "responsibility_document_domains": application.responsibility_document_domains,
-    }
 
 
 def _fail_zero_start_form_interaction(

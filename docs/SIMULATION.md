@@ -99,7 +99,7 @@ python manage.py run_zero_start_simulation --world-id simulation0001 --hours 168
 
 **Driver 层（`simulation/form_drivers.py`）：** 调用真实报名表单和服务（`/apply/`、`submit_member_application`）。负责把虚拟主体动作转化为真实系统写入，不直接做统计查询。
 
-**Projection 层（`simulation/projections.py`）：** 读取真实状态和仿真 metadata，提供候选池、启动门槛成员列表、合作方签署方列表和筛选统计等查询入口，为能力矩阵和文件签署方矩阵提供稳定输入。
+**Projection 层（`simulation/projections.py`）：** 读取真实状态和仿真 metadata，负责候选池、启动门槛 summary、能力覆盖、文件签署方覆盖、成员/合作方快照等 read-model 组装，为 Strategy 层提供稳定输入。
 - `screening_status_for(application)` — 读取 `metadata.screening_status`
 - `candidate_members_for_run(run, founder_member_no=...)` — 返回候选成员；传入 founder_member_no 时会把 founder 放在最前面
 - `candidate_summary_for_run(run)` — 返回各类筛选状态的计数值
