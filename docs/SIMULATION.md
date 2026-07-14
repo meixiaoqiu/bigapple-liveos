@@ -108,6 +108,8 @@ python manage.py run_zero_start_simulation --world-id simulation0001 --hours 168
 
 **Observation/Events 层（`simulation/zero_start_observations.py`）：** 负责 observer event payload、blockers、next_actions、窗口总结等纯组装逻辑，不查询 ORM、不写数据库。
 
+**Feedback 层（`simulation/zero_start_feedback.py`）：** 负责 SimulationFailure、PlanRevisionProposal、PlanChangeSet、PlanChangeOperation 和失败反馈事件写入。
+
 `MemberApplication.status` 是权威准入状态（`admission_voting` / `admitted` / `rejected` / `withdrew` / `submitted`）。`metadata.screening_status` 是仿真筛选口径（`candidate` / `standby` / `rejected` / `withdrew`），两种状态机互不干扰。
 
 ## 仿真快照归档
