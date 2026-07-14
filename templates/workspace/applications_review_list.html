@@ -48,14 +48,22 @@
       <div class="card-body gap-4">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h2 class="card-title">报名列表</h2>
-          <div class="flex flex-wrap gap-2" role="group" aria-label="状态筛选">
-            <a class="btn btn-sm {% if status_filter == 'pending' %}btn-primary{% else %}btn-outline{% endif %}"
-               href="{% world_url 'workspace-applications-review' %}?status=pending">
-              待处理 <span class="badge badge-sm badge-outline ml-1">{{ counts.pending }}</span>
+          <div class="flex flex-wrap gap-2" role="group" aria-label="准入进度筛选">
+            <a class="btn btn-sm {% if status_filter == 'voting' %}btn-primary{% else %}btn-outline{% endif %}"
+               href="{% world_url 'workspace-applications-review' %}?status=voting">
+              投票中 <span class="badge badge-sm badge-outline ml-1">{{ counts.voting }}</span>
             </a>
-            <a class="btn btn-sm {% if status_filter == 'processed' %}btn-primary{% else %}btn-outline{% endif %}"
-               href="{% world_url 'workspace-applications-review' %}?status=processed">
-              已处理 <span class="badge badge-sm badge-outline ml-1">{{ counts.processed }}</span>
+            <a class="btn btn-sm {% if status_filter == 'passed_pending' %}btn-primary{% else %}btn-outline{% endif %}"
+               href="{% world_url 'workspace-applications-review' %}?status=passed_pending">
+              已通过待执行 <span class="badge badge-sm badge-outline ml-1">{{ counts.passed_pending }}</span>
+            </a>
+            <a class="btn btn-sm {% if status_filter == 'admitted' %}btn-primary{% else %}btn-outline{% endif %}"
+               href="{% world_url 'workspace-applications-review' %}?status=admitted">
+              已接纳 <span class="badge badge-sm badge-outline ml-1">{{ counts.admitted }}</span>
+            </a>
+            <a class="btn btn-sm {% if status_filter == 'rejected' %}btn-primary{% else %}btn-outline{% endif %}"
+               href="{% world_url 'workspace-applications-review' %}?status=rejected">
+              未通过/已拒绝 <span class="badge badge-sm badge-outline ml-1">{{ counts.rejected }}</span>
             </a>
             <a class="btn btn-sm {% if status_filter == 'all' %}btn-primary{% else %}btn-outline{% endif %}"
                href="{% world_url 'workspace-applications-review' %}?status=all">
@@ -66,7 +74,7 @@
 
         {% if applications %}
           <div class="alert alert-info">
-            <span>候选 / 备用仅表示进入候选池，不是正式接纳；正式接纳必须通过治理提案并执行。</span>
+            <span>正式接纳必须通过准入提案投票并执行，不存在独立审核操作。</span>
           </div>
           <div class="overflow-x-auto">
             <table class="table table-zebra">

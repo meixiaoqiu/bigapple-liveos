@@ -1,7 +1,7 @@
 """Domain-split model definitions for the core app."""
 
 from .base import TimestampedModel
-from .applications import MemberApplication, PartnerApplication
+from .applications import MemberApplication, PartnerApplication, ROLE_GAP_LABELS
 from .identity import Member, Organization, Permission, Role, RoleAssignment, RolePermission
 from .proposals import Proposal, ProposalExecution, ProposalVote
 from .planning import (

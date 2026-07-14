@@ -72,6 +72,19 @@ def evaluate_proposal(proposal: Proposal, *, at_time=None) -> Proposal:
             payload_json=proposal_payload(proposal),
             occurred_at=checked_at,
         )
+        # When a member_admission proposal fails, automatically reject the linked
+        # application — there is no standalone “review → reject” action.
+        if proposal.proposal_type == Proposal.ProposalType.MEMBER_ADMISSION:
+            from core.application_services import reject_member_application_from_failed_proposal
+            from core.models import MemberApplication
+
+            application = MemberApplication.objects.filter(admission_proposal_id=proposal.pk).first()
+            if application is not None:
+                reject_member_application_from_failed_proposal(
+                    application=application,
+                    proposal=proposal,
+                    at_time=checked_at,
+                )
     else:
         proposal.result_json = result
         proposal.save(update_fields=["result_json", "updated_at"])

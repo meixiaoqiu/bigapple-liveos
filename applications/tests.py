@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
-from core.application_services import review_member_application, submit_member_application
+from core.application_services import submit_member_application
 from core.exceptions import DomainError
-from core.models import MemberApplication, PartnerApplication, SystemEvent
+from core.models import MemberApplication, PartnerApplication, Proposal, SystemEvent
 from core.models import Member
-from core.tests.helpers import create_member, login_as_member
+from core.tests.helpers import create_governance_admin_member, create_member, login_as_member
 from simulation.form_drivers import HttpFormDriver
 
 
@@ -89,7 +90,7 @@ class PublicApplicationPageTests(TestCase):
         self.assertEqual(application.capability_scores, {})
         self.assertFalse(application.can_issue_responsibility_documents)
         self.assertEqual(application.document_authority_domains, [])
-        self.assertEqual(application.status, MemberApplication.Status.SUBMITTED)
+        self.assertEqual(application.status, MemberApplication.Status.UNDER_REVIEW)
         self.assertEqual(application.requested_member_no, "applicant-a")
         self.assertEqual(application.account_user.username, "applicant-a")
         self.assertEqual(application.linked_member.member_no, "applicant-a")
@@ -109,7 +110,7 @@ class PublicApplicationPageTests(TestCase):
             ).exists()
         )
 
-    def test_member_application_review_binds_registered_account_to_candidate_member(self) -> None:
+    def test_member_application_auto_creates_proposal_and_binds_account(self) -> None:
         application = self.client.post(
             "/apply/",
             member_application_post_data(
@@ -121,18 +122,17 @@ class PublicApplicationPageTests(TestCase):
         )
         self.assertEqual(application.status_code, 302)
         member_application = MemberApplication.objects.get(requested_member_no="candidate-a")
-        self.assertEqual(member_application.linked_member.status, Member.Status.PENDING_REVIEW)
-
-        review_member_application(
-            application=member_application,
-            status=MemberApplication.Status.CANDIDATE,
-            review_note="测试通过。",
+        # After auto-proposal creation, status is UNDER_REVIEW.
+        self.assertEqual(member_application.status, MemberApplication.Status.UNDER_REVIEW)
+        self.assertIsNotNone(member_application.admission_proposal_id)
+        self.assertEqual(
+            member_application.admission_proposal.proposal_type,
+            Proposal.ProposalType.MEMBER_ADMISSION,
         )
 
-        member_application.refresh_from_db()
         member = member_application.linked_member
         self.assertEqual(member.member_no, "candidate-a")
-        self.assertEqual(member.status, Member.Status.PENDING_TRAINING)
+        self.assertEqual(member.status, Member.Status.PENDING_REVIEW)
         self.assertEqual(member.user, member_application.account_user)
 
     def test_member_application_service_rejects_account_and_member_no_mismatch(self) -> None:
@@ -209,9 +209,20 @@ class PublicApplicationPageTests(TestCase):
             ),
         )
         first_application = MemberApplication.objects.get(requested_member_no="reapply-a")
-        review_member_application(application=first_application, status=MemberApplication.Status.REJECTED, review_note="先拒绝。")
+        # Reject by having the auto-created proposal fail (expire past deadline).
+        proposal = first_application.admission_proposal
+        past_time = timezone.now() - timezone.timedelta(hours=2)
+        proposal.start_at = past_time
+        proposal.deadline_at = past_time + timezone.timedelta(hours=1)
+        proposal.save(update_fields=["start_at", "deadline_at"])
+        from core.proposals.voting import evaluate_proposal
+        evaluate_proposal(proposal)
         first_application.refresh_from_db()
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, Proposal.Status.FAILED)
+        self.assertEqual(first_application.status, MemberApplication.Status.REJECTED)
         member = first_application.linked_member
+        member.refresh_from_db()
         self.assertEqual(member.status, Member.Status.APPLICATION_REJECTED)
 
         self.client.force_login(first_application.account_user)
@@ -241,6 +252,7 @@ class PublicApplicationPageTests(TestCase):
         self.assertContains(response, "报名工作台")
 
     def test_member_application_review_cannot_directly_admit_without_proposal(self) -> None:
+        """Admission must go through proposal execution, never through a status write."""
         application = submit_member_application(
             account_username="direct-admit",
             account_password="test-password-123",
@@ -252,6 +264,7 @@ class PublicApplicationPageTests(TestCase):
             capability_scores={"开发": 70},
         )
 
+        from core.application_services import review_member_application
         with self.assertRaises(DomainError):
             review_member_application(application=application, status=MemberApplication.Status.ADMITTED)
 

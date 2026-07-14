@@ -3,10 +3,7 @@ from __future__ import annotations
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from core.application_services import (
-    create_member_application_admission_proposal,
-    submit_member_application,
-)
+from core.application_services import submit_member_application
 from core.member_roles import ROLE_FORMAL_MEMBER
 from core.models import Member, MemberApplication, Proposal, ProposalExecution
 from core.proposals.lifecycle import create_proposal
@@ -32,7 +29,7 @@ def _submit_application(member_no: str = "review-applicant", **overrides) -> Mem
 
 
 class WorkspaceApplicationsReviewTests(TestCase):
-    """成员报名审核模块：治理视图入口、审核动作、准入提案 / 投票 / 执行闭环。"""
+    """成员报名审核模块：准入提案自动创建、投票/执行闭环、入口权限。"""
 
     def setUp(self) -> None:
         self.governance = create_governance_admin_member("gov-review-0001")
@@ -85,75 +82,41 @@ class WorkspaceApplicationsReviewTests(TestCase):
         review = self.client.get("/workspace/applications/")
         self.assertEqual(review.status_code, 403)
 
-    # --- 审核动作 ------------------------------------------------------------------
+    # --- 报名自动创建准入提案 -------------------------------------------------------
 
-    def test_reject_with_reason_marks_member_application_rejected(self) -> None:
-        application = _submit_application(member_no="review-applicant-reject")
-        response = self.client.post(
-            f"/workspace/applications/{application.application_id}/review/",
-            {"status": MemberApplication.Status.REJECTED, "reason": "能力缺口较大。"},
-        )
-        self.assertEqual(response.status_code, 302)
-
-        application.refresh_from_db()
-        self.assertEqual(application.status, MemberApplication.Status.REJECTED)
-        self.assertEqual(application.metadata["review_note"], "能力缺口较大。")
-        member = application.linked_member
-        member.refresh_from_db()
-        self.assertEqual(member.status, Member.Status.APPLICATION_REJECTED)
-
-    def test_reject_without_reason_is_rejected(self) -> None:
-        application = _submit_application(member_no="review-applicant-no-reason")
-        response = self.client.post(
-            f"/workspace/applications/{application.application_id}/review/",
-            {"status": MemberApplication.Status.REJECTED, "reason": ""},
-        )
-        self.assertEqual(response.status_code, 302)
-
-        application.refresh_from_db()
-        self.assertNotEqual(application.status, MemberApplication.Status.REJECTED)
-
-    def test_review_form_cannot_directly_admit_member(self) -> None:
-        application = _submit_application(member_no="review-applicant-direct-admit")
-        response = self.client.post(
-            f"/workspace/applications/{application.application_id}/review/",
-            {"status": MemberApplication.Status.ADMITTED, "reason": "尝试直接接纳。"},
-        )
-        self.assertEqual(response.status_code, 302)
-
-        application.refresh_from_db()
-        self.assertNotEqual(application.status, MemberApplication.Status.ADMITTED)
-
-    def test_mark_under_review_updates_status(self) -> None:
-        application = _submit_application(member_no="review-applicant-under-review")
-        self.client.post(
-            f"/workspace/applications/{application.application_id}/review/",
-            {"status": MemberApplication.Status.UNDER_REVIEW, "reason": "开始审核。"},
-        )
-        application.refresh_from_db()
+    def test_submit_application_auto_creates_member_admission_proposal(self) -> None:
+        application = _submit_application(member_no="auto-proposal-test")
+        self.assertIsNotNone(application.admission_proposal_id)
+        proposal = application.admission_proposal
+        self.assertEqual(proposal.proposal_type, Proposal.ProposalType.MEMBER_ADMISSION)
+        self.assertEqual(proposal.status, Proposal.Status.VOTING)
         self.assertEqual(application.status, MemberApplication.Status.UNDER_REVIEW)
+
+    # --- 审核 POST 端点已移除 -------------------------------------------------------
+
+    def test_review_post_endpoint_returns_404(self) -> None:
+        application = _submit_application(member_no="no-review-post")
+        response = self.client.post(
+            f"/workspace/applications/{application.application_id}/review/",
+            {"status": MemberApplication.Status.REJECTED, "reason": "不应存在此端点。"},
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_create_admission_proposal_post_endpoint_returns_404(self) -> None:
+        application = _submit_application(member_no="no-create-proposal-post")
+        response = self.client.post(
+            f"/workspace/applications/{application.application_id}/create-admission-proposal/",
+            {"reason": "不应存在此端点。"},
+        )
+        self.assertEqual(response.status_code, 404)
 
     # --- 准入提案 / 投票 / 执行 ----------------------------------------------------
 
-    def test_create_admission_proposal_links_member_admission_proposal(self) -> None:
-        application = _submit_application(member_no="review-applicant-proposal")
-        response = self.client.post(
-            f"/workspace/applications/{application.application_id}/create-admission-proposal/",
-            {"reason": "符合开发缺口。"},
-        )
-        self.assertEqual(response.status_code, 302)
-
-        application.refresh_from_db()
-        self.assertIsNotNone(application.admission_proposal_id)
-        self.assertEqual(application.admission_proposal.proposal_type, Proposal.ProposalType.MEMBER_ADMISSION)
-
     def test_single_governance_yes_vote_passes_proposal(self) -> None:
         application = _submit_application(member_no="review-applicant-single-voter")
-        proposal = create_member_application_admission_proposal(
-            application=application,
-            proposer_member=self.governance,
-            reason="单人治理场景。",
-        )
+        proposal = application.admission_proposal
+        self.assertIsNotNone(proposal)
+        self.assertEqual(proposal.status, Proposal.Status.VOTING)
 
         self.client.post(
             f"/workspace/proposals/{proposal.pk}/vote/",
@@ -163,15 +126,9 @@ class WorkspaceApplicationsReviewTests(TestCase):
         self.assertEqual(proposal.status, Proposal.Status.PASSED)
 
     def test_two_governance_majority_requires_both_yes_votes(self) -> None:
-        # Both governance members must exist before the proposal is created, so
-        # the eligible-voter snapshot freezes both into the electorate.
         second_governance = create_governance_admin_member("gov-review-0002")
         application = _submit_application(member_no="review-applicant-two-voters")
-        proposal = create_member_application_admission_proposal(
-            application=application,
-            proposer_member=self.governance,
-            reason="两人治理场景。",
-        )
+        proposal = application.admission_proposal
 
         # Only one yes vote: not enough (required_yes == 2 for 2 eligible voters).
         cast_proposal_vote(
@@ -193,11 +150,7 @@ class WorkspaceApplicationsReviewTests(TestCase):
 
     def test_execute_passed_admission_proposal_admits_member(self) -> None:
         application = _submit_application(member_no="review-applicant-execute")
-        proposal = create_member_application_admission_proposal(
-            application=application,
-            proposer_member=self.governance,
-            reason="通过后执行接纳。",
-        )
+        proposal = application.admission_proposal
         self.client.post(
             f"/workspace/proposals/{proposal.pk}/vote/",
             {"choice": "yes", "reason": "同意接纳。"},
@@ -226,16 +179,15 @@ class WorkspaceApplicationsReviewTests(TestCase):
 
     def test_detail_page_shows_admission_proposal_and_vote_form(self) -> None:
         application = _submit_application(member_no="review-applicant-detail")
-        proposal = create_member_application_admission_proposal(
-            application=application,
-            proposer_member=self.governance,
-            reason="详情页展示。",
-        )
+        proposal = application.admission_proposal
         response = self.client.get(f"/workspace/applications/{application.application_id}/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, proposal.proposal_no)
         self.assertContains(response, "提交投票")
         self.assertContains(response, "成员准入提案")
+        # The old review form must NOT be present.
+        self.assertNotContains(response, "审核操作")
+        self.assertNotContains(response, "审核状态")
 
     # --- 提案门禁：非准入提案 / 未关联报名不得通过工作台 vote/execute -------------------
 
@@ -262,7 +214,6 @@ class WorkspaceApplicationsReviewTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_vote_on_orphan_member_admission_proposal_returns_404(self) -> None:
-        # Create a member_admission proposal that is not linked to any MemberApplication.
         proposal = create_proposal(
             title="orphan admission proposal",
             body="type=member_admission but no MemberApplication.admission_proposal points here.",
@@ -286,3 +237,35 @@ class WorkspaceApplicationsReviewTests(TestCase):
         )
         response = self.client.post(f"/workspace/proposals/{proposal.pk}/execute/", {})
         self.assertEqual(response.status_code, 404)
+
+    # --- 意向角色中文显示 ----------------------------------------------------------
+
+    def test_applicant_workspace_shows_chinese_role_gap(self) -> None:
+        application = _submit_application(
+            member_no="role-gap-test",
+            role_gap="community_contributor",
+        )
+        login_as_member(self.client, application.linked_member)
+        response = self.client.get("/workspace/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "社区贡献者")
+        self.assertNotContains(response, "community_contributor")
+
+    # --- 报名列表按准入流程筛选 ----------------------------------------------------
+
+    def test_review_list_filters_by_admission_status(self) -> None:
+        application = _submit_application(member_no="filter-voting-test")
+        # Auto-created proposal should be in VOTING.
+        response = self.client.get("/workspace/applications/?status=voting")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, application.applicant_name)
+
+        response = self.client.get("/workspace/applications/?status=admitted")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, application.applicant_name)
+
+    def test_review_list_defaults_to_voting(self) -> None:
+        _submit_application(member_no="filter-default-test")
+        response = self.client.get("/workspace/applications/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "投票中")

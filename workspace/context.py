@@ -25,6 +25,7 @@ from core.models import (
     Resource,
     Task,
 )
+from core.models.applications import ROLE_GAP_LABELS
 from core.proposals.voting import proposal_result
 
 
@@ -39,20 +40,18 @@ NEXT_ACTION_LABELS = {
 
 FULL_WORKSPACE_MEMBER_STATUSES = {Member.Status.ACTIVE, Member.Status.ADMITTED}
 
-# Statuses that are still in the review funnel (not yet decided). Everything
-# else (admitted/rejected/withdrew) is considered "processed".
-PENDING_APPLICATION_STATUSES = {
-    MemberApplication.Status.SUBMITTED,
-    MemberApplication.Status.UNDER_REVIEW,
-    MemberApplication.Status.CANDIDATE,
-    MemberApplication.Status.STANDBY,
+# Admission filter groups driven by the linked member_admission proposal lifecycle.
+# There is no standalone "review" status — every application that reaches the
+# governance review list already has an auto-created admission proposal.
+ADMISSION_FILTER_GROUPS = ("voting", "passed_pending", "admitted", "rejected", "all")
+
+ADMISSION_FILTER_LABELS: dict[str, str] = {
+    "voting": "投票中",
+    "passed_pending": "已通过待执行",
+    "admitted": "已接纳",
+    "rejected": "未通过/已拒绝",
+    "all": "全部",
 }
-PROCESSED_APPLICATION_STATUSES = {
-    MemberApplication.Status.ADMITTED,
-    MemberApplication.Status.REJECTED,
-    MemberApplication.Status.WITHDREW,
-}
-APPLICATION_FILTER_GROUPS = ("pending", "processed", "all")
 
 
 def member_has_full_workspace_access(member: Member) -> bool:
@@ -71,10 +70,14 @@ def applicant_workspace_context(member_no: str) -> dict[str, Any]:
         latest_application
         and latest_application.status in {MemberApplication.Status.REJECTED, MemberApplication.Status.WITHDREW}
     )
+    role_gap_label = ""
+    if latest_application:
+        role_gap_label = ROLE_GAP_LABELS.get(latest_application.role_gap, latest_application.role_gap or "未记录")
     return {
         "member": member,
         "application": latest_application,
         "can_reapply": can_reapply,
+        "role_gap_label": role_gap_label,
     }
 
 
@@ -186,14 +189,6 @@ def workspace_context(member_no: str) -> dict[str, Any]:
     }
 
 
-ROLE_GAP_LABELS = {
-    "settled_resident": "安居成员",
-    "service_resident": "生活服务成员",
-    "developer_ai_engineer": "系统开发与 AI 工程",
-    "community_contributor": "社区贡献者",
-}
-
-
 def _application_queryset():
     return MemberApplication.objects.select_related(
         "linked_member",
@@ -223,30 +218,64 @@ def _application_summary(application: MemberApplication) -> dict[str, Any]:
 def applications_review_list_context(*, member: Member, status_filter: str) -> dict[str, Any]:
     """Assemble the member-application review list for governance members.
 
-    ``status_filter`` is one of ``pending`` / ``processed`` / ``all``; unknown
-    values fall back to ``pending`` so the landing view always shows actionable
-    rows.
+    ``status_filter`` is one of ``voting`` / ``passed_pending`` / ``admitted`` /
+    ``rejected`` / ``all``, derived from the linked admission proposal lifecycle.
+    Unknown values fall back to ``voting``.
     """
 
-    if status_filter not in APPLICATION_FILTER_GROUPS:
-        status_filter = "pending"
-    queryset = _application_queryset().order_by("-submitted_at", "application_id")
-    if status_filter == "pending":
-        queryset = queryset.filter(status__in=PENDING_APPLICATION_STATUSES)
-    elif status_filter == "processed":
-        queryset = queryset.filter(status__in=PROCESSED_APPLICATION_STATUSES)
+    if status_filter not in ADMISSION_FILTER_GROUPS:
+        status_filter = "voting"
+    base_qs = _application_queryset().order_by("-submitted_at", "application_id")
+    if status_filter == "voting":
+        queryset = base_qs.filter(
+            admission_proposal__isnull=False,
+            admission_proposal__status=Proposal.Status.VOTING,
+        )
+    elif status_filter == "passed_pending":
+        queryset = base_qs.filter(
+            admission_proposal__isnull=False,
+            admission_proposal__status=Proposal.Status.PASSED,
+        ).exclude(status=MemberApplication.Status.ADMITTED)
+    elif status_filter == "admitted":
+        queryset = base_qs.filter(status=MemberApplication.Status.ADMITTED)
+    elif status_filter == "rejected":
+        queryset = base_qs.filter(
+            Q(status__in={MemberApplication.Status.REJECTED, MemberApplication.Status.WITHDREW})
+            | Q(admission_proposal__isnull=False, admission_proposal__status=Proposal.Status.FAILED)
+        )
+    else:
+        queryset = base_qs
     applications = [_application_summary(app) for app in queryset]
-    counts = {
-        "pending": _application_queryset().filter(status__in=PENDING_APPLICATION_STATUSES).count(),
-        "processed": _application_queryset().filter(status__in=PROCESSED_APPLICATION_STATUSES).count(),
-        "all": _application_queryset().count(),
-    }
+    counts = _admission_filter_counts()
     return {
         "member": member,
         "is_governance": is_governance_principal(member),
         "status_filter": status_filter,
         "applications": applications,
         "counts": counts,
+        "filter_labels": ADMISSION_FILTER_LABELS,
+        "filter_groups": ADMISSION_FILTER_GROUPS,
+    }
+
+
+def _admission_filter_counts() -> dict[str, int]:
+    """Return per-filter-group application counts for the governance review list."""
+    base_qs = _application_queryset()
+    return {
+        "voting": base_qs.filter(
+            admission_proposal__isnull=False,
+            admission_proposal__status=Proposal.Status.VOTING,
+        ).count(),
+        "passed_pending": base_qs.filter(
+            admission_proposal__isnull=False,
+            admission_proposal__status=Proposal.Status.PASSED,
+        ).exclude(status=MemberApplication.Status.ADMITTED).count(),
+        "admitted": base_qs.filter(status=MemberApplication.Status.ADMITTED).count(),
+        "rejected": base_qs.filter(
+            Q(status__in={MemberApplication.Status.REJECTED, MemberApplication.Status.WITHDREW})
+            | Q(admission_proposal__isnull=False, admission_proposal__status=Proposal.Status.FAILED)
+        ).count(),
+        "all": base_qs.count(),
     }
 
 
@@ -291,7 +320,12 @@ def _proposal_view(proposal: Proposal | None, *, viewer: Member) -> dict[str, An
 
 
 def application_review_detail_context(*, member: Member, application: MemberApplication) -> dict[str, Any]:
-    """Assemble the review detail view for one member application."""
+    """Assemble the review detail view for one member application.
+
+    No ``review_status_choices`` are exposed — there is no standalone review
+    action. Admission is exclusively driven by the linked member_admission
+    proposal lifecycle (vote → pass → execute).
+    """
 
     role_motivation_answers = list(application.dynamic_answers or [])
     return {
@@ -304,10 +338,4 @@ def application_review_detail_context(*, member: Member, application: MemberAppl
         "linked_member": application.linked_member,
         "review_note": (application.metadata or {}).get("review_note", ""),
         "admission_proposal": _proposal_view(application.admission_proposal, viewer=member),
-        "review_status_choices": [
-            {"value": MemberApplication.Status.UNDER_REVIEW, "label": "标记审核中"},
-            {"value": MemberApplication.Status.CANDIDATE, "label": "标记候选"},
-            {"value": MemberApplication.Status.STANDBY, "label": "标记备用"},
-            {"value": MemberApplication.Status.REJECTED, "label": "拒绝报名"},
-        ],
     }

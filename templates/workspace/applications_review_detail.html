@@ -116,35 +116,6 @@
 
     <section class="card bg-base-100 shadow">
       <div class="card-body gap-4">
-        <h2 class="card-title">审核操作</h2>
-        <div class="alert alert-warning">
-          <span>候选 / 备用仅表示进入候选池，不是正式接纳；正式接纳必须通过下方治理提案并执行。</span>
-        </div>
-        <form method="post" action="{% world_url 'workspace-application-review' application.application_id %}" class="grid gap-3">
-          {% csrf_token %}
-          <div class="flex flex-wrap items-end gap-3">
-            <label class="form-control">
-              <div class="label"><span class="label-text">审核状态</span></div>
-              <select name="status" class="select">
-                {% for choice in review_status_choices %}
-                  <option value="{{ choice.value }}">{{ choice.label }}</option>
-                {% endfor %}
-              </select>
-            </label>
-          </div>
-          <label class="form-control w-full">
-            <div class="label"><span class="label-text">理由 / 备注（拒绝报名时必填）</span></div>
-            <textarea name="reason" rows="3" class="textarea" placeholder="说明审核理由，拒绝时必填"></textarea>
-          </label>
-          <div class="flex justify-end">
-            <button type="submit" class="btn btn-primary">提交审核</button>
-          </div>
-        </form>
-      </div>
-    </section>
-
-    <section class="card bg-base-100 shadow">
-      <div class="card-body gap-4">
         <h2 class="card-title">成员准入提案</h2>
         {% if admission_proposal %}
           <dl class="grid gap-3 text-sm md:grid-cols-2">
@@ -259,19 +230,9 @@
             </div>
           {% endif %}
         {% else %}
-          <div class="alert alert-info">
-            <span>尚未发起成员准入提案。发起后将进入治理成员投票流程。</span>
+          <div class="alert alert-warning">
+            <span>准入提案缺失。请通过后台检查该报名的提案关联状态。</span>
           </div>
-          <form method="post" action="{% world_url 'workspace-application-create-admission-proposal' application.application_id %}" class="grid gap-3">
-            {% csrf_token %}
-            <label class="form-control w-full">
-              <div class="label"><span class="label-text">发起理由</span></div>
-              <textarea name="reason" rows="3" class="textarea" placeholder="说明为什么接纳该成员，将写入提案正文。"></textarea>
-            </label>
-            <div class="flex justify-end">
-              <button type="submit" class="btn btn-primary">发起准入提案</button>
-            </div>
-          </form>
         {% endif %}
       </div>
     </section>

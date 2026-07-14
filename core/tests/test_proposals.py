@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
-from core.application_services import create_member_application_admission_proposal, submit_member_application
+from core.application_services import submit_member_application
 from core.member_roles import ROLE_FORMAL_MEMBER
 from core.permission_services import member_has_permission
 from core.proposals.execution import execute_proposal
@@ -238,6 +238,14 @@ class ProposalTests(TestCase):
         self.assertEqual(execution.result_json["source_type"], RoleAssignment.SourceType.PROPOSAL)
 
     def test_member_admission_proposal_execution_admits_linked_applicant(self) -> None:
+        from core.member_roles import ROLE_GOVERNANCE_MEMBER, ensure_member_role, ensure_role_assignment
+
+        # Grant voters the governance member role so they are in the auto-created
+        # proposal's eligible voter snapshot.
+        gov_role = ensure_member_role(ROLE_GOVERNANCE_MEMBER)
+        for voter in (self.voter_1, self.voter_2):
+            ensure_role_assignment(voter, gov_role)
+
         application = submit_member_application(
             applicant_name="准入申请者",
             contact="applicant@example.test",
@@ -247,13 +255,10 @@ class ProposalTests(TestCase):
             capability_scores={"开发": 80},
             requested_member_no="admission-applicant",
         )
+        # Auto-created proposal is already in VOTING with ROLE_GOVERNANCE_MEMBER voters.
+        proposal = application.admission_proposal
+        self.assertEqual(proposal.proposal_type, Proposal.ProposalType.MEMBER_ADMISSION)
 
-        proposal = create_member_application_admission_proposal(
-            application=application,
-            proposer_member=self.voter_1,
-            voter_scope_role=self.committee_role,
-            reason="符合当前开发缺口。",
-        )
         self.vote_yes(proposal, self.voter_1)
         self.vote_yes(proposal, self.voter_2)
         proposal.refresh_from_db()

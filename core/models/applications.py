@@ -6,6 +6,17 @@ from django.db import models
 from .identity import Member
 
 
+# Centralized Chinese display labels for role_gap values.
+# Used by workspace templates and applicant-facing pages to avoid
+# hard-coding English keys in multiple templates.
+ROLE_GAP_LABELS: dict[str, str] = {
+    "settled_resident": "安居成员",
+    "service_resident": "生活服务成员",
+    "developer_ai_engineer": "系统开发与 AI 工程",
+    "community_contributor": "社区贡献者",
+}
+
+
 class MemberApplication(models.Model):
     """A public member application submitted through the real world-scoped entry."""
 

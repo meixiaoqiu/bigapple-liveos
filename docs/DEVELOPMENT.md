@@ -255,16 +255,23 @@ http://127.0.0.1:20102/workspace/
 
 `/workspace/` 在正式成员工作台之外，为具备 `governance.view_admin` 权限的治理成员提供成员报名审核入口。普通正式成员、待审核报名人、未绑定 `Member` 的 Django staff/superuser 都看不到入口，直接访问审核 URL 返回 403。
 
+`/apply/` 提交成员报名后，系统自动创建最小权限 Member、MemberApplication 和 member_admission Proposal，提案直接进入 VOTING 状态。不存在独立的人工审核动作——准入完全由提案生命周期驱动。
+
 ```text
-GET  /workspace/applications/                                          # 报名列表（pending/processed/all）
-GET  /workspace/applications/<application_id>/                         # 报名详情
-POST /workspace/applications/<application_id>/review/                  # 标记 under_review/candidate/standby/rejected
-POST /workspace/applications/<application_id>/create-admission-proposal/  # 发起 member_admission 提案
+GET  /workspace/applications/                                          # 报名列表（按准入进度筛选：投票中/已通过待执行/已接纳/未通过已拒绝/全部）
+GET  /workspace/applications/<application_id>/                         # 报名详情（申请人资料 + 准入提案 + 投票 + 执行）
 POST /workspace/proposals/<proposal_id>/vote/                          # 投 yes/no/abstain
 POST /workspace/proposals/<proposal_id>/execute/                      # 执行已通过准入提案
 ```
 
-view 保持轻量，所有状态变化都调用既有服务：`review_member_application`、`create_member_application_admission_proposal`、`cast_proposal_vote`、`execute_proposal`。`admitted` 状态只能由 `execute_proposal` 经 `admit_member_application_from_proposal` 完成，审核表单不暴露 `admitted` 选项。投票资格以 `Proposal.eligible_voters_snapshot_json` 为准，不依赖页面权限。
+不存在以下路由：
+
+```text
+POST /workspace/applications/<application_id>/review/                  # 已删除，不允许单人标记审核状态
+POST /workspace/applications/<application_id>/create-admission-proposal/  # 已删除，提案在报名时自动创建
+```
+
+正式接纳只能通过 proposal vote -> passed -> execute_proposal 完成。未通过/拒绝来自提案投票结果或提案生命周期（过期未达票数），不存在单人点击的“拒绝报名”按钮。未绑定 Member 的 Django staff/superuser 不能绕过治理成员身份要求。
 
 
 观察台：

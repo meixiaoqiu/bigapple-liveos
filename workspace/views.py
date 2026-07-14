@@ -17,10 +17,6 @@ from live_os.access import (
     world_login_url_for_request,
 )
 from core.access import is_governance_principal
-from core.application_services import (
-    create_member_application_admission_proposal,
-    review_member_application,
-)
 from core.dispute_services import submit_dispute
 from core.exceptions import DomainError
 from core.models import Member, MemberApplication, Proposal, ProposalVote, Task
@@ -38,12 +34,6 @@ from .context import (
 )
 
 
-REVIEW_STATUS_CHOICES = {
-    MemberApplication.Status.UNDER_REVIEW,
-    MemberApplication.Status.CANDIDATE,
-    MemberApplication.Status.STANDBY,
-    MemberApplication.Status.REJECTED,
-}
 PROPOSAL_VOTE_CHOICES = {
     ProposalVote.Choice.YES,
     ProposalVote.Choice.NO,
@@ -159,10 +149,14 @@ def workspace_create_dispute(request: HttpRequest):
 
 
 # --- Member-application review module -------------------------------------------------
-# Governance-only surface that exposes the existing application_services +
+# Governance-only surface that exposes the application list and the
 # proposal/voting/execution pipeline through the workspace. Views stay thin:
 # every state change goes through the service layer so the invariants around
 # proposal-driven admission are preserved.
+#
+# There is NO standalone "review" POST endpoint — admission is governed
+# exclusively through the member_admission proposal lifecycle (vote → pass →
+# execute). Applications are auto-rejected when their admission proposal fails.
 
 
 def current_governance_member_or_forbidden(request: HttpRequest) -> Member | HttpResponse:
@@ -170,9 +164,7 @@ def current_governance_member_or_forbidden(request: HttpRequest) -> Member | Htt
 
     Requires an authenticated, governance-permissioned Member. A Django
     staff/superuser without a bound Member is NOT allowed through — they cannot
-    act as proposer/reviewer/voter without a member identity. Mirrors the
-    existing ``current_member_or_forbidden`` helper pattern (returns either a
-    ``Member`` or an ``HttpResponse`` that the caller must return verbatim).
+    act as proposer/reviewer/voter without a member identity.
     """
 
     if not is_authenticated(request):
@@ -215,11 +207,7 @@ def _member_admission_proposal_and_application_or_404(proposal_id: str) -> tuple
 
 
 def _admission_application_redirect(request: HttpRequest, application: MemberApplication):
-    """Redirect to the review detail page for the given application.
-
-    Always succeeds — the application came from ``_member_admission_proposal_and_application_or_404``,
-    so it must be valid and belong to the workspace review module.
-    """
+    """Redirect to the review detail page for the given application."""
 
     return world_redirect(request, "workspace-application-detail", application.application_id)
 
@@ -248,54 +236,6 @@ def workspace_application_detail(request: HttpRequest, application_id: str):
         "workspace/applications_review_detail.html",
         application_review_detail_context(member=member, application=application),
     )
-
-
-@require_POST
-def workspace_application_review(request: HttpRequest, application_id: str):
-    member = current_governance_member_or_forbidden(request)
-    if isinstance(member, HttpResponse):
-        return member
-    application = _application_for_review(application_id=application_id)
-    status = str(request.POST.get("status", "")).strip()
-    reason = str(request.POST.get("reason", "")).strip()
-    if status not in REVIEW_STATUS_CHOICES:
-        messages.error(request, "审核状态无效。")
-        return world_redirect(request, "workspace-application-detail", application.application_id)
-    if status == MemberApplication.Status.REJECTED and not reason:
-        messages.error(request, "拒绝报名时必须填写理由。")
-        return world_redirect(request, "workspace-application-detail", application.application_id)
-    try:
-        review_member_application(
-            application=application,
-            status=status,
-            reviewed_by=member,
-            review_note=reason,
-        )
-    except (DomainError, DjangoValidationError) as exc:
-        messages.error(request, f"审核操作失败：{exc}")
-    else:
-        messages.success(request, "已更新报名审核状态。")
-    return world_redirect(request, "workspace-application-detail", application.application_id)
-
-
-@require_POST
-def workspace_application_create_admission_proposal(request: HttpRequest, application_id: str):
-    member = current_governance_member_or_forbidden(request)
-    if isinstance(member, HttpResponse):
-        return member
-    application = _application_for_review(application_id=application_id)
-    reason = str(request.POST.get("reason", "")).strip()
-    try:
-        create_member_application_admission_proposal(
-            application=application,
-            proposer_member=member,
-            reason=reason,
-        )
-    except (DomainError, DjangoValidationError) as exc:
-        messages.error(request, f"发起准入提案失败：{exc}")
-    else:
-        messages.success(request, "已发起成员准入提案，等待治理成员投票。")
-    return world_redirect(request, "workspace-application-detail", application.application_id)
 
 
 @require_POST

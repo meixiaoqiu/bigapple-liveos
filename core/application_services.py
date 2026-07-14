@@ -1,4 +1,4 @@
-"""Application submission and review services."""
+"""Application submission, proposal-driven admission, and review services."""
 
 from __future__ import annotations
 
@@ -272,6 +272,12 @@ def submit_member_application(
     ensure_role_assignment(existing_member, ensure_member_role(ROLE_CANDIDATE))
     application.linked_member = existing_member
     application.save(update_fields=["requested_member_no", "linked_member"])
+    # Auto-create the member_admission proposal so every application immediately
+    # enters the governance voting pipeline. No manual “review” step exists.
+    create_member_application_admission_proposal(
+        application=application,
+        reason=f"系统自动发起：接纳 {application.applicant_name} 成为大苹果正式成员。",
+    )
     append_event(
         event_type=SystemEvent.EventType.MEMBER_APPLICATION_SUBMITTED,
         aggregate_type="MemberApplication",
@@ -531,6 +537,54 @@ def admit_member_application_from_proposal(
         aggregate_type="MemberApplication",
         aggregate_id=application.application_id,
         actor_member=executor_member,
+        payload_json=member_application_payload(application),
+        occurred_at=now,
+    )
+    return application
+
+
+@atomic_for_model(MemberApplication)
+def reject_member_application_from_failed_proposal(
+    *,
+    application: MemberApplication,
+    proposal: Proposal,
+    at_time=None,
+) -> MemberApplication:
+    """Reject a member application when its member_admission proposal fails.
+
+    Called from the voting lifecycle when a MEMBER_ADMISSION proposal
+    transitions to FAILED (deadline expired without sufficient yes votes).
+    This is the ONLY path that sets an application to REJECTED — there is
+    no standalone “reject” action a governance member can trigger directly.
+    """
+
+    if proposal.proposal_type != Proposal.ProposalType.MEMBER_ADMISSION:
+        raise DomainError("提案类型不是成员准入。")
+    if proposal.status != Proposal.Status.FAILED:
+        raise DomainError("只有未通过的成员准入提案才能触发报名拒绝。")
+    if application.status == MemberApplication.Status.REJECTED:
+        return application
+    now = at_time or timezone.now()
+    application.status = MemberApplication.Status.REJECTED
+    application.reviewed_at = now
+    application.metadata = {
+        **(application.metadata or {}),
+        "review_note": f"准入提案 {proposal.proposal_no} 未通过（{proposal.get_status_display()}），报名自动拒绝。",
+    }
+    application.save(update_fields=["status", "reviewed_at", "metadata"])
+    if application.linked_member_id:
+        member = application.linked_member
+        member.status = Member.Status.APPLICATION_REJECTED
+        member.metadata = {
+            **(member.metadata or {}),
+            "application_status": MemberApplication.Status.REJECTED,
+            "latest_application_id": application.application_id,
+        }
+        member.save(update_fields=["status", "metadata"])
+    append_event(
+        event_type=SystemEvent.EventType.MEMBER_APPLICATION_REVIEWED,
+        aggregate_type="MemberApplication",
+        aggregate_id=application.application_id,
         payload_json=member_application_payload(application),
         occurred_at=now,
     )

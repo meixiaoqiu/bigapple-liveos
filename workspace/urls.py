@@ -34,16 +34,6 @@ urlpatterns = [
         name="workspace-application-detail",
     ),
     path(
-        "applications/<str:application_id>/review/",
-        world_scoped_view(views.workspace_application_review),
-        name="workspace-application-review",
-    ),
-    path(
-        "applications/<str:application_id>/create-admission-proposal/",
-        world_scoped_view(views.workspace_application_create_admission_proposal),
-        name="workspace-application-create-admission-proposal",
-    ),
-    path(
         "proposals/<str:proposal_id>/vote/",
         world_scoped_view(views.workspace_proposal_vote),
         name="workspace-proposal-vote",
