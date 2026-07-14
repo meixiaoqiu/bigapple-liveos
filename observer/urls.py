@@ -30,5 +30,7 @@ urlpatterns = [
         page_views.dashboard_photo_story_partial,
         name="dashboard-photo-story-partial",
     ),
+    path("events/", page_views.observer_events_list, name="observer-events-list"),
+    path("events/<int:seq>/", page_views.observer_event_detail, name="observer-event-detail"),
     path("themes/switch/", theme_views.switch_theme, name="switch-theme"),
 ]

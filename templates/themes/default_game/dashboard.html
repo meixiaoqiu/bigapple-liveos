@@ -27,6 +27,7 @@
             </select>
           </form>
           <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-page' %}">刷新</a>
+          <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-events-list' %}">事件浏览器</a>
           <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-simulation-reports' %}">仿真档案馆</a>
           <a class="btn btn-sm btn-ghost" href="{% world_url 'world-observer-summary' %}">数据日志</a>
         </div>
@@ -85,7 +86,10 @@
             <div class="card-body">
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <h2 class="card-title">事件时间线</h2>
-                <span class="badge badge-outline">{{ dashboard.events|length }} 条</span>
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="badge badge-outline">{{ dashboard.events|length }} 条</span>
+                  <a class="btn btn-xs btn-ghost" href="{% world_url 'observer-events-list' %}">查看全部</a>
+                </div>
               </div>
               <div id="dashboard-events" hx-get="{% world_url 'dashboard-events-partial' %}" hx-trigger="every 30s" hx-swap="innerHTML">
                 {% include "themes/default_game/partials/event_feed.html" %}

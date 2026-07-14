@@ -8,6 +8,8 @@
 
 ```text
 /observer/
+/observer/events/
+/observer/events/<seq>/
 /observer/simulations/
 ```
 
@@ -34,6 +36,29 @@ Observer entrypoints are `http://127.0.0.1:20101/observer/` or `http://bigreal.l
 首页不展示超长任务表、成员表、资源表、黑底终端日志或原始 JSON。
 
 观察台不提供进入 `/admin/` 的导航。运营动作归属 API、领域服务或 control 后台；观察台只负责公开状态展示和复盘。
+
+## 公共事件浏览器
+
+`/observer/events/` 是面向访客的 SystemEvent 哈希链审计事件浏览器。它基于 `core_system_event` 审计账本提供脱敏投影，不直接展示原始 `payload_json` 和隐私字段。
+
+列表页 `/observer/events/` 展示最近 100 条审计事件，每条显示序号、事件类型、发生时间、聚合对象、脱敏行为人和事件短哈希。
+
+详情页 `/observer/events/<seq>/` 展示单条事件的完整哈希字段、公开 payload 摘要和哈希链校验状态（payload_hash / prev_hash / event_hash 各自是否有效，以及整体 chain_valid）。
+
+公开投影规则：
+
+- payload 只展示白名单字段（application_id / proposal_no / task_id / resource_id / dispute_id / status / action_type / source / stage / role_gap / role_gap_label / public_applicant_label / public_member_label / reason / title / summary），敏感字段（contact / email / phone / wechat / username / password / account_user_id / user_id / member_id 等）一律不展示。
+- reason / summary 类文本字段截断 200 字。
+- Member 和 User 类型聚合 ID 不展示内部主键，改为"已隐藏"。
+- 行为人名称使用脱敏投影（首字 + ** + 末字）。
+
+哈希链校验对每条事件做单条验证：
+
+1. `payload_hash` 是否等于重新计算 `hash_json(payload_json)` 的结果。
+2. `prev_hash` 是否等于前一条事件（seq-1）的 `event_hash`（首条事件 prev_hash 应为空）。
+3. `event_hash` 是否等于按当前规则重新计算的哈希。
+
+当前哈希链是"篡改可发现"，不是外部不可篡改；未来可做外部锚定。
 
 ## 公开仿真档案馆
 
