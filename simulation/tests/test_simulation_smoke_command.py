@@ -183,6 +183,22 @@ class SimulationSmokeCommandTests(TestCase):
             simulation_members.filter(member_applications__metadata__screening_status="candidate").distinct().count(),
             3,
         )
+        # Verify projections module produces the same results as direct queries.
+        from simulation.projections import (
+            candidate_members_for_run,
+            candidate_summary_for_run,
+        )
+        from live_os.demo_seed.zero_start import ZERO_START_FOUNDER_MEMBER_NO
+
+        proj_members = candidate_members_for_run(
+            run,
+            founder_member_no=ZERO_START_FOUNDER_MEMBER_NO,
+        )
+        self.assertEqual(len(proj_members), 4)  # founder + 3 candidates
+        proj_summary = candidate_summary_for_run(run, startup_gate_satisfied=False)
+        self.assertEqual(proj_summary["registered_applicants"], 6)
+        self.assertEqual(proj_summary["candidate_members"], 3)
+
         partners = PartnerApplication.objects.filter(metadata__simulation_run_id=run.run_id)
         self.assertEqual(partners.count(), 2)
         self.assertTrue(partners.filter(status=PartnerApplication.Status.STANDBY).exists())

@@ -93,6 +93,21 @@ python manage.py run_zero_start_simulation --world-id simulation0001 --hours 168
 
 这个切片的目的不是一次性模拟完整开荒，而是把“谁报名、谁被接纳、谁退出、能力矩阵是否成形、文件签署方是否到位”提前到 A0 抵达之前。能力需求只要求具备实际能力，例如做饭、视频剪辑、资料整理；文件需求必须有对应签署方，例如结构报告、电气并网方案、施工安全方案和验收归档资料。仿真失败也分两类：业务门槛失败表示报名和合作方质量不足；系统交互失败表示真实报名页、字段、校验或保存链路不能支撑仿真。后续应继续把成员抵达、食宿、任务承接、治理表决和工程责任文件取得都改成小时级状态机。
 
+### 仿真分层
+
+零起点仿真拆为三层，降低未来业务流程变化对仿真的连锁影响：
+
+**Driver 层（`simulation/form_drivers.py`）：** 调用真实报名表单和服务（`/apply/`、`submit_member_application`）。负责把虚拟主体动作转化为真实系统写入，不直接做统计查询。
+
+**Projection 层（`simulation/projections.py`）：** 读取真实状态和仿真 metadata，提供候选池、启动门槛成员列表、合作方签署方列表和筛选统计等查询入口，为能力矩阵和文件签署方矩阵提供稳定输入。
+- `screening_status_for(application)` — 读取 `metadata.screening_status`
+- `candidate_members_for_run(run, founder_member_no=...)` — 返回候选成员；传入 founder_member_no 时会把 founder 放在最前面
+- `candidate_summary_for_run(run)` — 返回各类筛选状态的计数值
+
+**Strategy/Scenario 层（`simulation/zero_start.py`）：** 决定虚拟主体何时报名、何时筛选、筛选规则（`_screening_decision`）和推进编排。不再散落候选池统计口径的直接 ORM 查询。
+
+`MemberApplication.status` 是权威准入状态（`admission_voting` / `admitted` / `rejected` / `withdrew` / `submitted`）。`metadata.screening_status` 是仿真筛选口径（`candidate` / `standby` / `rejected` / `withdrew`），两种状态机互不干扰。
+
 ## 仿真快照归档
 
 一次仿真结束后，可以把 run 归档为永久快照：

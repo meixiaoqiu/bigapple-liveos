@@ -43,6 +43,11 @@ from .ids import (
 )
 from .disposition import CONTROL_DATABASE_ALIAS, is_continuable_zero_start_observation_run
 from .form_drivers import FormSubmissionResult, HttpFormDriver
+from .projections import (
+    candidate_members_for_run,
+    candidate_summary_for_run,
+    partner_applications_for_run,
+)
 from .run_state import create_simulation_turn_and_event
 
 
@@ -679,7 +684,7 @@ def _run_zero_start(*, revision: PlanRevision, hours: int, run: SimulationRun | 
 
         startup_gate = _startup_gate_summary(run)
         pre_engineering = _pre_engineering_state(run=run, hour=hour, startup_gate=startup_gate)
-        candidate_summary = _candidate_summary(run, startup_gate=startup_gate)
+        candidate_summary = candidate_summary_for_run(run, startup_gate_satisfied=bool(startup_gate["startup_gate_satisfied"]))
         hour_payload = _hour_payload(
             run=run,
             hour=hour,
@@ -779,7 +784,7 @@ def _run_zero_start(*, revision: PlanRevision, hours: int, run: SimulationRun | 
             "can_continue": not (gate["startup_gate_satisfied"] and pre_engineering_complete),
             "startup_gate": gate,
             "pre_engineering": pre_engineering,
-            "candidate_summary": _candidate_summary(run, startup_gate=gate),
+            "candidate_summary": candidate_summary_for_run(run, startup_gate_satisfied=bool(gate["startup_gate_satisfied"])),
             "blockers": _startup_gate_blockers(gate),
             "next_actions": _combined_next_actions(gate, pre_engineering),
         },
@@ -916,7 +921,7 @@ def _screen_member_application(
         note = "项目方暂不接纳：当前能力和可用时间不足以进入候选池。"
     history = list(application.metadata.get("state_history") or [])
     history.append({"hour": screened_hour, "status": decision, "reason": note})
-    # Simulation screening decisions are recorded in metadata only —
+    # Simulation screening decisions are recorded in metadata only --
     # they do NOT mutate MemberApplication.status. The authoritative
     # application status is driven by the member_admission proposal
     # lifecycle (admission_voting → admitted / rejected).
@@ -1299,29 +1304,13 @@ def _screening_decision(*, spec: ApplicantSpec, screened_hour: int) -> str:
     return APPLICATION_STATUS_REJECTED
 
 
-def _candidate_summary(run: SimulationRun, *, startup_gate: dict[str, object] | None = None) -> dict[str, int | bool]:
-    applicants = MemberApplication.objects.filter(metadata__simulation_run_id=run.run_id)
-    partners = PartnerApplication.objects.filter(metadata__simulation_run_id=run.run_id)
-    gate = startup_gate or _startup_gate_summary(run)
-    document_signer_partners = _startup_gate_partner_applications(run)
-    return {
-        "registered_applicants": applicants.count(),
-        "candidate_members": applicants.filter(metadata__screening_status=APPLICATION_STATUS_CANDIDATE).count(),
-        "standby_applicants": applicants.filter(metadata__screening_status=APPLICATION_STATUS_STANDBY).count(),
-        "rejected_applicants": applicants.filter(metadata__screening_status=APPLICATION_STATUS_REJECTED).count(),
-        "withdrawn_applicants": applicants.filter(metadata__screening_status=APPLICATION_STATUS_WITHDREW).count(),
-        "screened_applicants": applicants.exclude(metadata__screening_status=None).count(),
-        "partner_applications": partners.count(),
-        "qualified_partners": partners.filter(status=PartnerApplication.Status.QUALIFIED).count(),
-        "standby_partners": partners.filter(status=PartnerApplication.Status.STANDBY).count(),
-        "responsibility_document_signer_partners": len(document_signer_partners),
-        "startup_gate_satisfied": bool(gate["startup_gate_satisfied"]),
-    }
-
-
 def _startup_gate_summary(run: SimulationRun) -> dict[str, object]:
-    members = _startup_gate_members(run)
-    partner_applications = _startup_gate_partner_applications(run)
+    members = candidate_members_for_run(run, founder_member_no=ZERO_START_FOUNDER_MEMBER_NO)
+    partner_applications = list(
+        partner_applications_for_run(run)
+        .filter(status=PartnerApplication.Status.QUALIFIED, can_issue_responsibility_documents=True)
+        .order_by("application_id")
+    )
     capability_coverage = [_capability_coverage_row(members, requirement) for requirement in STARTUP_CAPABILITY_REQUIREMENTS]
     document_signer_coverage = [
         _document_signer_coverage_row(
@@ -1341,26 +1330,6 @@ def _startup_gate_summary(run: SimulationRun) -> dict[str, object]:
         "missing_capabilities": missing_capabilities,
         "missing_document_signers": missing_document_signers,
     }
-
-
-def _startup_gate_members(run: SimulationRun) -> list[Member]:
-    founder = Member.objects.filter(member_no=ZERO_START_FOUNDER_MEMBER_NO).first()
-    applicants = list(
-        Member.objects.filter(member_applications__metadata__simulation_run_id=run.run_id)
-        .filter(member_applications__metadata__screening_status=APPLICATION_STATUS_CANDIDATE)
-        .order_by("member_no")
-    )
-    return ([founder] if founder else []) + applicants
-
-
-def _startup_gate_partner_applications(run: SimulationRun) -> list[PartnerApplication]:
-    return list(
-        PartnerApplication.objects.filter(
-            metadata__simulation_run_id=run.run_id,
-            status=PartnerApplication.Status.QUALIFIED,
-            can_issue_responsibility_documents=True,
-        ).order_by("application_id")
-    )
 
 
 def _capability_coverage_row(members: list[Member], requirement: dict[str, object]) -> dict[str, object]:
