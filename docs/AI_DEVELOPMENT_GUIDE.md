@@ -19,44 +19,6 @@
 3. 阅读 `docs/` 下相关文档。
 4. 先理解现有代码，再增加抽象。
 
-## CodeBuddy 辅助工作流
-
-CodeBuddy 是低成本辅助执行器，Codex 是指挥和最终审查者。默认模型在 `scripts/ai/codebuddy.config.json` 中固定为 `glm-5.2`；如果 CodeBuddy 额度耗尽，脚本必须停止并提示切换账号，不要自动切换到更贵模型。
-
-当前仓库源码按开源边界处理，CodeBuddy 可以直接读取和修改工作区源码。直接开发前，Codex 必须先检查 `git status --short`；如果当前有重要未提交改动，应先建议或执行一个理由明确的 checkpoint commit。CodeBuddy 完成后，Codex 必须审查 `git diff`、检查敏感信息、运行相关测试，并按开源提交标准决定是否提交。CodeBuddy 不应自行 stage、commit、push 或 publish。
-
-直接开发优先使用已经实测可用的非交互命令形态，并禁止 Bash/shell 工具：
-
-```powershell
-codebuddy --print --output-format text --max-turns 20 --model glm-5.2 --permission-mode bypassPermissions -y --disallowedTools Bash --append-system-prompt "You may read and edit source files in the current working directory. Do not read or write .env files, private keys, cookies, tokens, real credentials, start.bat, .git, var/ai_runs, logs, uploads, media, staticfiles, node_modules, .venv, or generated caches. Do not run shell, database, Docker, Git, destructive delete, reset, network, stage, commit, push, or publish operations. Keep the work scoped to the requested task." "本次开发任务"
-```
-
-直接开发模式仍然不能接触真实 `.env`、密钥、数据库密码、cookie、私密配置、`start.bat`、`.git`、生成缓存、上传/日志目录；也不能执行数据库、Docker、Git、删除、重置、推送或发布操作。需要运行测试时，由 Codex 在 CodeBuddy 完成后执行。
-
-Codex 在开发前、测试失败后、提交前可以调用以下脚本，并把输出作为下一步线索：
-
-```powershell
-.\scripts\ai\codebuddy_merge_check.ps1 -Requirement "本次需求描述"
-.\scripts\ai\codebuddy_analyze_test_log.ps1 -LogFile .\temp\failed-test.log
-.\scripts\ai\codebuddy_review_diff.ps1
-```
-
-极小改动也可以让 CodeBuddy 起草 patch：
-
-```powershell
-.\scripts\ai\codebuddy_make_patch.ps1 -Requirement "本次需求描述" -ContextPath core\models\identity.py,worlds\management\commands\seed_world.py
-.\scripts\ai\codebuddy_apply_patch_guard.ps1 -PatchFile var\ai_runs\<run-id>\proposal.patch
-.\scripts\ai\codebuddy_apply_patch_guard.ps1 -PatchFile var\ai_runs\<run-id>\proposal.patch -Apply
-```
-
-`codebuddy_make_patch.ps1` 是小补丁草稿入口，不是主开发入口。它只允许 CodeBuddy 输出 unified diff 到 `var/ai_runs/<run-id>/proposal.patch`，不直接改工作区。patch 入口必须传入 `-ContextPath` 或 `-IncludeGitDiff`；优先传精确文件路径，目录也可以传入，runner 会把安全的 tracked 文本文件内容按预算送给 CodeBuddy，而不是只给目录列表。生成 patch 后脚本会自动运行 `codebuddy_apply_patch_guard.ps1` 的 dry run；空输出、非 unified diff、`git apply --check` 失败或触碰禁用路径都算失败，不算完成开发。
-
-patch 草稿入口会先保存 CodeBuddy 原始候选到 `proposal.raw.patch`，再生成规范化后的 `proposal.patch`。规范化会修正常见格式问题：去掉 Markdown 代码围栏，把普通 `--- a/...` / `+++ b/...` unified diff 补成 git diff，规范 CRLF/BOM，并按 hunk 实际行重新计算 hunk count。这只修正 patch 语法，不代表内容已被接受；最终仍以 guard、测试和 Codex/人工审查为准。
-
-`codebuddy_apply_patch_guard.ps1` 会检查 patch 是否只触碰允许的文本文件、是否避开真实 `.env`、密钥、迁移、`start.bat`、生成目录和其他危险路径，并在仓库根目录运行 `git apply --check`。公开模板 `.env.example` 可以进入 CodeBuddy 上下文和 patch guard；真实 `.env`、`.env.local`、`.env.production` 等仍然禁止。只有 Codex 或人工审阅通过后，才允许加 `-Apply`。
-
-审查和 patch 脚本通过管道把受限上下文传给 `codebuddy`，调用时禁用 CodeBuddy 内置工具，并会截断长输入、脱敏常见 secret、避免把 `.env`、密钥、数据库密码或私密配置传给 CodeBuddy。runner 强制使用 UTF-8 读取任务、上下文、日志和输出，避免中文需求或代码注释在 `prompt.txt` 中乱码。CodeBuddy 输出不能直接作为最终事实：涉及模型、迁移、权限、统一事件账本、真实/仿真数据库边界、危险后台操作时，必须由 Codex 或人工重新审查后再应用。
-
 ## 编辑规则
 
 - 字段名尽量和 contracts 保持一致。
@@ -112,19 +74,6 @@ Real and simulation runtimes use the same root paths: `/workspace/`, `/observer/
 - 已实现最小 session 身份绑定：`User.username == Member.member_no` 代表成员本人，活跃治理成员或 staff / superuser 可执行运营写入。不要重新引入由 payload 或表单选择责任人的 actor 绑定。
 - 观察台中的满意度、疲劳值等指标目前是占位值，后续需要每日指标表。
 - 修改 observer 模板中的 Tailwind class 后，必须运行 `python manage.py tailwind build` 并提交编译后的 `theme/static/css/dist/styles.css`。
-
-## Low-cost AI Delegation
-
-简单审查、测试失败归因、diff 初审和小 patch 草稿可通过 `scripts/ai/Invoke-CodeBuddyTask.ps1` 委派给 CodeBuddy；简单/中等开发任务优先用上文的直接开发命令让 CodeBuddy 改工作区，Codex 负责 checkpoint 判断、复核、测试和提交判断。常用入口：
-
-- `scripts/ai/codebuddy_merge_check.ps1 -Requirement "..."`：需求合并审查，判断复用哪些现有结构。
-- `scripts/ai/codebuddy_review_diff.ps1`：审查当前 git diff，包括未跟踪的新 `.ps1`、`.md`、`.py`、`.html` 等文本文件。
-- `scripts/ai/codebuddy_analyze_test_log.ps1 -LogFile path\to\log.txt`：测试失败归因。
-- `codebuddy --print ... --disallowedTools Bash "..."`：直接开发入口，可读写当前工作区源码，但不能使用 Bash/shell、数据库、Docker、Git、删除、重置、推送或发布。
-- `scripts/ai/codebuddy_make_patch.ps1 -Requirement "..." -ContextPath path1,path2`：极小 patch 草稿入口，生成待审 unified diff，不直接修改工作区；必须提供文件/目录上下文或 `-IncludeGitDiff`，并自动执行 patch guard dry run。
-- `scripts/ai/codebuddy_apply_patch_guard.ps1 -PatchFile path\to\proposal.patch`：校验待审 patch；显式加 `-Apply` 后才应用。
-
-统一 runner 会生成 `var/ai_runs/<run-id>/prompt.txt`、`stdout.txt`、`stderr.txt`、`metadata.json` 和 `report.md`，并估算输入/输出 token。patch 工作流额外生成 `proposal.raw.patch` 和 `proposal.patch`。`var/ai_runs/` 不进入 Git。CodeBuddy 可以承担轻中度开发和审查工作；如果直接开发没有产生 diff，或 patch 工作流没有生成可应用 patch，必须明确报告为 CodeBuddy 开发未完成，再由 Codex 调整任务形态或接手。所有 CodeBuddy 结果必须通过 diff 审查、敏感信息检查、测试和 Codex/人工审查。
 
 ## World Routing Rule
 
