@@ -23,8 +23,10 @@ from core.member_roles import (
 )
 from core.models import Member, MemberApplication, PartnerApplication, Proposal, SystemEvent
 
-from .event_payloads import member_display_name
+from .event_payloads import member_display_name, public_member_label
 from .identity_services import register_member
+from .models.applications import ROLE_GAP_LABELS
+from .models.events import Event
 
 
 def _nonblank(value: object, field_label: str) -> str:
@@ -156,6 +158,38 @@ def partner_application_payload(application: PartnerApplication) -> dict[str, An
     }
 
 
+def _append_member_application_public_event_once(
+    *,
+    event_id: str,
+    title: str,
+    summary: str,
+    severity: str,
+    payload: dict[str, Any],
+    occurred_at=None,
+) -> Event | None:
+    """Idempotent public Event writer for the observer timeline.
+
+    Returns the existing ``Event`` without modification when *event_id*
+    already exists so repeated service calls never produce duplicate observer
+    records.
+    """
+    existing = Event.objects.filter(event_id=event_id).first()
+    if existing is not None:
+        return existing
+    return Event.objects.create(
+        event_id=event_id,
+        event_type=Event.EventType.GOVERNANCE,
+        simulation_day=0,
+        severity=severity,
+        title=title,
+        summary=summary,
+        occurred_at=occurred_at or timezone.now(),
+        generated_by=Event.GeneratedBy.LIVE_OS,
+        visibility=Event.Visibility.PUBLIC,
+        payload=payload,
+    )
+
+
 @atomic_for_model(MemberApplication)
 def submit_member_application(
     *,
@@ -281,6 +315,25 @@ def submit_member_application(
         aggregate_type="MemberApplication",
         aggregate_id=application.application_id,
         payload_json=member_application_payload(application),
+        occurred_at=now,
+    )
+    _append_member_application_public_event_once(
+        event_id=f"member-application-submitted-{application.application_id}",
+        title="收到成员报名",
+        summary="收到一名成员报名，准入提案已进入治理表决。",
+        severity=Event.Severity.INFO,
+        payload={
+            "source": "member_application",
+            "stage": "submitted",
+            "application_id": application.application_id,
+            "proposal_no": application.admission_proposal.proposal_no if application.admission_proposal_id else "",
+            "public_applicant_label": public_member_label(
+                application.applicant_name,
+                application.linked_member.member_no if application.linked_member_id else "",
+            ),
+            "role_gap": application.role_gap,
+            "role_gap_label": ROLE_GAP_LABELS.get(application.role_gap, application.role_gap or ""),
+        },
         occurred_at=now,
     )
     return application
@@ -454,6 +507,22 @@ def admit_member_application_from_proposal(
         payload_json=member_application_payload(application),
         occurred_at=now,
     )
+    _append_member_application_public_event_once(
+        event_id=f"member-application-admitted-{application.application_id}",
+        title="新成员已加入",
+        summary=f"成员 {public_member_label(application.applicant_name, member.member_no)} 已通过准入表决并加入社区。",
+        severity=Event.Severity.INFO,
+        payload={
+            "source": "member_application",
+            "stage": "admitted",
+            "application_id": application.application_id,
+            "proposal_no": proposal.proposal_no,
+            "public_member_label": public_member_label(application.applicant_name, member.member_no),
+            "role_gap": application.role_gap,
+            "role_gap_label": ROLE_GAP_LABELS.get(application.role_gap, application.role_gap or ""),
+        },
+        occurred_at=now,
+    )
     return application
 
 
@@ -500,6 +569,26 @@ def reject_member_application_from_failed_proposal(
         aggregate_type="MemberApplication",
         aggregate_id=application.application_id,
         payload_json=member_application_payload(application),
+        occurred_at=now,
+    )
+    raw_reason = str((application.metadata or {}).get("decision_note", "")).strip()
+    sanitized_reason = raw_reason[:200]
+    _append_member_application_public_event_once(
+        event_id=f"member-application-rejected-{application.application_id}",
+        title="成员报名未通过",
+        summary=f"成员报名 {public_member_label(application.applicant_name, application.linked_member.member_no if application.linked_member_id else '')} 未通过准入表决。",
+        severity=Event.Severity.WARNING,
+        payload={
+            "source": "member_application",
+            "stage": "rejected",
+            "application_id": application.application_id,
+            "proposal_no": proposal.proposal_no,
+            "public_applicant_label": public_member_label(
+                application.applicant_name,
+                application.linked_member.member_no if application.linked_member_id else "",
+            ),
+            "reason": sanitized_reason,
+        },
         occurred_at=now,
     )
     return application

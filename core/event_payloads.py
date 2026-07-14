@@ -17,6 +17,23 @@ def member_display_name(member: Member | None) -> str:
     return str(member.display_name or member.profile.get("display_name") or member.member_no)
 
 
+def public_member_label(name: str, member_no: str = "") -> str:
+    """Return a de-identified public label for observer-visible events.
+
+    Rules:
+    - Prefer *name*, fall back to *member_no*, then "新成员".
+    - 1 char -> "*"
+    - 2 chars -> "<first>*"
+    - 3+ chars -> "<first>**<last>"
+    """
+    label = (str(name or "").strip() or str(member_no or "").strip() or "新成员")
+    if len(label) <= 1:
+        return "*"
+    if len(label) == 2:
+        return label[0] + "*"
+    return label[0] + "**" + label[-1]
+
+
 def role_assignment_payload(assignment: RoleAssignment) -> dict[str, Any]:
     role = assignment.role
     organization = role.organization

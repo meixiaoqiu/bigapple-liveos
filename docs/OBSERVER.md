@@ -2,6 +2,8 @@
 
 观察台是 Live OS 面向普通观察者的只读入口。
 
+成员报名/准入流程会同时写入 `core_system_event` 审计账本和脱敏公开 `core_event`。Observer 时间线展示的是公开 Event，不展示 contact、账号、内部用户 ID。公开 Event 包含 `submitted`（收到成员报名）、`admitted`（新成员已加入）和 `rejected`（成员报名未通过）三个阶段，使用脱敏公开名称，payload 不含隐私字段。
+
 当前路径：
 
 ```text
