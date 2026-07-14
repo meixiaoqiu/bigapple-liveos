@@ -107,6 +107,9 @@ role_appointment Proposal -> ProposalVote -> ProposalExecution -> RoleAssignment
 
 成员报名提交只创建最小权限 `Member` 和 `MemberApplication`。是否接纳为正式成员由 `member_admission` 提案决定，提案通过后仍需显式执行，执行结果落到报名、成员状态和正式成员角色任命上，不新建平行投票表。
 
+治理成员可在 `/workspace/applications/` 进入成员报名审核模块，对报名执行审核标记、发起 `member_admission` 提案、投票和执行已通过提案。该模块只复用上述既有服务与表，不引入平行审核表或投票表；审核表单不暴露 `admitted` 选项，正式接纳只能由 `execute_proposal` 完成。模块入口与所有动作 URL 都要求治理权限（`governance.view_admin`），且必须绑定 `Member` 身份；未绑定 `Member` 的 Django staff/superuser 不能绕过成员身份要求。
+
+
 未来规则、政策、预算、项目计划、重大申诉裁决和重大任务发布可以使用同一套提案流程，但执行后仍应落到具体业务对象。
 
 ### 统一事件账本

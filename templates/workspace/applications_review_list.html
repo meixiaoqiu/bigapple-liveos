@@ -1,0 +1,120 @@
+{% load tailwind_tags world_urls %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="bumblebee">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>成员报名审核 · 大苹果</title>
+  {% tailwind_css %}
+</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+  <main class="mx-auto grid w-full max-w-7xl gap-6 p-4 lg:p-8">
+    <header class="card bg-primary text-primary-content shadow-xl">
+      <div class="card-body gap-4">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div class="text-sm opacity-80">
+              {% if request.world %}当前世界：{{ request.world.world_id }}{% else %}当前世界{% endif %}
+            </div>
+            <h1 class="text-3xl font-bold tracking-normal">成员报名审核</h1>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <span class="badge badge-primary-content badge-outline">{{ member.member_no }}</span>
+              <span class="badge badge-primary-content badge-outline">治理视图</span>
+            </div>
+          </div>
+          <nav class="flex flex-wrap justify-end gap-2" aria-label="报名审核导航">
+            <a class="btn btn-sm" href="{% world_url 'workspace-page' %}">返回工作台</a>
+            <a class="btn btn-sm" href="{% world_url 'observer-page' %}">观察台</a>
+            <form method="post" action="{% world_url 'world-logout' %}">
+              {% csrf_token %}
+              <button class="btn btn-sm btn-outline border-primary-content text-primary-content hover:border-base-100 hover:bg-base-100 hover:text-primary" type="submit">退出</button>
+            </form>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    {% if messages %}
+      <section class="grid gap-2" aria-label="操作结果">
+        {% for message in messages %}
+          <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-error{% else %}alert-info{% endif %}">
+            <span>{{ message }}</span>
+          </div>
+        {% endfor %}
+      </section>
+    {% endif %}
+
+    <section class="card bg-base-100 shadow">
+      <div class="card-body gap-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="card-title">报名列表</h2>
+          <div class="flex flex-wrap gap-2" role="group" aria-label="状态筛选">
+            <a class="btn btn-sm {% if status_filter == 'pending' %}btn-primary{% else %}btn-outline{% endif %}"
+               href="{% world_url 'workspace-applications-review' %}?status=pending">
+              待处理 <span class="badge badge-sm badge-outline ml-1">{{ counts.pending }}</span>
+            </a>
+            <a class="btn btn-sm {% if status_filter == 'processed' %}btn-primary{% else %}btn-outline{% endif %}"
+               href="{% world_url 'workspace-applications-review' %}?status=processed">
+              已处理 <span class="badge badge-sm badge-outline ml-1">{{ counts.processed }}</span>
+            </a>
+            <a class="btn btn-sm {% if status_filter == 'all' %}btn-primary{% else %}btn-outline{% endif %}"
+               href="{% world_url 'workspace-applications-review' %}?status=all">
+              全部 <span class="badge badge-sm badge-outline ml-1">{{ counts.all }}</span>
+            </a>
+          </div>
+        </div>
+
+        {% if applications %}
+          <div class="alert alert-info">
+            <span>候选 / 备用仅表示进入候选池，不是正式接纳；正式接纳必须通过治理提案并执行。</span>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="table table-zebra">
+              <thead>
+                <tr>
+                  <th>报名编号</th>
+                  <th>称呼</th>
+                  <th>意向角色</th>
+                  <th>状态</th>
+                  <th>提交时间</th>
+                  <th>关联成员</th>
+                  <th>准入提案</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for app in applications %}
+                  <tr>
+                    <td class="font-mono text-xs">{{ app.application_id }}</td>
+                    <td>{{ app.applicant_name }}</td>
+                    <td>{{ app.role_gap_label }}</td>
+                    <td>
+                      <span class="badge badge-outline">{{ app.status_label }}</span>
+                    </td>
+                    <td class="text-xs">{{ app.submitted_at|date:"Y-m-d H:i" }}</td>
+                    <td class="font-mono text-xs">{{ app.linked_member_no|default:"—" }}</td>
+                    <td>
+                      {% if app.admission_proposal_id %}
+                        <span class="text-xs">{{ app.admission_proposal_no }}</span>
+                        <span class="badge badge-sm badge-outline ml-1">{{ app.admission_proposal_status }}</span>
+                      {% else %}
+                        <span class="text-base-content/40">—</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <a class="btn btn-sm btn-primary"
+                         href="{% world_url 'workspace-application-detail' app.application_id %}">查看</a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="alert">暂无符合条件的报名记录。</div>
+        {% endif %}
+      </div>
+    </section>
+  </main>
+</body>
+</html>

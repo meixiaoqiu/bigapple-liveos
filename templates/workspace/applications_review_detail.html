@@ -1,0 +1,280 @@
+{% load tailwind_tags world_urls %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="bumblebee">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>报名详情 · {{ application.applicant_name }} · 大苹果</title>
+  {% tailwind_css %}
+</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+  <main class="mx-auto grid w-full max-w-5xl gap-6 p-4 lg:p-8">
+    <header class="card bg-primary text-primary-content shadow-xl">
+      <div class="card-body gap-4">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div class="text-sm opacity-80">
+              {% if request.world %}当前世界：{{ request.world.world_id }}{% else %}当前世界{% endif %}
+            </div>
+            <h1 class="text-3xl font-bold tracking-normal">报名详情</h1>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <span class="badge badge-primary-content badge-outline font-mono text-xs">{{ application.application_id }}</span>
+              <span class="badge badge-primary-content badge-outline">{{ application.get_status_display }}</span>
+              <span class="badge badge-primary-content badge-outline">{{ role_gap_label }}</span>
+            </div>
+          </div>
+          <nav class="flex flex-wrap justify-end gap-2" aria-label="报名审核导航">
+            <a class="btn btn-sm" href="{% world_url 'workspace-applications-review' %}">返回列表</a>
+            <a class="btn btn-sm" href="{% world_url 'workspace-page' %}">工作台</a>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    {% if messages %}
+      <section class="grid gap-2" aria-label="操作结果">
+        {% for message in messages %}
+          <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-error{% else %}alert-info{% endif %}">
+            <span>{{ message }}</span>
+          </div>
+        {% endfor %}
+      </section>
+    {% endif %}
+
+    <section class="card bg-base-100 shadow">
+      <div class="card-body gap-4">
+        <h2 class="card-title">申请人信息</h2>
+        <dl class="grid gap-3 text-sm md:grid-cols-2">
+          <div>
+            <dt class="font-semibold">称呼</dt>
+            <dd>{{ application.applicant_name }}</dd>
+          </div>
+          <div>
+            <dt class="font-semibold">联系方式</dt>
+            <dd>{{ application.contact }}</dd>
+          </div>
+          <div>
+            <dt class="font-semibold">意向角色</dt>
+            <dd>{{ role_gap_label }}</dd>
+          </div>
+          <div>
+            <dt class="font-semibold">期望成员编号</dt>
+            <dd class="font-mono text-xs">{{ application.requested_member_no|default:"—" }}</dd>
+          </div>
+          <div>
+            <dt class="font-semibold">提交时间</dt>
+            <dd>{{ application.submitted_at|date:"Y-m-d H:i" }}</dd>
+          </div>
+          <div>
+            <dt class="font-semibold">审核时间</dt>
+            <dd>{% if application.reviewed_at %}{{ application.reviewed_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</dd>
+          </div>
+          <div>
+            <dt class="font-semibold">审核人</dt>
+            <dd>{% if application.reviewed_by %}{{ application.reviewed_by.member_no }}{% else %}—{% endif %}</dd>
+          </div>
+          <div>
+            <dt class="font-semibold">关联成员</dt>
+            <dd class="font-mono text-xs">{% if linked_member %}{{ linked_member.member_no }} · {{ linked_member.get_status_display }}{% else %}—{% endif %}</dd>
+          </div>
+        </dl>
+        <div class="mt-2">
+          <div class="font-semibold text-sm">报名动机</div>
+          <p class="mt-1 whitespace-pre-wrap text-sm">{{ application.motivation|default:"—" }}</p>
+        </div>
+        {% if availability_slots %}
+          <div class="mt-2">
+            <div class="font-semibold text-sm">可投入时段</div>
+            <div class="mt-1 flex flex-wrap gap-2">
+              {% for slot in availability_slots %}
+                <span class="badge badge-outline">{{ slot }}</span>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+        {% if dynamic_answers %}
+          <div class="mt-2">
+            <div class="font-semibold text-sm">补充回答</div>
+            <dl class="mt-1 grid gap-3 text-sm">
+              {% for answer in dynamic_answers %}
+                <div>
+                  <dt class="font-medium">{{ answer.label|default:answer.key }}</dt>
+                  <dd class="mt-1 whitespace-pre-wrap">{{ answer.answer|default:"—" }}</dd>
+                </div>
+              {% endfor %}
+            </dl>
+          </div>
+        {% endif %}
+        {% if review_note %}
+          <div class="mt-2">
+            <div class="font-semibold text-sm">最近审核备注</div>
+            <p class="mt-1 whitespace-pre-wrap text-sm">{{ review_note }}</p>
+          </div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="card bg-base-100 shadow">
+      <div class="card-body gap-4">
+        <h2 class="card-title">审核操作</h2>
+        <div class="alert alert-warning">
+          <span>候选 / 备用仅表示进入候选池，不是正式接纳；正式接纳必须通过下方治理提案并执行。</span>
+        </div>
+        <form method="post" action="{% world_url 'workspace-application-review' application.application_id %}" class="grid gap-3">
+          {% csrf_token %}
+          <div class="flex flex-wrap items-end gap-3">
+            <label class="form-control">
+              <div class="label"><span class="label-text">审核状态</span></div>
+              <select name="status" class="select">
+                {% for choice in review_status_choices %}
+                  <option value="{{ choice.value }}">{{ choice.label }}</option>
+                {% endfor %}
+              </select>
+            </label>
+          </div>
+          <label class="form-control w-full">
+            <div class="label"><span class="label-text">理由 / 备注（拒绝报名时必填）</span></div>
+            <textarea name="reason" rows="3" class="textarea" placeholder="说明审核理由，拒绝时必填"></textarea>
+          </label>
+          <div class="flex justify-end">
+            <button type="submit" class="btn btn-primary">提交审核</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="card bg-base-100 shadow">
+      <div class="card-body gap-4">
+        <h2 class="card-title">成员准入提案</h2>
+        {% if admission_proposal %}
+          <dl class="grid gap-3 text-sm md:grid-cols-2">
+            <div>
+              <dt class="font-semibold">提案编号</dt>
+              <dd class="font-mono text-xs">{{ admission_proposal.proposal_no }}</dd>
+            </div>
+            <div>
+              <dt class="font-semibold">提案状态</dt>
+              <dd>
+                <span class="badge badge-outline">{{ admission_proposal.status_label }}</span>
+              </dd>
+            </div>
+            <div>
+              <dt class="font-semibold">通过比例</dt>
+              <dd>{{ admission_proposal.pass_ratio }}%（严格超过阈值）</dd>
+            </div>
+            <div>
+              <dt class="font-semibold">截止时间</dt>
+              <dd>{{ admission_proposal.deadline_at|date:"Y-m-d H:i" }}</dd>
+            </div>
+            <div>
+              <dt class="font-semibold">所需赞成票</dt>
+              <dd>{{ admission_proposal.required_yes }} 票</dd>
+            </div>
+            <div>
+              <dt class="font-semibold">投票人数</dt>
+              <dd>{{ admission_proposal.participated }} / {{ admission_proposal.eligible }}</dd>
+            </div>
+          </dl>
+
+          <div class="grid gap-2 sm:grid-cols-3">
+            <div class="stat bg-base-200 rounded">
+              <div class="stat-title">赞成</div>
+              <div class="stat-value text-success">{{ admission_proposal.yes }}</div>
+            </div>
+            <div class="stat bg-base-200 rounded">
+              <div class="stat-title">反对</div>
+              <div class="stat-value text-error">{{ admission_proposal.no }}</div>
+            </div>
+            <div class="stat bg-base-200 rounded">
+              <div class="stat-title">弃权</div>
+              <div class="stat-value text-base-content/60">{{ admission_proposal.abstain }}</div>
+            </div>
+          </div>
+
+          {% if admission_proposal.votes %}
+            <div class="overflow-x-auto">
+              <table class="table table-zebra">
+                <thead>
+                  <tr><th>投票人</th><th>选项</th><th>理由</th><th>时间</th></tr>
+                </thead>
+                <tbody>
+                  {% for vote in admission_proposal.votes %}
+                    <tr>
+                      <td class="font-mono text-xs">{{ vote.voter_member_no }}</td>
+                      <td><span class="badge badge-outline">{{ vote.choice_label }}</span></td>
+                      <td class="text-sm">{{ vote.reason|default:"—" }}</td>
+                      <td class="text-xs">{{ vote.voted_at|date:"Y-m-d H:i" }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
+
+          {% if admission_proposal.status == "voting" and admission_proposal.viewer_is_eligible %}
+            <form method="post" action="{% world_url 'workspace-proposal-vote' admission_proposal.proposal_id %}" class="grid gap-3">
+              {% csrf_token %}
+              <div class="label"><span class="label-text">投票</span></div>
+              <div class="flex flex-wrap gap-4">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="choice" value="yes" class="radio radio-success" required>
+                  <span>赞成</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="choice" value="no" class="radio radio-error">
+                  <span>反对</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="choice" value="abstain" class="radio radio-primary">
+                  <span>弃权</span>
+                </label>
+              </div>
+              <label class="form-control w-full">
+                <div class="label"><span class="label-text">理由（可选）</span></div>
+                <textarea name="reason" rows="2" class="textarea"></textarea>
+              </label>
+              <div class="flex justify-end">
+                <button type="submit" class="btn btn-primary">提交投票</button>
+              </div>
+            </form>
+          {% elif admission_proposal.status == "voting" and not admission_proposal.viewer_is_eligible %}
+            <div class="alert alert-info">
+              <span>提案正在表决中，但你不在当前提案的投票资格范围内。</span>
+            </div>
+          {% endif %}
+
+          {% if admission_proposal.status == "passed" and not admission_proposal.executed_at %}
+            <div class="alert alert-success">
+              <span>提案已通过，可执行以正式接纳该成员。</span>
+            </div>
+            <form method="post" action="{% world_url 'workspace-proposal-execute' admission_proposal.proposal_id %}">
+              {% csrf_token %}
+              <div class="flex justify-end">
+                <button type="submit" class="btn btn-success">执行准入</button>
+              </div>
+            </form>
+          {% elif admission_proposal.executed_at %}
+            <div class="alert alert-info">
+              <span>提案已于 {{ admission_proposal.executed_at|date:"Y-m-d H:i" }} 执行，成员已接纳。</span>
+            </div>
+          {% endif %}
+        {% else %}
+          <div class="alert alert-info">
+            <span>尚未发起成员准入提案。发起后将进入治理成员投票流程。</span>
+          </div>
+          <form method="post" action="{% world_url 'workspace-application-create-admission-proposal' application.application_id %}" class="grid gap-3">
+            {% csrf_token %}
+            <label class="form-control w-full">
+              <div class="label"><span class="label-text">发起理由</span></div>
+              <textarea name="reason" rows="3" class="textarea" placeholder="说明为什么接纳该成员，将写入提案正文。"></textarea>
+            </label>
+            <div class="flex justify-end">
+              <button type="submit" class="btn btn-primary">发起准入提案</button>
+            </div>
+          </form>
+        {% endif %}
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -251,6 +251,22 @@ http://127.0.0.1:20102/workspace/
 
 真实世界和仿真世界 runtime 不暴露 `/live-admin/` 或 `/admin/`。底层维护、仿真实验和高影响操作统一进入 control plane 的 `http://127.0.0.1:20100/admin/`；成员日常使用 `/workspace/`，公开观察使用 `/observer/`，成员报名使用 `/apply/`，合作方报名使用 `/apply/partner/`。
 
+### Workspace 成员报名审核模块
+
+`/workspace/` 在正式成员工作台之外，为具备 `governance.view_admin` 权限的治理成员提供成员报名审核入口。普通正式成员、待审核报名人、未绑定 `Member` 的 Django staff/superuser 都看不到入口，直接访问审核 URL 返回 403。
+
+```text
+GET  /workspace/applications/                                          # 报名列表（pending/processed/all）
+GET  /workspace/applications/<application_id>/                         # 报名详情
+POST /workspace/applications/<application_id>/review/                  # 标记 under_review/candidate/standby/rejected
+POST /workspace/applications/<application_id>/create-admission-proposal/  # 发起 member_admission 提案
+POST /workspace/proposals/<proposal_id>/vote/                          # 投 yes/no/abstain
+POST /workspace/proposals/<proposal_id>/execute/                      # 执行已通过准入提案
+```
+
+view 保持轻量，所有状态变化都调用既有服务：`review_member_application`、`create_member_application_admission_proposal`、`cast_proposal_vote`、`execute_proposal`。`admitted` 状态只能由 `execute_proposal` 经 `admit_member_application_from_proposal` 完成，审核表单不暴露 `admitted` 选项。投票资格以 `Proposal.eligible_voters_snapshot_json` 为准，不依赖页面权限。
+
+
 观察台：
 
 ```text
