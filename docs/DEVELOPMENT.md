@@ -260,7 +260,7 @@ http://127.0.0.1:20102/workspace/
 ```text
 GET  /workspace/applications/                                          # 报名列表（按准入进度筛选：投票中/已通过待执行/已接纳/未通过已拒绝/全部）
 GET  /workspace/applications/<application_id>/                         # 报名详情（申请人资料 + 准入提案 + 投票 + 执行）
-POST /workspace/proposals/<proposal_id>/vote/                          # 投 yes/no/abstain
+POST /workspace/proposals/<proposal_id>/vote/                          # 成员准入投 yes/no；反对必须填写理由
 POST /workspace/proposals/<proposal_id>/execute/                      # 执行已通过准入提案
 ```
 

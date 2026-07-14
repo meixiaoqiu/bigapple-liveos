@@ -5,7 +5,7 @@ from django.test import TestCase
 
 from core.application_services import submit_member_application
 from core.member_roles import ROLE_FORMAL_MEMBER
-from core.models import Member, MemberApplication, Proposal, ProposalExecution
+from core.models import Member, MemberApplication, Proposal, ProposalExecution, ProposalVote
 from core.proposals.lifecycle import create_proposal
 from core.proposals.voting import cast_proposal_vote
 from core.tests.helpers import (
@@ -269,3 +269,71 @@ class WorkspaceApplicationsReviewTests(TestCase):
         response = self.client.get("/workspace/applications/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "投票中")
+
+    # --- 成员准入投票规则：只允许 yes/no，no 必须填写理由 ---------------------
+
+    def test_detail_page_no_abstain_radio(self) -> None:
+        """成员准入详情页不显示弃权投票选项。"""
+        application = _submit_application(member_no="no-abstain-radio")
+        response = self.client.get(f"/workspace/applications/{application.application_id}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "赞成")
+        self.assertContains(response, "反对")
+        self.assertNotContains(response, 'value="abstain"')
+
+    def test_post_abstain_rejected(self) -> None:
+        """POST abstain 应被拒绝，不创建 ProposalVote。"""
+        application = _submit_application(member_no="abstain-rejected")
+        proposal = application.admission_proposal
+        votes_before = ProposalVote.objects.filter(proposal=proposal).count()
+        response = self.client.post(
+            f"/workspace/proposals/{proposal.pk}/vote/",
+            {"choice": "abstain"},
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "投票选项无效")
+        self.assertEqual(ProposalVote.objects.filter(proposal=proposal).count(), votes_before)
+
+    def test_yes_without_reason_succeeds(self) -> None:
+        """投 yes 可以不填理由。"""
+        application = _submit_application(member_no="yes-no-reason")
+        proposal = application.admission_proposal
+        response = self.client.post(
+            f"/workspace/proposals/{proposal.pk}/vote/",
+            {"choice": "yes", "reason": ""},
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        vote = ProposalVote.objects.filter(proposal=proposal, voter_member=self.governance).first()
+        self.assertIsNotNone(vote)
+        self.assertEqual(vote.choice, ProposalVote.Choice.YES)
+
+    def test_no_without_reason_rejected(self) -> None:
+        """投 no 不填理由应被拒绝，不创建/更新投票。"""
+        application = _submit_application(member_no="no-no-reason")
+        proposal = application.admission_proposal
+        votes_before = ProposalVote.objects.filter(proposal=proposal).count()
+        response = self.client.post(
+            f"/workspace/proposals/{proposal.pk}/vote/",
+            {"choice": "no", "reason": ""},
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "反对准入必须填写理由")
+        self.assertEqual(ProposalVote.objects.filter(proposal=proposal).count(), votes_before)
+
+    def test_no_with_reason_succeeds(self) -> None:
+        """投 no 并填写理由可以成功，reason 被保存。"""
+        application = _submit_application(member_no="no-with-reason")
+        proposal = application.admission_proposal
+        response = self.client.post(
+            f"/workspace/proposals/{proposal.pk}/vote/",
+            {"choice": "no", "reason": "能力不足"},
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        vote = ProposalVote.objects.filter(proposal=proposal, voter_member=self.governance).first()
+        self.assertIsNotNone(vote)
+        self.assertEqual(vote.choice, ProposalVote.Choice.NO)
+        self.assertEqual(vote.reason, "能力不足")

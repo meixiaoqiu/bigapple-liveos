@@ -232,7 +232,7 @@ PartnerApplication stores public partner applications from suppliers, institutio
 | `proposal_id` | fk | 是 | 提案。 |
 | `voter_member_id` | fk | 是 | 投票成员。 |
 | `voter_role_assignment_id` | fk | 否 | 投票时使用的角色任命。 |
-| `choice` | enum string | 是 | `yes`、`no`、`abstain`。 |
+| `choice` | enum string | 是 | `yes`、`no`、`abstain`。通用提案支持三种选择；`member_admission` 的 workspace 投票入口只允许 `yes`/`no`，反对票必须填写 `reason`。 |
 | `reason` | text | 否 | 投票理由。 |
 | `voted_at` | datetime | 是 | 投票或改票时间。 |
 | `created_at` | datetime | 是 | 创建时间。 |

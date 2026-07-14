@@ -37,7 +37,6 @@ from .context import (
 PROPOSAL_VOTE_CHOICES = {
     ProposalVote.Choice.YES,
     ProposalVote.Choice.NO,
-    ProposalVote.Choice.ABSTAIN,
 }
 
 
@@ -248,6 +247,9 @@ def workspace_proposal_vote(request: HttpRequest, proposal_id: str):
     reason = str(request.POST.get("reason", "")).strip()
     if choice not in PROPOSAL_VOTE_CHOICES:
         messages.error(request, "投票选项无效。")
+        return _admission_application_redirect(request, application)
+    if choice == ProposalVote.Choice.NO and not reason:
+        messages.error(request, "反对准入必须填写理由。")
         return _admission_application_redirect(request, application)
     try:
         cast_proposal_vote(

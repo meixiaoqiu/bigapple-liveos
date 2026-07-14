@@ -147,7 +147,7 @@
             </div>
           </dl>
 
-          <div class="grid gap-2 sm:grid-cols-3">
+          <div class="grid gap-2 sm:grid-cols-2">
             <div class="stat bg-base-200 rounded">
               <div class="stat-title">赞成</div>
               <div class="stat-value text-success">{{ admission_proposal.yes }}</div>
@@ -155,10 +155,6 @@
             <div class="stat bg-base-200 rounded">
               <div class="stat-title">反对</div>
               <div class="stat-value text-error">{{ admission_proposal.no }}</div>
-            </div>
-            <div class="stat bg-base-200 rounded">
-              <div class="stat-title">弃权</div>
-              <div class="stat-value text-base-content/60">{{ admission_proposal.abstain }}</div>
             </div>
           </div>
 
@@ -192,18 +188,27 @@
                   <span>赞成</span>
                 </label>
                 <label class="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" name="choice" value="no" class="radio radio-error">
+                  <input type="radio" name="choice" value="no" class="radio radio-error" data-vote-no>
                   <span>反对</span>
-                </label>
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" name="choice" value="abstain" class="radio radio-primary">
-                  <span>弃权</span>
                 </label>
               </div>
               <label class="form-control w-full">
-                <div class="label"><span class="label-text">理由（可选）</span></div>
-                <textarea name="reason" rows="2" class="textarea"></textarea>
+                <div class="label"><span class="label-text">理由（反对时必填）</span></div>
+                <textarea name="reason" rows="2" class="textarea" data-vote-reason></textarea>
               </label>
+              <script>
+                (function () {
+                  var noRadio = document.querySelector('input[data-vote-no]');
+                  var reasonTextarea = document.querySelector('textarea[data-vote-reason]');
+                  if (!noRadio || !reasonTextarea) return;
+                  var radios = document.querySelectorAll('input[name="choice"]');
+                  function update() { reasonTextarea.required = noRadio.checked; }
+                  for (var i = 0; i < radios.length; i++) {
+                    radios[i].addEventListener('change', update);
+                  }
+                  update();
+                })();
+              </script>
               <div class="flex justify-end">
                 <button type="submit" class="btn btn-primary">提交投票</button>
               </div>
