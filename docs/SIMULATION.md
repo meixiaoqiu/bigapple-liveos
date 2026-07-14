@@ -104,7 +104,7 @@ python manage.py run_zero_start_simulation --world-id simulation0001 --hours 168
 - `candidate_members_for_run(run, founder_member_no=...)` — 返回候选成员；传入 founder_member_no 时会把 founder 放在最前面
 - `candidate_summary_for_run(run)` — 返回各类筛选状态的计数值
 
-**Strategy/Scenario 层（`simulation/zero_start.py`）：** 决定虚拟主体何时报名、何时筛选、筛选规则（`_screening_decision`）和推进编排。不再散落候选池统计口径的直接 ORM 查询。
+**Strategy/Scenario 层（`simulation/zero_start_strategy.py`、`simulation/zero_start.py`）：** 负责虚拟主体配置、报名时机、筛选规则、启动门槛需求常量等场景定义，以及小时级推进编排。筛选决策和需求配置集中在 `zero_start_strategy.py`，引擎编排保留在 `zero_start.py`。
 
 `MemberApplication.status` 是权威准入状态（`admission_voting` / `admitted` / `rejected` / `withdrew` / `submitted`）。`metadata.screening_status` 是仿真筛选口径（`candidate` / `standby` / `rejected` / `withdrew`），两种状态机互不干扰。
 

@@ -15,6 +15,7 @@ absorbed here rather than in the engine.
 from __future__ import annotations
 
 from core.models import Member, MemberApplication, PartnerApplication, SimulationRun
+from .capability_matching import skills_match_requirement
 
 # screening-status constants
 # These are the values written to MemberApplication.metadata.screening_status
@@ -184,11 +185,6 @@ def partner_snapshot(application: PartnerApplication) -> dict[str, object]:
 
 
 # startup-gate coverage and summary
-
-
-def skills_match_requirement(skills: dict[str, int], requirement: dict[str, object]) -> bool:
-    aliases = [str(a) for a in requirement["skill_aliases"]]
-    return any(int(skills.get(a, 0) or 0) >= 50 for a in aliases)
 
 
 def capability_coverage_for_members(

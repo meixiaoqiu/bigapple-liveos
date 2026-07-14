@@ -28,7 +28,7 @@ from core.models import (
     SystemEvent,
     Task,
 )
-from simulation.zero_start import _applicant_specs_for_hours, _partner_specs_for_hours
+from simulation.zero_start_strategy import applicant_specs_for_hours, partner_specs_for_hours
 
 
 @override_settings(
@@ -111,7 +111,7 @@ class SimulationSmokeCommandTests(TestCase):
         self.assertIn("template=zero_start", output.getvalue())
 
     def test_zero_start_applicant_specs_grow_after_early_exposure(self) -> None:
-        specs = _applicant_specs_for_hours(168)
+        specs = applicant_specs_for_hours(168)
 
         early_count = len([spec for spec in specs if spec.apply_hour < 96])
         later_count = len([spec for spec in specs if spec.apply_hour >= 96])
@@ -120,8 +120,8 @@ class SimulationSmokeCommandTests(TestCase):
         self.assertGreater(later_count, early_count)
 
     def test_zero_start_partner_specs_keep_growing_and_include_document_signers(self) -> None:
-        early_specs = _partner_specs_for_hours(168)
-        later_specs = _partner_specs_for_hours(720)
+        early_specs = partner_specs_for_hours(168)
+        later_specs = partner_specs_for_hours(720)
 
         self.assertEqual(len(early_specs), 3)
         self.assertGreater(len(later_specs), 10)
