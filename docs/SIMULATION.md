@@ -106,6 +106,8 @@ python manage.py run_zero_start_simulation --world-id simulation0001 --hours 168
 
 **Strategy/Scenario 层（`simulation/zero_start_strategy.py`、`simulation/zero_start.py`）：** 负责虚拟主体配置、报名时机、筛选规则、启动门槛需求常量等场景定义，以及小时级推进编排。筛选决策和需求配置集中在 `zero_start_strategy.py`，引擎编排保留在 `zero_start.py`。
 
+**Observation/Events 层（`simulation/zero_start_observations.py`）：** 负责 observer event payload、blockers、next_actions、窗口总结等纯组装逻辑，不查询 ORM、不写数据库。
+
 `MemberApplication.status` 是权威准入状态（`admission_voting` / `admitted` / `rejected` / `withdrew` / `submitted`）。`metadata.screening_status` 是仿真筛选口径（`candidate` / `standby` / `rejected` / `withdrew`），两种状态机互不干扰。
 
 ## 仿真快照归档

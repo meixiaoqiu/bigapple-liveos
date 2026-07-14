@@ -47,6 +47,14 @@ from .projections import (
     startup_gate_summary_for_run,
 )
 from .run_state import create_simulation_turn_and_event
+from .zero_start_observations import (
+    build_hour_payload,
+    combined_next_actions,
+    observation_window_summary,
+    observation_window_title,
+    pre_engineering_blockers,
+    startup_gate_blockers,
+)
 from .zero_start_strategy import (
     APPLICATION_STATUS_CANDIDATE,
     APPLICATION_STATUS_REGISTERED,
@@ -335,7 +343,7 @@ def _run_zero_start(*, revision: PlanRevision, hours: int, run: SimulationRun | 
         startup_gate = _startup_gate_summary(run)
         pre_engineering = _pre_engineering_state(run=run, hour=hour, startup_gate=startup_gate)
         candidate_summary = candidate_summary_for_run(run, startup_gate_satisfied=bool(startup_gate["startup_gate_satisfied"]))
-        hour_payload = _hour_payload(
+        hour_payload = build_hour_payload(
             run=run,
             hour=hour,
             applied=applied,
@@ -345,6 +353,9 @@ def _run_zero_start(*, revision: PlanRevision, hours: int, run: SimulationRun | 
             candidate_summary=candidate_summary,
             startup_gate=startup_gate,
             pre_engineering=pre_engineering,
+            simulation_day=_simulation_day(hour),
+            driver_mode=HttpFormDriver.mode,
+            candidate_status=APPLICATION_STATUS_CANDIDATE,
         )
         summary = _hour_summary(
             hour=hour,
@@ -422,8 +433,8 @@ def _run_zero_start(*, revision: PlanRevision, hours: int, run: SimulationRun | 
     run.save(update_fields=["status", "ended_at", "failure_summary", "metadata"])
     create_simulation_turn_and_event(
         run=run,
-        title=_observation_window_title(gate=gate, pre_engineering=pre_engineering),
-        summary=_observation_window_summary(gate=gate, pre_engineering=pre_engineering),
+        title=observation_window_title(gate=gate, pre_engineering=pre_engineering),
+        summary=observation_window_summary(gate=gate, pre_engineering=pre_engineering),
         simulation_day=_simulation_day(end_hour),
         severity=Event.Severity.INFO if (gate["startup_gate_satisfied"] and pre_engineering_complete) else Event.Severity.WARNING,
         event_type=Event.EventType.SIMULATION_DAY,
@@ -435,8 +446,8 @@ def _run_zero_start(*, revision: PlanRevision, hours: int, run: SimulationRun | 
             "startup_gate": gate,
             "pre_engineering": pre_engineering,
             "candidate_summary": candidate_summary_for_run(run, startup_gate_satisfied=bool(gate["startup_gate_satisfied"])),
-            "blockers": _startup_gate_blockers(gate),
-            "next_actions": _combined_next_actions(gate, pre_engineering),
+            "blockers": startup_gate_blockers(gate),
+            "next_actions": combined_next_actions(gate, pre_engineering),
         },
     )
     return {"run": run, "failure": failure, "proposal": proposal, "change_set": change_set}
@@ -648,54 +659,6 @@ def _screen_partner_application(
     }
 
 
-def _hour_payload(
-    *,
-    run: SimulationRun,
-    hour: int,
-    applied: list[ApplicantSpec],
-    partner_applied: list[PartnerSpec],
-    screening_rows: list[dict[str, object]],
-    partner_screening_rows: list[dict[str, object]],
-    candidate_summary: dict[str, int | bool],
-    startup_gate: dict[str, object],
-    pre_engineering: dict[str, object],
-) -> dict[str, object]:
-    payload = {
-        "scenario": "zero_start",
-        "simulation_hour": hour,
-        "virtual_time": {
-            "hour": hour,
-            "day": _simulation_day(hour),
-            "hour_of_day": hour % 24,
-        },
-        "project_phase": pre_engineering.get("project_phase", startup_gate.get("project_phase", "preparation")),
-        "state_machine": "zero_start_recruitment_screening"
-        if not pre_engineering
-        else "zero_start_recruitment_and_pre_engineering",
-        "driver_mode": HttpFormDriver.mode,
-        "applicants_applied": [spec.index for spec in applied],
-        "partners_applied": [spec.index for spec in partner_applied],
-        "screening_results": screening_rows,
-        "partner_screening_results": partner_screening_rows,
-        "funnel_delta": {
-            "new_member_applications": len(applied),
-            "new_partner_applications": len(partner_applied),
-            "member_screened": len(screening_rows),
-            "partner_screened": len(partner_screening_rows),
-            "member_candidates": len([row for row in screening_rows if row.get("decision") == APPLICATION_STATUS_CANDIDATE]),
-            "partner_qualified": len(
-                [row for row in partner_screening_rows if row.get("decision") == PartnerApplication.Status.QUALIFIED]
-            ),
-        },
-        "candidate_summary": candidate_summary,
-        "startup_gate": startup_gate,
-        "blockers": _startup_gate_blockers(startup_gate),
-        "next_actions": _combined_next_actions(startup_gate, pre_engineering),
-    }
-    if pre_engineering:
-        payload["pre_engineering"] = pre_engineering
-    return payload
-
 
 def _hour_summary(
     *,
@@ -742,36 +705,6 @@ def _hour_summary(
     return " ".join(phrases)
 
 
-def _startup_gate_blockers(startup_gate: dict[str, object]) -> list[dict[str, str]]:
-    blockers = [
-        {
-            "kind": "capability",
-            "code": str(row.get("code") or ""),
-            "name": str(row.get("name") or ""),
-        }
-        for row in startup_gate.get("missing_capabilities", [])
-    ]
-    blockers.extend(
-        {
-            "kind": "document_signer",
-            "code": str(row.get("code") or ""),
-            "name": str(row.get("name") or ""),
-        }
-        for row in startup_gate.get("missing_document_signers", [])
-    )
-    return blockers
-
-
-def _startup_gate_next_actions(startup_gate: dict[str, object]) -> list[str]:
-    if startup_gate.get("startup_gate_satisfied"):
-        return ["启动门槛满足，进入候选场地、并网预筛和工程责任文件前置审查。"]
-    actions = []
-    if startup_gate.get("missing_capabilities"):
-        actions.append("继续通过自媒体报名和筛选补齐成员能力矩阵。")
-    if startup_gate.get("missing_document_signers"):
-        actions.append("继续开放合作方报名，重点寻找可出具书面责任文件的主体。")
-    return actions or ["继续观察报名质量和合作方资质变化。"]
-
 
 def _pre_engineering_state(
     *,
@@ -800,7 +733,7 @@ def _pre_engineering_state(
         "milestones": milestones,
         "completed_milestone_count": len([row for row in milestones if row["completed"]]),
         "pending_milestone_count": len([row for row in milestones if not row["completed"]]),
-        "blockers": _pre_engineering_blockers(milestones),
+        "blockers": pre_engineering_blockers(milestones),
         "next_actions": _pre_engineering_next_actions(milestones),
     }
 
@@ -878,31 +811,11 @@ def _selected_site_candidate(elapsed_hours: int) -> dict[str, object] | None:
     return None
 
 
-def _pre_engineering_blockers(milestones: list[dict[str, object]]) -> list[dict[str, str]]:
-    return [
-        {
-            "kind": "pre_engineering",
-            "code": str(row["code"]),
-            "name": str(row["name"]),
-        }
-        for row in milestones
-        if not row["completed"]
-    ]
-
-
 def _pre_engineering_next_actions(milestones: list[dict[str, object]]) -> list[str]:
     for row in milestones:
         if not row["completed"]:
             return [f"继续推进：{row['name']}。"]
     return ["工程前置责任闭环已形成，可以进入采购、施工、调试和验收计划细化。"]
-
-
-def _combined_next_actions(startup_gate: dict[str, object], pre_engineering: dict[str, object]) -> list[str]:
-    if not startup_gate.get("startup_gate_satisfied"):
-        return _startup_gate_next_actions(startup_gate)
-    if pre_engineering:
-        return list(pre_engineering.get("next_actions") or [])
-    return _startup_gate_next_actions(startup_gate)
 
 
 def _pre_engineering_hour_summary(pre_engineering: dict[str, object]) -> str:
@@ -913,31 +826,6 @@ def _pre_engineering_hour_summary(pre_engineering: dict[str, object]) -> str:
     if blockers:
         return f"工程前置阶段推进中，下一项未完成：{blockers[0]['name']}。"
     return "工程前置阶段推进中。"
-
-
-def _observation_window_title(*, gate: dict[str, object], pre_engineering: dict[str, object]) -> str:
-    if not gate.get("startup_gate_satisfied"):
-        return "零起点报名筛选观察窗口结束"
-    if pre_engineering.get("completed"):
-        return "工程前置责任闭环观察窗口结束"
-    return "工程前置流程观察窗口结束"
-
-
-def _observation_window_summary(*, gate: dict[str, object], pre_engineering: dict[str, object]) -> str:
-    if not gate.get("startup_gate_satisfied"):
-        return (
-            "本观察窗口已结束。若成员能力矩阵和文件签署方矩阵仍未满足，"
-            "项目继续停留在筹备阶段，可以继续向后推进招募和合作方报名。"
-        )
-    if pre_engineering.get("completed"):
-        return (
-            "启动门槛和工程前置责任闭环均已满足。仿真已形成从报名筛选到候选场地、"
-            "并网预筛、附条件租赁和责任文件取得的完整链条。"
-        )
-    return (
-        "启动门槛已满足，但候选场地、并网预筛、附条件租赁或工程责任文件仍在推进，"
-        "本轮可以继续向后模拟。"
-    )
 
 
 def _startup_gate_summary(run: SimulationRun) -> dict[str, object]:
