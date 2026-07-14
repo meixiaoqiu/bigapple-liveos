@@ -142,3 +142,52 @@ def observation_window_summary(*, gate: dict[str, object], pre_engineering: dict
         "启动门槛已满足，但候选场地、并网预筛、附条件租赁或工程责任文件仍在推进，"
         "本轮可以继续向后模拟。"
     )
+
+
+def build_hour_summary(
+    *,
+    hour: int,
+    applied: list,
+    partner_applied: list,
+    screening_rows: list[dict[str, object]],
+    partner_screening_rows: list[dict[str, object]],
+    candidate_summary: dict[str, int | bool],
+    startup_gate: dict[str, object],
+    pre_engineering: dict[str, object],
+    pre_engineering_summary: str = "",
+) -> str:
+    """Assemble the per-hour human-readable event summary.
+
+    Accepts *pre_engineering_summary* as a plain string computed by the
+    engine so this module does not need to import ``zero_start_pre_engineering``.
+    """
+    phrases = [
+        (
+            f"第 {hour} 小时：发起人继续通过自媒体说明大苹果计划，"
+            f"累计主动报名 {candidate_summary['registered_applicants']} 人，"
+            f"进入候选池 {candidate_summary['candidate_members']} 人，"
+            f"合作方报名 {candidate_summary['partner_applications']} 个，"
+            f"合格责任合作方 {candidate_summary['qualified_partners']} 个。"
+        ),
+    ]
+    if hour == 0:
+        phrases.append("项目仍处于真正的零起点：只有一个发起人，没有成熟成员池、资源和工程计划。")
+    for spec in applied:
+        phrases.append(f"{spec.display_name} 提交报名：{spec.motivation}")
+    for spec in partner_applied:
+        phrases.append(f"{spec.organization_name} 提交合作方报名：{spec.qualification_summary}")
+    for row in screening_rows:
+        phrases.append(f"{row['display_name']} 完成初筛，结论：{row['decision']}。")
+    for row in partner_screening_rows:
+        phrases.append(f"{row['organization_name']} 完成合作方初筛，结论：{row['decision']}。")
+    if hour % 24 == 0 and hour > 0:
+        phrases.append("阶段复盘：报名数量不是启动条件，必须同时满足成员能力矩阵和文件签署方矩阵。")
+    if startup_gate["missing_capabilities"]:
+        phrases.append(f"能力缺口：{startup_gate['missing_capabilities'][0]['name']}。")
+    if startup_gate["missing_document_signers"]:
+        phrases.append(f"文件责任缺口：{startup_gate['missing_document_signers'][0]['name']}。")
+    if startup_gate["startup_gate_satisfied"]:
+        phrases.append("启动门槛已经满足：成员能力矩阵和责任文件签署方矩阵均已覆盖。")
+    if pre_engineering:
+        phrases.append(pre_engineering_summary)
+    return " ".join(phrases)

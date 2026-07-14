@@ -4,12 +4,14 @@ from django.test import TestCase
 
 from simulation.zero_start_observations import (
     build_hour_payload,
+    build_hour_summary,
     combined_next_actions,
     observation_window_summary,
     observation_window_title,
     pre_engineering_blockers,
     startup_gate_blockers,
 )
+from simulation.zero_start_strategy import ApplicantSpec, PartnerSpec
 
 
 class ZeroStartObservationsTests(TestCase):
@@ -121,3 +123,70 @@ class ZeroStartObservationsTests(TestCase):
         self.assertIn("blockers", payload)
         self.assertIn("next_actions", payload)
         self.assertIn("state_machine", payload)
+
+    # build_hour_summary
+
+    def test_build_hour_summary_zero_hour_mentions_zero_start(self):
+        candidate_summary = {
+            "registered_applicants": 0, "candidate_members": 0,
+            "partner_applications": 0, "qualified_partners": 0,
+        }
+        gate = self._gate(
+            missing_caps=[{"code": "cooking", "name": "做饭"}],
+            missing_docs=[{"code": "structural", "name": "结构安全"}],
+        )
+        result = build_hour_summary(
+            hour=0, applied=[], partner_applied=[],
+            screening_rows=[], partner_screening_rows=[],
+            candidate_summary=candidate_summary, startup_gate=gate, pre_engineering={},
+        )
+        self.assertIn("第 0 小时", result)
+        self.assertIn("真正的零起点", result)
+        self.assertIn("做饭", result)
+        self.assertIn("结构安全", result)
+
+    def test_build_hour_summary_includes_application_and_screening_rows(self):
+        candidate_summary = {
+            "registered_applicants": 1, "candidate_members": 1,
+            "partner_applications": 1, "qualified_partners": 1,
+        }
+        gate = self._gate()
+        spec = ApplicantSpec(
+            index=1, apply_hour=5, screen_hour=5, display_name="测试成员",
+            motivation="希望加入", capability_scores={"文档": 70},
+            availability_hours_per_week=30,
+        )
+        pspec = PartnerSpec(
+            index=1, apply_hour=5, screen_hour=5, organization_name="测试合作方",
+            contact_name="C", service_domains=("物流",),
+            can_issue_responsibility_documents=False, responsibility_document_domains=(),
+            qualification_summary="经验丰富", quote_summary="合理",
+            service_area="全国", delivery_cycle_days=10, constraints="",
+        )
+        result = build_hour_summary(
+            hour=5, applied=[spec], partner_applied=[pspec],
+            screening_rows=[{"display_name": "测试成员", "decision": "candidate"}],
+            partner_screening_rows=[{"organization_name": "测试合作方", "decision": "qualified"}],
+            candidate_summary=candidate_summary, startup_gate=gate, pre_engineering={},
+        )
+        self.assertIn("测试成员 提交报名", result)
+        self.assertIn("测试合作方 提交合作方报名", result)
+        self.assertIn("测试成员 完成初筛", result)
+        self.assertIn("测试合作方 完成合作方初筛", result)
+        self.assertIn("累计主动报名 1 人", result)
+        self.assertIn("合作方报名 1 个", result)
+
+    def test_build_hour_summary_appends_pre_engineering_summary(self):
+        candidate_summary = {
+            "registered_applicants": 0, "candidate_members": 0,
+            "partner_applications": 0, "qualified_partners": 0,
+        }
+        gate = self._gate(satisfied=True)
+        result = build_hour_summary(
+            hour=10, applied=[], partner_applied=[],
+            screening_rows=[], partner_screening_rows=[],
+            candidate_summary=candidate_summary, startup_gate=gate,
+            pre_engineering={"status": "running"},
+            pre_engineering_summary="工程前置阶段推进中。",
+        )
+        self.assertIn("工程前置阶段推进中。", result)

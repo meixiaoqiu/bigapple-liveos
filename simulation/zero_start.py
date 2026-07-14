@@ -45,6 +45,7 @@ from .zero_start_form_submission import (
 )
 from .zero_start_observations import (
     build_hour_payload,
+    build_hour_summary,
     combined_next_actions,
     observation_window_summary,
     observation_window_title,
@@ -240,11 +241,12 @@ def _run_zero_start(*, revision: PlanRevision, hours: int, run: SimulationRun | 
             driver_mode=HttpFormDriver.mode,
             candidate_status=APPLICATION_STATUS_CANDIDATE,
         )
-        summary = _hour_summary(
+        summary = build_hour_summary(
             hour=hour,
             applied=applied, partner_applied=partner_applied,
             screening_rows=screening_rows, partner_screening_rows=partner_screening_rows,
             candidate_summary=candidate_summary, startup_gate=startup_gate, pre_engineering=pre_engineering,
+            pre_engineering_summary=pre_engineering_hour_summary(pre_engineering) if pre_engineering else "",
         )
         create_simulation_turn_and_event(
             run=run,
@@ -348,49 +350,6 @@ def _metadata_int(metadata: dict[str, object], key: str, default: int) -> int:
         return int(metadata.get(key, default))
     except (TypeError, ValueError):
         return default
-
-
-def _hour_summary(
-    *,
-    hour: int,
-    applied: list[ApplicantSpec],
-    partner_applied: list[PartnerSpec],
-    screening_rows: list[dict[str, object]],
-    partner_screening_rows: list[dict[str, object]],
-    candidate_summary: dict[str, int | bool],
-    startup_gate: dict[str, object],
-    pre_engineering: dict[str, object],
-) -> str:
-    phrases = [
-        (
-            f"第 {hour} 小时：发起人继续通过自媒体说明大苹果计划，"
-            f"累计主动报名 {candidate_summary['registered_applicants']} 人，"
-            f"进入候选池 {candidate_summary['candidate_members']} 人，"
-            f"合作方报名 {candidate_summary['partner_applications']} 个，"
-            f"合格责任合作方 {candidate_summary['qualified_partners']} 个。"
-        ),
-    ]
-    if hour == 0:
-        phrases.append("项目仍处于真正的零起点：只有一个发起人，没有成熟成员池、资源和工程计划。")
-    for spec in applied:
-        phrases.append(f"{spec.display_name} 提交报名：{spec.motivation}")
-    for spec in partner_applied:
-        phrases.append(f"{spec.organization_name} 提交合作方报名：{spec.qualification_summary}")
-    for row in screening_rows:
-        phrases.append(f"{row['display_name']} 完成初筛，结论：{row['decision']}。")
-    for row in partner_screening_rows:
-        phrases.append(f"{row['organization_name']} 完成合作方初筛，结论：{row['decision']}。")
-    if hour % 24 == 0 and hour > 0:
-        phrases.append("阶段复盘：报名数量不是启动条件，必须同时满足成员能力矩阵和文件签署方矩阵。")
-    if startup_gate["missing_capabilities"]:
-        phrases.append(f"能力缺口：{startup_gate['missing_capabilities'][0]['name']}。")
-    if startup_gate["missing_document_signers"]:
-        phrases.append(f"文件责任缺口：{startup_gate['missing_document_signers'][0]['name']}。")
-    if startup_gate["startup_gate_satisfied"]:
-        phrases.append("启动门槛已经满足：成员能力矩阵和责任文件签署方矩阵均已覆盖。")
-    if pre_engineering:
-        phrases.append(pre_engineering_hour_summary(pre_engineering))
-    return " ".join(phrases)
 
 
 def _startup_gate_summary(run: SimulationRun) -> dict[str, object]:
