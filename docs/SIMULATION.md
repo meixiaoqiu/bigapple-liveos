@@ -95,7 +95,7 @@ python manage.py run_zero_start_simulation --world-id simulation0001 --hours 168
 
 ### 仿真分层
 
-零起点仿真拆为三层，降低未来业务流程变化对仿真的连锁影响：
+零起点仿真按职责拆分为多层，降低未来业务流程变化对仿真的连锁影响：
 
 **Driver 层（`simulation/form_drivers.py`）：** 调用真实报名表单和服务（`/apply/`、`submit_member_application`）。负责把虚拟主体动作转化为真实系统写入，不直接做统计查询。
 
@@ -105,6 +105,12 @@ python manage.py run_zero_start_simulation --world-id simulation0001 --hours 168
 - `candidate_summary_for_run(run)` — 返回各类筛选状态的计数值
 
 **Strategy/Scenario 层（`simulation/zero_start_strategy.py`、`simulation/zero_start.py`）：** 负责虚拟主体配置、报名时机、筛选规则、启动门槛需求常量等场景定义，以及小时级推进编排。筛选决策和需求配置集中在 `zero_start_strategy.py`，引擎编排保留在 `zero_start.py`。
+
+**Form Submission 层（`simulation/zero_start_form_submission.py`）：** 负责把 ApplicantSpec / PartnerSpec 转换成真实 /apply/ 表单 payload 并通过 HttpFormDriver 提交。
+
+**Screening 层（`simulation/zero_start_screening.py`）：** 负责仿真筛选结果写入 metadata，不改变权威 MemberApplication.status。
+
+**Pre-engineering 层（`simulation/zero_start_pre_engineering.py`）：** 负责启动门槛满足后的候选场地、里程碑、文档签署方等工程前置状态计算。
 
 **Observation/Events 层（`simulation/zero_start_observations.py`）：** 负责 observer event payload、blockers、next_actions、窗口总结等纯组装逻辑，不查询 ORM、不写数据库。
 
