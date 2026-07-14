@@ -26,7 +26,7 @@ class MemberApplicationAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
         "linked_member",
         "admission_proposal",
         "submitted_at",
-        "reviewed_at",
+        "decided_at",
     )
     list_filter = ("status", "role_gap", "can_issue_responsibility_documents", "submitted_at")
     search_fields = (
@@ -44,9 +44,9 @@ class MemberApplicationAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
         "linked_member",
         "admission_proposal",
         "frozen_at",
-        "reviewed_by",
+        "decided_by",
         "submitted_at",
-        "reviewed_at",
+        "decided_at",
     )
     ordering = ("-submitted_at", "application_id")
     list_per_page = 100

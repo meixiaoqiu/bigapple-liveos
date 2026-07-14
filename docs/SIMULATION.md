@@ -83,7 +83,7 @@ python manage.py run_zero_start_simulation --world-id simulation0001 --hours 168
 - Virtual applicants and partners are no longer inserted directly by simulation code. The state machine chooses actions, then submits the real fixed-world application forms at `/apply/` and `/apply/partner/`.
 - 当前第一版 driver 是 `http_form`：它会先 GET 报名页并检查关键 HTML 表单字段，再 POST 表单，让 view、form、service、事件账本和数据库写入走真实路径；它不执行浏览器 JS。后续可在同一 driver 边界接入 Playwright 抽样模式，让每类关键行为前 N 次走真实浏览器，其余大量重复样本走 HTTP form。
 - 为每个虚拟小时记录 `SimulationTurn` 和公开观察 `Event`。每小时 payload 至少包含虚拟小时、状态机名称、表单 driver、成员/合作方报名增量、筛选增量、累计候选池、合作方状态、能力矩阵、文件签署方矩阵、当前阻塞项和下一步动作。
-- 成员报名先写入 `MemberApplication`；只有审核结论为候选时才创建候选 `Member` 并绑定基础角色和候选角色。备用、拒绝和退出保留在报名申请中，不再假装已经是成员。
+- 成员报名先写入 `MemberApplication` 并自动创建 `member_admission` 治理提案。仿真的候选/备用/拒绝/退出筛选结果写入 `metadata.screening_status`，不写入权威 `MemberApplication.status`。
 - 合作方报名写入 `PartnerApplication`，用于记录服务能力、报价、资质说明、服务范围、限制条件和是否能出具责任文件。合作方不再只有少量固定线索；随着虚拟小时推进，系统会持续生成物流、设备报价、结构安全、光伏设计、电气并网、施工安全和验收归档等不同类型的合作方报名。
 - 同时计算两张启动门槛矩阵：前 N 名成员需要补齐的实际能力，以及需要书面文件的合作伙伴/签署方。
 - 每次 `--hours` 代表一个观察窗口，不是硬性终局。默认 168 小时只是把现实中的早期招募周期压缩成一段可观察窗口；如果成员能力矩阵或文件签署方矩阵仍未满足，系统会写入一条 `responsibility_closure_missing` 失败证据和修订建议，但 `SimulationRun` 保持 `running`，允许管理员继续推进下一个观察窗口。连续推进同一个 run 时会复用已有启动门槛变更集，避免每个观察窗口都生成重复的计划变更。

@@ -90,7 +90,7 @@ class PublicApplicationPageTests(TestCase):
         self.assertEqual(application.capability_scores, {})
         self.assertFalse(application.can_issue_responsibility_documents)
         self.assertEqual(application.document_authority_domains, [])
-        self.assertEqual(application.status, MemberApplication.Status.UNDER_REVIEW)
+        self.assertEqual(application.status, MemberApplication.Status.ADMISSION_VOTING)
         self.assertEqual(application.requested_member_no, "applicant-a")
         self.assertEqual(application.account_user.username, "applicant-a")
         self.assertEqual(application.linked_member.member_no, "applicant-a")
@@ -122,8 +122,8 @@ class PublicApplicationPageTests(TestCase):
         )
         self.assertEqual(application.status_code, 302)
         member_application = MemberApplication.objects.get(requested_member_no="candidate-a")
-        # After auto-proposal creation, status is UNDER_REVIEW.
-        self.assertEqual(member_application.status, MemberApplication.Status.UNDER_REVIEW)
+        # After auto-proposal creation, status is ADMISSION_VOTING.
+        self.assertEqual(member_application.status, MemberApplication.Status.ADMISSION_VOTING)
         self.assertIsNotNone(member_application.admission_proposal_id)
         self.assertEqual(
             member_application.admission_proposal.proposal_type,
@@ -251,22 +251,10 @@ class PublicApplicationPageTests(TestCase):
         self.assertEqual(member.status, Member.Status.PENDING_REVIEW)
         self.assertContains(response, "报名工作台")
 
-    def test_member_application_review_cannot_directly_admit_without_proposal(self) -> None:
-        """Admission must go through proposal execution, never through a status write."""
-        application = submit_member_application(
-            account_username="direct-admit",
-            account_password="test-password-123",
-            applicant_name="直接准入测试",
-            contact="direct-admit@example.test",
-            motivation="验证准入边界。",
-            role_gap="developer_ai_engineer",
-            availability_slots=["weekend"],
-            capability_scores={"开发": 70},
-        )
-
-        from core.application_services import review_member_application
-        with self.assertRaises(DomainError):
-            review_member_application(application=application, status=MemberApplication.Status.ADMITTED)
+    def test_review_member_application_no_longer_importable(self) -> None:
+        """The old review_member_application service has been removed."""
+        with self.assertRaises(ImportError):
+            from core.application_services import review_member_application  # noqa: F811
 
     def test_legacy_member_application_path_is_not_exposed(self) -> None:
         response = self.client.get("/apply/member/")

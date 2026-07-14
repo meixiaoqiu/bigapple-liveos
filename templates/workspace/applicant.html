@@ -82,10 +82,10 @@
                 <dd>{{ application.admission_proposal.proposal_no }} · {{ application.admission_proposal.get_status_display }}</dd>
               </div>
             {% endif %}
-            {% if application.reviewed_at %}
+            {% if application.decided_at %}
               <div>
-                <dt class="font-semibold">审核时间</dt>
-                <dd>{{ application.reviewed_at|date:"Y-m-d H:i" }}</dd>
+                <dt class="font-semibold">决议时间</dt>
+                <dd>{{ application.decided_at|date:"Y-m-d H:i" }}</dd>
               </div>
             {% endif %}
           </dl>

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from django.utils import timezone
 
-from core.application_services import review_member_application, review_partner_application
+from core.application_services import review_partner_application
 from core.db import atomic_for_model
 from core.exceptions import DomainError
 from core.models import (
@@ -916,26 +916,19 @@ def _screen_member_application(
         note = "项目方暂不接纳：当前能力和可用时间不足以进入候选池。"
     history = list(application.metadata.get("state_history") or [])
     history.append({"hour": screened_hour, "status": decision, "reason": note})
+    # Simulation screening decisions are recorded in metadata only —
+    # they do NOT mutate MemberApplication.status. The authoritative
+    # application status is driven by the member_admission proposal
+    # lifecycle (admission_voting → admitted / rejected).
     application.metadata = {
         **application.metadata,
         "batch_id": f"zero-start-{str(application.metadata.get('simulation_run_id', ''))[-6:]}",
-    }
-    application.save(update_fields=["metadata"])
-    review_member_application(
-        application=application,
-        status=decision,
-        review_note=note,
-        member_no=application.requested_member_no,
-    )
-    application.refresh_from_db()
-    application.metadata = {
-        **application.metadata,
         "application_status": decision,
         "screening_status": decision,
         "screened_hour": screened_hour,
         "screening_notes": note,
         "state_history": history,
-        "batch_id": f"zero-start-{application.metadata.get('simulation_run_id', '')[-6:]}",
+        "review_note": note,
     }
     application.save(update_fields=["metadata"])
     if application.linked_member_id:
@@ -1313,11 +1306,11 @@ def _candidate_summary(run: SimulationRun, *, startup_gate: dict[str, object] | 
     document_signer_partners = _startup_gate_partner_applications(run)
     return {
         "registered_applicants": applicants.count(),
-        "candidate_members": applicants.filter(status=MemberApplication.Status.CANDIDATE).count(),
-        "standby_applicants": applicants.filter(status=MemberApplication.Status.STANDBY).count(),
-        "rejected_applicants": applicants.filter(status=MemberApplication.Status.REJECTED).count(),
-        "withdrawn_applicants": applicants.filter(status=MemberApplication.Status.WITHDREW).count(),
-        "screened_applicants": applicants.exclude(status=MemberApplication.Status.SUBMITTED).count(),
+        "candidate_members": applicants.filter(metadata__screening_status=APPLICATION_STATUS_CANDIDATE).count(),
+        "standby_applicants": applicants.filter(metadata__screening_status=APPLICATION_STATUS_STANDBY).count(),
+        "rejected_applicants": applicants.filter(metadata__screening_status=APPLICATION_STATUS_REJECTED).count(),
+        "withdrawn_applicants": applicants.filter(metadata__screening_status=APPLICATION_STATUS_WITHDREW).count(),
+        "screened_applicants": applicants.exclude(metadata__screening_status=None).count(),
         "partner_applications": partners.count(),
         "qualified_partners": partners.filter(status=PartnerApplication.Status.QUALIFIED).count(),
         "standby_partners": partners.filter(status=PartnerApplication.Status.STANDBY).count(),
@@ -1354,7 +1347,7 @@ def _startup_gate_members(run: SimulationRun) -> list[Member]:
     founder = Member.objects.filter(member_no=ZERO_START_FOUNDER_MEMBER_NO).first()
     applicants = list(
         Member.objects.filter(member_applications__metadata__simulation_run_id=run.run_id)
-        .filter(member_applications__status=MemberApplication.Status.CANDIDATE)
+        .filter(member_applications__metadata__screening_status=APPLICATION_STATUS_CANDIDATE)
         .order_by("member_no")
     )
     return ([founder] if founder else []) + applicants

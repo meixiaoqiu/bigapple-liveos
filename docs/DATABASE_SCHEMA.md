@@ -62,19 +62,19 @@ MemberApplication stores public member applications. Real and simulation worlds 
 | `capability_scores` | json | 是 | 历史兼容和仿真字段；当前个人报名页不再展示能力自述输入。 |
 | `can_issue_responsibility_documents` | boolean | 是 | 历史兼容字段；当前个人报名页固定为否，责任文件能力由合作方/机构报名承担。 |
 | `document_authority_domains` | json | 是 | 历史兼容字段；当前个人报名页不再采集责任文件领域。 |
-| `status` | enum string | 是 | `submitted`、`under_review`、`candidate`、`admitted`、`standby`、`rejected`、`withdrew`。 |
+| `status` | enum string | 是 | `submitted`、`admission_voting`、`admitted`、`rejected`、`withdrew`。旧状态 `under_review`/`candidate`/`standby` 已迁移到 `admission_voting`。 |
 | `requested_member_no` | string | 否 | 期望成员编号；仿真会写入稳定候选编号。 |
 | `account_user_id` | fk | 否 | 成员报名时创建或复用的登录账号；提交后绑定到最小权限成员身份。 |
 | `linked_member_id` | fk | 否 | 提交后创建或复用的最小权限 `Member`。 |
 | `dynamic_answers` | json | 是 | 动态 textarea 问答数组，元素包含 `key`、`label`、`type`、`answer`。 |
 | `frozen_at` | datetime | 否 | 报名提交并二次确认的时间；业务入口不提供提交后的撤回或修改。 |
 | `admission_proposal_id` | fk | 否 | 接纳该申请者为正式成员的治理提案。 |
-| `reviewed_by_id` | fk | 否 | 审核人。 |
+| `decided_by_id` | fk | 否 | 决议人（执行准入或提案拒绝的治理成员）。 |
 | `submitted_at` | datetime | 是 | 提交时间。 |
-| `reviewed_at` | datetime | 否 | 审核时间。 |
+| `decided_at` | datetime | 否 | 决议时间（准入执行或拒绝的时间）。 |
 | `metadata` | json | 是 | 扩展数据；仿真会写入 `simulation_run_id`、`simulation_hour`、`driver_mode` 和 `external_ref`。 |
 
-提交会创建登录账号、创建或复用 `status=pending_review` 的最小权限 `Member`，并追加 `member_application_submitted` 统一事件。当前个人报名页按 steps 分步展示：第一步只采集 `role_gap` 和 `availability_slots`，第二步采集账号、密码、称呼、联系方式，第三步采集报名理由选项和可选的其他理由；不再向个人采集能力自述或责任文件能力。审核失败后同一账号可以再次提交一条新申请；提交成功后不可撤回或修改。正式接纳应创建 `proposal_type=member_admission` 提案，投票通过后仍需执行 `ProposalExecution(action_type=admit_member_application)`，执行后才把报名状态改为 `admitted`、把成员状态改为 `admitted` 并授予正式成员角色。审核或准入执行会追加 `member_application_reviewed` 统一事件。
+提交会创建登录账号、创建或复用 `status=pending_review` 的最小权限 `Member`、自动创建 `member_admission` 治理提案，并追加 `member_application_submitted` 统一事件。当前个人报名页按 steps 分步展示：第一步只采集 `role_gap` 和 `availability_slots`，第二步采集账号、密码、称呼、联系方式，第三步采集报名理由选项和可选的其他理由；不再向个人采集能力自述或责任文件能力。拒绝后同一账号可以再次提交一条新申请；提交成功后不可撤回或修改。正式接纳通过关联的 `member_admission` 提案投票并执行完成，执行后才把报名状态改为 `admitted`、把成员状态改为 `admitted` 并授予正式成员角色。准入执行或提案拒绝会追加 `member_application_reviewed` 统一事件。
 
 ## core_partner_application
 

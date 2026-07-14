@@ -179,7 +179,7 @@ def current_governance_member_or_forbidden(request: HttpRequest) -> Member | Htt
 
 def _application_for_review(application_id: str) -> MemberApplication:
     return get_object_or_404(
-        MemberApplication.objects.select_related("linked_member", "account_user", "admission_proposal", "reviewed_by"),
+        MemberApplication.objects.select_related("linked_member", "account_user", "admission_proposal", "decided_by"),
         application_id=application_id,
     )
 

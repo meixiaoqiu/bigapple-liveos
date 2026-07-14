@@ -18,14 +18,17 @@ ROLE_GAP_LABELS: dict[str, str] = {
 
 
 class MemberApplication(models.Model):
-    """A public member application submitted through the real world-scoped entry."""
+    """A public member application submitted through the real world-scoped entry.
+
+    Statuses reflect the proposal-driven admission lifecycle, not a standalone
+    review state machine.  Former ``candidate`` / ``standby`` have been removed;
+    simulation screening decisions live in ``metadata.screening_status`` only.
+    """
 
     class Status(models.TextChoices):
         SUBMITTED = "submitted", "已提交"
-        UNDER_REVIEW = "under_review", "审核中"
-        CANDIDATE = "candidate", "进入候选池"
+        ADMISSION_VOTING = "admission_voting", "准入表决中"
         ADMITTED = "admitted", "已接纳"
-        STANDBY = "standby", "备用"
         REJECTED = "rejected", "已拒绝"
         WITHDREW = "withdrew", "已退出"
 
@@ -108,16 +111,17 @@ class MemberApplication(models.Model):
         verbose_name="准入提案",
         help_text="用于接纳该报名成员的治理提案；通过后仍需显式执行。",
     )
-    reviewed_by = models.ForeignKey(
+    decided_by = models.ForeignKey(
         Member,
         null=True,
         blank=True,
         on_delete=models.PROTECT,
-        related_name="reviewed_member_applications",
-        verbose_name="审核人",
+        related_name="decided_member_applications",
+        verbose_name="决议人",
+        help_text="执行准入提案或拒绝的治理成员；不再表示单人审核。",
     )
     submitted_at = models.DateTimeField("提交时间")
-    reviewed_at = models.DateTimeField("审核时间", null=True, blank=True)
+    decided_at = models.DateTimeField("决议时间", null=True, blank=True, help_text="准入执行或拒绝的时间。")
     metadata = models.JSONField("扩展数据", default=dict, blank=True)
 
     class Meta:

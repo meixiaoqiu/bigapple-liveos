@@ -2,7 +2,7 @@
 
 {% block title %}成员报名状态 · 大苹果{% endblock %}
 {% block heading %}成员报名状态{% endblock %}
-{% block subtitle %}成员报名已经和登录账号绑定。审核完成前，账号可以进入最小权限工作台查看自己的报名状态。{% endblock %}
+{% block subtitle %}成员报名已经和登录账号绑定。准入决议完成前，账号可以进入最小权限工作台查看自己的报名状态。{% endblock %}
 
 {% block content %}
   {% if member %}
@@ -23,8 +23,8 @@
         <div class="text-sm">当前状态：{{ application.get_status_display }}</div>
       </div>
     </div>
-    {% if application.reviewed_at %}
-      <div class="text-sm text-base-content/70">审核时间：{{ application.reviewed_at }}</div>
+    {% if application.decided_at %}
+      <div class="text-sm text-base-content/70">决议时间：{{ application.decided_at }}</div>
     {% endif %}
     {% if application.linked_member %}
       <div class="flex justify-end">

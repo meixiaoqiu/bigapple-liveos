@@ -414,6 +414,31 @@ BIG_APPLE_DEFAULT_WORLD_DATABASE_ALIAS=realworld
 
 World routing fails closed. When `WORLD_DATABASE_ROUTING_ENABLED=true`, an active `WorldRegistry.database_alias` must be present in `settings.DATABASES`, must be listed in `WORLD_DATABASE_ALIASES`, and must not be `default`. If the alias is missing or points to the control database, requests and ORM routing should fail instead of silently reading or writing control data.
 
+## Repair Missing Admission Proposals
+
+旧数据从单人审核状态机迁移到 proposal-driven admission 后，如果存在历史 `MemberApplication` 有 `linked_member` 但没有 `admission_proposal`，可以对指定 world 运行修复命令。命令一次只修复一个 world 数据库。
+
+```powershell
+.\.venv\Scripts\python.exe manage.py repair_member_admission_proposals --world-id realworld --dry-run
+.\.venv\Scripts\python.exe manage.py repair_member_admission_proposals --world-id realworld
+.\.venv\Scripts\python.exe manage.py repair_member_admission_proposals --world-id simulation0001 --dry-run
+```
+
+Docker 开发环境：
+
+```powershell
+docker compose -f docker-compose.dev.yml exec -T big-apple-admin python manage.py repair_member_admission_proposals --world-id realworld --dry-run --settings=live_os.settings_admin
+docker compose -f docker-compose.dev.yml exec -T big-apple-admin python manage.py repair_member_admission_proposals --world-id realworld --settings=live_os.settings_admin
+```
+
+该命令：
+- 必须指定 `--world-id`，不能隐式依赖默认 world。
+- 只处理 `linked_member` 存在且 `admission_proposal` 为空的 `MemberApplication`。
+- 已有 `admission_proposal` 的记录不会被重复创建。
+- 没有 `linked_member` 的记录不会被处理。
+- `--dry-run` 只输出将修复的记录，不实际写入。
+- 查询和提案创建均在指定 world 数据库内完成，不会跨库。
+
 ## Bootstrap First Accounts
 
 三库迁移完成后，可用 `bootstrap_world` 一次性创建：

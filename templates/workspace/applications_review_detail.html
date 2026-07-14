@@ -66,12 +66,12 @@
             <dd>{{ application.submitted_at|date:"Y-m-d H:i" }}</dd>
           </div>
           <div>
-            <dt class="font-semibold">审核时间</dt>
-            <dd>{% if application.reviewed_at %}{{ application.reviewed_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</dd>
+            <dt class="font-semibold">决议时间</dt>
+            <dd>{% if application.decided_at %}{{ application.decided_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</dd>
           </div>
           <div>
-            <dt class="font-semibold">审核人</dt>
-            <dd>{% if application.reviewed_by %}{{ application.reviewed_by.member_no }}{% else %}—{% endif %}</dd>
+            <dt class="font-semibold">决议人</dt>
+            <dd>{% if application.decided_by %}{{ application.decided_by.member_no }}{% else %}—{% endif %}</dd>
           </div>
           <div>
             <dt class="font-semibold">关联成员</dt>
@@ -105,10 +105,10 @@
             </dl>
           </div>
         {% endif %}
-        {% if review_note %}
+        {% if decision_note %}
           <div class="mt-2">
-            <div class="font-semibold text-sm">最近审核备注</div>
-            <p class="mt-1 whitespace-pre-wrap text-sm">{{ review_note }}</p>
+            <div class="font-semibold text-sm">最近决议备注</div>
+            <p class="mt-1 whitespace-pre-wrap text-sm">{{ decision_note }}</p>
           </div>
         {% endif %}
       </div>

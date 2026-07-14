@@ -90,7 +90,7 @@ class WorkspaceApplicationsReviewTests(TestCase):
         proposal = application.admission_proposal
         self.assertEqual(proposal.proposal_type, Proposal.ProposalType.MEMBER_ADMISSION)
         self.assertEqual(proposal.status, Proposal.Status.VOTING)
-        self.assertEqual(application.status, MemberApplication.Status.UNDER_REVIEW)
+        self.assertEqual(application.status, MemberApplication.Status.ADMISSION_VOTING)
 
     # --- 审核 POST 端点已移除 -------------------------------------------------------
 

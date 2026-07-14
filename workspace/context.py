@@ -194,7 +194,7 @@ def _application_queryset():
         "linked_member",
         "account_user",
         "admission_proposal",
-        "reviewed_by",
+        "decided_by",
     )
 
 
@@ -336,6 +336,6 @@ def application_review_detail_context(*, member: Member, application: MemberAppl
         "availability_slots": list(application.availability_slots or []),
         "dynamic_answers": role_motivation_answers,
         "linked_member": application.linked_member,
-        "review_note": (application.metadata or {}).get("review_note", ""),
+        "decision_note": (application.metadata or {}).get("decision_note", ""),
         "admission_proposal": _proposal_view(application.admission_proposal, viewer=member),
     }

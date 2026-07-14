@@ -1,4 +1,4 @@
-"""Application submission, proposal-driven admission, and review services."""
+"""Application submission and proposal-driven admission services."""
 
 from __future__ import annotations
 
@@ -131,7 +131,7 @@ def member_application_payload(application: MemberApplication) -> dict[str, Any]
         "frozen_at": application.frozen_at.isoformat() if application.frozen_at else None,
         "admission_proposal_id": application.admission_proposal_id,
         "submitted_at": application.submitted_at.isoformat() if application.submitted_at else None,
-        "reviewed_at": application.reviewed_at.isoformat() if application.reviewed_at else None,
+        "decided_at": application.decided_at.isoformat() if application.decided_at else None,
         "metadata": application.metadata,
     }
 
@@ -212,9 +212,7 @@ def submit_member_application(
             raise DomainError("当前账号已绑定其他成员编号。")
     active_application_statuses = {
         MemberApplication.Status.SUBMITTED,
-        MemberApplication.Status.UNDER_REVIEW,
-        MemberApplication.Status.CANDIDATE,
-        MemberApplication.Status.STANDBY,
+        MemberApplication.Status.ADMISSION_VOTING,
         MemberApplication.Status.ADMITTED,
     }
     if existing_member is not None:
@@ -337,88 +335,6 @@ def submit_partner_application(
 
 
 @atomic_for_model(MemberApplication)
-def review_member_application(
-    *,
-    application: MemberApplication,
-    status: str,
-    reviewed_by: Member | None = None,
-    review_note: str = "",
-    member_no: str = "",
-) -> MemberApplication:
-    """Review one member application and update the linked minimal member identity."""
-
-    valid_statuses = {
-        MemberApplication.Status.CANDIDATE,
-        MemberApplication.Status.STANDBY,
-        MemberApplication.Status.REJECTED,
-        MemberApplication.Status.WITHDREW,
-        MemberApplication.Status.UNDER_REVIEW,
-    }
-    if status not in valid_statuses:
-        raise DomainError("成员报名审核状态无效。")
-    now = timezone.now()
-    application.status = status
-    application.reviewed_by = reviewed_by
-    application.reviewed_at = now
-    application.metadata = {
-        **application.metadata,
-        "review_note": str(review_note or "").strip(),
-        "reviewed_by": member_display_name(reviewed_by) if reviewed_by else "",
-    }
-    if status == MemberApplication.Status.CANDIDATE and application.linked_member_id is None:
-        cleaned_member_no = (member_no or application.requested_member_no or f"candidate-{application.application_id[-8:]}").strip()
-        member = register_member(
-            member_no=cleaned_member_no,
-            display_name=application.applicant_name,
-            status=Member.Status.PENDING_REVIEW,
-            batch_id=str(application.metadata.get("batch_id") or ""),
-            joined_simulation_day=None,
-            credit_floor=-100,
-            profile=_application_member_profile(application),
-            created_by={"actor_type": "application_review", "display_name": member_display_name(reviewed_by) if reviewed_by else "system"},
-        )
-        if application.account_user_id:
-            if member.member_no != application.account_user.get_username():
-                raise DomainError("报名账号与成员编号不一致，不能绑定成员身份。")
-            if Member.objects.filter(user=application.account_user).exists():
-                raise DomainError("报名账号已绑定其他成员。")
-            member.user = application.account_user
-            member.save(update_fields=["user"])
-        ensure_role_assignment(member, ensure_member_role(ROLE_CANDIDATE))
-        application.linked_member = member
-    if application.linked_member_id:
-        member = application.linked_member
-        update_fields = ["status", "metadata", "profile"]
-        if status == MemberApplication.Status.CANDIDATE:
-            member.status = Member.Status.PENDING_TRAINING
-            ensure_role_assignment(member, ensure_member_role(ROLE_CANDIDATE), granted_by=reviewed_by)
-        elif status in {MemberApplication.Status.REJECTED, MemberApplication.Status.WITHDREW}:
-            member.status = Member.Status.APPLICATION_REJECTED
-        else:
-            member.status = Member.Status.PENDING_REVIEW
-        member.metadata = {
-            **(member.metadata or {}),
-            "application_status": status,
-            "latest_application_id": application.application_id,
-        }
-        member.profile = {
-            **(member.profile or {}),
-            **_application_member_profile(application),
-        }
-        member.save(update_fields=update_fields)
-    application.save(update_fields=["status", "reviewed_by", "reviewed_at", "metadata", "linked_member"])
-    append_event(
-        event_type=SystemEvent.EventType.MEMBER_APPLICATION_REVIEWED,
-        aggregate_type="MemberApplication",
-        aggregate_id=application.application_id,
-        actor_member=reviewed_by,
-        payload_json=member_application_payload(application),
-        occurred_at=now,
-    )
-    return application
-
-
-@atomic_for_model(MemberApplication)
 def create_member_application_admission_proposal(
     *,
     application: MemberApplication,
@@ -431,11 +347,9 @@ def create_member_application_admission_proposal(
 
     if application.status not in {
         MemberApplication.Status.SUBMITTED,
-        MemberApplication.Status.UNDER_REVIEW,
-        MemberApplication.Status.CANDIDATE,
-        MemberApplication.Status.STANDBY,
+        MemberApplication.Status.ADMISSION_VOTING,
     }:
-        raise DomainError("只有待审核、候选或备用报名可以发起准入提案。")
+        raise DomainError("只有已提交或准入表决中的报名可以绑定准入提案。")
     if application.linked_member_id is None:
         raise DomainError("成员报名尚未绑定最小成员身份。")
     if application.admission_proposal_id:
@@ -469,7 +383,7 @@ def create_member_application_admission_proposal(
         status=Proposal.Status.VOTING,
     )
     application.admission_proposal = proposal
-    application.status = MemberApplication.Status.UNDER_REVIEW
+    application.status = MemberApplication.Status.ADMISSION_VOTING
     application.save(update_fields=["admission_proposal", "status"])
     return proposal
 
@@ -522,16 +436,16 @@ def admit_member_application_from_proposal(
     member.save(update_fields=["status", "metadata", "profile"])
 
     application.status = MemberApplication.Status.ADMITTED
-    application.reviewed_by = executor_member
-    application.reviewed_at = now
+    application.decided_by = executor_member
+    application.decided_at = now
     application.admission_proposal = proposal
     application.metadata = {
         **(application.metadata or {}),
-        "review_note": str(proposal.body or "准入提案已执行。").strip(),
-        "reviewed_by": member_display_name(executor_member) if executor_member else "",
+        "decision_note": str(proposal.body or "准入提案已执行。").strip(),
+        "decided_by_display": member_display_name(executor_member) if executor_member else "",
         "formal_role_assignment_id": assignment.pk,
     }
-    application.save(update_fields=["status", "reviewed_by", "reviewed_at", "admission_proposal", "metadata"])
+    application.save(update_fields=["status", "decided_by", "decided_at", "admission_proposal", "metadata"])
     append_event(
         event_type=SystemEvent.EventType.MEMBER_APPLICATION_REVIEWED,
         aggregate_type="MemberApplication",
@@ -566,12 +480,12 @@ def reject_member_application_from_failed_proposal(
         return application
     now = at_time or timezone.now()
     application.status = MemberApplication.Status.REJECTED
-    application.reviewed_at = now
+    application.decided_at = now
     application.metadata = {
         **(application.metadata or {}),
-        "review_note": f"准入提案 {proposal.proposal_no} 未通过（{proposal.get_status_display()}），报名自动拒绝。",
+        "decision_note": f"准入提案 {proposal.proposal_no} 未通过（{proposal.get_status_display()}），报名自动拒绝。",
     }
-    application.save(update_fields=["status", "reviewed_at", "metadata"])
+    application.save(update_fields=["status", "decided_at", "metadata"])
     if application.linked_member_id:
         member = application.linked_member
         member.status = Member.Status.APPLICATION_REJECTED
