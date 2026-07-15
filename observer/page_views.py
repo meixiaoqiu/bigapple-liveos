@@ -8,7 +8,7 @@ from django.http import Http404, HttpRequest
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
 
-from core.models import SimulationSnapshot, SystemEvent
+from core.models import Event, SimulationSnapshot, SystemEvent
 
 from .page_context import observer_context
 from .dashboard_theme import build_dashboard_theme_context
@@ -104,13 +104,16 @@ def dashboard_photo_story_partial(request: HttpRequest, **_kwargs):
 
 @require_GET
 def observer_events_list(request: HttpRequest, **_kwargs):
-    """Public system event audit browser list page."""
+    """Public community event stream list page."""
     apply_theme_query_override(request)
-    from .event_context import public_system_event_row
+    from .event_context import public_event_row
 
     max_events = 100
-    events = SystemEvent.objects.order_by("-seq")[:max_events]
-    rows = [public_system_event_row(e) for e in events]
+    events = Event.objects.filter(visibility=Event.Visibility.PUBLIC).order_by(
+        "-occurred_at",
+        "event_id",
+    )[:max_events]
+    rows = [public_event_row(e) for e in events]
     return render(
         request,
         get_theme_template_path(request, "events_list.html"),
@@ -119,8 +122,43 @@ def observer_events_list(request: HttpRequest, **_kwargs):
 
 
 @require_GET
-def observer_event_detail(request: HttpRequest, seq: int, **_kwargs):
-    """Public system event audit browser detail page."""
+def observer_event_detail(request: HttpRequest, event_id: str, **_kwargs):
+    """Public community event detail page."""
+    apply_theme_query_override(request)
+    from .event_context import public_event_detail
+
+    try:
+        event = Event.objects.get(event_id=event_id, visibility=Event.Visibility.PUBLIC)
+    except Event.DoesNotExist as exc:
+        raise Http404("Public event not found.") from exc
+
+    detail = public_event_detail(event)
+    return render(
+        request,
+        get_theme_template_path(request, "event_detail.html"),
+        {"event": detail},
+    )
+
+
+@require_GET
+def observer_event_ledger_list(request: HttpRequest, **_kwargs):
+    """Public system event audit ledger list page."""
+    apply_theme_query_override(request)
+    from .event_context import public_system_event_row
+
+    max_events = 100
+    events = SystemEvent.objects.order_by("-seq")[:max_events]
+    rows = [public_system_event_row(e) for e in events]
+    return render(
+        request,
+        get_theme_template_path(request, "event_ledger_list.html"),
+        {"events": rows},
+    )
+
+
+@require_GET
+def observer_event_ledger_detail(request: HttpRequest, seq: int, **_kwargs):
+    """Public system event audit ledger detail page."""
     apply_theme_query_override(request)
     from .event_context import public_system_event_detail
 
@@ -139,6 +177,6 @@ def observer_event_detail(request: HttpRequest, seq: int, **_kwargs):
 
     return render(
         request,
-        get_theme_template_path(request, "event_detail.html"),
+        get_theme_template_path(request, "event_ledger_detail.html"),
         {"event": detail},
     )

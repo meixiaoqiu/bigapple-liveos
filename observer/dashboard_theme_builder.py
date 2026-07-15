@@ -85,9 +85,10 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
     for index, event in enumerate(command_dashboard.get("timeline_events") or []):
         tags = [str(tag) for tag in event.get("tags", [])]
         tone = str(event.get("tone") or "info")
+        event_id = str(event.get("event_id") or "")
         events.append(
             {
-                "id": f"timeline-{index + 1}",
+                "id": event_id or f"timeline-{index + 1}",
                 "title": str(event.get("title") or "未命名事件"),
                 "summary": str(event.get("summary") or ""),
                 "level": _event_level(tone),
@@ -97,6 +98,7 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
                 "heat": str(event.get("metric_value") or ""),
                 "photo_url": "",
                 "action_label": "查看详情",
+                "detail_url": f"/observer/events/{event_id}/" if event_id else "",
             }
         )
     if events:

@@ -4,13 +4,20 @@
 
 成员报名/准入流程会同时写入 `core_system_event` 审计账本和脱敏公开 `core_event`。Observer 时间线展示的是公开 Event，不展示 contact、账号、内部用户 ID。公开 Event 包含 `submitted`（收到成员报名）、`admitted`（新成员已加入）和 `rejected`（成员报名未通过）三个阶段，使用脱敏公开名称，payload 不含隐私字段。
 
-当前路径：
+当前路径（普通用户可见）：
 
 ```text
 /observer/
 /observer/events/
-/observer/events/<seq>/
+/observer/events/<event_id>/
 /observer/simulations/
+```
+
+隐藏高级审计入口（不在普通导航中展示）：
+
+```text
+/observer/event-ledger/
+/observer/event-ledger/<seq>/
 ```
 
 Observer entrypoints are `http://127.0.0.1:20101/observer/` or `http://bigreal.local/observer/` for realworld, and `http://127.0.0.1:20102/observer/` or `http://bigsim.local/observer/` for simulation.
@@ -37,13 +44,21 @@ Observer entrypoints are `http://127.0.0.1:20101/observer/` or `http://bigreal.l
 
 观察台不提供进入 `/admin/` 的导航。运营动作归属 API、领域服务或 control 后台；观察台只负责公开状态展示和复盘。
 
-## 公共事件浏览器
+## 公共事件流
 
-`/observer/events/` 是面向访客的 SystemEvent 哈希链审计事件浏览器。它基于 `core_system_event` 审计账本提供脱敏投影，不直接展示原始 `payload_json` 和隐私字段。
+`/observer/events/` 是面向访客的公开社区事件流。首页“事件时间线”和事件流列表都基于 `core_event` 的公开记录，按时间展示社区当前发生的事情。每一条公开事件都可以进入 `/observer/events/<event_id>/` 查看详情。
 
-列表页 `/observer/events/` 展示最近 100 条审计事件，每条显示序号、事件类型、发生时间、聚合对象、脱敏行为人和事件短哈希。
+列表页 `/observer/events/` 展示最近 100 条公开事件，每条显示标题、摘要、事件类型、严重程度、发生时间和来源。详情页 `/observer/events/<event_id>/` 展示完整标题、摘要、公开 payload 摘要、关联任务或申诉，并在底部展示能匹配到的底层审计证明。
 
-详情页 `/observer/events/<seq>/` 展示单条事件的完整哈希字段、公开 payload 摘要和哈希链校验状态（payload_hash / prev_hash / event_hash 各自是否有效，以及整体 chain_valid）。
+公开事件流不直接展示原始 `core_event.payload`。详情页只展示脱敏后的公开字段，敏感字段和内部 ID 不进入模板上下文。
+
+## 事件审计账本（隐藏高级入口）
+
+`/observer/event-ledger/` 是隐藏的高级审计入口，基于 `core_system_event` 哈希链提供每条记录的脱敏投影和链校验。它不是普通观察者的主入口，不在首页、事件流或事件详情页的导航中展示。
+
+普通用户通过 `/observer/events/<event_id>/` 查看公开事件详情时，页面底部"审计证明"模块会展示与该事件关联的多条底层账本记录（seq、event_type_display、occurred_at、event_hash_short、chain_valid），不暴露 `/observer/event-ledger/` 链接。
+
+单项审计记录可通过永久链接 `/observer/event-ledger/<seq>/` 直接访问，但页面之间不做引导跳转。
 
 公开投影规则：
 
@@ -90,6 +105,7 @@ Observer entrypoints are `http://127.0.0.1:20101/observer/` or `http://bigreal.l
 - `core_dispute`
 - `core_ledger_entry`
 - `core_capacity_assessment`
+- `core_system_event`
 - `core_project_plan`
 - `core_plan_revision`
 - `core_plan_node`
@@ -160,11 +176,20 @@ HTMX partial URL：
 /observer/dashboard/partials/photo-stories/
 ```
 
-公开仿真档案 URL：
+公开页面 URL：
 
 ```text
+/observer/events/
+/observer/events/{event_id}/
 /observer/simulations/
 /observer/simulations/{snapshot_id}/
+```
+
+隐藏高级审计入口 URL（不在普通导航中展示）：
+
+```text
+/observer/event-ledger/
+/observer/event-ledger/{seq}/
 ```
 
 修改观察台模板或 Tailwind class 后执行：

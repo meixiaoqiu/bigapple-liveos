@@ -64,6 +64,7 @@ def observer_command_dashboard_context() -> dict[str, Any]:
 
     timeline_events = [
         {
+            "event_id": event.event_id,
             "time": timezone.localtime(event.occurred_at).strftime("%H:%M"),
             "ago": relative_age(event.occurred_at),
             "level": event_level_label(event),

@@ -1,15 +1,15 @@
 {% extends "themes/default_game/base.html" %}
 {% load world_urls %}
 
-{% block title %}公共事件浏览器{% endblock %}
+{% block title %}公共事件流{% endblock %}
 
 {% block body %}
 <div class="min-h-screen">
   <div class="navbar bg-base-100 shadow-sm">
     <div class="navbar-start">
       <div class="px-2">
-        <h1 class="text-xl font-bold tracking-normal">公共事件浏览器</h1>
-        <p class="text-sm text-base-content/70">公开展示治理和运行事件的脱敏审计记录</p>
+        <h1 class="text-xl font-bold tracking-normal">公共事件流</h1>
+        <p class="text-sm text-base-content/70">按时间展示社区正在发生的公开事件</p>
       </div>
     </div>
     <div class="navbar-end gap-2">
@@ -17,51 +17,33 @@
     </div>
   </div>
 
-  <main class="mx-auto max-w-5xl p-4 lg:p-6">
-    {% if events %}
-      <div class="overflow-x-auto rounded-box bg-base-100 shadow">
-        <table class="table table-sm lg:table-md">
-          <thead>
-            <tr>
-              <th>序号</th>
-              <th>事件类型</th>
-              <th>发生时间</th>
-              <th>聚合对象</th>
-              <th>行为人</th>
-              <th>事件哈希</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for e in events %}
-              <tr class="hover">
-                <td class="font-mono">{{ e.seq }}</td>
-                <td>
-                  <span class="badge badge-outline">{{ e.event_type_display }}</span>
-                </td>
-                <td class="text-sm text-base-content/70">{{ e.occurred_at|date:"Y-m-d H:i" }}</td>
-                <td class="text-sm">
-                  {% if e.aggregate_id %}
-                    <span class="text-base-content/70">{{ e.aggregate_type }}:</span> {{ e.aggregate_id }}
-                  {% else %}
-                    <span class="text-base-content/50">—</span>
-                  {% endif %}
-                </td>
-                <td class="text-sm">{{ e.actor_label|default:"—" }}</td>
-                <td class="font-mono text-xs text-base-content/50">{{ e.event_hash_short }}</td>
-                <td>
-                  <a class="btn btn-xs btn-ghost" href="{{ e.detail_url }}">查看</a>
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% else %}
+  <main class="mx-auto grid max-w-3xl gap-4 p-4 lg:p-6">
+    {% for event in events %}
+      <a class="card border border-base-300 bg-base-100 shadow-sm transition hover:border-primary hover:bg-base-200" href="{{ event.detail_url }}">
+        <div class="card-body gap-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="badge {% if event.severity == 'critical' %}badge-error{% elif event.severity == 'warning' %}badge-warning{% else %}badge-info{% endif %} badge-outline">
+              {{ event.severity_display }}
+            </span>
+            <span class="badge badge-ghost">{{ event.event_type_display }}</span>
+            <span class="text-sm text-base-content/60">{{ event.occurred_at|date:"Y-m-d H:i" }}</span>
+          </div>
+          <div>
+            <h2 class="text-lg font-bold">{{ event.title }}</h2>
+            <p class="mt-1 text-sm text-base-content/70">{{ event.summary }}</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 text-xs text-base-content/60">
+            <span>{{ event.generated_by }}</span>
+            {% if event.related_task_id %}<span>任务 {{ event.related_task_id }}</span>{% endif %}
+            {% if event.related_dispute_id %}<span>申诉 {{ event.related_dispute_id }}</span>{% endif %}
+          </div>
+        </div>
+      </a>
+    {% empty %}
       <div class="alert">
-        <span>暂无公开审计事件。</span>
+        <span>暂无公开事件。</span>
       </div>
-    {% endif %}
+    {% endfor %}
   </main>
 </div>
 {% endblock %}

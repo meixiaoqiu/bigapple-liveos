@@ -1,70 +1,48 @@
 {% extends "themes/default_game/base.html" %}
 {% load world_urls %}
 
-{% block title %}事件 #{{ event.seq }}{% endblock %}
+{% block title %}{{ event.title }}{% endblock %}
 
 {% block body %}
 <div class="min-h-screen">
   <div class="navbar bg-base-100 shadow-sm">
     <div class="navbar-start">
       <div class="px-2">
-        <h1 class="text-xl font-bold tracking-normal">事件 #{{ event.seq }}</h1>
-        <p class="text-sm text-base-content/70">公开审计事件详情</p>
+        <h1 class="text-xl font-bold tracking-normal">事件详情</h1>
+        <p class="text-sm text-base-content/70">公开社区事件</p>
       </div>
     </div>
     <div class="navbar-end gap-2">
-      <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-events-list' %}">事件浏览器</a>
+      <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-events-list' %}">事件流</a>
       <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-page' %}">观察台首页</a>
     </div>
   </div>
 
-  <main class="mx-auto max-w-3xl p-4 lg:p-6 grid gap-6">
-
-    {# Previous / next navigation #}
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        {% if event.prev_seq %}
-          <a class="btn btn-sm btn-ghost" href="{% url 'observer-event-detail' event.prev_seq %}">← 上一条 #{{ event.prev_seq }}</a>
-        {% else %}
-          <span class="btn btn-sm btn-ghost btn-disabled">← 上一条</span>
-        {% endif %}
-      </div>
-      <div>
-        {% if event.next_seq %}
-          <a class="btn btn-sm btn-ghost" href="{% url 'observer-event-detail' event.next_seq %}">下一条 #{{ event.next_seq }} →</a>
-        {% else %}
-          <span class="btn btn-sm btn-ghost btn-disabled">下一条 →</span>
-        {% endif %}
-      </div>
-    </div>
-
-    {# Basic info card #}
-    <div class="card bg-base-100 shadow">
-      <div class="card-body">
-        <h2 class="card-title">基础信息</h2>
-        <div class="grid gap-3 sm:grid-cols-2">
-          <div class="overflow-x-auto">
-            <table class="table table-sm">
-              <tbody>
-                <tr><td class="font-semibold">序号</td><td class="font-mono">{{ event.seq }}</td></tr>
-                <tr><td class="font-semibold">事件类型</td><td><span class="badge badge-outline">{{ event.event_type_display }}</span></td></tr>
-                <tr><td class="font-semibold">发生时间</td><td>{{ event.occurred_at|date:"Y-m-d H:i:s" }}</td></tr>
-                <tr><td class="font-semibold">聚合类型</td><td>{{ event.aggregate_type }}</td></tr>
-                {% if event.aggregate_id %}
-                  <tr><td class="font-semibold">聚合ID</td><td class="font-mono text-sm">{{ event.aggregate_id }}</td></tr>
-                {% endif %}
-                {% if event.actor_label %}
-                  <tr><td class="font-semibold">行为人</td><td>{{ event.actor_label }}</td></tr>
-                {% endif %}
-              </tbody>
-            </table>
-          </div>
+  <main class="mx-auto grid max-w-3xl gap-6 p-4 lg:p-6">
+    <article class="card bg-base-100 shadow">
+      <div class="card-body gap-4">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="badge {% if event.severity == 'critical' %}badge-error{% elif event.severity == 'warning' %}badge-warning{% else %}badge-info{% endif %} badge-outline">
+            {{ event.severity_display }}
+          </span>
+          <span class="badge badge-ghost">{{ event.event_type_display }}</span>
+          <span class="text-sm text-base-content/60">{{ event.occurred_at|date:"Y-m-d H:i:s" }}</span>
+        </div>
+        <div>
+          <h2 class="text-2xl font-bold">{{ event.title }}</h2>
+          <p class="mt-3 whitespace-pre-wrap text-base text-base-content/80">{{ event.summary }}</p>
+        </div>
+        <div class="grid gap-2 text-sm sm:grid-cols-2">
+          <div><span class="text-base-content/60">事件ID：</span><span class="font-mono">{{ event.event_id }}</span></div>
+          <div><span class="text-base-content/60">来源：</span>{{ event.generated_by }}</div>
+          <div><span class="text-base-content/60">模拟日：</span>{{ event.simulation_day }}</div>
+          {% if event.related_task_id %}<div><span class="text-base-content/60">关联任务：</span>{{ event.related_task_id }}</div>{% endif %}
+          {% if event.related_dispute_id %}<div><span class="text-base-content/60">关联申诉：</span>{{ event.related_dispute_id }}</div>{% endif %}
         </div>
       </div>
-    </div>
+    </article>
 
-    {# Public payload summary card #}
-    <div class="card bg-base-100 shadow">
+    <section class="card bg-base-100 shadow">
       <div class="card-body">
         <h2 class="card-title">公开摘要</h2>
         {% if event.payload_public %}
@@ -87,86 +65,57 @@
             </table>
           </div>
         {% else %}
-          <div class="text-base-content/50 text-sm">此事件无公开摘要字段。</div>
+          <div class="text-sm text-base-content/50">此事件无额外公开摘要字段。</div>
         {% endif %}
       </div>
-    </div>
+    </section>
 
-    {# Hash chain verification card #}
-    <div class="card bg-base-100 shadow">
+    <section class="card bg-base-100 shadow">
       <div class="card-body">
-        <h2 class="card-title">哈希链校验</h2>
-        <div class="grid gap-3">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="font-semibold">整体校验：</span>
-            {% if event.chain_valid %}
-              <span class="badge badge-success">通过</span>
-            {% else %}
-              <span class="badge badge-error">未通过</span>
-            {% endif %}
-          </div>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="card-title">审计证明</h2>
+        </div>
+        {% if event.audit_events %}
           <div class="overflow-x-auto">
             <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>序号</th>
+                  <th>账本事件</th>
+                  <th>发生时间</th>
+                  <th>事件哈希</th>
+                  <th>校验</th>
+                </tr>
+              </thead>
               <tbody>
-                <tr>
-                  <td class="font-semibold">payload_hash</td>
-                  <td class="font-mono text-xs break-all">{{ event.payload_hash }}</td>
-                  <td>
-                    {% if event.payload_hash_valid %}
-                      <span class="badge badge-success badge-xs">有效</span>
-                    {% else %}
-                      <span class="badge badge-error badge-xs">无效</span>
-                    {% endif %}
-                  </td>
-                </tr>
-                <tr>
-                  <td class="font-semibold">prev_hash</td>
-                  <td class="font-mono text-xs break-all">{{ event.prev_hash }}</td>
-                  <td>
-                    {% if event.prev_hash_valid %}
-                      <span class="badge badge-success badge-xs">有效</span>
-                    {% else %}
-                      <span class="badge badge-error badge-xs">无效</span>
-                    {% endif %}
-                  </td>
-                </tr>
-                <tr>
-                  <td class="font-semibold">event_hash</td>
-                  <td class="font-mono text-xs break-all">{{ event.event_hash }}</td>
-                  <td>
-                    {% if event.event_hash_valid %}
-                      <span class="badge badge-success badge-xs">有效</span>
-                    {% else %}
-                      <span class="badge badge-error badge-xs">无效</span>
-                    {% endif %}
-                  </td>
-                </tr>
+                {% for audit in event.audit_events %}
+                  <tr>
+                    <td class="font-mono">#{{ audit.seq }}</td>
+                    <td>{{ audit.event_type_display }}</td>
+                    <td class="text-sm text-base-content/70">{{ audit.occurred_at|date:"Y-m-d H:i" }}</td>
+                    <td class="font-mono text-xs text-base-content/50">{{ audit.event_hash_short }}</td>
+                    <td>
+                      {% if audit.chain_valid %}
+                        <span class="badge badge-success badge-xs">通过</span>
+                      {% else %}
+                        <span class="badge badge-error badge-xs">未通过</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
               </tbody>
             </table>
           </div>
-        </div>
-      </div>
-    </div>
-
-    {# Bottom navigation #}
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        {% if event.prev_seq %}
-          <a class="btn btn-sm btn-ghost" href="{% url 'observer-event-detail' event.prev_seq %}">← 上一条 #{{ event.prev_seq }}</a>
         {% else %}
-          <span class="btn btn-sm btn-ghost btn-disabled">← 上一条</span>
+          <div class="text-sm text-base-content/50">此公开事件暂未关联到底层账本记录。</div>
         {% endif %}
       </div>
-      <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-events-list' %}">返回事件列表</a>
-      <div>
-        {% if event.next_seq %}
-          <a class="btn btn-sm btn-ghost" href="{% url 'observer-event-detail' event.next_seq %}">下一条 #{{ event.next_seq }} →</a>
-        {% else %}
-          <span class="btn btn-sm btn-ghost btn-disabled">下一条 →</span>
-        {% endif %}
-      </div>
-    </div>
+    </section>
 
+    <div class="flex justify-between">
+      <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-events-list' %}">返回事件流</a>
+      <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-page' %}">返回观察台</a>
+    </div>
   </main>
 </div>
 {% endblock %}

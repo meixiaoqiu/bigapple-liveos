@@ -1,18 +1,20 @@
-"""Public projection helpers for the SystemEvent hash-chain audit browser."""
+"""Public projection helpers for observer event pages."""
 
 from __future__ import annotations
 
 from typing import Any
 
+from django.db.models import Q
+
 from core.event_ledger import compute_event_hash, hash_json
 from core.event_payloads import public_member_label
-from core.models import SystemEvent
+from core.models import Event, SystemEvent
+from live_os.api.serializers.events import public_event_summary
 
 # Whitelist keys allowed in public payload summary.
 _PUBLIC_PAYLOAD_WHITELIST: frozenset[str] = frozenset([
     "application_id",
     "proposal_no",
-    "proposal_id",
     "task_id",
     "resource_id",
     "dispute_id",
@@ -52,6 +54,10 @@ _PUBLIC_PAYLOAD_DENYLIST: frozenset[str] = frozenset([
 _TRUNCATE_KEYS: frozenset[str] = frozenset(["reason", "summary"])
 
 
+def _short_hash(value: str) -> str:
+    return value[:12] + "…" if value else ""
+
+
 def _sanitize_value(key: str, value: Any) -> Any:
     """Return a sanitised version of a single payload value."""
     if value is None:
@@ -67,6 +73,103 @@ def _sanitize_value(key: str, value: Any) -> Any:
     if isinstance(value, (list, dict)):
         return "[已隐藏]"
     return value
+
+
+def public_event_payload(event: Event) -> dict[str, Any]:
+    """Extract a sanitised public summary from an observer-visible Event."""
+    raw: dict[str, Any] = event.payload or {}
+    result: dict[str, Any] = {}
+    for key, value in raw.items():
+        if key in _PUBLIC_PAYLOAD_DENYLIST:
+            continue
+        if key not in _PUBLIC_PAYLOAD_WHITELIST:
+            continue
+        sanitised = _sanitize_value(key, value)
+        if sanitised is not None:
+            result[key] = sanitised
+    return result
+
+
+def public_event_row(event: Event) -> dict[str, Any]:
+    """A single row/card for the public community event stream."""
+    return {
+        "event_id": event.event_id,
+        "event_type": event.event_type,
+        "event_type_display": event.get_event_type_display(),
+        "severity": event.severity,
+        "severity_display": event.get_severity_display(),
+        "title": event.title,
+        "summary": public_event_summary(event),
+        "occurred_at": event.occurred_at,
+        "generated_by": event.get_generated_by_display(),
+        "simulation_day": event.simulation_day,
+        "related_task_id": event.related_task_id,
+        "related_dispute_id": event.related_dispute_id,
+        "detail_url": f"/observer/events/{event.event_id}/",
+    }
+
+
+def _system_event_filter_for_public_event(event: Event) -> Q:
+    payload = event.payload or {}
+    query = Q()
+
+    application_id = str(payload.get("application_id") or "").strip()
+    if application_id:
+        query |= Q(aggregate_type="MemberApplication", aggregate_id=application_id)
+        query |= Q(payload_json__application_id=application_id)
+
+    proposal_no = str(payload.get("proposal_no") or "").strip()
+    if proposal_no:
+        query |= Q(payload_json__proposal_no=proposal_no)
+
+    proposal_id = str(payload.get("proposal_id") or "").strip()
+    if proposal_id:
+        query |= Q(aggregate_type="Proposal", aggregate_id=proposal_id)
+        query |= Q(payload_json__proposal_id=proposal_id)
+
+    task_id = str(payload.get("task_id") or event.related_task_id or "").strip()
+    if task_id:
+        query |= Q(aggregate_type="Task", aggregate_id=task_id)
+        query |= Q(payload_json__task_id=task_id)
+
+    resource_id = str(payload.get("resource_id") or "").strip()
+    if resource_id:
+        query |= Q(aggregate_type="Resource", aggregate_id=resource_id)
+        query |= Q(payload_json__resource_id=resource_id)
+
+    dispute_id = str(payload.get("dispute_id") or event.related_dispute_id or "").strip()
+    if dispute_id:
+        query |= Q(aggregate_type="Dispute", aggregate_id=dispute_id)
+        query |= Q(payload_json__dispute_id=dispute_id)
+
+    return query
+
+
+def public_system_event_proof_rows_for_event(event: Event, *, limit: int = 8) -> list[dict[str, Any]]:
+    """Return hash-chain proof rows that appear related to a public Event."""
+    query = _system_event_filter_for_public_event(event)
+    if not query:
+        return []
+    events = SystemEvent.objects.filter(query).order_by("seq")[:limit]
+    return [
+        {
+            "seq": item.seq,
+            "event_type_display": item.get_event_type_display(),
+            "occurred_at": item.occurred_at,
+            "event_hash_short": _short_hash(item.event_hash),
+            "chain_valid": system_event_chain_check(item)["chain_valid"],
+        }
+        for item in events
+    ]
+
+
+def public_event_detail(event: Event) -> dict[str, Any]:
+    """Full public detail for a community event."""
+    return {
+        **public_event_row(event),
+        "payload_public": public_event_payload(event),
+        "audit_events": public_system_event_proof_rows_for_event(event),
+    }
 
 
 def _sensitive_aggregate(aggregate_type: str, aggregate_id: str) -> str:
@@ -109,7 +212,7 @@ def public_system_event_payload(event: SystemEvent) -> dict[str, Any]:
 
 
 def public_system_event_row(event: SystemEvent) -> dict[str, Any]:
-    """A single row for the public event list."""
+    """A single row for the public hash-chain ledger list."""
     return {
         "seq": event.seq,
         "event_type": event.event_type,
@@ -118,9 +221,9 @@ def public_system_event_row(event: SystemEvent) -> dict[str, Any]:
         "aggregate_id": _sensitive_aggregate(event.aggregate_type, event.aggregate_id),
         "actor_label": _actor_label(event),
         "occurred_at": event.occurred_at,
-        "event_hash_short": event.event_hash[:12] + "…",
-        "detail_url": f"/observer/events/{event.seq}/",
-        "detail_name": "observer-event-detail",
+        "event_hash_short": _short_hash(event.event_hash),
+        "detail_url": f"/observer/event-ledger/{event.seq}/",
+        "detail_name": "observer-event-ledger-detail",
     }
 
 
