@@ -71,6 +71,7 @@ Real and simulation runtimes use the same root paths: `/workspace/`, `/observer/
 - 已结束的仿真 run 在同一 world 启动下一轮前必须被人工处置：要么通过 `/admin/simulation-lab/` 或 `archive_simulation_run` 归档为快照，要么通过 `/admin/simulation-lab/` 或 `discard_simulation_run --reason "..."` 明确放弃归档。两种处置都会写入 control DB 的 `SimulationRunDisposition`；Django Admin `LogEntry` 只记录技术后台操作，不能替代仿真处置结论。
 - 仍在 `running` 但已经确认没有继续价值的 run，应先在 `/admin/simulation-lab/` 详情页执行“中止本轮仿真”，状态变为 `aborted` 后再归档或废弃。
 - 修改任务创建、发布、指派、关闭、领取、提交、验收、资源调整、申诉处理、仿真推进、账本、事件或 world 边界逻辑后，必须运行对应 app 测试；完整本地回归使用 `python manage.py test core live_os observer workspace simulation simulation_lab worlds --settings=live_os.test_settings`。
+- 新增后台高风险动作（如清空世界数据、直接修改权威状态）必须测试 world 边界：不得对 `realworld` 生效，只允许作用 `world_type=simulation` 的 `active` world，且必须写入 control DB 的审计记录。
 - 已实现最小 session 身份绑定：`User.username == Member.member_no` 代表成员本人，活跃治理成员或 staff / superuser 可执行运营写入。不要重新引入由 payload 或表单选择责任人的 actor 绑定。
 - 观察台中的满意度、疲劳值等指标目前是占位值，后续需要每日指标表。
 - 修改 observer 模板中的 Tailwind class 后，必须运行 `python manage.py tailwind build` 并提交编译后的 `theme/static/css/dist/styles.css`。

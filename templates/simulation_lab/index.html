@@ -135,6 +135,69 @@
       </div>
     {% endif %}
 
+    {% if selected_world %}
+      <div class="module" style="border-left: 4px solid #ba2121;">
+        <h2>重置仿真世界</h2>
+        <p class="help" style="color: #ba2121;">
+          高风险维护操作：这会清空目标仿真世界 {{ selected_world.world_id }}（{{ selected_world.database_alias }}）的全部业务数据，
+          并重新运行 <code>seed_world {{ selected_world.world_id }} --template zero_start</code>。
+          重置后世界只有 zero_start 基线：一个初始发起人、一个极简 ProjectPlan 和一个已发布 PlanRevision，
+          不会自动推进仿真小时，不会创建 SimulationRun / SimulationTurn。
+        </p>
+
+        {% if reset_count_summary %}
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">表名</th>
+                <th scope="col">当前记录数</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for label, count in reset_count_summary.items %}
+                <tr class="{% cycle 'row1' 'row2' %}">
+                  <td>{{ label }}</td>
+                  <td>{{ count }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+
+        <form method="post" action="{% url 'simulation-lab-reset-world' %}"
+              onsubmit="return confirm('最终确认：这将删除 {{ selected_world.world_id }} 的全部业务数据，并重新写入 zero_start 基线。此操作不可撤销。确认继续吗？');">
+          {% csrf_token %}
+          <input type="hidden" name="world_id" value="{{ selected_world.world_id }}">
+          <fieldset class="module aligned">
+            <div class="form-row">
+              <label for="id_confirm_world_id">输入世界ID确认：</label>
+              <input id="id_confirm_world_id" type="text" name="confirm_world_id" required
+                     placeholder="{{ selected_world.world_id }}">
+              <div class="help">必须输入当前世界ID <strong>{{ selected_world.world_id }}</strong> 才能执行。</div>
+            </div>
+            <div class="form-row">
+              <label for="id_confirm_text">输入确认文字：</label>
+              <input id="id_confirm_text" type="text" name="confirm_text" required placeholder="确认重置">
+              <div class="help">必须输入「<strong>确认重置</strong>」四个字。</div>
+            </div>
+            <div class="form-row checkbox-row">
+              <input id="id_force_reset" type="checkbox" name="force_reset">
+              <label for="id_force_reset" style="display:inline; width:auto; float:none;">
+                强制重置（会丢弃未归档/未处置的仿真运行数据）
+              </label>
+              <div class="help" style="margin-left:0; padding-left:0;">
+                如果存在运行中的仿真或已结束但未处置的 run，必须勾选此项才能强制重置。
+              </div>
+            </div>
+          </fieldset>
+          <div class="submit-row">
+            <input type="submit" value="重置到零起点基线" class="default"
+                   style="background: #ba2121; border: none;">
+          </div>
+        </form>
+      </div>
+    {% endif %}
+
     <div class="module">
       <h2>仿真写库边界自检（待遗弃功能）</h2>
       <div class="form-row">

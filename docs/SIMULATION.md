@@ -65,6 +65,22 @@ C3 默认要求：
 
 缺失时，失败类型为 `responsibility_closure_missing`，系统会生成“补齐光伏一期责任主体与责任文件”的计划修订建议和结构化变更集。变更集会建议增加并网预筛、场地合法性与附条件租赁审查、结构/建筑安全责任文件、光伏设计责任文件、电气并网责任文件、施工安全质量责任和验收归档责任等前置节点。
 
+## 重置仿真世界到零起点基线
+
+`POST /admin/simulation-lab/reset-world/` 是一个高风险维护操作，将目标仿真 world 重置到 zero_start 基线。它与 `run_zero_start_simulation` 的区别：
+
+| 操作 | 清空业务数据 | seed 基线 | 推进虚拟小时 | 创建 SimulationRun / SimulationTurn |
+| --- | --- | --- | --- | --- |
+| `reset-world` | 是 | 是（zero_start） | 否 | 否 |
+| `run_zero_start_simulation` | 否 | 可选（`ensure_seed=True`） | 是 | 是 |
+| `seed_world --template zero_start` | 否 | 是 | 否 | 否 |
+
+- `reset-world`：清空目标 world 全部业务数据后，重新 seed 到 zero_start 基线。只限 superuser，需二次确认。只清空目标 world 数据库中的业务表，不清空 control DB 的 worlds / 维护日志等控制表。作用等同于 `flush` + `seed_world --template zero_start`，但通过后台页面完成，并写入 `WorldMaintenanceLog` 审计记录。
+- `run_zero_start_simulation`：从当前基线推进虚拟小时，创建 `SimulationRun` / `SimulationTurn`，驱动虚拟主体通过真实表单报名。
+- `seed_world --template zero_start`：只写入 zero_start 种子数据，不清空已有数据。
+
+重置后目标 world 只有 zero_start 基线：一个初始发起人、一个极简 `ProjectPlan` 和一个已发布 `PlanRevision`，没有 `SimulationRun`、`SimulationTurn`、报名、提案推进痕迹。启用 `BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_ENABLED=true` 时，初始发起人是配置的真实登录成员，不会额外创建 `founder-0001`。
+
 ## 零起点自媒体报名与启动门槛仿真
 
 `seed_world --template demo` 用于后台和观察台预览，不代表真实仿真起点。第二轮仿真的起点应更早：只有一个发起人，还没有成熟成员池、候选场地、任务、资源和完整计划。启用仿真 bootstrap admin 时，这个发起人使用配置的真实登录成员；未启用时使用非交互 fallback 发起人。

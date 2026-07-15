@@ -517,6 +517,24 @@ BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_DISPLAY_NAME=Simulation admin
 
 `seed_world` 只允许作用于 `world_type=simulation` 的 active world。`demo` 模板复用现有幂等 `seed_demo` 数据，用于后台预览；`zero_start` 模板只创建一个发起人和极简计划，用于从真正零起点推演自媒体报名、成员筛选和启动门槛确认。启用仿真 bootstrap admin 时，发起人使用该真实登录成员；未启用时使用非交互 fallback 发起人。两个模板都不会复制 `realworld` 数据，也不会清空、归档或删除任何物理数据库。
 
+### 通过后台重置仿真世界
+
+除了命令行 `seed_world`，还可以通过仿真实验后台直接重置一个仿真世界到 zero_start 基线：
+
+1. 以 superuser 身份登录 `http://bigadmin.local/admin/simulation-lab/?world_id=simulation0001`。
+2. 在"重置仿真世界"模块中：
+   - 输入当前 world_id（例如 `simulation0001`）确认。
+   - 输入确认文字"确认重置"。
+   - 如果存在运行中或已结束但未处置的 run，勾选"强制重置"。
+3. 点击"重置到零起点基线"。
+4. 成功后目标 world 只有 zero_start 基线数据，不会推进虚拟小时，不会创建 SimulationRun / SimulationTurn。
+
+与 `run_zero_start_simulation` 的区别：重置只清空并 seed 基线；`run_zero_start_simulation` 才创建 `SimulationRun` / `SimulationTurn` 并推进虚拟小时。重置后的审计记录写入 control DB 的 `WorldMaintenanceLog`（在 `/admin/worlds/worldmaintenancelog/` 中只读查看）。
+
+通过后台重置与命令行 `seed_world simulation0001 --template zero_start` 功能等价，但命令不执行 flush（不先清空已有数据），需手动先运行 `python manage.py flush --database=simulation0001 --noinput`。后台重置页面会把清空和重新 seed 串成一次受控维护流程；如果 seed 失败，会写入失败审计记录，需要修复配置后重新执行。
+
+不要手动对本地 `dev_big_sim0001` 数据库执行 `flush`；日常开发测试使用后台页面重置或命令行 `seed_world` 覆盖即可。
+
 After a simulation world is archived, it no longer participates in normal login or fixed-site world binding:
 
 ```powershell

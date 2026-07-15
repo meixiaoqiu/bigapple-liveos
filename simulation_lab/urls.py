@@ -67,4 +67,9 @@ urlpatterns = [
         superuser_admin_view(views.lab_discard_run),
         name="simulation-lab-discard-run",
     ),
+    path(
+        "reset-world/",
+        superuser_admin_view(views.lab_reset_world),
+        name="simulation-lab-reset-world",
+    ),
 ]

@@ -35,6 +35,7 @@ from simulation.disposition import (
 )
 from simulation.plan_application import apply_plan_change_set, validate_plan_change_set_operations
 from simulation.snapshot_display import raw_plan_node_title_map, snapshot_item_title, source_model_label
+from simulation.world_reset import count_world_rows, reset_simulation_world_to_zero_start
 from simulation.zero_start import run_zero_start_recruitment_simulation
 from worlds.context import context_from_registry
 from worlds.models import WorldRegistry
@@ -115,6 +116,7 @@ def lab_index(request):
     world = selected_simulation_world(request)
     unresolved_runs = unresolved_finished_runs(world=world) if world is not None else []
     active_zero_start_run = active_zero_start_run_for_world(world) if world is not None else None
+    reset_count_summary = count_world_rows(world) if world is not None else {}
     return render(
         request,
         "simulation_lab/index.html",
@@ -127,6 +129,7 @@ def lab_index(request):
             active_zero_start_run=active_zero_start_run,
             can_start_simulation=world is not None and not unresolved_runs,
             sync_simulation_max_hours=MAX_SYNC_SIMULATION_HOURS,
+            reset_count_summary=reset_count_summary,
         ),
     )
 
@@ -1009,4 +1012,77 @@ def lab_discard_run(request, run_id: str):
         messages.error(request, f"仿真运行废弃失败：{exc}")
     else:
         messages.success(request, f"已记录废弃处置：{disposition.disposition_id} / {run.run_id}")
+    return lab_redirect(world)
+
+
+@require_POST
+def lab_reset_world(request):
+    """Reset a simulation world to the zero-start baseline.
+
+    This is a high-risk maintenance action that:
+    - Flushes all business data from the target world database.
+    - Re-runs seed_world --template zero_start.
+    - Does NOT run run_zero_start_simulation or create any SimulationRun.
+    - Requires double confirmation (world_id match + literal confirm text).
+    - Blocks on unresolved/running runs unless force_reset is checked.
+    - Writes a WorldMaintenanceLog audit record in the control database.
+    """
+
+    raw_world_id = str(request.POST.get("world_id") or "").strip()
+    if not raw_world_id:
+        messages.error(request, "必须提交目标 world_id。")
+        return lab_redirect()
+
+    world = (
+        WorldRegistry.objects.using(CONTROL_DATABASE_ALIAS)
+        .filter(world_id=raw_world_id)
+        .first()
+    )
+    if world is None:
+        messages.error(request, f"仿真世界不存在：{raw_world_id}。")
+        return lab_redirect()
+    if world.world_type != WorldRegistry.WorldType.SIMULATION:
+        messages.error(request, f"只允许对仿真世界执行重置操作，{raw_world_id} 是真实世界。")
+        return lab_redirect(world)
+    if world.status != WorldRegistry.Status.ACTIVE:
+        messages.error(request, f"只允许对启用状态的仿真世界重置，当前状态为 {world.get_status_display()}。")
+        return lab_redirect(world)
+
+    confirm_world_id = str(request.POST.get("confirm_world_id") or "").strip()
+    confirm_text = str(request.POST.get("confirm_text") or "").strip()
+    force_reset = request.POST.get("force_reset") == "on"
+
+    # ---- Form validation ----
+    errors = []
+    if confirm_world_id != world.world_id:
+        errors.append(f"世界ID确认不匹配，请输入 {world.world_id}。")
+    if confirm_text != "确认重置":
+        errors.append("必须输入「确认重置」四个字才能执行。")
+
+    if errors:
+        for error in errors:
+            messages.error(request, error)
+        return lab_redirect(world)
+
+    # ---- Execute reset ----
+    actor = actor_for_request(request)
+    try:
+        result = reset_simulation_world_to_zero_start(
+            world,
+            actor=actor,
+            force=force_reset,
+        )
+    except DomainError as exc:
+        messages.error(request, f"重置被拒绝：{exc}")
+        return lab_redirect(world)
+    except CommandError as exc:
+        messages.error(request, f"重置失败：{exc}")
+        return lab_redirect(world)
+
+    messages.success(
+        request,
+        f"仿真世界 {result['world_id']} 已成功重置到 zero_start 基线。"
+        f" 清空前记录数：{result['counts_before']}。"
+        f" 当前记录数：{result['counts_after']}。",
+    )
     return lab_redirect(world)

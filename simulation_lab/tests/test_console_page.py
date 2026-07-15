@@ -1261,3 +1261,533 @@ class ObserverSimulationConsoleTests(TestCase):
         self.assertEqual(self.resource.current_stock, Decimal("100.000"))
         self.assertFalse(LedgerEntry.objects.filter(related_task=self.task).exists())
         self.assertFalse(Event.objects.filter(generated_by=Event.GeneratedBy.SIMULATION_ENGINE).exists())
+
+
+class SimulationLabResetWorldTests(TestCase):
+    """Tests for the reset-world-to-zero-start maintenance feature."""
+
+    def setUp(self) -> None:
+        self.user = get_user_model().objects.create_user(
+            username="simulation-root",
+            password="test-password",
+        )
+        self.user.is_staff = True
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_staff", "is_superuser"])
+        self.client.force_login(self.user)
+
+    def _create_simulation_world(self, world_id: str = "simulation0001") -> WorldRegistry:
+        world, _ = WorldRegistry.objects.update_or_create(
+            world_id=world_id,
+            defaults={
+                "name": f"Simulation {world_id[-4:]}",
+                "world_type": WorldRegistry.WorldType.SIMULATION,
+                "database_alias": "default",
+                "database_name": "test_control",
+                "status": WorldRegistry.Status.ACTIVE,
+            },
+        )
+        return world
+
+    def _reset_post_data(self, world: WorldRegistry, *, force: bool = False):
+        return {
+            "world_id": world.world_id,
+            "confirm_world_id": world.world_id,
+            "confirm_text": "确认重置",
+            "force_reset": "on" if force else "",
+        }
+
+    def test_reset_world_requires_superuser(self) -> None:
+        """Non-superuser should get 403 for POST to reset-world."""
+        non_staff = get_user_model().objects.create_user(username="regular", password="test")
+        non_staff.is_staff = True
+        non_staff.save(update_fields=["is_staff"])
+        self.client.force_login(non_staff)
+
+        world = self._create_simulation_world()
+        response = self.client.post("/admin/simulation-lab/reset-world/", self._reset_post_data(world))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_reset_world_rejects_missing_confirm_world_id(self) -> None:
+        """Missing confirm_world_id should reject without clearing data."""
+        world = self._create_simulation_world()
+        Member.objects.create(
+            member_no="test-001",
+            display_name="测试成员",
+            status=Member.Status.ACTIVE,
+            batch_id="test-batch",
+            joined_simulation_day=0,
+            credit_floor=-100,
+            profile={},
+            created_at=timezone.now(),
+        )
+
+        response = self.client.post(
+            "/admin/simulation-lab/reset-world/",
+            {
+                "world_id": world.world_id,
+                "confirm_world_id": "",
+                "confirm_text": "确认重置",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "世界ID确认不匹配")
+        self.assertTrue(Member.objects.filter(member_no="test-001").exists())
+
+    def test_reset_world_rejects_wrong_confirm_text(self) -> None:
+        """Wrong confirm_text should reject without clearing data."""
+        world = self._create_simulation_world()
+        Member.objects.create(
+            member_no="test-002",
+            display_name="测试成员2",
+            status=Member.Status.ACTIVE,
+            batch_id="test-batch",
+            joined_simulation_day=0,
+            credit_floor=-100,
+            profile={},
+            created_at=timezone.now(),
+        )
+
+        response = self.client.post(
+            "/admin/simulation-lab/reset-world/",
+            {
+                "world_id": world.world_id,
+                "confirm_world_id": world.world_id,
+                "confirm_text": "错误的文字",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "必须输入「确认重置」四个字")
+        self.assertTrue(Member.objects.filter(member_no="test-002").exists())
+
+    def test_reset_world_rejects_realworld(self) -> None:
+        """Realworld should be rejected for reset.
+        This tests the service directly since selected_simulation_world will
+        never return a realworld in the view pipeline."""
+        from simulation.world_reset import reset_simulation_world_to_zero_start
+
+        world, _ = WorldRegistry.objects.update_or_create(
+            world_id="realworld",
+            defaults={
+                "name": "Real World",
+                "world_type": WorldRegistry.WorldType.REAL,
+                "database_alias": "default",
+                "database_name": "test_control",
+                "status": WorldRegistry.Status.ACTIVE,
+            },
+        )
+
+        with self.assertRaises(DomainError) as ctx:
+            reset_simulation_world_to_zero_start(world, actor="test", force=True)
+        self.assertIn("只允许对仿真世界", str(ctx.exception))
+
+    def test_reset_world_rejects_inactive_world(self) -> None:
+        """Archived world should be rejected at the view level with explicit error."""
+        world = self._create_simulation_world()
+        world.status = WorldRegistry.Status.ARCHIVED
+        world.save(update_fields=["status"])
+
+        response = self.client.post(
+            "/admin/simulation-lab/reset-world/",
+            self._reset_post_data(world),
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "只允许对启用状态的仿真世界重置")
+
+    def test_reset_service_rejects_inactive_world(self) -> None:
+        """The service-level validation rejects inactive worlds."""
+        world = self._create_simulation_world()
+        world.status = WorldRegistry.Status.ARCHIVED
+        world.save(update_fields=["status"])
+
+        from simulation.world_reset import reset_simulation_world_to_zero_start
+
+        with self.assertRaises(DomainError) as ctx:
+            reset_simulation_world_to_zero_start(world, actor="test", force=True)
+        self.assertIn("只允许对启用状态", str(ctx.exception))
+
+    def test_reset_world_rejects_running_run_without_force(self) -> None:
+        """Running run without force_reset should block."""
+        world = self._create_simulation_world()
+        plan = ProjectPlan.objects.create(
+            plan_id="plan-running",
+            name="Running Plan",
+            status=ProjectPlan.Status.ACTIVE,
+            created_at=timezone.now(),
+        )
+        revision = PlanRevision.objects.create(
+            revision_id="rev-running",
+            plan=plan,
+            revision_code="v0.1.0",
+            status=PlanRevision.Status.PUBLISHED,
+            title="Test Revision",
+            change_summary="test",
+            created_at=timezone.now(),
+            published_at=timezone.now(),
+        )
+        SimulationRun.objects.create(
+            run_id="sim-run-running",
+            plan_revision=revision,
+            status=SimulationRun.Status.RUNNING,
+            current_day=1,
+            max_turns=1,
+            started_at=timezone.now(),
+            metadata={},
+        )
+
+        response = self.client.post(
+            "/admin/simulation-lab/reset-world/",
+            self._reset_post_data(world, force=False),
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "仍有运行中的仿真")
+        self.assertTrue(SimulationRun.objects.filter(run_id="sim-run-running").exists())
+
+    def test_reset_world_unresolved_run_without_force(self) -> None:
+        """Unresolved finished run without force_reset should block."""
+        world = self._create_simulation_world()
+        plan = ProjectPlan.objects.create(
+            plan_id="plan-unresolved",
+            name="Unresolved Plan",
+            status=ProjectPlan.Status.ACTIVE,
+            created_at=timezone.now(),
+        )
+        revision = PlanRevision.objects.create(
+            revision_id="rev-unresolved",
+            plan=plan,
+            revision_code="v0.1.0",
+            status=PlanRevision.Status.PUBLISHED,
+            title="Test Revision",
+            change_summary="test",
+            created_at=timezone.now(),
+            published_at=timezone.now(),
+        )
+        SimulationRun.objects.create(
+            run_id="sim-run-unresolved",
+            plan_revision=revision,
+            status=SimulationRun.Status.FAILED,
+            current_day=1,
+            max_turns=1,
+            started_at=timezone.now(),
+            ended_at=timezone.now(),
+            metadata={"scenario": "completed_example"},
+        )
+
+        response = self.client.post(
+            "/admin/simulation-lab/reset-world/",
+            self._reset_post_data(world, force=False),
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "已结束但未处置")
+        self.assertTrue(SimulationRun.objects.filter(run_id="sim-run-unresolved").exists())
+
+    def test_reset_world_force_reset_succeeds(self) -> None:
+        """Force reset with correct confirmation should flush and re-seed."""
+        world = self._create_simulation_world()
+        # Create some pre-existing business data
+        Member.objects.create(
+            member_no="old-member-001",
+            display_name="旧成员",
+            status=Member.Status.ACTIVE,
+            batch_id="old-batch",
+            joined_simulation_day=1,
+            credit_floor=-500,
+            profile={},
+            created_at=timezone.now(),
+        )
+        plan = ProjectPlan.objects.create(
+            plan_id="old-plan",
+            name="旧计划",
+            status=ProjectPlan.Status.ACTIVE,
+            created_at=timezone.now(),
+        )
+        revision = PlanRevision.objects.create(
+            revision_id="old-rev",
+            plan=plan,
+            revision_code="v1.0.0",
+            status=PlanRevision.Status.PUBLISHED,
+            title="旧版本",
+            change_summary="test",
+            created_at=timezone.now(),
+            published_at=timezone.now(),
+        )
+        run = SimulationRun.objects.create(
+            run_id="sim-run-force",
+            plan_revision=revision,
+            status=SimulationRun.Status.RUNNING,
+            current_day=1,
+            max_turns=1,
+            started_at=timezone.now(),
+            metadata={"scenario": "zero_start"},
+        )
+        SimulationTurn.objects.create(
+            turn_id="turn-force",
+            run=run,
+            turn_number=1,
+            simulation_day=1,
+            occurred_at=timezone.now(),
+        )
+
+        response = self.client.post(
+            "/admin/simulation-lab/reset-world/",
+            self._reset_post_data(world, force=True),
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "已成功重置到 zero_start 基线")
+
+        # Old data should be gone
+        self.assertFalse(Member.objects.filter(member_no="old-member-001").exists())
+        self.assertFalse(SimulationRun.objects.filter(run_id="sim-run-force").exists())
+        self.assertFalse(SimulationTurn.objects.filter(turn_id="turn-force").exists())
+
+        # Zero-start baseline should exist
+        self.assertTrue(Member.objects.filter(member_no="founder-0001").exists())
+        self.assertTrue(ProjectPlan.objects.filter(plan_id="plan-zero-start").exists())
+        self.assertTrue(PlanRevision.objects.filter(revision_id="plan-zero-start-rev-v0_0_1").exists())
+
+        # No SimulationRun or SimulationTurn should have been created by reset
+        self.assertEqual(SimulationRun.objects.count(), 0)
+        self.assertEqual(SimulationTurn.objects.count(), 0)
+
+    def test_reset_world_writes_maintenance_log(self) -> None:
+        """Successful reset should write a WorldMaintenanceLog in control DB."""
+        from worlds.models import WorldMaintenanceLog
+
+        world = self._create_simulation_world()
+
+        self.client.post(
+            "/admin/simulation-lab/reset-world/",
+            self._reset_post_data(world, force=True),
+            follow=True,
+        )
+
+        log = WorldMaintenanceLog.objects.first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.world_id, world.world_id)
+        self.assertEqual(log.action, WorldMaintenanceLog.Action.RESET_ZERO_START)
+        self.assertEqual(log.status, WorldMaintenanceLog.StatusChoices.SUCCEEDED)
+        self.assertEqual(log.actor_username, self.user.username)
+        self.assertTrue(log.force)
+
+    def test_reset_world_page_shows_count_table_and_reset_form(self) -> None:
+        """The simulation-lab page should show reset module with counts and form."""
+        world = self._create_simulation_world()
+
+        response = self.client.get(f"/admin/simulation-lab/?world_id={world.world_id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "重置仿真世界")
+        self.assertContains(response, "重置到零起点基线")
+        self.assertContains(response, "确认重置")
+        self.assertContains(response, "force_reset")
+        self.assertContains(response, "当前记录数")
+
+    def test_reset_world_with_bootstrap_admin_uses_configured_founder(self) -> None:
+        """With bootstrap admin enabled, zero_start founder is the real admin user."""
+        import os
+        from unittest import mock
+
+        world = self._create_simulation_world()
+        # First, do a regular seed to populate baseline
+        member = Member.objects.create(
+            member_no="some-existing-data",
+            display_name="existing",
+            status=Member.Status.ACTIVE,
+            batch_id="x",
+            joined_simulation_day=0,
+            credit_floor=-100,
+            profile={},
+            created_at=timezone.now(),
+        )
+
+        bootstrap_env = {
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_ENABLED": "true",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_USERNAME": self.user.username,
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_PASSWORD": "not-change-me-pls",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_EMAIL": "admin@test.dev",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_MEMBER_NO": self.user.username,
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_DISPLAY_NAME": "Bootstrap Admin",
+        }
+
+        with mock.patch.dict(os.environ, bootstrap_env, clear=False):
+            response = self.client.post(
+                "/admin/simulation-lab/reset-world/",
+                self._reset_post_data(world, force=True),
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "已成功重置到 zero_start 基线")
+
+        # Reset should have created the bootstrap admin member
+        self.assertTrue(Member.objects.filter(member_no=self.user.username).exists())
+        bootstrap_member = Member.objects.get(member_no=self.user.username)
+        self.assertEqual(bootstrap_member.display_name, "Bootstrap Admin")
+
+        # Founder-0001 should NOT have been created as an extra member
+        self.assertFalse(Member.objects.filter(member_no="founder-0001").exists())
+
+    def test_reset_world_rejects_world_id_mismatch(self) -> None:
+        """confirm_world_id must match the actual world_id."""
+        world = self._create_simulation_world()
+
+        response = self.client.post(
+            "/admin/simulation-lab/reset-world/",
+            {
+                "world_id": world.world_id,
+                "confirm_world_id": "simulation0002",
+                "confirm_text": "确认重置",
+                "force_reset": "on",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "世界ID确认不匹配")
+
+    def test_reset_world_missing_world_id_rejected(self) -> None:
+        """POST without world_id must be rejected, not fallback to any world."""
+        response = self.client.post(
+            "/admin/simulation-lab/reset-world/",
+            {
+                "world_id": "",
+                "confirm_world_id": "anything",
+                "confirm_text": "确认重置",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "必须提交目标 world_id")
+
+    def test_reset_world_nonexistent_world_id_rejected(self) -> None:
+        """POST with a world_id that does not exist must be rejected."""
+        response = self.client.post(
+            "/admin/simulation-lab/reset-world/",
+            {
+                "world_id": "nonexistent",
+                "confirm_world_id": "nonexistent",
+                "confirm_text": "确认重置",
+                "force_reset": "on",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "仿真世界不存在：nonexistent")
+
+    def test_reset_world_realworld_rejected_even_when_simulation0001_present(self) -> None:
+        """Both realworld and simulation0001 exist; POST world_id=realworld
+        must be rejected even if confirm matches simulation0001."""
+        # Create both worlds
+        self._create_simulation_world("simulation0001")
+        WorldRegistry.objects.update_or_create(
+            world_id="realworld",
+            defaults={
+                "name": "Real World",
+                "world_type": WorldRegistry.WorldType.REAL,
+                "database_alias": "default",
+                "database_name": "test_control",
+                "status": WorldRegistry.Status.ACTIVE,
+            },
+        )
+
+        # Post world_id=realworld even though confirm matches simulation0001
+        response = self.client.post(
+            "/admin/simulation-lab/reset-world/",
+            {
+                "world_id": "realworld",
+                "confirm_world_id": "simulation0001",
+                "confirm_text": "确认重置",
+                "force_reset": "on",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "realworld")
+        self.assertContains(response, "只允许对仿真世界执行重置操作")
+
+        # simulation0001 must NOT have been reset
+        self.assertTrue(
+            WorldRegistry.objects.filter(world_id="simulation0001").exists()
+        )
+
+    def test_reset_world_archived_does_not_fallback_to_active(self) -> None:
+        """POST world_id of an archived world must not fallback to another active world."""
+        # Create an archived simulation world
+        WorldRegistry.objects.update_or_create(
+            world_id="simulation0001",
+            defaults={
+                "name": "Simulation 0001",
+                "world_type": WorldRegistry.WorldType.SIMULATION,
+                "database_alias": "default",
+                "database_name": "test_control",
+                "status": WorldRegistry.Status.ARCHIVED,
+            },
+        )
+        # Also create active simulation0002
+        WorldRegistry.objects.update_or_create(
+            world_id="simulation0002",
+            defaults={
+                "name": "Simulation 0002",
+                "world_type": WorldRegistry.WorldType.SIMULATION,
+                "database_alias": "default",
+                "database_name": "test_control",
+                "status": WorldRegistry.Status.ACTIVE,
+            },
+        )
+
+        response = self.client.post(
+            "/admin/simulation-lab/reset-world/",
+            {
+                "world_id": "simulation0001",
+                "confirm_world_id": "simulation0001",
+                "confirm_text": "确认重置",
+                "force_reset": "on",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "只允许对启用状态的仿真世界重置")
+
+    def test_reset_world_flush_failure_writes_failed_maintenance_log(self) -> None:
+        """If flush raises CommandError, a FAILED WorldMaintenanceLog must be written."""
+        from unittest.mock import patch
+        from django.core.management.base import CommandError as CE
+        from worlds.models import WorldMaintenanceLog
+
+        world = self._create_simulation_world()
+
+        with patch("simulation.world_reset.call_command") as mock_flush:
+            mock_flush.side_effect = CE("模拟的 flush 失败")
+
+            response = self.client.post(
+                "/admin/simulation-lab/reset-world/",
+                self._reset_post_data(world, force=True),
+                follow=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "重置失败")
+
+        log = WorldMaintenanceLog.objects.first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.status, WorldMaintenanceLog.StatusChoices.FAILED)
+        self.assertIn("flush", log.message)
+        self.assertIn("清空目标世界数据库失败", log.message)
+        self.assertEqual(log.world_id, world.world_id)
