@@ -67,7 +67,7 @@ C3 默认要求：
 
 ## 零起点自媒体报名与启动门槛仿真
 
-`seed_world --template demo` 用于后台和观察台预览，不代表真实仿真起点。第二轮仿真的起点应更早：只有一个发起人，还没有成熟成员池、候选场地、任务、资源和完整计划。
+`seed_world --template demo` 用于后台和观察台预览，不代表真实仿真起点。第二轮仿真的起点应更早：只有一个发起人，还没有成熟成员池、候选场地、任务、资源和完整计划。启用仿真 bootstrap admin 时，这个发起人使用配置的真实登录成员；未启用时使用非交互 fallback 发起人。
 
 第一版零起点切片使用 `zero_start` 模板：
 
@@ -78,7 +78,7 @@ python manage.py run_zero_start_simulation --world-id simulation0001 --hours 168
 
 该流程会在目标仿真 world 中：
 
-- 只预置一个发起人、一个极简 `ProjectPlan` 和一个已发布 `PlanRevision`。
+- 只预置一个发起人、一个极简 `ProjectPlan` 和一个已发布 `PlanRevision`；启用仿真 bootstrap admin 时，该发起人就是配置的真实登录成员。
 - 按整数小时推进自媒体曝光、主动报名、初筛、候选、备用、项目拒绝和主动退出过程。默认 168 小时是压缩后的观察窗口，不是终局；报名密度不是平均分布，后续波次会随曝光积累逐步增加，用来模拟真实世界中从早期零星报名到后期集中增长的趋势。
 - Virtual applicants and partners are no longer inserted directly by simulation code. The state machine chooses actions, then submits the real fixed-world application forms at `/apply/` and `/apply/partner/`.
 - 当前第一版 driver 是 `http_form`：它会先 GET 报名页并检查关键 HTML 表单字段，再 POST 表单，让 view、form、service、事件账本和数据库写入走真实路径；它不执行浏览器 JS。后续可在同一 driver 边界接入 Playwright 抽样模式，让每类关键行为前 N 次走真实浏览器，其余大量重复样本走 HTTP form。

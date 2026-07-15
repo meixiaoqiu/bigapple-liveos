@@ -46,10 +46,7 @@
               <tr><td class="font-semibold">序号</td><td class="font-mono">{{ event.seq }}</td></tr>
               <tr><td class="font-semibold">事件类型</td><td><span class="badge badge-outline">{{ event.event_type_display }}</span></td></tr>
               <tr><td class="font-semibold">发生时间</td><td>{{ event.occurred_at|date:"Y-m-d H:i:s" }}</td></tr>
-              <tr><td class="font-semibold">聚合类型</td><td>{{ event.aggregate_type }}</td></tr>
-              {% if event.aggregate_id %}
-                <tr><td class="font-semibold">聚合ID</td><td class="font-mono text-sm">{{ event.aggregate_id }}</td></tr>
-              {% endif %}
+              <tr><td class="font-semibold">审计对象</td><td>{{ event.aggregate_type }}{% if event.subject_ref %} / {{ event.subject_ref }}{% endif %}</td></tr>
               {% if event.actor_label %}
                 <tr><td class="font-semibold">行为人</td><td>{{ event.actor_label }}</td></tr>
               {% endif %}

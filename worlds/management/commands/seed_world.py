@@ -50,10 +50,17 @@ class Command(BaseCommand):
             if template == "demo":
                 call_command("seed_demo", stdout=self.stdout, stderr=self.stderr)
             elif template == "zero_start":
-                seed_zero_start()
+                if bootstrap_admin is not None:
+                    self._ensure_simulation_bootstrap_admin(world, bootstrap_admin)
+                    seed_zero_start(
+                        founder_member_no=bootstrap_admin["member_no"],
+                        founder_display_name=bootstrap_admin["display_name"],
+                    )
+                else:
+                    seed_zero_start()
             else:  # pragma: no cover - argparse choices prevent this.
                 raise CommandError(f"Unsupported world seed template: {template}")
-            if bootstrap_admin is not None:
+            if bootstrap_admin is not None and template != "zero_start":
                 self._ensure_simulation_bootstrap_admin(world, bootstrap_admin)
         finally:
             reset_current_world(token)

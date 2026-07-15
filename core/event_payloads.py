@@ -1,31 +1,31 @@
-"""Snapshot payload builders for the unified event ledger."""
+"""Public ledger payload builders for the unified event ledger (v2).
+
+All builders return a dict with ``schema`` == ``PUBLIC_LEDGER_SCHEMA``.
+Private information is recorded as *private_commitments* entries,
+never as raw values in the public payload.
+"""
 
 from __future__ import annotations
 
 from typing import Any
 
+from .event_ledger import PUBLIC_LEDGER_SCHEMA
 from .models import Dispute, LedgerEntry, Member, Proposal, ProposalVote, Resource, RoleAssignment, SystemEvent, Task
 
 
-def iso_or_none(value) -> str | None:
+def _iso(value) -> str | None:
     return value.isoformat() if value else None
 
 
-def member_display_name(member: Member | None) -> str:
+def _member_label(member: Member | None) -> str:
+    """Raw display name — only for generating de-identified labels, never directly in public payload."""
     if member is None:
         return ""
     return str(member.display_name or member.profile.get("display_name") or member.member_no)
 
 
-def public_member_label(name: str, member_no: str = "") -> str:
-    """Return a de-identified public label for observer-visible events.
-
-    Rules:
-    - Prefer *name*, fall back to *member_no*, then "新成员".
-    - 1 char -> "*"
-    - 2 chars -> "<first>*"
-    - 3+ chars -> "<first>**<last>"
-    """
+def _public_member_label(name: str, member_no: str = "") -> str:
+    """De-identified public label."""
     label = (str(name or "").strip() or str(member_no or "").strip() or "新成员")
     if len(label) <= 1:
         return "*"
@@ -34,33 +34,87 @@ def public_member_label(name: str, member_no: str = "") -> str:
     return label[0] + "**" + label[-1]
 
 
-def role_assignment_payload(assignment: RoleAssignment) -> dict[str, Any]:
-    role = assignment.role
-    organization = role.organization
+def _public_ref(*parts: object) -> str:
+    """Build a stable, non-PK public reference string."""
+    cleaned = [str(p).strip().replace(" ", "-") for p in parts if str(p or "").strip()]
+    return ":".join(cleaned) or "unknown"
+
+
+# ---------------------------------------------------------------------------
+# private-commitment helpers
+# ---------------------------------------------------------------------------
+
+def _private(name: str, *, present: bool = True, reason: str = "") -> dict[str, Any]:
+    c: dict[str, Any] = {"name": name, "present": present}
+    if reason:
+        c["reason"] = reason
+    return c
+
+
+# ---------------------------------------------------------------------------
+# schema wrapper
+# ---------------------------------------------------------------------------
+
+def _public_event_payload(
+    *,
+    subject_type: str,
+    subject_ref: str,
+    subject_label: str,
+    action: str,
+    stage: str,
+    summary: str,
+    public_facts: dict[str, Any] | None = None,
+    private_commitments: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Build a v2 public ledger payload."""
     return {
-        "role_assignment_id": assignment.pk,
-        "member_no": assignment.member.member_no,
-        "member_display_name": member_display_name(assignment.member),
-        "role_id": role.pk,
-        "role_name": role.name,
-        "organization_id": organization.pk,
-        "organization_name": organization.name,
-        "status": assignment.status,
-        "start_at": iso_or_none(assignment.start_at),
-        "end_at": iso_or_none(assignment.end_at),
-        "granted_by_id": assignment.granted_by_id,
-        "granted_by_display_name": member_display_name(assignment.granted_by),
-        "revoked_by_id": assignment.revoked_by_id,
-        "revoked_by_display_name": member_display_name(assignment.revoked_by),
-        "source_type": assignment.source_type,
-        "source_proposal_id": assignment.source_proposal_id,
-        "source_proposal_execution_id": assignment.source_proposal_execution_id,
+        "schema": PUBLIC_LEDGER_SCHEMA,
+        "subject": {
+            "type": subject_type,
+            "ref": subject_ref,
+            "label": subject_label,
+        },
+        "action": action,
+        "stage": stage,
+        "summary": summary,
+        "public_facts": dict(public_facts or {}),
+        "private_commitments": list(private_commitments or []),
     }
 
 
-def actor_member_from_ref(actor_ref: dict[str, Any] | None) -> Member | None:
-    """Resolve a service-layer ActorRef JSON object back to a Member when possible."""
+# =========================================================================
+# Payload builders
+# =========================================================================
 
+def role_assignment_payload(assignment: RoleAssignment) -> dict[str, Any]:
+    role = assignment.role
+    public_label = _public_member_label(_member_label(assignment.member), assignment.member.member_no)
+    return _public_event_payload(
+        subject_type="role_assignment",
+        subject_ref=_public_ref("role-assignment", role.name, public_label),
+        subject_label=role.name,
+        action="assigned" if assignment.status == assignment.Status.ACTIVE else "revoked",
+        stage=assignment.status,
+        summary=f"成员 {public_label} {assignment.get_status_display()} {role.name}。",
+        public_facts={
+            "member_label": public_label,
+            "role_name": role.name,
+            "organization_name": role.organization.name,
+            "status": assignment.status,
+            "source_type": assignment.source_type,
+        },
+        private_commitments=[
+            _private("role_assignment_id", reason="角色任命内部ID"),
+            _private("member_id", reason="成员内部ID"),
+            _private("role_id", reason="角色内部ID"),
+            _private("organization_id", reason="组织内部ID"),
+            _private("granted_by_id", reason="任命者内部ID"),
+            _private("revoked_by_id", reason="撤销者内部ID"),
+        ],
+    )
+
+
+def actor_member_from_ref(actor_ref: dict[str, Any] | None) -> Member | None:
     if not actor_ref:
         return None
     actor_id = actor_ref.get("actor_id")
@@ -70,27 +124,31 @@ def actor_member_from_ref(actor_ref: dict[str, Any] | None) -> Member | None:
 
 
 def ledger_entry_payload(entry: LedgerEntry) -> dict[str, Any]:
-    """Snapshot a contribution ledger entry for the unified system event ledger."""
-
-    return {
-        "ledger_entry_id": entry.pk,
-        "member_no": entry.member.member_no,
-        "member_display_name": member_display_name(entry.member),
-        "amount": entry.amount,
-        "entry_type": entry.entry_type,
-        "reason": entry.reason,
-        "related_task_id": entry.related_task_id,
-        "related_event_id": entry.related_event_id,
-        "rule_version": entry.rule_version,
-        "created_at": iso_or_none(entry.created_at),
-        "created_by": entry.created_by,
-        "reviewer": entry.reviewer,
-        "status": entry.status,
-        "reverses_entry_id": entry.reverses_entry_id,
-        "system_event_id": entry.system_event_id,
-        "system_event_seq": entry.system_event.seq if entry.system_event_id else None,
-        "metadata": entry.metadata,
-    }
+    public_label = _public_member_label(_member_label(entry.member), entry.member.member_no)
+    return _public_event_payload(
+        subject_type="ledger_entry",
+        subject_ref=_public_ref("ledger-entry", entry.ledger_entry_id or entry.pk),
+        subject_label=f"积分流水",
+        action=entry.entry_type,
+        stage=entry.status,
+        summary=f"成员 {public_label} {entry.get_entry_type_display()} {entry.amount} 积分。",
+        public_facts={
+            "member_label": public_label,
+            "amount": entry.amount,
+            "entry_type": entry.entry_type,
+            "status": entry.status,
+            "rule_version": entry.rule_version,
+        },
+        private_commitments=[
+            _private("member_no", reason="成员编号属于隐私"),
+            _private("member_id", reason="成员内部ID"),
+            _private("reason_raw", present=bool(entry.reason), reason="账本原因原文不公开"),
+            _private("related_event_id", reason="关联事件ID属于内部"),
+            _private("system_event_id", reason="关联系统事件内部ID"),
+            _private("created_by", reason="创建者标识"),
+            _private("reviewer", reason="审核者标识"),
+        ],
+    )
 
 
 def ledger_entry_event_type(entry: LedgerEntry) -> str:
@@ -111,33 +169,43 @@ def task_event_payload(
     previous_status: str = "",
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Snapshot a task lifecycle transition for the unified system event ledger."""
-
-    payload = {
-        "task_id": task.pk,
+    assignee_label = _public_member_label(
+        _member_label(task.assignee_member), task.assignee_member.member_no
+    ) if task.assignee_member_id else "未指派"
+    facts: dict[str, Any] = {
         "title": task.title,
         "task_type": task.task_type,
-        "action": action,
-        "previous_status": previous_status,
         "status": task.status,
-        "assignee_member_id": task.assignee_member_id,
-        "assignee_member_no": task.assignee_member.member_no if task.assignee_member_id else "",
-        "assignee_display_name": member_display_name(task.assignee_member),
-        "plan_node_id": task.plan_node_id,
-        "source_type": task.source_type,
-        "source_proposal_id": task.source_proposal_id,
-        "source_proposal_execution_id": task.source_proposal_execution_id,
-        "rule_version": task.rule_version,
-        "created_at": iso_or_none(task.created_at),
-        "due_at": iso_or_none(task.due_at),
-        "submitted_at": iso_or_none(task.submitted_at),
-        "reviewed_at": iso_or_none(task.reviewed_at),
-        "actor": actor or {},
-        "metadata": task.metadata,
     }
+    if task.assignee_member_id:
+        facts["assignee_label"] = assignee_label
+    if task.plan_node_id:
+        facts["plan_node_id"] = task.plan_node_id
+    private: list[dict[str, Any]] = [
+        _private("assignee_member_no", reason="指派人成员编号属于隐私"),
+        _private("assignee_member_id", reason="指派人内部ID"),
+        _private("actor", present=bool(actor), reason="操作人属于隐私"),
+        _private("metadata", present=bool(task.metadata), reason="元数据"),
+    ]
+    _TASK_EXTRA_PUBLIC_KEYS: frozenset[str] = frozenset(["action_type", "accepted"])
     if extra:
-        payload.update(extra)
-    return payload
+        for k, v in extra.items():
+            if k in facts:
+                continue
+            if k in _TASK_EXTRA_PUBLIC_KEYS:
+                facts[k] = v
+            else:
+                private.append(_private(k, present=True, reason="任务额外字段不公开"))
+    return _public_event_payload(
+        subject_type="task",
+        subject_ref=_public_ref("task", task.task_id),
+        subject_label=task.title,
+        action=action,
+        stage=task.status,
+        summary=f"任务「{task.title}」{action}，当前状态 {task.get_status_display()}。",
+        public_facts=facts,
+        private_commitments=private,
+    )
 
 
 def resource_adjustment_payload(
@@ -150,25 +218,30 @@ def resource_adjustment_payload(
     warning: bool,
     transaction_id: str = "",
 ) -> dict[str, Any]:
-    """Snapshot a resource stock adjustment for the unified system event ledger."""
-
-    return {
-        "resource_id": resource.pk,
-        "transaction_id": transaction_id,
-        "name": resource.name,
-        "resource_type": resource.resource_type,
-        "unit": resource.unit,
-        "old_stock": str(old_stock),
-        "delta": str(delta),
-        "new_stock": str(resource.current_stock),
-        "warning_threshold": str(resource.warning_threshold),
-        "is_warning": warning,
-        "replenishment_method": resource.replenishment_method,
-        "reason": reason,
-        "actor": actor or {},
-        "updated_at": iso_or_none(resource.updated_at),
-        "metadata": resource.metadata,
-    }
+    name = resource.name or resource.resource_id or str(resource.pk)
+    return _public_event_payload(
+        subject_type="resource",
+        subject_ref=_public_ref("resource", resource.resource_id),
+        subject_label=name,
+        action="adjusted",
+        stage="adjusted",
+        summary=f"资源「{name}」调整 {delta} {resource.unit}。",
+        public_facts={
+            "name": name,
+            "resource_type": resource.resource_type,
+            "unit": resource.unit,
+            "delta": str(delta),
+            "is_warning": warning,
+            "transaction_id": transaction_id,
+        },
+        private_commitments=[
+            _private("old_stock", reason="库存精确值"),
+            _private("new_stock", reason="库存精确值"),
+            _private("warning_threshold", reason="预警阈值"),
+            _private("reason_raw", present=bool(reason), reason="调整原因不公开"),
+            _private("actor", present=bool(actor), reason="操作人属于隐私"),
+        ],
+    )
 
 
 def dispute_event_payload(
@@ -179,71 +252,125 @@ def dispute_event_payload(
     previous_status: str = "",
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Snapshot a dispute lifecycle transition for the unified system event ledger."""
-
-    payload = {
-        "dispute_id": dispute.pk,
-        "dispute_type": dispute.dispute_type,
-        "action": action,
-        "previous_status": previous_status,
-        "status": dispute.status,
-        "claimant_member_id": dispute.claimant_member_id,
-        "claimant_member_no": dispute.claimant_member.member_no,
-        "claimant_display_name": member_display_name(dispute.claimant_member),
-        "respondent_member_id": dispute.respondent_member_id,
-        "respondent_member_no": dispute.respondent_member.member_no if dispute.respondent_member_id else "",
-        "respondent_display_name": member_display_name(dispute.respondent_member),
-        "related_task_id": dispute.related_task_id,
-        "related_ledger_entry_id": dispute.related_ledger_entry_id,
-        "facts": dispute.facts,
-        "evidence_refs": dispute.evidence_refs,
-        "handler": dispute.handler,
-        "reviewer": dispute.reviewer,
-        "resolution": dispute.resolution,
-        "appeal_path": dispute.appeal_path,
-        "submitted_at": iso_or_none(dispute.submitted_at),
-        "resolved_at": iso_or_none(dispute.resolved_at),
-        "actor": actor or {},
-        "metadata": dispute.metadata,
-    }
-    if extra:
-        payload.update(extra)
-    return payload
+    claimant_label = _public_member_label(
+        _member_label(dispute.claimant_member), dispute.claimant_member.member_no
+    ) if dispute.claimant_member_id else ""
+    return _public_event_payload(
+        subject_type="dispute",
+        subject_ref=_public_ref("dispute", dispute.dispute_id),
+        subject_label=dispute.dispute_type,
+        action=action,
+        stage=dispute.status,
+        summary=f"申诉 {dispute.get_dispute_type_display()}（{claimant_label}）{action}。",
+        public_facts={
+            "dispute_type": dispute.dispute_type,
+            "status": dispute.status,
+            "claimant_label": claimant_label,
+        },
+        private_commitments=[
+            _private("claimant_member_no", reason="申诉人编号属于隐私"),
+            _private("claimant_member_id", reason="申诉人内部ID"),
+            _private("respondent_member_no", reason="被申诉人编号属于隐私"),
+            _private("respondent_member_id", reason="被申诉人内部ID"),
+            _private("related_task_id", reason="关联任务内部ID"),
+            _private("related_ledger_entry_id", reason="关联账本内部ID"),
+            _private("facts", reason="详细事实不公开"),
+            _private("evidence_refs", reason="证据引用不公开"),
+            _private("handler", reason="处理人标识"),
+            _private("reviewer", reason="审核人标识"),
+            _private("resolution_raw", present=bool(dispute.resolution), reason="处理结果原文不公开"),
+            _private("actor", present=bool(actor), reason="操作人属于隐私"),
+            _private("metadata", present=bool(dispute.metadata), reason="元数据"),
+        ],
+    )
 
 
 def proposal_payload(proposal: Proposal) -> dict[str, Any]:
-    return {
-        "proposal_id": proposal.pk,
-        "proposal_no": proposal.proposal_no,
-        "proposal_type": proposal.proposal_type,
-        "title": proposal.title,
-        "status": proposal.status,
-        "proposer_member_id": proposal.proposer_member_id,
-        "proposer_member_no": proposal.proposer_member.member_no if proposal.proposer_member_id else "",
-        "proposer_member_display_name": member_display_name(proposal.proposer_member),
-        "proposer_role_assignment_id": proposal.proposer_role_assignment_id,
-        "organization_id": proposal.organization_id,
-        "pass_ratio": proposal.pass_ratio,
-        "quorum_count": proposal.quorum_count,
-        "deadline_at": iso_or_none(proposal.deadline_at),
-        "result": proposal.result_json,
-        "payload": proposal.payload_json,
-    }
+    proposer_label = _public_member_label(
+        _member_label(proposal.proposer_member), proposal.proposer_member.member_no
+    ) if proposal.proposer_member_id else ""
+    ref = _public_ref("proposal", proposal.proposal_no) if proposal.proposal_no else _public_ref(
+        "proposal", proposal.proposal_type, proposal.title
+    )
+    return _public_event_payload(
+        subject_type="proposal",
+        subject_ref=ref,
+        subject_label=proposal.proposal_type,
+        action=proposal.status,
+        stage=proposal.status,
+        summary=f"提案 {proposal.proposal_no or '无编号'}「{proposal.title}」{proposal.get_status_display()}。",
+        public_facts={
+            "proposal_no": proposal.proposal_no or "",
+            "proposal_type": proposal.proposal_type,
+            "title": proposal.title,
+            "status": proposal.status,
+            "proposer_label": proposer_label,
+            "pass_ratio": proposal.pass_ratio,
+            "quorum_count": proposal.quorum_count,
+        },
+        private_commitments=[
+            _private("proposal_id", reason="提案内部ID"),
+            _private("proposer_member_no", reason="提案人编号属于隐私"),
+            _private("proposer_member_id", reason="提案人内部ID"),
+            _private("proposer_role_assignment_id", reason="提案人角色任命内部ID"),
+            _private("organization_id", reason="组织内部ID"),
+            _private("payload", present=bool(proposal.payload_json), reason="提案payload不公开"),
+            _private("result", present=bool(proposal.result_json), reason="投票结果详情不公开"),
+        ],
+    )
 
 
 def proposal_vote_payload(vote: ProposalVote, *, previous_choice: str | None = None) -> dict[str, Any]:
     proposal = vote.proposal
-    return {
-        "proposal_id": proposal.pk,
-        "proposal_no": proposal.proposal_no,
-        "proposal_type": proposal.proposal_type,
-        "title": proposal.title,
-        "voter_member_id": vote.voter_member_id,
-        "voter_member_no": vote.voter_member.member_no,
-        "voter_member_display_name": member_display_name(vote.voter_member),
-        "voter_role_assignment_id": vote.voter_role_assignment_id,
-        "choice": vote.choice,
-        "previous_choice": previous_choice,
-        "reason": vote.reason,
-        "voted_at": iso_or_none(vote.voted_at),
-    }
+    voter_label = _public_member_label(
+        _member_label(vote.voter_member), vote.voter_member.member_no
+    )
+    ref = _public_ref("proposal", proposal.proposal_no) if proposal.proposal_no else _public_ref(
+        "proposal", proposal.proposal_type, proposal.title
+    )
+    return _public_event_payload(
+        subject_type="proposal_vote",
+        subject_ref=ref,
+        subject_label=proposal.proposal_type,
+        action=vote.choice,
+        stage=proposal.status,
+        summary=f"提案 {proposal.proposal_no or '无编号'} 收到投票：{vote.get_choice_display()}（{voter_label}）。",
+        public_facts={
+            "proposal_no": proposal.proposal_no or "",
+            "proposal_type": proposal.proposal_type,
+            "title": proposal.title,
+            "choice": vote.choice,
+            "voter_label": voter_label,
+        },
+        private_commitments=[
+            _private("proposal_id", reason="提案内部ID"),
+            _private("voter_member_no", reason="投票人编号属于隐私"),
+            _private("voter_member_id", reason="投票人内部ID"),
+            _private("voter_role_assignment_id", reason="投票人角色任命内部ID"),
+        ],
+    )
+
+
+def proposal_execution_payload(proposal: Proposal, *, action_type: str, execution_status: str) -> dict[str, Any]:
+    base = proposal_payload(proposal)
+    public_facts = dict(base["public_facts"])
+    public_facts["execution_action_type"] = action_type
+    public_facts["execution_status"] = execution_status
+    private_commitments = list(base["private_commitments"])
+    private_commitments.append(_private("execution_result", present=True, reason="执行结果包含内部对象ID"))
+    return _public_event_payload(
+        subject_type="proposal_execution",
+        subject_ref=base["subject"]["ref"],
+        subject_label=proposal.proposal_type,
+        action="executed",
+        stage=proposal.status,
+        summary=f"提案 {proposal.proposal_no} 执行完成：{action_type}。",
+        public_facts=public_facts,
+        private_commitments=private_commitments,
+    )
+
+
+# Public aliases for backward-compatible imports.
+iso_or_none = _iso
+member_display_name = _member_label
+public_member_label = _public_member_label

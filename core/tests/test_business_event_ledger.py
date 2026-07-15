@@ -98,7 +98,7 @@ class BusinessEventLedgerTests(TestCase):
             aggregate_type="Task",
             aggregate_id=task.pk,
         )
-        self.assertEqual(created_event.payload_json["source_type"], Task.SourceType.DIRECT)
+        self.assertEqual(created_event.payload_json["public_facts"]["status"], Task.Status.DRAFT)
         self.assertTrue(verify_event_chain())
 
     def test_dispute_lifecycle_actions_append_system_events(self) -> None:

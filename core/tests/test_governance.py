@@ -9,7 +9,17 @@ from django.test import RequestFactory, TestCase
 from django.utils import timezone
 
 from core.admin import SystemEventAdmin
-from core.event_ledger import append_event, hash_json, verify_event_chain
+from core.event_ledger import PUBLIC_LEDGER_SCHEMA, append_event, hash_json, verify_event_chain
+
+_v2 = lambda s="manual": {
+    "schema": PUBLIC_LEDGER_SCHEMA,
+    "subject": {"type": "test", "ref": s, "label": "测试"},
+    "action": s,
+    "stage": "test",
+    "summary": "测试事件。",
+    "public_facts": {},
+    "private_commitments": [],
+}
 from core.models import (
     SystemEvent,
     Member,
@@ -178,7 +188,7 @@ class GovernanceKernelTests(TestCase):
             aggregate_type="RoleAssignment",
             aggregate_id=str(assignment.pk),
         )
-        self.assertEqual(assigned_event.payload_json["source_type"], RoleAssignment.SourceType.DIRECT)
+        self.assertEqual(assigned_event.payload_json["public_facts"]["source_type"], RoleAssignment.SourceType.DIRECT)
 
         revoke_role_assignment(assignment=assignment, revoked_by=grantor)
 
@@ -243,7 +253,7 @@ class GovernanceKernelTests(TestCase):
             aggregate_type="RoleAssignment",
             aggregate_id="manual",
             actor_member=grantor,
-            payload_json={"action": "manual"},
+            payload_json=_v2(),
         )
         admin = SystemEventAdmin(SystemEvent, AdminSite())
         user = get_user_model().objects.create_superuser("governance-admin", "admin@example.com", "password")
@@ -262,7 +272,7 @@ class GovernanceKernelTests(TestCase):
             aggregate_type="RoleAssignment",
             aggregate_id="manual",
             actor_member=grantor,
-            payload_json={"action": "manual"},
+            payload_json=_v2(),
         )
 
         event.payload_json = {"tampered": True}
@@ -284,14 +294,16 @@ class GovernanceKernelTests(TestCase):
 
     def test_payload_hash_uses_canonical_json_key_order(self):
         self.assertEqual(hash_json({"a": 1, "b": 2}), hash_json({"b": 2, "a": 1}))
+        p = dict(_v2(), **{"b": 2, "a": 1})
         event = append_event(
             event_type=SystemEvent.EventType.ROLE_ASSIGNED,
             aggregate_type="RoleAssignment",
             aggregate_id="manual",
-            payload_json={"b": 2, "a": 1},
+            payload_json=p,
         )
-
-        SystemEvent.objects.filter(pk=event.pk).update(payload_json={"a": 1, "b": 2})
+        # Update with same content but different key order; must preserve schema.
+        ordered = dict(_v2(), **{"a": 1, "b": 2})
+        SystemEvent.objects.filter(pk=event.pk).update(payload_json=ordered)
 
         self.assertTrue(verify_event_chain())
 
@@ -300,7 +312,7 @@ class GovernanceKernelTests(TestCase):
             event_type=SystemEvent.EventType.ROLE_ASSIGNED,
             aggregate_type="RoleAssignment",
             aggregate_id="manual",
-            payload_json={"action": "manual"},
+            payload_json=_v2(),
         )
 
         SystemEvent.objects.filter(pk=event.pk).update(event_hash="0" * 64)
@@ -312,13 +324,13 @@ class GovernanceKernelTests(TestCase):
             event_type=SystemEvent.EventType.ROLE_ASSIGNED,
             aggregate_type="RoleAssignment",
             aggregate_id="first",
-            payload_json={"action": "first"},
+            payload_json=_v2("first"),
         )
         second = append_event(
             event_type=SystemEvent.EventType.ROLE_REVOKED,
             aggregate_type="RoleAssignment",
             aggregate_id="second",
-            payload_json={"action": "second"},
+            payload_json=_v2("second"),
         )
 
         SystemEvent.objects.filter(pk=second.pk).update(prev_hash="bad-prev-hash")
@@ -357,3 +369,174 @@ class GovernanceKernelTests(TestCase):
         assignment.save(update_fields=["status", "updated_at"])
 
         self.assertFalse(member_has_permission(member, "access.warehouse", resource=resource))
+
+    # ---- v2 payload validation ------------------------------------------
+
+    def _v2_payload(self, **extra) -> dict:
+        return {
+            "schema": PUBLIC_LEDGER_SCHEMA,
+            "subject": {"type": "test", "ref": "test:1", "label": "测试"},
+            "action": "created",
+            "stage": "created",
+            "summary": "测试事件。",
+            "public_facts": {"status": "ok"},
+            "private_commitments": [{"name": "contact", "present": True, "reason": "联系方式不公开"}],
+            **extra,
+        }
+
+    def test_append_event_accepts_legal_v2_payload(self):
+        payload = self._v2_payload()
+        event = append_event(
+            event_type=SystemEvent.EventType.ROLE_ASSIGNED,
+            aggregate_type="RoleAssignment",
+            aggregate_id="manual",
+            payload_json=payload,
+        )
+        self.assertEqual(event.payload_json, payload)
+
+    def test_append_event_rejects_denylist_key_in_public_facts(self):
+        payload = self._v2_payload()
+        payload["public_facts"]["contact"] = "should-not-appear"
+        with self.assertRaisesMessage(ValueError, "contact"):
+            append_event(
+                event_type=SystemEvent.EventType.ROLE_ASSIGNED,
+                aggregate_type="RoleAssignment",
+                aggregate_id="manual",
+                payload_json=payload,
+            )
+
+    def test_append_event_rejects_denylist_key_at_top_level(self):
+        payload = self._v2_payload()
+        payload["member_no"] = "secret-member-no"
+        with self.assertRaisesMessage(ValueError, "member_no"):
+            append_event(
+                event_type=SystemEvent.EventType.ROLE_ASSIGNED,
+                aggregate_type="RoleAssignment",
+                aggregate_id="manual",
+                payload_json=payload,
+            )
+
+    def test_append_event_rejects_denylist_key_in_subject(self):
+        payload = self._v2_payload()
+        payload["subject"]["member_no"] = "secret-member-no"
+        with self.assertRaisesMessage(ValueError, "member_no"):
+            append_event(
+                event_type=SystemEvent.EventType.ROLE_ASSIGNED,
+                aggregate_type="RoleAssignment",
+                aggregate_id="manual",
+                payload_json=payload,
+            )
+
+    def test_append_event_rejects_extra_key_in_private_commitments(self):
+        payload = self._v2_payload()
+        payload["private_commitments"] = [
+            {"name": "contact", "present": True, "reason": "x", "raw_value": "secret"}
+        ]
+        with self.assertRaisesMessage(ValueError, "raw_value"):
+            append_event(
+                event_type=SystemEvent.EventType.ROLE_ASSIGNED,
+                aggregate_type="RoleAssignment",
+                aggregate_id="manual",
+                payload_json=payload,
+            )
+
+    def test_append_event_allows_denylist_name_in_private_commitments(self):
+        payload = self._v2_payload()
+        payload["private_commitments"] = [
+            {"name": "contact", "present": True, "reason": "联系方式不公开"},
+            {"name": "email", "present": True, "reason": "邮箱不公开"},
+            {"name": "member_no", "present": True, "reason": "成员编号不公开"},
+            {"name": "proposal_id", "present": True, "reason": "提案内部ID"},
+            {"name": "role_id", "present": True, "reason": "角色内部ID"},
+            {"name": "contact_info", "present": True, "reason": "联系方式不公开"},
+        ]
+        event = append_event(
+            event_type=SystemEvent.EventType.ROLE_ASSIGNED,
+            aggregate_type="RoleAssignment",
+            aggregate_id="manual",
+            payload_json=payload,
+        )
+        self.assertEqual(len(event.payload_json["private_commitments"]), 6)
+
+    def test_append_event_rejects_proposal_id_in_public_facts(self):
+        payload = self._v2_payload()
+        payload["public_facts"]["proposal_id"] = "internal-pk"
+        with self.assertRaisesMessage(ValueError, "proposal_id"):
+            append_event(
+                event_type=SystemEvent.EventType.ROLE_ASSIGNED,
+                aggregate_type="RoleAssignment",
+                aggregate_id="manual",
+                payload_json=payload,
+            )
+
+    def test_append_event_rejects_role_id_in_public_facts(self):
+        payload = self._v2_payload()
+        payload["public_facts"]["role_id"] = "internal-pk"
+        with self.assertRaisesMessage(ValueError, "role_id"):
+            append_event(
+                event_type=SystemEvent.EventType.ROLE_ASSIGNED,
+                aggregate_type="RoleAssignment",
+                aggregate_id="manual",
+                payload_json=payload,
+            )
+
+    def test_append_event_rejects_display_name_in_public_facts(self):
+        payload = self._v2_payload()
+        payload["public_facts"]["display_name"] = "真实姓名"
+        with self.assertRaisesMessage(ValueError, "display_name"):
+            append_event(
+                event_type=SystemEvent.EventType.ROLE_ASSIGNED,
+                aggregate_type="RoleAssignment",
+                aggregate_id="manual",
+                payload_json=payload,
+            )
+
+    def test_append_event_rejects_contact_info_in_public_facts(self):
+        payload = self._v2_payload()
+        payload["public_facts"]["contact_info"] = "secret"
+        with self.assertRaisesMessage(ValueError, "contact_info"):
+            append_event(
+                event_type=SystemEvent.EventType.ROLE_ASSIGNED,
+                aggregate_type="RoleAssignment",
+                aggregate_id="manual",
+                payload_json=payload,
+            )
+
+    def test_append_event_rejects_nested_denylist_key(self):
+        payload = self._v2_payload()
+        payload["public_facts"]["details"] = {"member_no": "secret-nested"}
+        with self.assertRaisesMessage(ValueError, "member_no"):
+            append_event(
+                event_type=SystemEvent.EventType.ROLE_ASSIGNED,
+                aggregate_type="RoleAssignment",
+                aggregate_id="manual",
+                payload_json=payload,
+            )
+
+    def test_resource_adjustment_payload_with_empty_name_uses_resource_id_fallback(self):
+        from core.event_ledger import validate_public_ledger_payload
+        from core.event_payloads import resource_adjustment_payload
+
+        resource = Resource.objects.create(
+            resource_id="res-no-name",
+            resource_type=Resource.ResourceType.TOOLS,
+            unit=Resource.Unit.COUNT,
+            current_stock=10,
+            daily_consumption_estimate=1,
+            replenishment_method=Resource.ReplenishmentMethod.MANUAL_ADJUSTMENT,
+            loss_rate=0,
+            warning_threshold=5,
+            shortage_impact={},
+            updated_at=timezone.now(),
+            rule_version="v1",
+        )
+        p = resource_adjustment_payload(
+            resource=resource,
+            delta=3,
+            reason="补充",
+            warning=False,
+            old_stock=10,
+        )
+        self.assertEqual(p["subject"]["label"], "res-no-name")
+        self.assertEqual(p["public_facts"]["name"], "res-no-name")
+        validate_public_ledger_payload(p)  # must not raise

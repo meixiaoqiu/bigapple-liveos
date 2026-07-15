@@ -152,7 +152,7 @@ Admin 中的治理关系查看入口：
 - `Permission` 和 `RolePermission` 仍保留为底层模型供角色 inline、自动补全和初始化命令使用，但不作为成员管理的顶层入口。
 - `LedgerEntry` 是贡献积分业务流水，余额从 `posted` 流水汇总得到；冲正通过新的 `reversal` 流水表达，流水会关联到对应 `SystemEvent`，排序和审计顺序使用 `SystemEvent.seq`。
 - `Task` 列表会显示来源类型，支持区分直接运营创建、提案执行、计划派生、仿真产生或系统规则产生的任务；由提案执行产生的任务会关联来源提案和执行记录。
-- `SystemEvent` 是统一只读事件账本，只能查看 `seq`、事件类型、聚合对象、行为人、行为角色任命、发生时间和短 hash。后续专用业务页面可按聚合对象和事件类型提供只读汇总，便于区分提案、角色任命、任务、申诉、积分等事件分布。
+- `SystemEvent` 是统一只读事件账本，在 Admin 中只能查看 `seq`、事件类型、聚合对象（含内部 `aggregate_id`）、行为人、行为角色任命、发生时间和短 hash。observer 公开页面使用 `subject_ref`（取自 `payload_json.subject.ref`）作为审计对象标识，不展示内部 `aggregate_id`。
 
 ## P1 强化范围
 

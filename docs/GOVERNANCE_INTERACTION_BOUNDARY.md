@@ -96,6 +96,8 @@ Member -> active RoleAssignment -> RolePermission -> Permission
 
 `Proposal` 只处理“是否批准某件事”。它负责提案内容、表决范围、投票资格快照、通过比例、最低参与人数、截止时间和执行结果。
 
+投票资格快照只包含能登录 workspace 的成员：成员必须满足角色/组织/全员范围规则，并且绑定 active Django `User`，或存在 active `User.username == Member.member_no` 的兼容登录账号。没有登录账号的系统主体、历史主体或仿真主体不能进入人工投票快照。
+
 通过比例按严格超过阈值计算。`pass_ratio=50` 表示赞成票必须超过半数，而不是达到一半；因此 1 人需 1 票、2 人需 2 票、3 人需 2 票、4 人需 3 票。
 
 当前重点支持：

@@ -27,7 +27,7 @@
               <th>序号</th>
               <th>事件类型</th>
               <th>发生时间</th>
-              <th>聚合对象</th>
+              <th>审计对象</th>
               <th>行为人</th>
               <th>事件哈希</th>
               <th></th>
@@ -42,11 +42,7 @@
                 </td>
                 <td class="text-sm text-base-content/70">{{ e.occurred_at|date:"Y-m-d H:i" }}</td>
                 <td class="text-sm">
-                  {% if e.aggregate_id %}
-                    <span class="text-base-content/70">{{ e.aggregate_type }}:</span> {{ e.aggregate_id }}
-                  {% else %}
-                    <span class="text-base-content/50">—</span>
-                  {% endif %}
+                  {{ e.aggregate_type }}{% if e.subject_ref %}: {{ e.subject_ref }}{% endif %}
                 </td>
                 <td class="text-sm">{{ e.actor_label|default:"—" }}</td>
                 <td class="font-mono text-xs text-base-content/50">{{ e.event_hash_short }}</td>

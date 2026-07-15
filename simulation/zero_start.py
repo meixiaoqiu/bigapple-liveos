@@ -140,7 +140,7 @@ def _resolved_zero_start_run_ids() -> set[str]:
 @atomic_for_model(SimulationRun)
 def _run_zero_start(*, revision: PlanRevision, hours: int, run: SimulationRun | None = None) -> dict[str, object]:
     now = timezone.now()
-    founder = Member.objects.get(member_no=ZERO_START_FOUNDER_MEMBER_NO)
+    founder = _zero_start_founder(revision)
     if run is None:
         run = SimulationRun.objects.create(
             run_id=generate_simulation_run_id(),
@@ -355,10 +355,27 @@ def _metadata_int(metadata: dict[str, object], key: str, default: int) -> int:
 def _startup_gate_summary(run: SimulationRun) -> dict[str, object]:
     return startup_gate_summary_for_run(
         run,
-        founder_member_no=ZERO_START_FOUNDER_MEMBER_NO,
+        founder_member_no=_founder_member_no_for_run(run),
         capability_requirements=STARTUP_CAPABILITY_REQUIREMENTS,
         responsibility_document_requirements=STARTUP_DOCUMENT_SIGNER_REQUIREMENTS,
     )
+
+
+def _zero_start_founder(revision: PlanRevision) -> Member:
+    founder_no = ""
+    if isinstance(revision.created_by, dict):
+        founder_no = str(revision.created_by.get("actor_id") or "").strip()
+    if not founder_no and isinstance(revision.plan.owner, dict):
+        founder_no = str(revision.plan.owner.get("actor_id") or "").strip()
+    founder_no = founder_no or ZERO_START_FOUNDER_MEMBER_NO
+    return Member.objects.get(member_no=founder_no)
+
+
+def _founder_member_no_for_run(run: SimulationRun) -> str:
+    founder_no = str((run.metadata or {}).get("founder_member_no") or "").strip()
+    if founder_no:
+        return founder_no
+    return _zero_start_founder(run.plan_revision).member_no
 
 
 def _simulation_day(hour: int) -> int:

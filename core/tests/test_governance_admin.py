@@ -13,6 +13,17 @@ from django.utils import timezone
 
 from core.access import user_has_governance_permission
 from core.admin import SystemEventAdmin, MemberAdmin, ProposalAdmin, RoleAdmin
+from core.event_ledger import PUBLIC_LEDGER_SCHEMA
+
+_v2 = lambda action="manual": {
+    "schema": PUBLIC_LEDGER_SCHEMA,
+    "subject": {"type": "test", "ref": action, "label": "测试"},
+    "action": action,
+    "stage": "test",
+    "summary": "测试事件。",
+    "public_facts": {},
+    "private_commitments": [],
+}
 from core.event_ledger import append_event
 from core.governance_setup import (
     GOVERNANCE_ADMIN_ORGANIZATION_NAME,
@@ -54,7 +65,7 @@ class GovernanceAdminUsabilityTests(TestCase):
             event_type=SystemEvent.EventType.ROLE_ASSIGNED,
             aggregate_type="RoleAssignment",
             aggregate_id="manual",
-            payload_json={"action": "manual"},
+            payload_json=_v2(),
         )
         admin = SystemEventAdmin(SystemEvent, AdminSite())
         request = self.admin_request()

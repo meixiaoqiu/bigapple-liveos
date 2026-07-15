@@ -12,7 +12,8 @@ from django.db import IntegrityError
 from django.utils import timezone
 
 from core.db import atomic_for_model
-from core.event_ledger import append_event
+from core.event_ledger import PUBLIC_LEDGER_SCHEMA, append_event
+from core.event_payloads import _private, member_display_name, public_member_label
 from core.exceptions import DomainError
 from core.member_roles import (
     ROLE_CANDIDATE,
@@ -23,7 +24,6 @@ from core.member_roles import (
 )
 from core.models import Member, MemberApplication, PartnerApplication, Proposal, SystemEvent
 
-from .event_payloads import member_display_name, public_member_label
 from .identity_services import register_member
 from .models.applications import ROLE_GAP_LABELS
 from .models.events import Event
@@ -116,45 +116,81 @@ def generate_partner_application_id() -> str:
 
 
 def member_application_payload(application: MemberApplication) -> dict[str, Any]:
+    role_label = ROLE_GAP_LABELS.get(application.role_gap, application.role_gap)
+    applicant_label = public_member_label(application.applicant_name)
     return {
-        "application_id": application.application_id,
-        "applicant_name": application.applicant_name,
-        "status": application.status,
-        "requested_member_no": application.requested_member_no,
-        "account_username": application.account_user.get_username() if application.account_user_id else "",
-        "linked_member_no": application.linked_member.member_no if application.linked_member_id else "",
-        "role_gap": application.role_gap,
-        "availability_hours_per_week": application.availability_hours_per_week,
-        "availability_slots": application.availability_slots,
-        "capability_scores": application.capability_scores,
-        "can_issue_responsibility_documents": application.can_issue_responsibility_documents,
-        "document_authority_domains": application.document_authority_domains,
-        "dynamic_answers": application.dynamic_answers,
-        "frozen_at": application.frozen_at.isoformat() if application.frozen_at else None,
-        "admission_proposal_id": application.admission_proposal_id,
-        "submitted_at": application.submitted_at.isoformat() if application.submitted_at else None,
-        "decided_at": application.decided_at.isoformat() if application.decided_at else None,
-        "metadata": application.metadata,
+        "schema": PUBLIC_LEDGER_SCHEMA,
+        "subject": {
+            "type": "member_application",
+            "ref": application.application_id,
+            "label": "成员报名",
+        },
+        "action": application.status,
+        "stage": application.status,
+        "summary": (
+            f"收到成员报名，报名者 {applicant_label}，"
+            f"意向角色 {role_label}（{application.get_status_display()}）。"
+        ),
+        "public_facts": {
+            "application_id": application.application_id,
+            "public_applicant_label": applicant_label,
+            "role_gap": application.role_gap,
+            "role_gap_label": role_label,
+            "stage": application.status,
+            "status": application.status,
+        },
+        "private_commitments": [
+            _private("applicant_name_raw", reason="真实姓名属于隐私"),
+            _private("contact", reason="联系方式属于隐私"),
+            _private("account_user_id", present=bool(application.account_user_id), reason="账号ID属于隐私"),
+            _private("requested_member_no", present=bool(application.requested_member_no), reason="成员编号属于隐私"),
+            _private("linked_member_id", present=bool(application.linked_member_id), reason="关联成员内部ID"),
+            _private("motivation", reason="报名动机属于隐私"),
+            _private("availability_hours_per_week", reason="可用时长属于隐私"),
+            _private("availability_slots", present=bool(application.availability_slots), reason="可用时段属于隐私"),
+            _private("capability_scores", present=bool(application.capability_scores), reason="能力评分属于隐私"),
+            _private("dynamic_answers", present=bool(application.dynamic_answers), reason="动态问答内容属于隐私"),
+            _private("document_authority_domains", reason="文件签署域属于隐私"),
+            _private("admission_proposal_id", present=bool(application.admission_proposal_id), reason="准入提案内部ID"),
+            _private("frozen_at", reason="冻结时间"),
+            _private("submitted_at", reason="提交时间"),
+            _private("decided_at", reason="决定时间"),
+            _private("metadata", present=bool(application.metadata), reason="元数据"),
+        ],
     }
 
 
 def partner_application_payload(application: PartnerApplication) -> dict[str, Any]:
     return {
-        "application_id": application.application_id,
-        "organization_name": application.organization_name,
-        "contact_name": application.contact_name,
-        "status": application.status,
-        "service_domains": application.service_domains,
-        "can_issue_responsibility_documents": application.can_issue_responsibility_documents,
-        "responsibility_document_domains": application.responsibility_document_domains,
-        "qualification_summary": application.qualification_summary,
-        "quote_summary": application.quote_summary,
-        "service_area": application.service_area,
-        "delivery_cycle_days": application.delivery_cycle_days,
-        "constraints": application.constraints,
-        "submitted_at": application.submitted_at.isoformat() if application.submitted_at else None,
-        "reviewed_at": application.reviewed_at.isoformat() if application.reviewed_at else None,
-        "metadata": application.metadata,
+        "schema": PUBLIC_LEDGER_SCHEMA,
+        "subject": {
+            "type": "partner_application",
+            "ref": application.application_id,
+            "label": "合作方报名",
+        },
+        "action": application.status,
+        "stage": application.status,
+        "summary": (
+            f"收到合作方「{application.organization_name}」报名，"
+            f"服务领域 {', '.join(application.service_domains) if application.service_domains else '未指定'}。"
+        ),
+        "public_facts": {
+            "application_id": application.application_id,
+            "organization_name": application.organization_name,
+            "service_domains": application.service_domains,
+            "status": application.status,
+            "stage": application.status,
+        },
+        "private_commitments": [
+            _private("contact_name", reason="联系人姓名属于隐私"),
+            _private("contact_info", reason="联系方式属于隐私"),
+            _private("qualification_summary", reason="资质摘要属于隐私"),
+            _private("quote_summary", reason="报价摘要属于隐私"),
+            _private("constraints", present=bool(application.constraints), reason="约束条件"),
+            _private("submitted_at", reason="提交时间"),
+            _private("reviewed_at", reason="审核时间"),
+            _private("metadata", present=bool(application.metadata), reason="元数据"),
+        ],
     }
 
 

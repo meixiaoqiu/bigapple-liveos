@@ -11,6 +11,7 @@ from core.proposals.voting import cast_proposal_vote
 from core.tests.helpers import (
     create_governance_admin_member,
     create_member,
+    ensure_login_user_for_member,
     login_as_member,
 )
 
@@ -127,6 +128,7 @@ class WorkspaceApplicationsReviewTests(TestCase):
 
     def test_two_governance_majority_requires_both_yes_votes(self) -> None:
         second_governance = create_governance_admin_member("gov-review-0002")
+        ensure_login_user_for_member(second_governance)
         application = _submit_application(member_no="review-applicant-two-voters")
         proposal = application.admission_proposal
 

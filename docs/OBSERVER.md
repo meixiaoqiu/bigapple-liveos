@@ -48,7 +48,13 @@ Observer entrypoints are `http://127.0.0.1:20101/observer/` or `http://bigreal.l
 
 `/observer/events/` 是面向访客的公开社区事件流。首页“事件时间线”和事件流列表都基于 `core_event` 的公开记录，按时间展示社区当前发生的事情。每一条公开事件都可以进入 `/observer/events/<event_id>/` 查看详情。
 
-列表页 `/observer/events/` 展示最近 100 条公开事件，每条显示标题、摘要、事件类型、严重程度、发生时间和来源。详情页 `/observer/events/<event_id>/` 展示完整标题、摘要、公开 payload 摘要、关联任务或申诉，并在底部展示能匹配到的底层审计证明。
+列表页 `/observer/events/` 展示最近 100 条公开事件，每条显示标题、摘要、事件类型、严重程度、发生时间和来源。详情页 `/observer/events/<event_id>/` 展示完整标题和摘要，并用产品化的"事件概要"语义摘要取代原来的数据库字段表：对成员报名事件专项展示事项、报名者（脱敏）、意向角色、准入提案和阶段说明；对其他事件展示事件类型、严重程度、来源和关联业务对象，白名单字段使用中文标签映射。
+
+详情页底部的"审计证明"模块默认展开，使用 daisyUI 折叠面板。每条审计记录的标题栏显示 seq、事件类型、短 hash 和链校验状态；展开后展示完整 hash 值（payload_hash / prev_hash / event_hash）、逐项服务端校验结果、公开 payload，并提供"现场复算哈希链"按钮。点击按钮弹出 modal，逐步展示 browser 端使用 SHA-256 复算 payload_hash 和 event_hash 的完整过程，并对比服务端结果。prev_hash 校验由服务端完成（需查找上一条事件）。为支持 http:// 环境，内置纯 JS SHA-256 fallback。
+
+新 SystemEvent.payload_json 本身就是公开可验证的 payload（schema = `liveos.system-event.public.v1`）。payload_hash = SHA-256(canonical_json(payload_json))。event_hash = SHA-256(canonical_json(event_hash_input_v2))，其中 event_hash_input_v2 包含 seq、event_type、aggregate_type、subject_ref、payload_hash、prev_hash；subject_ref 取自 payload_json.subject.ref，不使用内部 aggregate_id，可在浏览器端完整复算。
+
+event_id 规则：成员报名事件为 `member-application-{stage}-{application_id}`，其他事件为 `{event_type}-{业务对象 ID}`。event_id 用于幂等和公开追踪，不追求短码。
 
 公开事件流不直接展示原始 `core_event.payload`。详情页只展示脱敏后的公开字段，敏感字段和内部 ID 不进入模板上下文。
 
@@ -56,24 +62,22 @@ Observer entrypoints are `http://127.0.0.1:20101/observer/` or `http://bigreal.l
 
 `/observer/event-ledger/` 是隐藏的高级审计入口，基于 `core_system_event` 哈希链提供每条记录的脱敏投影和链校验。它不是普通观察者的主入口，不在首页、事件流或事件详情页的导航中展示。
 
-普通用户通过 `/observer/events/<event_id>/` 查看公开事件详情时，页面底部"审计证明"模块会展示与该事件关联的多条底层账本记录（seq、event_type_display、occurred_at、event_hash_short、chain_valid），不暴露 `/observer/event-ledger/` 链接。
+SystemEvent v2 设计原则：
 
-单项审计记录可通过永久链接 `/observer/event-ledger/<seq>/` 直接访问，但页面之间不做引导跳转。
+- `payload_json` 本身为公开可验证 payload（schema = `liveos.system-event.public.v1`），隐私信息通过 `private_commitments` 数组声明"存在但未公开"。
+- `payload_hash` = SHA-256(canonical_json(payload_json))，公开可复算。
+- `event_hash` v2 输入不含 `actor_member_id` / `actor_role_assignment_id`，公开可复算。
+- 密钥、联系方式、用户名、真实姓名等绝不写入 `public_facts`。
+- 旧格式事件（无 schema）显示"旧格式审计事件，不公开复算"，chain_valid 可能为 false。这是清库前允许状态。
 
-公开投影规则：
+普通用户通过 `/observer/events/<event_id>/` 查看公开事件详情时，审计证明默认展开，不暴露 `/observer/event-ledger/` 链接。
 
-- payload 只展示白名单字段（application_id / proposal_no / task_id / resource_id / dispute_id / status / action_type / source / stage / role_gap / role_gap_label / public_applicant_label / public_member_label / reason / title / summary），敏感字段（contact / email / phone / wechat / username / password / account_user_id / user_id / member_id 等）一律不展示。
-- reason / summary 类文本字段截断 200 字。
-- Member 和 User 类型聚合 ID 不展示内部主键，改为"已隐藏"。
-- 行为人名称使用脱敏投影（首字 + ** + 末字）。
+哈希链校验规则：
 
-哈希链校验对每条事件做单条验证：
-
-1. `payload_hash` 是否等于重新计算 `hash_json(payload_json)` 的结果。
-2. `prev_hash` 是否等于前一条事件（seq-1）的 `event_hash`（首条事件 prev_hash 应为空）。
-3. `event_hash` 是否等于按当前规则重新计算的哈希。
-
-当前哈希链是"篡改可发现"，不是外部不可篡改；未来可做外部锚定。
+1. `payload_hash` 是否等于 SHA-256(canonical_json(payload_json))。
+2. `prev_hash` 是否等于上一条事件的 event_hash（首条事件 prev_hash 应为空）。
+3. `event_hash` 是否等于 SHA-256(canonical_json(event_hash_input_v2))，其中 event_hash_input_v2 使用公开 `subject_ref`（取自 payload_json.subject.ref），不使用内部 `aggregate_id`。
+4. 当前哈希链是"篡改可发现"，不是外部不可篡改；未来可做外部锚定。
 
 ## 公开仿真档案馆
 

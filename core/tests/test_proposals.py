@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
@@ -22,7 +23,7 @@ from core.models import (
     RoleAssignment,
     RolePermission,
 )
-from core.tests.helpers import create_member
+from core.tests.helpers import create_member, ensure_login_user_for_member
 
 
 class ProposalTests(TestCase):
@@ -47,6 +48,7 @@ class ProposalTests(TestCase):
         self.voter_3 = create_member("member-voter-3")
         self.outsider = create_member("member-outsider")
         for voter in (self.voter_1, self.voter_2, self.voter_3):
+            ensure_login_user_for_member(voter)
             create_role_assignment(member=voter, role=self.committee_role)
 
     def create_majority_role(self) -> Role:
@@ -106,6 +108,23 @@ class ProposalTests(TestCase):
         self.assertEqual(vote.choice, ProposalVote.Choice.YES)
         with self.assertRaises(ValidationError):
             self.vote_yes(proposal, self.outsider)
+
+    def test_member_without_login_account_is_not_eligible_voter(self) -> None:
+        no_login_voter = create_member("member-voter-no-login")
+        create_role_assignment(member=no_login_voter, role=self.committee_role)
+
+        proposal = create_role_appointment_proposal(target_member=self.target, target_role=self.admin_role)
+
+        self.assertNotIn(no_login_voter.pk, proposal.eligible_voters_snapshot_json)
+
+    def test_member_with_matching_login_username_is_eligible_without_direct_user_link(self) -> None:
+        compatible_voter = create_member("member-voter-compatible")
+        create_role_assignment(member=compatible_voter, role=self.committee_role)
+        get_user_model().objects.create_user(username=compatible_voter.member_no, password="test-password")
+
+        proposal = create_role_appointment_proposal(target_member=self.target, target_role=self.admin_role)
+
+        self.assertIn(compatible_voter.pk, proposal.eligible_voters_snapshot_json)
 
     def test_vote_can_be_changed_before_deadline(self) -> None:
         proposal = create_role_appointment_proposal(target_member=self.target, target_role=self.admin_role)

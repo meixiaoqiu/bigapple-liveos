@@ -20,15 +20,19 @@ ZERO_START_REVISION_ID = "plan-zero-start-rev-v0_0_1"
 ZERO_START_FOUNDER_MEMBER_NO = "founder-0001"
 
 
-def seed_zero_start(*, now=None) -> dict[str, object]:
+def seed_zero_start(*, founder_member_no: str = "", founder_display_name: str = "", now=None) -> dict[str, object]:
     """Create the minimal baseline for a true zero-start simulation."""
 
     now = now or timezone.now()
+    founder_no = str(founder_member_no or "").strip() or ZERO_START_FOUNDER_MEMBER_NO
+    founder_name = str(founder_display_name or "").strip() or (
+        "大苹果发起人" if founder_no == ZERO_START_FOUNDER_MEMBER_NO else founder_no
+    )
     founder, _ = upsert(
         Member,
-        {"member_no": ZERO_START_FOUNDER_MEMBER_NO},
+        {"member_no": founder_no},
         {
-            "display_name": "大苹果发起人",
+            "display_name": founder_name,
             "status": Member.Status.ACTIVE,
             "batch_id": "zero-start",
             "joined_simulation_day": 0,
@@ -49,6 +53,8 @@ def seed_zero_start(*, now=None) -> dict[str, object]:
     )
     ensure_role_assignment(founder, ensure_member_role(ROLE_BIG_APPLE_MEMBER))
     ensure_role_assignment(founder, ensure_member_role(ROLE_GOVERNANCE_MEMBER))
+    founder_actor_type = "human_member" if founder.user_id else "virtual_member"
+    founder_actor = actor(founder.member_no, founder.display_name or founder.member_no, founder_actor_type)
 
     plan, _ = upsert(
         ProjectPlan,
@@ -58,7 +64,7 @@ def seed_zero_start(*, now=None) -> dict[str, object]:
             "status": ProjectPlan.Status.ACTIVE,
             "description": "从只有一个发起人开始，验证自媒体报名筛选、候选池、能力矩阵和文件签署方矩阵。",
             "target_location": "未确定",
-            "owner": actor(founder.member_no, founder.display_name or founder.member_no, "virtual_member"),
+            "owner": founder_actor,
             "created_at": now,
             "updated_at": now,
             "metadata": {"seed": True, "template": "zero_start"},
@@ -71,7 +77,7 @@ def seed_zero_start(*, now=None) -> dict[str, object]:
             "title": "零起点仿真基线",
             "change_summary": "只定义发起目标，不预置完整成员池、资源、任务或成熟工程计划。",
             "created_at": now,
-            "created_by": actor(founder.member_no, founder.display_name or founder.member_no, "virtual_member"),
+            "created_by": founder_actor,
             "published_at": now,
             "metadata": {"seed": True, "template": "zero_start"},
     }
@@ -86,7 +92,7 @@ def seed_zero_start(*, now=None) -> dict[str, object]:
             "revision_code": "v0.0.1-zero-start",
             "title": "零起点仿真基线",
             "change_summary": "只定义发起目标，不预置完整成员池、资源、任务或成熟工程计划。",
-            "created_by": actor(founder.member_no, founder.display_name or founder.member_no, "virtual_member"),
+            "created_by": founder_actor,
             "metadata": {"seed": True, "template": "zero_start"},
         }
         for field, value in static_updates.items():

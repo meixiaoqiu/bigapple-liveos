@@ -8,11 +8,23 @@ from django.db.utils import OperationalError
 from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 
-from core.event_ledger import append_event
+from core.event_ledger import PUBLIC_LEDGER_SCHEMA, append_event
 from core.models import Member, Organization, Role, RoleAssignment, SystemEvent
 from worlds.context import WorldContext
 from worlds.models import WorldRegistry
 from worlds.state import reset_current_world, set_current_world
+
+
+def _v2_world_payload(world_id: str) -> dict:
+    return {
+        "schema": PUBLIC_LEDGER_SCHEMA,
+        "subject": {"type": "world", "ref": world_id, "label": world_id},
+        "action": "initialized",
+        "stage": "initialized",
+        "summary": f"World {world_id} initialized.",
+        "public_facts": {"world_id": world_id},
+        "private_commitments": [],
+    }
 
 
 @override_settings(
@@ -115,7 +127,7 @@ class WorldDatabaseIsolationTests(TransactionTestCase):
                 event_type=SystemEvent.EventType.SYSTEM_INITIALIZED,
                 aggregate_type="World",
                 aggregate_id=aggregate_id,
-                payload_json={"world_id": world.world_id},
+                payload_json=_v2_world_payload(world.world_id),
             )
         finally:
             reset_current_world(token)
@@ -123,7 +135,7 @@ class WorldDatabaseIsolationTests(TransactionTestCase):
     def event_payload_world_ids(self, world: WorldContext) -> set[str]:
         token = set_current_world(world)
         try:
-            return set(SystemEvent.objects.values_list("payload_json__world_id", flat=True))
+            return set(SystemEvent.objects.values_list("payload_json__public_facts__world_id", flat=True))
         finally:
             reset_current_world(token)
 

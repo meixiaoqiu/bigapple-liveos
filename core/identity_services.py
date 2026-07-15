@@ -8,44 +8,66 @@ from django.db import IntegrityError
 from django.utils import timezone
 
 from core.db import atomic_for_model
-from core.event_ledger import append_event
-from core.event_payloads import actor_member_from_ref, member_display_name
+from core.event_ledger import PUBLIC_LEDGER_SCHEMA, append_event
+from core.event_payloads import _member_label, _public_member_label, _private, _public_ref
 from core.exceptions import DomainError
 from core.member_roles import ROLE_BIG_APPLE_MEMBER, ensure_member_role
 from core.models import Member, Organization, Role, RoleAssignment, SystemEvent
 from core.role_assignment_services import create_role_assignment
 
 
-def member_creation_payload(member: Member, *, actor: dict[str, Any] | None = None) -> dict[str, Any]:
+def member_creation_payload(member: Member, *, actor_ref: dict[str, Any] | None = None) -> dict[str, Any]:
+    public_label = _public_member_label(member.display_name, member.member_no)
     return {
-        "member_id": member.pk,
-        "member_no": member.member_no,
-        "display_name": member_display_name(member),
-        "status": member.status,
-        "batch_id": member.batch_id,
-        "joined_simulation_day": member.joined_simulation_day,
-        "credit_floor": member.credit_floor,
-        "created_at": member.created_at.isoformat() if member.created_at else None,
-        "actor": actor or {},
+        "schema": PUBLIC_LEDGER_SCHEMA,
+        "subject": {
+            "type": "member",
+            "ref": _public_ref("member", public_label),
+            "label": public_label,
+        },
+        "action": "created",
+        "stage": member.status,
+        "summary": f"新成员 {public_label} 已创建。",
+        "public_facts": {
+            "status": member.status,
+            "batch_id": member.batch_id,
+            "joined_simulation_day": member.joined_simulation_day,
+        },
+        "private_commitments": [
+            _private("member_id", reason="成员内部ID"),
+            _private("member_no", reason="成员编号属于隐私"),
+            _private("display_name_raw", reason="真实姓名属于隐私"),
+            _private("credit_floor", reason="信用额度属于隐私"),
+            _private("actor", present=bool(actor_ref), reason="操作人属于隐私"),
+        ],
     }
 
 
-def role_creation_payload(role: Role, *, actor: dict[str, Any] | None = None) -> dict[str, Any]:
+def role_creation_payload(role: Role, *, actor_ref: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
-        "role_id": role.pk,
-        "role_name": role.name,
-        "organization_id": role.organization_id,
-        "organization_name": role.organization.name,
-        "description": role.description,
-        "status": role.status,
-        "appointment_electorate_role_id": role.appointment_electorate_role_id,
-        "appointment_electorate_role_name": role.appointment_electorate_role.name
-        if role.appointment_electorate_role_id
-        else "",
-        "appointment_required_percent": role.appointment_required_percent,
-        "appointment_deadline_days": role.appointment_deadline_days,
-        "created_at": role.created_at.isoformat() if role.created_at else None,
-        "actor": actor or {},
+        "schema": PUBLIC_LEDGER_SCHEMA,
+        "subject": {
+            "type": "role",
+            "ref": _public_ref("role", role.organization.name, role.name),
+            "label": role.name,
+        },
+        "action": "created",
+        "stage": role.status,
+        "summary": f"角色「{role.name}」（{role.organization.name}）已创建。",
+        "public_facts": {
+            "role_name": role.name,
+            "organization_name": role.organization.name,
+            "status": role.status,
+        },
+        "private_commitments": [
+            _private("role_id", reason="角色内部ID"),
+            _private("organization_id", reason="组织内部ID"),
+            _private("description", reason="角色描述"),
+            _private("appointment_electorate_role_id", reason="任命选民角色内部ID"),
+            _private("appointment_required_percent", reason="任命阈值比例"),
+            _private("appointment_deadline_days", reason="任命截止天数"),
+            _private("actor", present=bool(actor_ref), reason="操作人属于隐私"),
+        ],
     }
 
 
@@ -91,13 +113,15 @@ def register_member(
     except IntegrityError as exc:
         raise DomainError("成员创建失败，请检查成员 ID 是否重复。") from exc
 
+    from core.event_payloads import actor_member_from_ref
+
     actor_member = actor_member_from_ref(created_by)
     append_event(
         event_type=SystemEvent.EventType.MEMBER_CREATED,
         aggregate_type="Member",
-        aggregate_id=str(member.pk),
+        aggregate_id=member.member_no,
         actor_member=actor_member,
-        payload_json=member_creation_payload(member, actor=created_by),
+        payload_json=member_creation_payload(member, actor_ref=created_by),
         occurred_at=now,
     )
     create_role_assignment(
@@ -150,12 +174,14 @@ def create_role_template(
     except IntegrityError as exc:
         raise DomainError("角色创建失败，请检查同一组织下是否已有同名角色。") from exc
 
+    from core.event_payloads import actor_member_from_ref
+
     append_event(
         event_type=SystemEvent.EventType.ROLE_CREATED,
         aggregate_type="Role",
         aggregate_id=str(role.pk),
         actor_member=actor_member_from_ref(created_by),
-        payload_json=role_creation_payload(role, actor=created_by),
+        payload_json=role_creation_payload(role, actor_ref=created_by),
         occurred_at=now,
     )
     return role

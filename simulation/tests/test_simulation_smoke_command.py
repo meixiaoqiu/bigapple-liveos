@@ -92,7 +92,7 @@ class SimulationSmokeCommandTests(TestCase):
 
         self.assertIn("Refusing to run simulation smoke for non-simulation world", str(captured.exception))
 
-    def test_seed_world_zero_start_creates_only_founder_baseline(self) -> None:
+    def test_seed_world_zero_start_without_bootstrap_admin_creates_virtual_founder_baseline(self) -> None:
         output = StringIO()
 
         # Local .env may enable a bootstrap admin for manual bigsim login; this
@@ -109,6 +109,38 @@ class SimulationSmokeCommandTests(TestCase):
         self.assertEqual(Task.objects.count(), 0)
         self.assertEqual(Resource.objects.count(), 0)
         self.assertIn("template=zero_start", output.getvalue())
+
+    def test_seed_world_zero_start_uses_bootstrap_admin_as_only_initial_member(self) -> None:
+        output = StringIO()
+        env = {
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_ENABLED": "true",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_USERNAME": "solo-founder",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_PASSWORD": "test-password",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_MEMBER_NO": "solo-founder",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_DISPLAY_NAME": "Solo founder",
+        }
+
+        with patch.dict("os.environ", env):
+            call_command("seed_world", "simulation0001", "--template", "zero_start", stdout=output)
+
+        member = Member.objects.get(member_no="solo-founder")
+        self.assertIsNotNone(member.user_id)
+        self.assertEqual(member.status, Member.Status.ACTIVE)
+        self.assertFalse(Member.objects.filter(member_no="founder-0001").exists())
+        self.assertEqual(Member.objects.count(), 1)
+        plan = ProjectPlan.objects.get(plan_id="plan-zero-start")
+        self.assertEqual(plan.owner["actor_id"], "solo-founder")
+        self.assertEqual(plan.owner["actor_type"], "human_member")
+        revision = PlanRevision.objects.get(revision_id="plan-zero-start-rev-v0_0_1")
+        self.assertEqual(revision.created_by["actor_id"], "solo-founder")
+        self.assertEqual(revision.created_by["actor_type"], "human_member")
+        self.assertIn("template=zero_start", output.getvalue())
+
+        from simulation.zero_start import run_zero_start_recruitment_simulation
+
+        result = run_zero_start_recruitment_simulation(hours=1, ensure_seed=False)
+        run = result["run"]
+        self.assertEqual(run.metadata["founder_member_no"], "solo-founder")
 
     def test_zero_start_applicant_specs_grow_after_early_exposure(self) -> None:
         specs = applicant_specs_for_hours(168)

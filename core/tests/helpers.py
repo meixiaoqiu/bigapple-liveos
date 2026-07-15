@@ -41,11 +41,20 @@ def create_member(member_no: str, *, role_name: str = ROLE_BIG_APPLE_MEMBER, **o
     return member
 
 
-def login_as_member(client: Client, member: Member, *, is_staff: bool = False):
+def ensure_login_user_for_member(member: Member, *, is_staff: bool = False):
     user_model = get_user_model()
     user, _created = user_model.objects.get_or_create(username=member.member_no)
     user.set_password("test-password")
+    user.is_active = True
     user.is_staff = is_staff
-    user.save(update_fields=["password", "is_staff"])
+    user.save(update_fields=["password", "is_active", "is_staff"])
+    if member.user_id != user.pk:
+        member.user = user
+        member.save(update_fields=["user"])
+    return user
+
+
+def login_as_member(client: Client, member: Member, *, is_staff: bool = False):
+    user = ensure_login_user_for_member(member, is_staff=is_staff)
     client.force_login(user)
     return user

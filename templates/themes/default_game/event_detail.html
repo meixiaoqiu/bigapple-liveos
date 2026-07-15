@@ -19,6 +19,8 @@
   </div>
 
   <main class="mx-auto grid max-w-3xl gap-6 p-4 lg:p-6">
+
+    {# Event header card #}
     <article class="card bg-base-100 shadow">
       <div class="card-body gap-4">
         <div class="flex flex-wrap items-center gap-2">
@@ -33,7 +35,11 @@
           <p class="mt-3 whitespace-pre-wrap text-base text-base-content/80">{{ event.summary }}</p>
         </div>
         <div class="grid gap-2 text-sm sm:grid-cols-2">
-          <div><span class="text-base-content/60">事件ID：</span><span class="font-mono">{{ event.event_id }}</span></div>
+          <div>
+            <span class="text-base-content/60">事件ID：</span>
+            <span class="font-mono">{{ event.event_id }}</span>
+            <p class="text-xs text-base-content/50 mt-0.5">{{ event.event_id_explanation }}</p>
+          </div>
           <div><span class="text-base-content/60">来源：</span>{{ event.generated_by }}</div>
           <div><span class="text-base-content/60">模拟日：</span>{{ event.simulation_day }}</div>
           {% if event.related_task_id %}<div><span class="text-base-content/60">关联任务：</span>{{ event.related_task_id }}</div>{% endif %}
@@ -42,72 +48,126 @@
       </div>
     </article>
 
+    {# Semantic summary card #}
     <section class="card bg-base-100 shadow">
       <div class="card-body">
-        <h2 class="card-title">公开摘要</h2>
-        {% if event.payload_public %}
+        <h2 class="card-title">事件概要</h2>
+        {% if event.semantic_summary %}
           <div class="overflow-x-auto">
             <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>字段</th>
-                  <th>值</th>
-                </tr>
-              </thead>
+              <thead><tr><th>项目</th><th>内容</th></tr></thead>
               <tbody>
-                {% for key, value in event.payload_public.items %}
+                {% for entry in event.semantic_summary %}
                   <tr>
-                    <td class="font-semibold">{{ key }}</td>
-                    <td><span class="text-sm">{{ value }}</span></td>
+                    <td class="font-semibold whitespace-nowrap">{{ entry.label }}</td>
+                    <td><span class="text-sm">{{ entry.value }}</span></td>
                   </tr>
                 {% endfor %}
               </tbody>
             </table>
           </div>
         {% else %}
-          <div class="text-sm text-base-content/50">此事件无额外公开摘要字段。</div>
+          <div class="text-sm text-base-content/50">暂无语义摘要。</div>
         {% endif %}
       </div>
     </section>
 
+    {# Audit proof section #}
     <section class="card bg-base-100 shadow">
       <div class="card-body">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h2 class="card-title">审计证明</h2>
         </div>
+        <p class="text-sm text-base-content/60">{{ event.audit_explanation }}</p>
         {% if event.audit_events %}
-          <div class="overflow-x-auto">
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>序号</th>
-                  <th>账本事件</th>
-                  <th>发生时间</th>
-                  <th>事件哈希</th>
-                  <th>校验</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for audit in event.audit_events %}
-                  <tr>
-                    <td class="font-mono">#{{ audit.seq }}</td>
-                    <td>{{ audit.event_type_display }}</td>
-                    <td class="text-sm text-base-content/70">{{ audit.occurred_at|date:"Y-m-d H:i" }}</td>
-                    <td class="font-mono text-xs text-base-content/50">{{ audit.event_hash_short }}</td>
-                    <td>
-                      {% if audit.chain_valid %}
-                        <span class="badge badge-success badge-xs">通过</span>
-                      {% else %}
-                        <span class="badge badge-error badge-xs">未通过</span>
-                      {% endif %}
-                    </td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+          <div class="grid gap-3 mt-3">
+            {% for audit in event.audit_events %}
+              <details class="collapse collapse-arrow border border-base-300 bg-base-200" open>
+                <summary class="collapse-title flex flex-wrap items-center gap-2 text-sm font-medium">
+                  <span class="font-mono">#{{ audit.seq }}</span>
+                  <span class="badge badge-outline badge-sm">{{ audit.event_type_display }}</span>
+                  <span class="font-mono text-xs text-base-content/50">{{ audit.event_hash_short }}</span>
+                  {% if audit.chain_valid %}
+                    <span class="badge badge-success badge-xs">通过</span>
+                  {% else %}
+                    <span class="badge badge-error badge-xs">未通过</span>
+                  {% endif %}
+                </summary>
+                <div class="collapse-content grid gap-4 pt-2">
+
+                  {% if audit.legacy_note %}
+                    <div class="alert alert-warning text-sm">{{ audit.legacy_note }}</div>
+                  {% endif %}
+
+                  <div class="text-sm">
+                    <span class="text-base-content/60">发生时间：</span>{{ audit.occurred_at|date:"Y-m-d H:i:s" }}
+                    <span class="text-base-content/60 ml-4">审计对象：</span>{{ audit.aggregate_type }}{% if audit.subject_ref %} / {{ audit.subject_ref }}{% endif %}
+                  </div>
+
+                  <div class="overflow-x-auto">
+                    <table class="table table-xs">
+                      <thead><tr><th>校验项</th><th>Hash 值</th><th>服务端结果</th></tr></thead>
+                      <tbody>
+                        <tr>
+                          <td class="font-semibold">payload_hash</td>
+                          <td class="font-mono text-xs break-all">{{ audit.payload_hash }}</td>
+                          <td>{% if audit.payload_hash_valid %}<span class="badge badge-success badge-xs">有效</span>{% else %}<span class="badge badge-error badge-xs">无效</span>{% endif %}</td>
+                        </tr>
+                        <tr>
+                          <td class="font-semibold">prev_hash</td>
+                          <td class="font-mono text-xs break-all">{{ audit.prev_hash }}</td>
+                          <td>{% if audit.prev_hash_valid %}<span class="badge badge-success badge-xs">有效</span>{% else %}<span class="badge badge-error badge-xs">无效</span>{% endif %}</td>
+                        </tr>
+                        <tr>
+                          <td class="font-semibold">event_hash</td>
+                          <td class="font-mono text-xs break-all">{{ audit.event_hash }}</td>
+                          <td>{% if audit.event_hash_valid %}<span class="badge badge-success badge-xs">有效</span>{% else %}<span class="badge badge-error badge-xs">无效</span>{% endif %}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {# Public payload #}
+                  {% if audit.payload_public_display %}
+                    <details class="text-sm">
+                      <summary class="cursor-pointer font-semibold text-base-content/80">公开 payload</summary>
+                      <div class="overflow-x-auto mt-2">
+                        <table class="table table-xs">
+                          <thead><tr><th>字段</th><th>值</th></tr></thead>
+                          <tbody>
+                            {% for key, value in audit.payload_public_display.items %}
+                              {% if key != 'schema' and key != 'private_commitments' %}
+                                <tr>
+                                  <td class="whitespace-nowrap">{{ key }}</td>
+                                  <td><span class="text-xs">{{ value }}</span></td>
+                                </tr>
+                              {% endif %}
+                            {% endfor %}
+                          </tbody>
+                        </table>
+                      </div>
+                    </details>
+                  {% endif %}
+
+                  {# In-browser hash verification #}
+                  {% if audit.can_browser_verify and audit.payload_canonical_json %}
+                    {{ audit.payload_canonical_json|json_script:audit.payload_json_script_id }}
+                    {{ audit.event_hash_input_canonical_json|json_script:audit.event_hash_input_json_script_id }}
+
+                    <div class="flex flex-wrap items-center gap-2">
+                      <button class="btn btn-xs btn-primary btn-outline"
+                              onclick="openAuditVerification('{{ audit.payload_json_script_id|escapejs }}', '{{ audit.event_hash_input_json_script_id|escapejs }}', {{ audit.seq }}, '{{ audit.payload_hash|escapejs }}', '{{ audit.event_hash|escapejs }}')">
+                        现场复算哈希链
+                      </button>
+                      <span id="audit-verify-badge-{{ audit.seq }}"></span>
+                    </div>
+                  {% endif %}
+                </div>
+              </details>
+            {% endfor %}
           </div>
         {% else %}
-          <div class="text-sm text-base-content/50">此公开事件暂未关联到底层账本记录。</div>
+          <div class="text-sm text-base-content/50 mt-3">此公开事件暂未关联到底层账本记录。</div>
         {% endif %}
       </div>
     </section>
@@ -118,4 +178,187 @@
     </div>
   </main>
 </div>
+
+{# ---- Modal for step-by-step hash computation ---- #}
+<dialog id="audit-verify-modal" class="modal">
+  <div class="modal-box max-w-2xl">
+    <h3 class="text-lg font-bold mb-3">现场复算哈希链</h3>
+    <div id="audit-verify-steps" class="mockup-code text-xs py-3 max-h-96 overflow-y-auto"></div>
+    <div class="modal-action">
+      <button class="btn btn-sm" onclick="document.getElementById('audit-verify-modal').close()">关闭</button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>关闭</button></form>
+</dialog>
+
+<script>
+// ---- SHA-256 with fallback ----
+async function sha256Hex(data) {
+  try {
+    const buf = await crypto.subtle.digest("SHA-256", data);
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+  } catch(_) {
+    // Pure JS fallback for http:// contexts
+    return _sha256Fallback(data);
+  }
+}
+
+function _sha256Fallback(data) {
+  // Minimal pure-JS SHA-256 for non-TLS environments.
+  // Self-test on first call.
+  if (!_sha256Fallback._tested) {
+    _sha256Fallback._tested = true;
+    var enc = new TextEncoder();
+    var testHash = _sha256Raw(enc.encode("abc"));
+    var testHex = Array.from(new Uint8Array(testHash)).map(function(b){return b.toString(16).padStart(2,"0");}).join("");
+    var expected = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+    if (testHex !== expected) {
+      _sha256Fallback._broken = true;
+    }
+  }
+  if (_sha256Fallback._broken) {
+    return Promise.reject(new Error("SHA-256 fallback self-test failed"));
+  }
+  var raw = _sha256Raw(data);
+  var hex = Array.from(new Uint8Array(raw)).map(function(b){return b.toString(16).padStart(2,"0");}).join("");
+  return Promise.resolve(hex);
+}
+_sha256Fallback._tested = false;
+_sha256Fallback._broken = false;
+
+function _sha256Raw(data) {
+  // Educational SHA-256 implementation.
+  function rotr(x,n){return (x>>>n)|(x<<(32-n));}
+  function ch(x,y,z){return (x&y)^(~x&z);}
+  function maj(x,y,z){return (x&y)^(x&z)^(y&z);}
+  function sig0(x){return rotr(x,2)^rotr(x,13)^rotr(x,22);}
+  function sig1(x){return rotr(x,6)^rotr(x,11)^rotr(x,25);}
+  function eps0(x){return rotr(x,7)^rotr(x,18)^(x>>>3);}
+  function eps1(x){return rotr(x,17)^rotr(x,19)^(x>>>10);}
+
+  var K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+
+  var msg = new Uint8Array(data);
+  var bitLen = msg.length * 8;
+  var padLen = (msg.length + 9 + 63) & ~63;
+  var padded = new Uint8Array(padLen);
+  padded.set(msg);
+  padded[msg.length] = 0x80;
+  var view = new DataView(padded.buffer);
+  view.setUint32(padLen - 4, bitLen, false);
+
+  var H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  var W = new Uint32Array(64);
+
+  for (var b = 0; b < padLen; b += 64) {
+    for (var t = 0; t < 16; t++) {
+      W[t] = (padded[b + t * 4] << 24) | (padded[b + t * 4 + 1] << 16) | (padded[b + t * 4 + 2] << 8) | padded[b + t * 4 + 3];
+    }
+    for (t = 16; t < 64; t++) {
+      W[t] = (eps1(W[t - 2]) + W[t - 7] + eps0(W[t - 15]) + W[t - 16]) >>> 0;
+    }
+    var a = H[0], b_ = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+    for (t = 0; t < 64; t++) {
+      var T1 = (h + sig1(e) + ch(e, f, g) + K[t] + W[t]) >>> 0;
+      var T2 = (sig0(a) + maj(a, b_, c)) >>> 0;
+      h = g; g = f; f = e; e = (d + T1) >>> 0; d = c; c = b_; b_ = a; a = (T1 + T2) >>> 0;
+    }
+    H[0] = (H[0] + a) >>> 0; H[1] = (H[1] + b_) >>> 0; H[2] = (H[2] + c) >>> 0; H[3] = (H[3] + d) >>> 0;
+    H[4] = (H[4] + e) >>> 0; H[5] = (H[5] + f) >>> 0; H[6] = (H[6] + g) >>> 0; H[7] = (H[7] + h) >>> 0;
+  }
+  var result = new Uint8Array(32);
+  var outView = new DataView(result.buffer);
+  for (var i = 0; i < 8; i++) outView.setUint32(i * 4, H[i], false);
+  return result;
+}
+
+// ---- Verification modal ----
+async function openAuditVerification(payloadScriptId, eventHashInputScriptId, seq, expectedPayloadHash, expectedEventHash) {
+  var modal = document.getElementById("audit-verify-modal");
+  var steps = document.getElementById("audit-verify-steps");
+  var badge = document.getElementById("audit-verify-badge-" + seq);
+  if (!modal || !steps) return;
+  steps.innerHTML = "";
+  modal.showModal();
+
+  function log(msg, cls) {
+    var pre = document.createElement("pre");
+    pre.setAttribute("data-prefix", "$");
+    pre.textContent = msg;
+    if (cls) pre.className = cls;
+    steps.appendChild(pre);
+    steps.scrollTop = steps.scrollHeight;
+  }
+
+  var encoder = new TextEncoder();
+
+  try {
+    log("===== SystemEvent #" + seq + " 哈希链复算 =====", "text-info");
+
+    // 1. payload canonical JSON
+    var payloadEl = document.getElementById(payloadScriptId);
+    if (!payloadEl) { log("ERROR: 未找到 payload JSON script", "text-error"); modal.close(); return; }
+    var payloadCanonical = JSON.parse(payloadEl.textContent);
+    log("1. 读取公开 payload 规范化 JSON", "text-success");
+
+    // 2. SHA-256 of payload canonical JSON (string, not re-stringified)
+    var payloadData = encoder.encode(payloadCanonical);
+    var computedPayloadHash = await sha256Hex(payloadData);
+    log("2. SHA-256(payload canonical JSON) = " + computedPayloadHash, "text-warning");
+
+    // 3. Compare payload_hash
+    if (computedPayloadHash === expectedPayloadHash) {
+      log("3. payload_hash 匹配 ✓ (服务端: " + expectedPayloadHash + ")", "text-success");
+      var payloadOk = true;
+    } else {
+      log("3. payload_hash 不匹配 ✗ (服务端: " + expectedPayloadHash + ")", "text-error");
+      payloadOk = false;
+    }
+
+    // 4. event_hash_input canonical JSON
+    var inputEl = document.getElementById(eventHashInputScriptId);
+    if (!inputEl) { log("ERROR: 未找到 event_hash_input JSON script", "text-error"); modal.close(); return; }
+    var eventHashInputCanonical = JSON.parse(inputEl.textContent);
+    log("4. 读取 event_hash 输入规范化 JSON", "text-success");
+
+    // 5. SHA-256 of event_hash_input (string, not re-stringified)
+    var inputData = encoder.encode(eventHashInputCanonical);
+    var computedEventHash = await sha256Hex(inputData);
+    log("5. SHA-256(event_hash_input) = " + computedEventHash, "text-warning");
+
+    // 6. Compare event_hash
+    if (computedEventHash === expectedEventHash) {
+      log("6. event_hash 匹配 ✓ (服务端: " + expectedEventHash + ")", "text-success");
+      var eventOk = true;
+    } else {
+      log("6. event_hash 不匹配 ✗ (服务端: " + expectedEventHash + ")", "text-error");
+      eventOk = false;
+    }
+
+    // 7. prev_hash verification
+    log("7. prev_hash 校验结果见上方服务端验证区域", "text-info");
+
+    // Summary
+    log("", "");
+    var allOk = payloadOk && eventOk;
+    if (allOk) {
+      log("===== 哈希链复算通过 ✓ =====", "text-success");
+      if (badge) badge.innerHTML = '<span class="badge badge-success badge-xs">复算通过</span>';
+    } else {
+      log("===== 哈希链复算失败 ✗ =====", "text-error");
+      if (badge) badge.innerHTML = '<span class="badge badge-error badge-xs">复算失败</span>';
+    }
+  } catch(e) {
+    log("ERROR: " + e.message, "text-error");
+    if (badge) badge.innerHTML = '<span class="badge badge-warning badge-xs">计算异常</span>';
+  }
+}
+</script>
 {% endblock %}

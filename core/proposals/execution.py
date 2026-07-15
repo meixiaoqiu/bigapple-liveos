@@ -120,13 +120,19 @@ def execute_proposal(
         proposal.status = Proposal.Status.EXECUTED
         proposal.executed_at = checked_at
         proposal.save(update_fields=["status", "executed_at", "updated_at"])
+        from core.event_payloads import proposal_execution_payload as make_execution_payload
+
         append_event(
             event_type=SystemEvent.EventType.PROPOSAL_EXECUTED,
             aggregate_type="Proposal",
             aggregate_id=str(proposal.pk),
             actor_member=executor_member,
             actor_role_assignment=executor_role_assignment,
-            payload_json={**proposal_payload(proposal), "execution": execution.result_json, "action_type": action_type},
+            payload_json=make_execution_payload(
+                proposal,
+                action_type=action_type,
+                execution_status=execution.status,
+            ),
             occurred_at=checked_at,
         )
     except Exception as exc:

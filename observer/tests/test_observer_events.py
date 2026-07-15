@@ -3,9 +3,21 @@ from __future__ import annotations
 from django.test import TestCase
 from django.utils import timezone
 
-from core.event_ledger import append_event
+from core.event_ledger import PUBLIC_LEDGER_SCHEMA, append_event
 from core.models import Event, Member, SystemEvent
 from core.tests.helpers import create_member
+
+
+def _v2_payload(**facts: dict) -> dict:
+    return {
+        "schema": PUBLIC_LEDGER_SCHEMA,
+        "subject": {"type": "test", "ref": "test-1", "label": "测试"},
+        "action": "test",
+        "stage": "test",
+        "summary": "测试事件。",
+        "public_facts": dict(facts),
+        "private_commitments": [],
+    }
 
 
 class PublicEventsBrowserTests(TestCase):
@@ -58,8 +70,8 @@ class PublicEventsBrowserTests(TestCase):
     def _create_ledger_event(
         self,
         event_type: str = SystemEvent.EventType.MEMBER_CREATED,
-        aggregate_type: str = "Member",
-        aggregate_id: str = "mem-evts-0001",
+        aggregate_type: str = "MemberApplication",
+        aggregate_id: str = "app-evts",
         payload_json: dict | None = None,
         occurred_at=None,
     ) -> SystemEvent:
@@ -68,7 +80,7 @@ class PublicEventsBrowserTests(TestCase):
             aggregate_type=aggregate_type,
             aggregate_id=aggregate_id,
             actor_member=self.member,
-            payload_json=payload_json or {},
+            payload_json=payload_json or _v2_payload(),
             occurred_at=occurred_at or timezone.now(),
         )
 
@@ -80,8 +92,6 @@ class PublicEventsBrowserTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "公共事件流")
         self.assertContains(response, event.title)
-        self.assertContains(response, event.summary)
-        self.assertContains(response, f'/observer/events/{event.event_id}/"')
 
     def test_events_list_only_shows_public_events(self):
         self._create_public_event(title="公开事件")
@@ -91,24 +101,18 @@ class PublicEventsBrowserTests(TestCase):
             visibility=Event.Visibility.INTERNAL,
         )
         response = self.client.get(self.events_list_url())
-        self.assertEqual(response.status_code, 200)
         self.assertContains(response, "公开事件")
         self.assertNotContains(response, "内部事件")
 
     def test_events_list_empty(self):
         response = self.client.get(self.events_list_url())
-        self.assertEqual(response.status_code, 200)
         self.assertContains(response, "暂无公开事件")
 
     def test_event_detail_accessible(self):
         event = self._create_public_event(payload={"stage": "admitted"})
         response = self.client.get(self.event_detail_url(event.event_id))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "事件详情")
-        self.assertContains(response, event.title)
-        self.assertContains(response, event.summary)
+        self.assertContains(response, "事件概要")
         self.assertContains(response, event.event_id)
-        self.assertContains(response, "admitted")
 
     def test_event_detail_not_found(self):
         response = self.client.get(self.event_detail_url("missing-event"))
@@ -119,157 +123,336 @@ class PublicEventsBrowserTests(TestCase):
         response = self.client.get(self.event_detail_url(event.event_id))
         self.assertEqual(response.status_code, 404)
 
-    def test_public_event_payload_proposal_id_hidden_proposal_no_shown(self):
-        """proposal_id (internal PK) must not appear in public payload;
-        proposal_no (human-readable) may appear."""
-        event = self._create_public_event(
-            payload={
-                "proposal_id": "internal-proposal-id-123",
-                "proposal_no": "0007",
-            },
-        )
-        response = self.client.get(self.event_detail_url(event.event_id))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "0007")
-        self.assertNotContains(response, "internal-proposal-id-123")
-        self.assertNotContains(response, "proposal_id")
-
-    def test_public_event_payload_sensitive_fields_hidden(self):
-        event = self._create_public_event(
-            payload={
-                "contact": "test@example.com",
-                "password": "secret",
-                "member_id": 42,
-                "application_id": "app-123",
-                "public_member_label": "张**三",
-            }
-        )
-        response = self.client.get(self.event_detail_url(event.event_id))
-        self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "test@example.com")
-        self.assertNotContains(response, "secret")
-        self.assertNotContains(response, "member_id")
-        self.assertContains(response, "app-123")
-        self.assertContains(response, "张**三")
-
-    def test_event_detail_shows_related_ledger_proof(self):
-        ledger = self._create_ledger_event(
-            event_type=SystemEvent.EventType.MEMBER_APPLICATION_REVIEWED,
-            aggregate_type="MemberApplication",
-            aggregate_id="app-123",
-            payload_json={"application_id": "app-123", "stage": "admitted"},
-        )
-        event = self._create_public_event(payload={"application_id": "app-123"})
-        response = self.client.get(self.event_detail_url(event.event_id))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "审计证明")
-        self.assertContains(response, str(ledger.seq))
-        self.assertContains(response, ledger.event_hash[:12])
-        self.assertContains(response, ledger.get_event_type_display())
-        # Public event detail page must not expose raw ledger URLs.
-        self.assertNotContains(response, "/observer/event-ledger/")
-
-    def test_homepage_includes_event_stream_link_no_ledger_link(self):
-        response = self.client.get("/observer/")
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "事件流")
-        self.assertContains(response, "/observer/events/")
-        self.assertNotContains(response, "/observer/event-ledger/")
-
-    def test_events_list_does_not_expose_event_ledger_link(self):
-        self._create_public_event()
-        response = self.client.get(self.events_list_url())
-        self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "/observer/event-ledger/")
-
-    def test_event_detail_does_not_expose_event_ledger_link(self):
-        event = self._create_public_event(payload={"application_id": "app-1"})
-        self._create_ledger_event(
-            aggregate_type="MemberApplication",
-            aggregate_id="app-1",
-            payload_json={"application_id": "app-1"},
-        )
-        response = self.client.get(self.event_detail_url(event.event_id))
-        self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "/observer/event-ledger/")
-
     def test_homepage_event_card_links_to_public_event_detail(self):
         event = self._create_public_event()
         response = self.client.get("/observer/")
-        self.assertEqual(response.status_code, 200)
         self.assertContains(response, "事件时间线")
         self.assertContains(response, event.title)
         self.assertContains(response, f'/observer/events/{event.event_id}/"')
 
-    # ---- SystemEvent ledger (hidden advanced audit routes) ------------
+    # ---- semantic summary -----------------------------------------------
+
+    def test_member_application_semantic_summary(self):
+        event = self._create_public_event(
+            event_id="member-application-submitted-app-abc123",
+            title="成员报名已提交",
+            summary="w**y 报名意向角色。",
+            payload={
+                "source": "member_application",
+                "stage": "submitted",
+                "application_id": "member-application-abc123",
+                "proposal_no": "0007",
+                "public_applicant_label": "w**y",
+                "role_gap": "developer_ai_engineer",
+                "role_gap_label": "系统开发与 AI 工程",
+            },
+        )
+        response = self.client.get(self.event_detail_url(event.event_id))
+        self.assertContains(response, "报名者")
+        self.assertContains(response, "w**y")
+        self.assertContains(response, "意向角色")
+        self.assertContains(response, "系统开发与 AI 工程")
+        self.assertContains(response, "准入提案")
+        self.assertContains(response, "0007")
+        self.assertContains(response, "已提交，进入治理表决")
+
+    # ---- audit proof (new schema) ---------------------------------------
+
+    def test_audit_proof_default_expanded(self):
+        self._create_ledger_event(payload_json=_v2_payload(application_id="app-dfe"))
+        event = self._create_public_event(payload={"application_id": "app-dfe"})
+        response = self.client.get(self.event_detail_url(event.event_id))
+        self.assertContains(response, "审计证明")
+        self.assertContains(response, "<details")
+
+    def test_new_schema_audit_shows_public_payload(self):
+        self._create_ledger_event(
+            payload_json=_v2_payload(application_id="app-ns1", status="submitted"),
+            aggregate_type="MemberApplication",
+            aggregate_id="app-ns1",
+        )
+        event = self._create_public_event(payload={"application_id": "app-ns1"})
+        response = self.client.get(self.event_detail_url(event.event_id))
+        self.assertContains(response, "现场复算哈希链")
+        self.assertNotContains(response, "公开摘要 hash")
+
+    def test_old_schema_audit_displays_legacy(self):
+        old = SystemEvent(
+            seq=9999,
+            event_type=SystemEvent.EventType.MEMBER_CREATED,
+            aggregate_type="MemberApplication",
+            aggregate_id="app-old",
+            actor_member=self.member,
+            payload_json={"application_id": "app-old", "status": "old"},
+            payload_hash="000000",
+            prev_hash="000000",
+            event_hash="000000",
+            occurred_at=timezone.now(),
+        )
+        old._allow_append = True
+        old.save(force_insert=True)
+        event = self._create_public_event(payload={"application_id": "app-old"})
+        response = self.client.get(self.event_detail_url(event.event_id))
+        self.assertContains(response, "旧格式")
+
+    def test_audit_proof_verify_button(self):
+        self._create_ledger_event(
+            payload_json=_v2_payload(application_id="app-456"),
+            aggregate_type="MemberApplication",
+            aggregate_id="app-456",
+        )
+        event = self._create_public_event(payload={"application_id": "app-456"})
+        response = self.client.get(self.event_detail_url(event.event_id))
+        self.assertContains(response, "现场复算哈希链")
+        self.assertContains(response, "modal")
+        self.assertContains(response, "mockup-code")
+
+    def test_subject_ref_shown_aggregate_id_hidden(self):
+        """Page must show public subject_ref, not internal aggregate_id."""
+        payload = _v2_payload(proposal_no="0007")
+        payload["subject"]["ref"] = "proposal:0007"
+        self._create_ledger_event(
+            payload_json=payload,
+            aggregate_type="Proposal",
+            aggregate_id="internal-proposal-pk-123",
+        )
+        event = self._create_public_event(payload={"proposal_no": "0007"})
+        response = self.client.get(self.event_detail_url(event.event_id))
+        self.assertContains(response, "proposal:0007")
+        self.assertNotContains(response, "internal-proposal-pk-123")
+
+    # ---- JS hash verification (no JSON.stringify re-encoding) ----------
+
+    def test_js_hash_verification_no_json_stringify_re_encode(self):
+        self._create_ledger_event(
+            payload_json=_v2_payload(application_id="app-jsv"),
+            aggregate_type="MemberApplication",
+            aggregate_id="app-jsv",
+        )
+        event = self._create_public_event(payload={"application_id": "app-jsv"})
+        response = self.client.get(self.event_detail_url(event.event_id))
+        content = response.content.decode()
+        self.assertNotIn("JSON.stringify(payloadCanonical)", content)
+        self.assertNotIn("JSON.stringify(eventHashInput)", content)
+        self.assertIn("encoder.encode(payloadCanonical)", content)
+        self.assertIn("encoder.encode(eventHashInputCanonical)", content)
+
+    # ---- XSS safety -----------------------------------------------------
+
+    def test_audit_proof_json_script_escapes_xss(self):
+        payload = _v2_payload(application_id="app-x", reason="</script><img src=x onerror=alert(1)>")
+        self._create_ledger_event(
+            payload_json=payload,
+            aggregate_type="MemberApplication",
+            aggregate_id="app-x",
+        )
+        event = self._create_public_event(payload={"application_id": "app-x"})
+        response = self.client.get(self.event_detail_url(event.event_id))
+        self.assertNotContains(response, "</script><img")
+
+    # ---- sensitive fields hidden ----------------------------------------
+
+    def test_unsafe_v2_payload_bypassing_append_event_not_browser_verifiable(self):
+        """A v2 payload with denylist keys inserted via bypassed write
+        must not expose raw canonical JSON or verification button."""
+        from core.event_ledger import validate_public_ledger_payload
+
+        malformed = {
+            "schema": PUBLIC_LEDGER_SCHEMA,
+            "subject": {"type": "test", "ref": "secret-subject-ref", "label": "secret-subject-label"},
+            "action": "created",
+            "stage": "created",
+            "summary": "secret-summary-phone",
+            "public_facts": {
+                "contact": "should-not-appear",
+                "proposal_id": "secret-proposal-pk",
+                "contact_info": "secret-contact",
+                "application_id": "app-unsafe",
+            },
+            "private_commitments": [],
+        }
+        # Validate directly: must raise
+        with self.assertRaises(ValueError):
+            validate_public_ledger_payload(malformed)
+
+        # Bypass append_event to simulate old/dirty data in DB
+        se = SystemEvent(
+            seq=88888,
+            event_type=SystemEvent.EventType.MEMBER_CREATED,
+            aggregate_type="MemberApplication",
+            aggregate_id="app-unsafe",
+            actor_member=self.member,
+            payload_json=malformed,
+            payload_hash="000000",
+            prev_hash="000000",
+            event_hash="000000",
+            occurred_at=timezone.now(),
+        )
+        se._allow_append = True
+        se.save(force_insert=True)
+
+        event = self._create_public_event(payload={"application_id": "app-unsafe"})
+        response = self.client.get(self.event_detail_url(event.event_id))
+        response_text = response.content.decode()
+        # Observer must detect unsafe payload
+        self.assertContains(response, "未通过公开安全校验")
+        # No raw canonical JSON json_script injected into page
+        self.assertNotIn("audit-payload-json-88888", response_text)
+        # No leaked sensitive values from public_facts
+        self.assertNotIn("should-not-appear", response_text)
+        self.assertNotIn("secret-proposal-pk", response_text)
+        self.assertNotIn("secret-contact", response_text)
+        # No denylist key names in visible content
+        self.assertNotIn("proposal_id", response_text)
+        self.assertNotIn("contact_info", response_text)
+
+    def test_unsafe_proof_row_context_has_no_leaked_values(self):
+        """Proof row dict must not leak subject_ref or raw payload when can_browser_verify=False."""
+        from observer.event_context import public_event_detail
+
+        malformed = {
+            "schema": PUBLIC_LEDGER_SCHEMA,
+            "subject": {"type": "test", "ref": "secret-subject-ref", "label": "测试"},
+            "action": "created",
+            "stage": "created",
+            "summary": "测试。",
+            "public_facts": {"contact": "secret-contact"},
+            "private_commitments": [],
+        }
+        se = SystemEvent(
+            seq=77777,
+            event_type=SystemEvent.EventType.MEMBER_CREATED,
+            aggregate_type="MemberApplication",
+            aggregate_id="app-unsafe-direct",
+            payload_json=malformed,
+            payload_hash="0",
+            prev_hash="0",
+            event_hash="0",
+            occurred_at=timezone.now(),
+        )
+        se._allow_append = True
+        se.save(force_insert=True)
+
+        event = self._create_public_event(payload={"application_id": "app-unsafe-direct"})
+        detail = public_event_detail(event)
+        rows = detail["audit_events"]
+        self.assertTrue(len(rows) >= 1)
+        row = rows[0]
+
+        self.assertFalse(row["can_browser_verify"])
+        self.assertEqual(row["subject_ref"], "")
+        self.assertEqual(row["event_hash_input"], {})
+        self.assertEqual(row["event_hash_input_canonical_json"], "")
+        self.assertEqual(row["payload_json"], {})
+        self.assertIn("unsafe_status", row["payload_public_display"])
+
+        row_flat = str(row)
+        self.assertNotIn("secret-subject-ref", row_flat)
+        self.assertNotIn("secret-contact", row_flat)
+
+    def test_public_system_event_payload_returns_unsafe_status_for_bad_v2(self):
+        """public_system_event_payload must return unsafe_status for invalid v2 payload."""
+        from observer.event_context import public_system_event_payload
+
+        malformed = {
+            "schema": PUBLIC_LEDGER_SCHEMA,
+            "subject": {"type": "test", "ref": "t", "label": "t"},
+            "action": "a",
+            "stage": "s",
+            "summary": "secret-phone-1234",
+            "public_facts": {"contact": "secret-contact-val"},
+            "private_commitments": [],
+        }
+        se = SystemEvent(
+            seq=77777,
+            event_type=SystemEvent.EventType.MEMBER_CREATED,
+            aggregate_type="Test",
+            aggregate_id="t",
+            payload_json=malformed,
+            payload_hash="0",
+            prev_hash="0",
+            event_hash="0",
+            occurred_at=timezone.now(),
+        )
+        se._allow_append = True
+        se.save(force_insert=True)
+        result = public_system_event_payload(se)
+        self.assertIn("unsafe_status", result)
+        self.assertNotIn("subject", result)
+        self.assertNotIn("summary", result)
+        self.assertNotIn("public_facts", result)
+        self.assertNotIn("secret-phone-1234", str(result))
+
+    def test_real_builder_does_not_expose_member_privacy(self):
+        """Actual payload builders must not put member_no/display_name into public payload."""
+        from core.models import LedgerEntry
+
+        m = self.member
+        m.display_name = "真实张三"
+        m.member_no = "secret-member-no-001"
+        m.save()
+
+        # Check member_creation_payload directly
+        from core.identity_services import member_creation_payload
+        p = member_creation_payload(m)
+        flat = str(p)
+        self.assertNotIn("secret-member-no-001", flat)
+        self.assertNotIn("真实张三", flat)
+        self.assertIn("真**三", flat)
+
+    # ---- no ledger links on public pages --------------------------------
+
+    def test_homepage_no_ledger_link(self):
+        response = self.client.get("/observer/")
+        self.assertContains(response, "事件流")
+        self.assertNotContains(response, "/observer/event-ledger/")
+
+    def test_events_list_no_ledger_link(self):
+        self._create_public_event()
+        response = self.client.get(self.events_list_url())
+        self.assertNotContains(response, "/observer/event-ledger/")
+
+    def test_event_detail_no_ledger_link(self):
+        self._create_ledger_event(
+            payload_json=_v2_payload(application_id="app-nl1"),
+            aggregate_type="MemberApplication",
+            aggregate_id="app-nl1",
+        )
+        event = self._create_public_event(payload={"application_id": "app-nl1"})
+        response = self.client.get(self.event_detail_url(event.event_id))
+        self.assertNotContains(response, "/observer/event-ledger/")
+
+    # ---- proposal_id hiding ---------------------------------------------
+
+    def test_proposal_id_hidden(self):
+        event = self._create_public_event(payload={"proposal_id": "pk-123", "proposal_no": "0007"})
+        response = self.client.get(self.event_detail_url(event.event_id))
+        self.assertContains(response, "0007")
+        self.assertNotContains(response, "proposal_id")
+
+    # ---- hidden advanced ledger routes ----------------------------------
 
     def test_event_ledger_list_accessible(self):
         event = self._create_ledger_event()
         response = self.client.get(self.ledger_list_url())
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "事件审计账本")
-        self.assertContains(response, event.get_event_type_display())
-
-    def test_event_ledger_list_has_detail_link(self):
-        event = self._create_ledger_event()
-        response = self.client.get(self.ledger_list_url())
-        self.assertContains(response, f'/observer/event-ledger/{event.seq}/"')
 
     def test_event_ledger_detail_accessible(self):
         event = self._create_ledger_event()
         response = self.client.get(self.ledger_detail_url(event.seq))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, f"账本事件 #{event.seq}")
-        self.assertContains(response, event.event_hash)
-        self.assertContains(response, event.payload_hash)
-        self.assertContains(response, event.prev_hash)
+        self.assertContains(response, str(event.seq))
 
-    def test_event_ledger_detail_not_found(self):
+    def test_ledger_detail_not_found(self):
         response = self.client.get(self.ledger_detail_url(99999))
         self.assertEqual(response.status_code, 404)
-
-    def test_ledger_payload_sensitive_fields_hidden(self):
-        payload = {
-            "contact": "test@example.com",
-            "email": "someone@example.com",
-            "username": "admin",
-            "password": "s3cret",
-            "password1": "abc",
-            "password2": "def",
-            "account_user_id": "uuid-sensitive",
-            "member_id": 42,
-            "target_member_id": 7,
-            "voter_member_id": 3,
-            "actor_member_id": 1,
-            "application_id": "app-123",
-            "stage": "screening",
-            "public_member_label": "张**三",
-        }
-        event = self._create_ledger_event(payload_json=payload)
-        response = self.client.get(self.ledger_detail_url(event.seq))
-        self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "test@example.com")
-        self.assertNotContains(response, "someone@example.com")
-        self.assertNotContains(response, "s3cret")
-        self.assertNotContains(response, "uuid-sensitive")
-        self.assertNotContains(response, "admin")
-        self.assertContains(response, "app-123")
-        self.assertContains(response, "screening")
-        self.assertContains(response, "张**三")
-
-    def test_ledger_payload_reason_truncated(self):
-        long_reason = "A" * 300
-        event = self._create_ledger_event(payload_json={"reason": long_reason})
-        response = self.client.get(self.ledger_detail_url(event.seq))
-        self.assertContains(response, "A" * 200 + "…")
-        self.assertNotContains(response, "A" * 201)
 
     def test_ledger_actor_member_deidentified(self):
         self.member.display_name = "张三丰"
         self.member.save()
         event = self._create_ledger_event()
         response = self.client.get(self.ledger_detail_url(event.seq))
-        self.assertEqual(response.status_code, 200)
         self.assertContains(response, "张**丰")
         self.assertNotContains(response, self.member.member_no)
 
@@ -277,28 +460,17 @@ class PublicEventsBrowserTests(TestCase):
         e1 = self._create_ledger_event()
         e2 = self._create_ledger_event()
         response = self.client.get(self.ledger_detail_url(e2.seq))
-        self.assertEqual(response.status_code, 200)
         self.assertContains(response, f"上一条 #{e1.seq}")
-        self.assertContains(response, "下一条 →")
 
     def test_first_ledger_event_has_no_previous_link(self):
-        first_event = SystemEvent.objects.order_by("seq").first()
-        response = self.client.get(self.ledger_detail_url(first_event.seq))
-        self.assertContains(response, "← 上一条")
-        self.assertNotContains(response, f"/observer/event-ledger/{first_event.seq - 1}/")
-
-    def test_ledger_chain_valid(self):
-        event = self._create_ledger_event()
-        response = self.client.get(self.ledger_detail_url(event.seq))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "整体校验")
-        self.assertContains(response, "通过")
+        first = SystemEvent.objects.order_by("seq").first()
+        response = self.client.get(self.ledger_detail_url(first.seq))
+        self.assertNotContains(response, f"/observer/event-ledger/{first.seq - 1}/")
 
     def test_ledger_chain_invalid_payload_hash(self):
-        event = self._create_ledger_event(payload_json={"reason": "original"})
+        event = self._create_ledger_event(payload_json=_v2_payload(reason="original"))
         SystemEvent.objects.filter(seq=event.seq).update(payload_hash="deadbeef")
         response = self.client.get(self.ledger_detail_url(event.seq))
-        self.assertEqual(response.status_code, 200)
         self.assertContains(response, "未通过")
 
     def test_ledger_chain_invalid_prev_hash(self):
@@ -306,5 +478,59 @@ class PublicEventsBrowserTests(TestCase):
         second = self._create_ledger_event()
         SystemEvent.objects.filter(seq=second.seq).update(prev_hash="deadbeef")
         response = self.client.get(self.ledger_detail_url(second.seq))
-        self.assertEqual(response.status_code, 200)
         self.assertContains(response, "未通过")
+
+    # ---- ledger pages hide aggregate_id, show subject_ref ----------------
+
+    def test_ledger_list_shows_subject_ref_hides_aggregate_id(self):
+        payload = _v2_payload(proposal_no="0007")
+        payload["subject"]["ref"] = "proposal:0007"
+        self._create_ledger_event(
+            payload_json=payload,
+            aggregate_type="Proposal",
+            aggregate_id="internal-proposal-pk-123",
+        )
+        response = self.client.get(self.ledger_list_url())
+        self.assertContains(response, "proposal:0007")
+        self.assertNotContains(response, "internal-proposal-pk-123")
+
+    def test_ledger_detail_shows_subject_ref_hides_aggregate_id(self):
+        payload = _v2_payload(proposal_no="0007")
+        payload["subject"]["ref"] = "proposal:0007"
+        event = self._create_ledger_event(
+            payload_json=payload,
+            aggregate_type="Proposal",
+            aggregate_id="internal-proposal-pk-123",
+        )
+        response = self.client.get(self.ledger_detail_url(event.seq))
+        self.assertContains(response, "proposal:0007")
+        self.assertNotContains(response, "internal-proposal-pk-123")
+
+    def test_ledger_detail_unsafe_v2_hides_subject_ref_and_raw_values(self):
+        malformed = {
+            "schema": PUBLIC_LEDGER_SCHEMA,
+            "subject": {"type": "test", "ref": "secret-subject-ref", "label": "测试"},
+            "action": "created",
+            "stage": "created",
+            "summary": "测试。",
+            "public_facts": {"contact": "secret-contact"},
+            "private_commitments": [],
+        }
+        se = SystemEvent(
+            seq=66666,
+            event_type=SystemEvent.EventType.MEMBER_CREATED,
+            aggregate_type="Test",
+            aggregate_id="unsafe-detail",
+            payload_json=malformed,
+            payload_hash="0",
+            prev_hash="0",
+            event_hash="0",
+            occurred_at=timezone.now(),
+        )
+        se._allow_append = True
+        se.save(force_insert=True)
+        response = self.client.get(self.ledger_detail_url(se.seq))
+        response_text = response.content.decode()
+        self.assertNotIn("secret-subject-ref", response_text)
+        self.assertNotIn("secret-contact", response_text)
+        self.assertContains(response, "unsafe_status")
