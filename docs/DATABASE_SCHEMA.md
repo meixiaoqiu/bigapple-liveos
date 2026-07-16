@@ -218,7 +218,7 @@ PartnerApplication stores public partner applications from suppliers, institutio
 | `created_at` | datetime | 是 | 创建时间。 |
 | `updated_at` | datetime | 是 | 更新时间。 |
 
-`member_admission` 的 `payload_json` 至少包含 `application_id`、`target_member_id`、`target_member_no`、`applicant_name`、`role_gap`、`reason`。提案通过后不会直接接纳成员，必须执行 `ProposalExecution(action_type=admit_member_application)` 后才更新 `MemberApplication`、`Member` 并授予正式成员角色。
+`member_admission` 是 yes/no 二元表决，使用严格多数决：赞成票超过 eligible voters 半数（`eligible // 2 + 1`）时立即 PASSED；反对票超过半数时立即 FAILED 并自动将关联 `MemberApplication` 设为 REJECTED。分母始终是 `eligible_voters_snapshot_json` 的人数。提案通过后不会直接接纳成员，必须执行 `ProposalExecution(action_type=admit_member_application)` 后才更新 `MemberApplication`、`Member` 并授予正式成员角色。`payload_json` 至少包含 `application_id`、`target_member_id`、`target_member_no`、`applicant_name`、`role_gap`、`reason`。
 
 `role_appointment` 的 `payload_json` 至少包含内部 `target_member_id`、可读 `target_member_no`、`role_id`、`assignment_type`、`resource_id`、`scope_json`、`reason`、`start_at`、`end_at`。提案通过后不会直接创建任命，必须执行 `ProposalExecution(action_type=create_role_assignment)` 后才创建 `RoleAssignment`。
 

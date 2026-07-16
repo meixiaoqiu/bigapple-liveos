@@ -334,3 +334,81 @@ class ProposalTests(TestCase):
         execute_proposal(proposal=proposal, executor_member=self.voter_1)
 
         self.assertTrue(member_has_permission(self.target, "governance.test_permission"))
+
+    # ---- member_admission majority rule ----------------------------------
+
+    def _ensure_gov_for_voters(self, *voters) -> None:
+        from core.member_roles import ROLE_GOVERNANCE_MEMBER, ensure_member_role, ensure_role_assignment
+        gov_role = ensure_member_role(ROLE_GOVERNANCE_MEMBER)
+        for v in voters:
+            ensure_role_assignment(v, gov_role)
+
+    def _make_admission(self, applicant_name: str, username: str):
+        """Create application with voters already in snapshot."""
+        app = submit_member_application(
+            applicant_name=applicant_name,
+            contact=f"{username}@test.com",
+            motivation="测试。",
+            role_gap="cooking",
+            account_username=username,
+            account_password="TestPass123!",
+        )
+        return app, app.admission_proposal
+
+    def test_member_admission_single_no_fails_immediately(self) -> None:
+        self._ensure_gov_for_voters(self.voter_1)
+        app, proposal = self._make_admission("Reject Me", "rejectme1")
+        cast_proposal_vote(proposal=proposal, voter_member=self.voter_1, choice=ProposalVote.Choice.NO)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, Proposal.Status.FAILED)
+        app.refresh_from_db()
+        self.assertEqual(app.status, "rejected")
+
+    def test_member_admission_two_voters_one_no_still_voting(self) -> None:
+        self._ensure_gov_for_voters(self.voter_1, self.voter_2)
+        app, proposal = self._make_admission("Two Voter Test", "twovoter1")
+        cast_proposal_vote(proposal=proposal, voter_member=self.voter_1, choice=ProposalVote.Choice.NO)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, Proposal.Status.VOTING)
+
+    def test_member_admission_two_voters_two_no_fails(self) -> None:
+        self._ensure_gov_for_voters(self.voter_1, self.voter_2)
+        app, proposal = self._make_admission("Two No Test", "twono1")
+        cast_proposal_vote(proposal=proposal, voter_member=self.voter_1, choice=ProposalVote.Choice.NO)
+        cast_proposal_vote(proposal=proposal, voter_member=self.voter_2, choice=ProposalVote.Choice.NO)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, Proposal.Status.FAILED)
+        app.refresh_from_db()
+        self.assertEqual(app.status, "rejected")
+
+    def test_member_admission_three_voters_two_yes_passes(self) -> None:
+        self._ensure_gov_for_voters(self.voter_1, self.voter_2, self.voter_3)
+        app, proposal = self._make_admission("Pass Test", "admitpass1")
+        cast_proposal_vote(proposal=proposal, voter_member=self.voter_1, choice=ProposalVote.Choice.YES)
+        cast_proposal_vote(proposal=proposal, voter_member=self.voter_2, choice=ProposalVote.Choice.YES)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, Proposal.Status.PASSED)
+
+    def test_member_admission_three_voters_two_no_fails(self) -> None:
+        self._ensure_gov_for_voters(self.voter_1, self.voter_2, self.voter_3)
+        app, proposal = self._make_admission("No Fail Test", "admitno1")
+        cast_proposal_vote(proposal=proposal, voter_member=self.voter_1, choice=ProposalVote.Choice.NO)
+        cast_proposal_vote(proposal=proposal, voter_member=self.voter_2, choice=ProposalVote.Choice.NO)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, Proposal.Status.FAILED)
+        app.refresh_from_db()
+        self.assertEqual(app.status, "rejected")
+
+    def test_non_member_admission_no_majority_does_not_fail_before_deadline(self) -> None:
+        proposal = create_proposal(
+            title="Normal proposal",
+            proposal_type=Proposal.ProposalType.RULE,
+            proposer_member=self.voter_1,
+            organization=self.organization,
+            voter_scope_role=self.committee_role,
+            pass_ratio=50,
+        )
+        for v in (self.voter_1, self.voter_2, self.voter_3):
+            cast_proposal_vote(proposal=proposal, voter_member=v, choice=ProposalVote.Choice.NO)
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, Proposal.Status.VOTING)

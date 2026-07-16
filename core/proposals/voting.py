@@ -38,56 +38,106 @@ def proposal_result(proposal: Proposal) -> dict[str, Any]:
     }
 
 
+def _mark_proposal_passed(proposal: Proposal, result: dict[str, Any], checked_at) -> Proposal:
+    proposal.status = Proposal.Status.PASSED
+    proposal.passed_at = checked_at
+    proposal.result_json = result
+    proposal.save(update_fields=["status", "passed_at", "result_json", "updated_at"])
+    append_event(
+        event_type=SystemEvent.EventType.PROPOSAL_PASSED,
+        aggregate_type="Proposal",
+        aggregate_id=str(proposal.pk),
+        actor_member=proposal.proposer_member,
+        actor_role_assignment=proposal.proposer_role_assignment,
+        payload_json=proposal_payload(proposal),
+        occurred_at=checked_at,
+    )
+    return proposal
+
+
+def _mark_proposal_failed(proposal: Proposal, result: dict[str, Any], checked_at) -> Proposal:
+    proposal.status = Proposal.Status.FAILED
+    proposal.failed_at = checked_at
+    proposal.result_json = result
+    proposal.save(update_fields=["status", "failed_at", "result_json", "updated_at"])
+    append_event(
+        event_type=SystemEvent.EventType.PROPOSAL_FAILED,
+        aggregate_type="Proposal",
+        aggregate_id=str(proposal.pk),
+        actor_member=proposal.proposer_member,
+        actor_role_assignment=proposal.proposer_role_assignment,
+        payload_json=proposal_payload(proposal),
+        occurred_at=checked_at,
+    )
+    if proposal.proposal_type == Proposal.ProposalType.MEMBER_ADMISSION:
+        _auto_reject_application(proposal, checked_at)
+    return proposal
+
+
+def _auto_reject_application(proposal: Proposal, checked_at) -> None:
+    """Reject the linked MemberApplication when a member_admission proposal fails."""
+    from core.application_services import reject_member_application_from_failed_proposal
+    from core.models import MemberApplication
+
+    application = MemberApplication.objects.filter(admission_proposal_id=proposal.pk).first()
+    if application is not None:
+        reject_member_application_from_failed_proposal(
+            application=application,
+            proposal=proposal,
+            at_time=checked_at,
+        )
+
+
 def evaluate_proposal(proposal: Proposal, *, at_time=None) -> Proposal:
     checked_at = at_time or timezone.now()
     if proposal.status != Proposal.Status.VOTING:
         return proposal
 
     result = proposal_result(proposal)
-    if result["passed"]:
-        proposal.status = Proposal.Status.PASSED
-        proposal.passed_at = checked_at
-        proposal.result_json = result
-        proposal.save(update_fields=["status", "passed_at", "result_json", "updated_at"])
-        append_event(
-            event_type=SystemEvent.EventType.PROPOSAL_PASSED,
-            aggregate_type="Proposal",
-            aggregate_id=str(proposal.pk),
-            actor_member=proposal.proposer_member,
-            actor_role_assignment=proposal.proposer_role_assignment,
-            payload_json=proposal_payload(proposal),
-            occurred_at=checked_at,
-        )
-    elif checked_at >= proposal.deadline_at:
-        proposal.status = Proposal.Status.FAILED
-        proposal.failed_at = checked_at
-        proposal.result_json = result
-        proposal.save(update_fields=["status", "failed_at", "result_json", "updated_at"])
-        append_event(
-            event_type=SystemEvent.EventType.PROPOSAL_FAILED,
-            aggregate_type="Proposal",
-            aggregate_id=str(proposal.pk),
-            actor_member=proposal.proposer_member,
-            actor_role_assignment=proposal.proposer_role_assignment,
-            payload_json=proposal_payload(proposal),
-            occurred_at=checked_at,
-        )
-        # When a member_admission proposal fails, automatically reject the linked
-        # application — there is no standalone “review → reject” action.
-        if proposal.proposal_type == Proposal.ProposalType.MEMBER_ADMISSION:
-            from core.application_services import reject_member_application_from_failed_proposal
-            from core.models import MemberApplication
+    is_admission = proposal.proposal_type == Proposal.ProposalType.MEMBER_ADMISSION
 
-            application = MemberApplication.objects.filter(admission_proposal_id=proposal.pk).first()
-            if application is not None:
-                reject_member_application_from_failed_proposal(
-                    application=application,
-                    proposal=proposal,
-                    at_time=checked_at,
-                )
-    else:
-        proposal.result_json = result
-        proposal.save(update_fields=["result_json", "updated_at"])
+    if is_admission:
+        return _evaluate_member_admission(proposal, result, checked_at)
+
+    # Non-member_admission: standard quorum + pass-ratio logic
+    if result["passed"]:
+        return _mark_proposal_passed(proposal, result, checked_at)
+
+    if checked_at >= proposal.deadline_at:
+        return _mark_proposal_failed(proposal, result, checked_at)
+
+    proposal.result_json = result
+    proposal.save(update_fields=["result_json", "updated_at"])
+    return proposal
+
+
+def _evaluate_member_admission(proposal: Proposal, result: dict[str, Any], checked_at) -> Proposal:
+    """Member admission: binary majority rule.
+
+    yes > eligible/2 → PASSED   (approval_threshold = eligible // 2 + 1)
+    no  > eligible/2 → FAILED   (rejection_threshold = eligible // 2 + 1)
+    deadline expired   → FAILED
+    otherwise           → keep VOTING
+    """
+    eligible = result["eligible"]
+    threshold = (eligible // 2) + 1  # strict majority: need > half
+
+    if eligible > 0 and result["yes"] >= threshold:
+        result["passed"] = True
+        result["required_yes"] = threshold
+        return _mark_proposal_passed(proposal, result, checked_at)
+
+    if eligible > 0 and result["no"] >= threshold:
+        result["passed"] = False
+        return _mark_proposal_failed(proposal, result, checked_at)
+
+    if checked_at >= proposal.deadline_at:
+        result["passed"] = False
+        return _mark_proposal_failed(proposal, result, checked_at)
+
+    result["required_yes"] = threshold
+    proposal.result_json = result
+    proposal.save(update_fields=["result_json", "updated_at"])
     return proposal
 
 

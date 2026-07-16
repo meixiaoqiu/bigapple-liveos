@@ -150,6 +150,27 @@ class WorkspaceApplicationsReviewTests(TestCase):
         proposal.refresh_from_db()
         self.assertEqual(proposal.status, Proposal.Status.PASSED)
 
+    def test_single_governance_no_vote_rejects_application_from_workspace(self) -> None:
+        application = _submit_application(member_no="review-applicant-no-vote")
+        proposal = application.admission_proposal
+        self.assertIsNotNone(proposal)
+        self.assertEqual(proposal.status, Proposal.Status.VOTING)
+
+        response = self.client.post(
+            f"/workspace/proposals/{proposal.pk}/vote/",
+            {"choice": "no", "reason": "报名者能力不匹配当前角色缺口。"},
+        )
+        self.assertEqual(response.status_code, 302)
+
+        proposal.refresh_from_db()
+        application.refresh_from_db()
+        self.assertEqual(proposal.status, Proposal.Status.FAILED)
+        self.assertEqual(application.status, MemberApplication.Status.REJECTED)
+
+        vote = ProposalVote.objects.get(proposal=proposal)
+        self.assertEqual(vote.choice, ProposalVote.Choice.NO)
+        self.assertEqual(vote.reason, "报名者能力不匹配当前角色缺口。")
+
     def test_execute_passed_admission_proposal_admits_member(self) -> None:
         application = _submit_application(member_no="review-applicant-execute")
         proposal = application.admission_proposal

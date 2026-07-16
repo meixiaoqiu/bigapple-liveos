@@ -257,6 +257,8 @@ http://127.0.0.1:20102/workspace/
 
 `/apply/` 提交成员报名后，系统自动创建最小权限 Member、MemberApplication 和 member_admission Proposal，提案直接进入 VOTING 状态。不存在独立的人工审核动作——准入完全由提案生命周期驱动。
 
+member_admission 是 yes/no 二元表决，使用严格多数决：赞成票超过 eligible voters 半数时立即通过；反对票超过 eligible voters 半数时立即失败，并自动将关联 MemberApplication 设为 REJECTED。未形成多数前保持表决中；截止仍未通过则失败。分母始终是 `eligible_voters_snapshot_json` 的人数，不是已投票人数。普通 proposal 规则不变。
+
 ```text
 GET  /workspace/applications/                                          # 报名列表（按准入进度筛选：投票中/已通过待执行/已接纳/未通过已拒绝/全部）
 GET  /workspace/applications/<application_id>/                         # 报名详情（申请人资料 + 准入提案 + 投票 + 执行）
