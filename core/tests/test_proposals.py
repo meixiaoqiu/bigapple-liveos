@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.test import TestCase
 from django.utils import timezone
 
@@ -412,3 +413,34 @@ class ProposalTests(TestCase):
             cast_proposal_vote(proposal=proposal, voter_member=v, choice=ProposalVote.Choice.NO)
         proposal.refresh_from_db()
         self.assertEqual(proposal.status, Proposal.Status.VOTING)
+
+    # ---- audit seq order ------------------------------------------------
+
+    def test_application_submitted_before_proposal_created(self) -> None:
+        """SystemEvent seq order: submitted < proposal_created.
+        Finds events by application_id across aggregate types.
+        """
+        from core.application_services import submit_member_application
+
+        app = submit_member_application(
+            applicant_name="Order Test",
+            contact="order@test.com",
+            motivation="Test order.",
+            role_gap="cooking",
+            account_username="ordertest2",
+            account_password="TestPass123!",
+        )
+        events = SystemEvent.objects.filter(
+            Q(aggregate_type="MemberApplication", aggregate_id=app.application_id)
+            | Q(payload_json__public_facts__application_id=app.application_id)
+        ).order_by("seq")
+        event_types = list(events.values_list("event_type", flat=True))
+        self.assertIn(SystemEvent.EventType.MEMBER_APPLICATION_SUBMITTED, event_types)
+        self.assertIn(SystemEvent.EventType.PROPOSAL_CREATED, event_types,
+                      "PROPOSAL_CREATED must be in the audit chain")
+        submitted = events.filter(event_type=SystemEvent.EventType.MEMBER_APPLICATION_SUBMITTED).first()
+        created_qs = events.filter(event_type=SystemEvent.EventType.PROPOSAL_CREATED)
+        self.assertIsNotNone(submitted)
+        self.assertEqual(created_qs.count(), 1, "PROPOSAL_CREATED must appear exactly once (no duplicate signal)")
+        created = created_qs.first()
+        self.assertLess(submitted.seq, created.seq)

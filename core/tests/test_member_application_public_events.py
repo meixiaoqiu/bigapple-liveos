@@ -174,7 +174,18 @@ class MemberApplicationPublicEventsTests(TestCase):
         )
         from observer.page_context import observer_context
         context = observer_context()
+        # theme-level events still contain the raw public Event (model instances)
         titles = {event.title for event in context["events"]}
         self.assertIn("新成员已加入", titles)
-        timeline_titles = {row["title"] for row in context["command_dashboard"]["timeline_events"]}
-        self.assertIn("新成员已加入", timeline_titles)
+
+        # timeline_events now has aggregated member-app cards, not raw stage events
+        timeline = context["command_dashboard"]["timeline_events"]
+        ma_rows = [r for r in timeline if r.get("_member_application_detail_url")]
+        self.assertTrue(len(ma_rows) > 0, "timeline must include a member application aggregated card")
+        ma = ma_rows[0]
+        self.assertEqual(ma["title"], "成员报名")
+        self.assertEqual(
+            ma["_member_application_detail_url"],
+            f"/observer/member-applications/{application.application_id}/",
+        )
+        self.assertEqual(ma["metric_value"], "已通过")

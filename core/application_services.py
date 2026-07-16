@@ -340,18 +340,20 @@ def submit_member_application(
     ensure_role_assignment(existing_member, ensure_member_role(ROLE_CANDIDATE))
     application.linked_member = existing_member
     application.save(update_fields=["requested_member_no", "linked_member"])
-    # Auto-create the member_admission proposal so every application immediately
-    # enters the governance voting pipeline. No manual “review” step exists.
-    create_member_application_admission_proposal(
-        application=application,
-        reason=f"系统自动发起：接纳 {application.applicant_name} 成为大苹果正式成员。",
-    )
+
+    # SystemEvent first so seq order reflects: submitted → proposal created → vote → result
     append_event(
         event_type=SystemEvent.EventType.MEMBER_APPLICATION_SUBMITTED,
         aggregate_type="MemberApplication",
         aggregate_id=application.application_id,
         payload_json=member_application_payload(application),
         occurred_at=now,
+    )
+    # Auto-create the member_admission proposal so every application immediately
+    # enters the governance voting pipeline. No manual "review" step exists.
+    create_member_application_admission_proposal(
+        application=application,
+        reason=f"系统自动发起：接纳 {application.applicant_name} 成为大苹果正式成员。",
     )
     _append_member_application_public_event_once(
         event_id=f"member-application-submitted-{application.application_id}",
@@ -574,7 +576,7 @@ def reject_member_application_from_failed_proposal(
     Called from the voting lifecycle when a MEMBER_ADMISSION proposal
     transitions to FAILED (deadline expired without sufficient yes votes).
     This is the ONLY path that sets an application to REJECTED — there is
-    no standalone “reject” action a governance member can trigger directly.
+    no standalone "reject" action a governance member can trigger directly.
     """
 
     if proposal.proposal_type != Proposal.ProposalType.MEMBER_ADMISSION:

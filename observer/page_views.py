@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.db.models import Q
 from django.http import Http404, HttpRequest
 from django.shortcuts import render
+from django.utils import timezone
 from django.views.decorators.http import require_GET
 
 from core.models import Event, SimulationSnapshot, SystemEvent
@@ -106,37 +108,68 @@ def dashboard_photo_story_partial(request: HttpRequest, **_kwargs):
 def observer_events_list(request: HttpRequest, **_kwargs):
     """Public community event stream list page."""
     apply_theme_query_override(request)
-    from .event_context import public_event_row
+    from .event_context import is_member_application_stage_event, public_event_row, public_member_application_rows
 
     max_events = 100
-    events = Event.objects.filter(visibility=Event.Visibility.PUBLIC).order_by(
-        "-occurred_at",
-        "event_id",
-    )[:max_events]
+    events = Event.objects.filter(visibility=Event.Visibility.PUBLIC).filter(
+        Q(payload__source__isnull=True) | ~Q(payload__source="member_application"),
+    ).order_by("-occurred_at", "event_id")[:max_events]
+    events = [e for e in events if not is_member_application_stage_event(e)]
     rows = [public_event_row(e) for e in events]
+
+    # Prepend aggregated member application cards
+    ma_rows = public_member_application_rows()
+    merged = ma_rows + rows
+    merged.sort(key=lambda r: r.get("occurred_at", timezone.now()), reverse=True)
+
     return render(
         request,
         get_theme_template_path(request, "events_list.html"),
-        {"events": rows},
+        {"events": merged[:max_events]},
     )
+
 
 
 @require_GET
 def observer_event_detail(request: HttpRequest, event_id: str, **_kwargs):
-    """Public community event detail page."""
+    """Public community event detail page.
+
+    Member-application stage events (submitted / admitted / rejected) are
+    not exposed as standalone detail pages; they 404 here.  Use
+    ``/observer/member-applications/<application_id>/`` instead.
+    """
     apply_theme_query_override(request)
-    from .event_context import public_event_detail
+    from .event_context import is_member_application_stage_event, public_event_detail
 
     try:
         event = Event.objects.get(event_id=event_id, visibility=Event.Visibility.PUBLIC)
     except Event.DoesNotExist as exc:
         raise Http404("Public event not found.") from exc
 
+    if is_member_application_stage_event(event):
+        raise Http404("Member application stage events are no longer standalone pages.")
+
     detail = public_event_detail(event)
     return render(
         request,
         get_theme_template_path(request, "event_detail.html"),
         {"event": detail},
+    )
+
+
+@require_GET
+def observer_member_application_detail(request: HttpRequest, application_id: str, **_kwargs):
+    """Member application detail page aggregating all stage events."""
+    apply_theme_query_override(request)
+    from .event_context import public_member_application_detail
+
+    detail = public_member_application_detail(application_id)
+    if detail is None:
+        raise Http404("Member application not found.")
+    return render(
+        request,
+        get_theme_template_path(request, "member_application_detail.html"),
+        detail,
     )
 
 

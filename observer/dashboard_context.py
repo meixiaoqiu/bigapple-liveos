@@ -10,6 +10,7 @@ from django.utils import timezone
 from core.models import CapacityAssessment, Dispute, Event, Member, ProjectPlan, Resource, SimulationRun, Task
 from live_os.api.serializers.events import public_event_summary
 
+from .event_context import is_member_application_stage_event, public_member_application_rows
 from .presentation import (
     RISK_LABELS,
     dashboard_tags_for_event,
@@ -28,7 +29,8 @@ def observer_command_dashboard_context() -> dict[str, Any]:
     latest = CapacityAssessment.objects.order_by("-simulation_day", "-created_at").first()
     active_plan = ProjectPlan.objects.filter(status=ProjectPlan.Status.ACTIVE).order_by("plan_id").first()
     latest_run = SimulationRun.objects.order_by("-started_at", "run_id").first()
-    recent_events = list(Event.objects.filter(visibility=Event.Visibility.PUBLIC).order_by("-occurred_at", "event_id")[:8])
+    recent_events_all = list(Event.objects.filter(visibility=Event.Visibility.PUBLIC).order_by("-occurred_at", "event_id")[:12])
+    recent_events = [e for e in recent_events_all if not is_member_application_stage_event(e)][:8]
     warning_resources = Resource.objects.filter(current_stock__lte=F("warning_threshold")).count()
     open_disputes_queryset = Dispute.objects.exclude(
         status__in=[Dispute.Status.RESOLVED, Dispute.Status.REJECTED, Dispute.Status.REVERSED]
@@ -74,9 +76,31 @@ def observer_command_dashboard_context() -> dict[str, Any]:
             "tags": dashboard_tags_for_event(event),
             "metric_label": "来源",
             "metric_value": event.get_generated_by_display(),
+            "_sort_at": event.occurred_at,
         }
         for event in recent_events
     ]
+
+    # Merge aggregated member application cards and sort by occurred_at desc
+    for ma in public_member_application_rows():
+        timeline_events.append({
+            "event_id": f"ma-{ma['application_id']}",
+            "time": timezone.localtime(ma["occurred_at"]).strftime("%H:%M"),
+            "ago": relative_age(ma["occurred_at"]),
+            "level": "notice",
+            "tone": "info",
+            "title": ma["title"],
+            "summary": ma["subtitle"],
+            "tags": ["成员报名"],
+            "metric_label": "状态",
+            "metric_value": ma["status"],
+            "_member_application_detail_url": ma["detail_url"],
+            "_sort_at": ma["occurred_at"],
+        })
+    timeline_events.sort(key=lambda e: e.get("_sort_at", timezone.now()), reverse=True)
+    timeline_events = timeline_events[:8]
+    for ev in timeline_events:
+        ev.pop("_sort_at", None)
 
     critical_events = sum(1 for event in recent_events if event.severity == Event.Severity.CRITICAL)
     warning_events = sum(1 for event in recent_events if event.severity == Event.Severity.WARNING)

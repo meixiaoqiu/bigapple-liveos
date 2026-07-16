@@ -117,15 +117,31 @@ def public_event_row(event: Event) -> dict[str, Any]:
     }
 
 
-def _is_member_application_event(event: Event) -> bool:
+_MEMBER_APP_STAGE_PREFIXES = (
+    "member-application-submitted-",
+    "member-application-admitted-",
+    "member-application-rejected-",
+)
+
+
+def is_member_application_stage_event(event: Event) -> bool:
+    """Return True only for member-application stage events.
+
+    Recognised by payload.source == "member_application" OR by
+    a standard stage-prefixed event_id.  A bare *application_id* +
+    *stage* alone is not sufficient.
+    """
     payload = event.payload or {}
     if payload.get("source") == "member_application":
         return True
-    if (event.event_id or "").startswith("member-application-"):
-        return True
-    if payload.get("application_id") and payload.get("stage") in {"submitted", "admitted", "rejected"}:
+    if (event.event_id or "").startswith(_MEMBER_APP_STAGE_PREFIXES):
         return True
     return False
+
+
+def _is_member_application_event(event: Event) -> bool:
+    """Legacy alias kept for internal semantic-summary routing."""
+    return is_member_application_stage_event(event)
 
 
 def _stage_display(stage: str) -> str:
@@ -156,6 +172,300 @@ def _member_application_semantic_summary(event: Event) -> list[dict[str, str]]:
     entries.append({"label": "阶段", "value": _stage_display(str(payload.get("stage") or ""))})
     entries.append({"label": "公开说明", "value": public_event_summary(event)})
     return entries
+
+
+def _status_display_short(stage: str) -> str:
+    mapping = {"submitted": "表决中", "voting": "表决中", "admitted": "已通过", "rejected": "未通过"}
+    return mapping.get(stage, stage or "未知")
+
+
+def _member_application_id_from_event(event: Event) -> str:
+    return str((event.payload or {}).get("application_id", "")).strip()
+
+
+def public_member_application_detail(application_id: str) -> dict[str, Any] | None:
+    """Return member application detail with a unified governance timeline.
+
+    Each timeline item is a SystemEvent with semantic labels + embedded audit proof.
+    """
+    # Build query: direct application_id matches
+    query = (
+        Q(aggregate_type="MemberApplication", aggregate_id=application_id)
+        | Q(payload_json__public_facts__application_id=application_id)
+        | Q(payload_json__application_id=application_id)
+    )
+
+    # Collect proposal_nos / proposal_ids from public stage Events to also
+    # find vote/result SystemEvents that only carry proposal_no/proposal_id.
+    _MA_STAGE_PREFIXES = (
+        "member-application-submitted-",
+        "member-application-admitted-",
+        "member-application-rejected-",
+    )
+    proposal_nos: set[str] = set()
+    proposal_ids: set[str] = set()
+    stage_q = Q(
+        visibility=Event.Visibility.PUBLIC,
+        payload__application_id=application_id,
+    )
+    for ev in Event.objects.filter(stage_q):
+        payload = ev.payload or {}
+        is_ma = (
+            payload.get("source") == "member_application"
+            or (ev.event_id or "").startswith(_MA_STAGE_PREFIXES)
+        )
+        if not is_ma:
+            continue
+        pno = str(payload.get("proposal_no", "")).strip()
+        if pno:
+            proposal_nos.add(pno)
+        pid = str(payload.get("proposal_id", "")).strip()
+        if pid:
+            proposal_ids.add(pid)
+
+    if proposal_nos:
+        query |= Q(payload_json__public_facts__proposal_no__in=proposal_nos)
+        query |= Q(payload_json__proposal_no__in=proposal_nos)
+
+    # proposal_id is internal-pk only used for query linkage, never displayed.
+    if proposal_ids:
+        query |= Q(aggregate_type="Proposal", aggregate_id__in=proposal_ids)
+        query |= Q(payload_json__proposal_id__in=proposal_ids)
+        query |= Q(payload_json__public_facts__proposal_id__in=proposal_ids)
+
+    # Deduplicate by seq
+    seen_seqs: set[int] = set()
+    ordered: list[SystemEvent] = []
+    for se in SystemEvent.objects.filter(query).order_by("seq"):
+        if se.seq not in seen_seqs:
+            seen_seqs.add(se.seq)
+            ordered.append(se)
+
+    if not ordered:
+        return None
+
+    # Determine latest payload for header fields
+    latest_payload: dict[str, Any] = {}
+    for se in ordered:
+        pk = se.payload_json or {}
+        if pk.get("public_facts", {}).get("application_id") == application_id:
+            latest_payload = pk
+
+    if not latest_payload:
+        latest_payload = ordered[-1].payload_json or {}
+
+    current_stage = str(
+        (latest_payload.get("public_facts") or {}).get("stage")
+        or latest_payload.get("stage", "")
+    )
+
+    timeline_items = _build_timeline_items(ordered)
+
+    return {
+        "application_id": application_id,
+        "current_status": _status_display_short(current_stage),
+        "status_badge": {"submitted": "badge-info", "admitted": "badge-success", "rejected": "badge-error"}.get(current_stage, "badge-ghost"),
+        "applicant_label": str(
+            (latest_payload.get("public_facts") or {}).get("public_applicant_label")
+            or latest_payload.get("public_applicant_label", "")
+            or latest_payload.get("public_member_label", "")
+            or "未公开"
+        ),
+        "role_label": str(
+            (latest_payload.get("public_facts") or {}).get("role_gap_label")
+            or latest_payload.get("role_gap_label", "")
+            or latest_payload.get("role_gap", "")
+            or "未公开"
+        ),
+        "proposal_no": str(
+            (latest_payload.get("public_facts") or {}).get("proposal_no")
+            or latest_payload.get("proposal_no", "")
+            or "未关联"
+        ),
+        "timeline_items": timeline_items,
+    }
+
+
+def _build_timeline_items(system_events) -> list[dict[str, Any]]:
+    """Build unified timeline items from SystemEvents, each with embedded audit proof."""
+    items: list[dict[str, Any]] = []
+    seen_seqs: set[int] = set()
+    prev_se: SystemEvent | None = None
+
+    for se in system_events:
+        if se.seq in seen_seqs:
+            continue
+        seen_seqs.add(se.seq)
+
+        row = _make_single_proof_row(se)
+        node = _timeline_node_from_system_event(se)
+        node.update(row)
+        items.append(node)
+        prev_se = se
+
+    return items
+
+
+_TL_TITLES: dict[str, str] = {
+    SystemEvent.EventType.MEMBER_APPLICATION_SUBMITTED: "收到成员报名",
+    SystemEvent.EventType.MEMBER_APPLICATION_REVIEWED: "报名审查完成",
+    SystemEvent.EventType.MEMBER_CREATED: "成员账号已创建",
+    SystemEvent.EventType.PROPOSAL_CREATED: "准入提案已创建",
+    SystemEvent.EventType.PROPOSAL_VOTE_CAST: "治理成员已投票",
+    SystemEvent.EventType.PROPOSAL_VOTE_CHANGED: "治理成员已改票",
+    SystemEvent.EventType.PROPOSAL_PASSED: "准入提案已通过",
+    SystemEvent.EventType.PROPOSAL_FAILED: "准入提案未通过",
+    SystemEvent.EventType.PROPOSAL_EXECUTED: "准入提案已执行",
+    SystemEvent.EventType.ROLE_ASSIGNED: "正式成员角色已授予",
+}
+
+
+def _timeline_node_from_system_event(se: SystemEvent) -> dict[str, Any]:
+    """Produce a semantic timeline node from one SystemEvent."""
+    pk = se.payload_json or {}
+    facts = pk.get("public_facts", {}) if isinstance(pk.get("public_facts"), dict) else {}
+    title = _TL_TITLES.get(se.event_type, se.get_event_type_display())
+
+    # --- actor display ---
+    actor = ""
+    voter_name = str(facts.get("voter_public_name", ""))
+    if voter_name:
+        actor = voter_name
+    elif se.actor_member:
+        actor = public_member_label(
+            se.actor_member.display_name or se.actor_member.member_no,
+            se.actor_member.member_no,
+        )
+
+    # --- summary ---
+    summary = str(pk.get("summary", ""))
+    if not summary:
+        summary = f"系统事件 #{se.seq}（{se.get_event_type_display()}）"
+
+    # --- vote specifics ---
+    vote_choice_label = str(facts.get("vote_choice_label", ""))
+    vote_reason = str(facts.get("reason", ""))
+
+    return {
+        "seq": se.seq,
+        "occurred_at": se.occurred_at,
+        "event_type": se.event_type,
+        "event_type_display": se.get_event_type_display(),
+        "title": title,
+        "summary": summary,
+        "actor_display": actor,
+        "vote_choice_label": vote_choice_label,
+        "vote_reason": vote_reason,
+        "aggregate_type": se.aggregate_type,
+    }
+
+
+def _make_single_proof_row(se: SystemEvent) -> dict[str, Any]:
+    """Return a single audit proof row dict for one SystemEvent."""
+    pk = se.payload_json or {}
+    chain = system_event_chain_check(se)
+    is_new_schema = pk.get("schema") == PUBLIC_LEDGER_SCHEMA
+
+    if is_new_schema:
+        payload_public_display = public_system_event_payload(se)
+    else:
+        payload_public_display = {"legacy_status": "旧格式审计事件，不公开复算"}
+
+    can_browser_verify = False
+    legacy_note = ""
+    if is_new_schema:
+        try:
+            validate_public_ledger_payload(pk)
+            can_browser_verify = True
+        except ValueError:
+            legacy_note = "此审计记录 payload 未通过公开安全校验，不能在浏览器端复算。"
+    else:
+        legacy_note = "旧格式事件，hash 不可在浏览器端完整复算。"
+
+    payload_public = dict(pk) if can_browser_verify else {}
+    payload_canonical = canonical_json(se.payload_json or {}) if can_browser_verify else ""
+    subject_ref = ""
+    event_hash_input = {}
+    event_hash_input_canonical = ""
+
+    if can_browser_verify:
+        try:
+            subject_ref = str((pk.get("subject") or {}).get("ref", se.aggregate_id))
+            event_hash_input = event_hash_payload_v2(
+                seq=se.seq,
+                event_type=se.event_type,
+                aggregate_type=se.aggregate_type,
+                subject_ref=subject_ref,
+                payload_hash=se.payload_hash,
+                prev_hash=se.prev_hash,
+            )
+            event_hash_input_canonical = canonical_json(event_hash_input)
+        except Exception:
+            can_browser_verify = False
+            payload_public = {}
+            payload_canonical = ""
+            event_hash_input = {}
+            event_hash_input_canonical = ""
+
+    return {
+        "payload_hash": se.payload_hash,
+        "prev_hash": se.prev_hash,
+        "event_hash": se.event_hash,
+        "event_hash_short": _short_hash(se.event_hash),
+        "payload_hash_valid": chain["payload_hash_valid"],
+        "prev_hash_valid": chain["prev_hash_valid"],
+        "event_hash_valid": chain["event_hash_valid"],
+        "chain_valid": chain["chain_valid"],
+        "subject_ref": subject_ref,
+        "payload_public_display": payload_public_display,
+        "payload_public": payload_public,
+        "payload_canonical_json": payload_canonical,
+        "payload_json_script_id": f"audit-payload-json-{se.seq}",
+        "event_hash_input": event_hash_input,
+        "event_hash_input_canonical_json": event_hash_input_canonical,
+        "event_hash_input_json_script_id": f"audit-input-json-{se.seq}",
+        "can_browser_verify": can_browser_verify,
+        "legacy_note": legacy_note,
+        "is_new_schema": is_new_schema,
+    }
+
+
+def public_member_application_rows() -> list[dict[str, Any]]:
+    """Aggregated member application cards for homepage/event list.
+
+    Returns one card per application_id (latest stage), sorted by occurred_at
+    descending (newest first).
+    """
+    events = Event.objects.filter(
+        visibility=Event.Visibility.PUBLIC,
+        payload__source="member_application",
+    ).order_by("-occurred_at")
+
+    seen: set[str] = set()
+    rows: list[dict[str, Any]] = []
+    for ev in events:
+        app_id = _member_application_id_from_event(ev)
+        if not app_id or app_id in seen:
+            continue
+        seen.add(app_id)
+        p = ev.payload or {}
+        stage = str(p.get("stage", ""))
+        applicant = str(p.get("public_applicant_label") or p.get("public_member_label") or "未公开")
+        role = str(p.get("role_gap_label") or p.get("role_gap") or "未公开")
+        status = _status_display_short(stage)
+        rows.append({
+            "application_id": app_id,
+            "title": f"成员报名",
+            "subtitle": f"报名者 {applicant}，意向 {role}，当前 {status}",
+            "status": status,
+            "occurred_at": ev.occurred_at,
+            "detail_url": f"/observer/member-applications/{app_id}/",
+            "is_member_application": True,
+        })
+    return rows
+
+
+
 
 
 def _generic_semantic_summary(event: Event) -> list[dict[str, str]]:

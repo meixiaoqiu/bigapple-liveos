@@ -86,6 +86,13 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
         tags = [str(tag) for tag in event.get("tags", [])]
         tone = str(event.get("tone") or "info")
         event_id = str(event.get("event_id") or "")
+        ma_url = event.get("_member_application_detail_url", "")
+        if ma_url:
+            detail_url = ma_url
+            action_label = "查看事项"
+        else:
+            detail_url = f"/observer/events/{event_id}/" if event_id else ""
+            action_label = "查看详情"
         events.append(
             {
                 "id": event_id or f"timeline-{index + 1}",
@@ -97,8 +104,8 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
                 "location": _first_location(tags),
                 "heat": str(event.get("metric_value") or ""),
                 "photo_url": "",
-                "action_label": "查看详情",
-                "detail_url": f"/observer/events/{event_id}/" if event_id else "",
+                "action_label": action_label,
+                "detail_url": detail_url,
             }
         )
     if events:

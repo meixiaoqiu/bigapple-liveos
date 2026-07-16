@@ -10,6 +10,7 @@
 /observer/
 /observer/events/
 /observer/events/<event_id>/
+/observer/member-applications/<application_id>/
 /observer/simulations/
 ```
 
@@ -46,17 +47,23 @@ Observer entrypoints are `http://127.0.0.1:20101/observer/` or `http://bigreal.l
 
 ## 公共事件流
 
-`/observer/events/` 是面向访客的公开社区事件流。首页“事件时间线”和事件流列表都基于 `core_event` 的公开记录，按时间展示社区当前发生的事情。每一条公开事件都可以进入 `/observer/events/<event_id>/` 查看详情。
+`/observer/events/` 是面向访客的公开社区事件流。首页“事件时间线”和事件流列表都基于 `core_event` 的公开记录，按时间展示社区当前发生的事情。Observer 顶层展示"事项/过程"，不是每个阶段都一个公开详情页。同一成员报名的多个阶段（submitted/admitted/rejected）聚合成一条事项卡片；普通事件每个仍对应一个详情页。
 
-列表页 `/observer/events/` 展示最近 100 条公开事件，每条显示标题、摘要、事件类型、严重程度、发生时间和来源。详情页 `/observer/events/<event_id>/` 展示完整标题和摘要，并用产品化的"事件概要"语义摘要取代原来的数据库字段表：对成员报名事件专项展示事项、报名者（脱敏）、意向角色、准入提案和阶段说明；对其他事件展示事件类型、严重程度、来源和关联业务对象，白名单字段使用中文标签映射。
+列表页 `/observer/events/` 展示最近 100 条公开事件/事项，每条显示标题、摘要、事件类型、严重程度、发生时间和来源。详情页 `/observer/events/<event_id>/` 展示完整标题和摘要，并用产品化的"事件概要"语义摘要。
+
+## 成员报名事项页
+
+成员报名公开展示聚合到 `/observer/member-applications/<application_id>/`。submitted/admitted/rejected 阶段 Event 保留为聚合数据源，但 `/observer/events/<stage-event-id>/` 不再作为公开页面，直接 404。
+
+事项详情页是"治理时间线 + 审计证明一体化"：页面以 daisyUI Timeline 垂直时间线统一展示所有关联 SystemEvent（按 seq 审计事实顺序，不由前端重排），每个时间线节点展示业务语义（收到成员报名 / 准入提案已创建 / 治理成员已投票 / 提案结果 / 成员接纳等），内嵌可展开的哈希证明和现场复算按钮。治理投票人公开姓名和投票选择，报名者继续使用脱敏标签。审计记录 seq 是事实顺序。Hash 复算和 json_script 安全机制与普通事件详情页一致。
+
+底层 `SystemEvent` 审计记录仍逐条保留。
 
 详情页底部的"审计证明"模块默认展开，使用 daisyUI 折叠面板。每条审计记录的标题栏显示 seq、事件类型、短 hash 和链校验状态；展开后展示完整 hash 值（payload_hash / prev_hash / event_hash）、逐项服务端校验结果、公开 payload，并提供"现场复算哈希链"按钮。点击按钮弹出 modal，逐步展示 browser 端使用 SHA-256 复算 payload_hash 和 event_hash 的完整过程，并对比服务端结果。prev_hash 校验由服务端完成（需查找上一条事件）。为支持 http:// 环境，内置纯 JS SHA-256 fallback。
 
 新 SystemEvent.payload_json 本身就是公开可验证的 payload（schema = `liveos.system-event.public.v1`）。payload_hash = SHA-256(canonical_json(payload_json))。event_hash = SHA-256(canonical_json(event_hash_input_v2))，其中 event_hash_input_v2 包含 seq、event_type、aggregate_type、subject_ref、payload_hash、prev_hash；subject_ref 取自 payload_json.subject.ref，不使用内部 aggregate_id，可在浏览器端完整复算。
 
-event_id 规则：成员报名事件为 `member-application-{stage}-{application_id}`，其他事件为 `{event_type}-{业务对象 ID}`。event_id 用于幂等和公开追踪，不追求短码。
-
-公开事件流不直接展示原始 `core_event.payload`。详情页只展示脱敏后的公开字段，敏感字段和内部 ID 不进入模板上下文。
+event_id 规则：成员报名阶段事件为 `member-application-{stage}-{application_id}`（仅内部使用，不公开）。公开事件流不直接展示原始 `core_event.payload`。
 
 ## 事件审计账本（隐藏高级入口）
 

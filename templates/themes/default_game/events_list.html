@@ -21,22 +21,34 @@
     {% for event in events %}
       <a class="card border border-base-300 bg-base-100 shadow-sm transition hover:border-primary hover:bg-base-200" href="{{ event.detail_url }}">
         <div class="card-body gap-3">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="badge {% if event.severity == 'critical' %}badge-error{% elif event.severity == 'warning' %}badge-warning{% else %}badge-info{% endif %} badge-outline">
-              {{ event.severity_display }}
-            </span>
-            <span class="badge badge-ghost">{{ event.event_type_display }}</span>
-            <span class="text-sm text-base-content/60">{{ event.occurred_at|date:"Y-m-d H:i" }}</span>
-          </div>
-          <div>
-            <h2 class="text-lg font-bold">{{ event.title }}</h2>
-            <p class="mt-1 text-sm text-base-content/70">{{ event.summary }}</p>
-          </div>
-          <div class="flex flex-wrap items-center gap-2 text-xs text-base-content/60">
-            <span>{{ event.generated_by }}</span>
-            {% if event.related_task_id %}<span>任务 {{ event.related_task_id }}</span>{% endif %}
-            {% if event.related_dispute_id %}<span>申诉 {{ event.related_dispute_id }}</span>{% endif %}
-          </div>
+          {% if event.is_member_application %}
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="badge badge-ghost">成员报名</span>
+              <span class="text-sm text-base-content/60">{{ event.occurred_at|date:"Y-m-d H:i" }}</span>
+              <span class="badge badge-outline">{{ event.status }}</span>
+            </div>
+            <div>
+              <h2 class="text-lg font-bold">{{ event.title }}</h2>
+              <p class="mt-1 text-sm text-base-content/70">{{ event.subtitle }}</p>
+            </div>
+          {% else %}
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="badge {% if event.severity == 'critical' %}badge-error{% elif event.severity == 'warning' %}badge-warning{% else %}badge-info{% endif %} badge-outline">
+                {{ event.severity_display }}
+              </span>
+              <span class="badge badge-ghost">{{ event.event_type_display }}</span>
+              <span class="text-sm text-base-content/60">{{ event.occurred_at|date:"Y-m-d H:i" }}</span>
+            </div>
+            <div>
+              <h2 class="text-lg font-bold">{{ event.title }}</h2>
+              <p class="mt-1 text-sm text-base-content/70">{{ event.summary }}</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 text-xs text-base-content/60">
+              <span>{{ event.generated_by }}</span>
+              {% if event.related_task_id %}<span>任务 {{ event.related_task_id }}</span>{% endif %}
+              {% if event.related_dispute_id %}<span>申诉 {{ event.related_dispute_id }}</span>{% endif %}
+            </div>
+          {% endif %}
         </div>
       </a>
     {% empty %}

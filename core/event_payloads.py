@@ -292,6 +292,24 @@ def proposal_payload(proposal: Proposal) -> dict[str, Any]:
     ref = _public_ref("proposal", proposal.proposal_no) if proposal.proposal_no else _public_ref(
         "proposal", proposal.proposal_type, proposal.title
     )
+    facts: dict[str, Any] = {
+        "proposal_no": proposal.proposal_no or "",
+        "proposal_type": proposal.proposal_type,
+        "title": proposal.title,
+        "status": proposal.status,
+        "proposer_label": proposer_label,
+        "pass_ratio": proposal.pass_ratio,
+        "quorum_count": proposal.quorum_count,
+    }
+    # For member_admission proposals, carry the application_id so
+    # Observer can link proposal / vote / execution events back to the
+    # member application timeline.
+    if proposal.proposal_type == Proposal.ProposalType.MEMBER_ADMISSION:
+        pk = proposal.payload_json or {}
+        app_id = str(pk.get("application_id", "")).strip()
+        if app_id:
+            facts["application_id"] = app_id
+            facts["role_gap"] = str(pk.get("role_gap", ""))
     return _public_event_payload(
         subject_type="proposal",
         subject_ref=ref,
@@ -299,15 +317,7 @@ def proposal_payload(proposal: Proposal) -> dict[str, Any]:
         action=proposal.status,
         stage=proposal.status,
         summary=f"提案 {proposal.proposal_no or '无编号'}「{proposal.title}」{proposal.get_status_display()}。",
-        public_facts={
-            "proposal_no": proposal.proposal_no or "",
-            "proposal_type": proposal.proposal_type,
-            "title": proposal.title,
-            "status": proposal.status,
-            "proposer_label": proposer_label,
-            "pass_ratio": proposal.pass_ratio,
-            "quorum_count": proposal.quorum_count,
-        },
+        public_facts=facts,
         private_commitments=[
             _private("proposal_id", reason="提案内部ID"),
             _private("proposer_member_no", reason="提案人编号属于隐私"),
@@ -322,29 +332,43 @@ def proposal_payload(proposal: Proposal) -> dict[str, Any]:
 
 def proposal_vote_payload(vote: ProposalVote, *, previous_choice: str | None = None) -> dict[str, Any]:
     proposal = vote.proposal
-    voter_label = _public_member_label(
-        _member_label(vote.voter_member), vote.voter_member.member_no
-    )
+    voter = vote.voter_member
+    voter_public_name = voter.display_name or voter.member_no or (voter.user.get_username() if voter.user_id else "") or "治理成员"
     ref = _public_ref("proposal", proposal.proposal_no) if proposal.proposal_no else _public_ref(
         "proposal", proposal.proposal_type, proposal.title
     )
+    choice = str(vote.choice)
+    choice_label = dict(ProposalVote.Choice.choices).get(choice, choice)
+    facts: dict[str, Any] = {
+        "proposal_no": proposal.proposal_no or "",
+        "proposal_type": proposal.proposal_type,
+        "title": proposal.title,
+        "vote_choice": choice,
+        "vote_choice_label": choice_label,
+        "voter_public_name": voter_public_name,
+    }
+    if vote.reason:
+        facts["reason"] = vote.reason
+    if previous_choice:
+        facts["previous_vote_choice"] = previous_choice
+        facts["is_vote_change"] = True
+    else:
+        facts["is_vote_change"] = False
+    if proposal.proposal_type == Proposal.ProposalType.MEMBER_ADMISSION:
+        pk = proposal.payload_json or {}
+        app_id = str(pk.get("application_id", "")).strip()
+        if app_id:
+            facts["application_id"] = app_id
     return _public_event_payload(
         subject_type="proposal_vote",
         subject_ref=ref,
         subject_label=proposal.proposal_type,
-        action=vote.choice,
+        action=choice,
         stage=proposal.status,
-        summary=f"提案 {proposal.proposal_no or '无编号'} 收到投票：{vote.get_choice_display()}（{voter_label}）。",
-        public_facts={
-            "proposal_no": proposal.proposal_no or "",
-            "proposal_type": proposal.proposal_type,
-            "title": proposal.title,
-            "choice": vote.choice,
-            "voter_label": voter_label,
-        },
+        summary=f"提案 {proposal.proposal_no or '无编号'} 收到投票：{choice_label}（{voter_public_name}）。",
+        public_facts=facts,
         private_commitments=[
             _private("proposal_id", reason="提案内部ID"),
-            _private("voter_member_no", reason="投票人编号属于隐私"),
             _private("voter_member_id", reason="投票人内部ID"),
             _private("voter_role_assignment_id", reason="投票人角色任命内部ID"),
         ],

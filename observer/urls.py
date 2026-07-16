@@ -32,6 +32,7 @@ urlpatterns = [
     ),
     path("events/", page_views.observer_events_list, name="observer-events-list"),
     path("events/<str:event_id>/", page_views.observer_event_detail, name="observer-event-detail"),
+    path("member-applications/<str:application_id>/", page_views.observer_member_application_detail, name="observer-member-application-detail"),
     path("event-ledger/", page_views.observer_event_ledger_list, name="observer-event-ledger-list"),
     path("event-ledger/<int:seq>/", page_views.observer_event_ledger_detail, name="observer-event-ledger-detail"),
     path("themes/switch/", theme_views.switch_theme, name="switch-theme"),
