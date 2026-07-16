@@ -811,15 +811,18 @@ class PublicEventsBrowserTests(TestCase):
 
     # ---- layout -----------------------------------------------------------
 
-    def test_timeline_uses_compact_layout(self):
-        self._create_ledger_event(aggregate_id="app-compact-1")
+    def test_member_application_timeline_uses_compact_snap_icon_layout(self):
+        self._create_ledger_event(aggregate_id="app-timeline-1")
         self._create_public_event(
-            event_id="member-application-submitted-app-compact",
+            event_id="member-application-submitted-app-timeline",
             payload={"source": "member_application", "stage": "submitted",
-                     "application_id": "app-compact-1"},
+                     "application_id": "app-timeline-1"},
         )
-        response = self.client.get("/observer/member-applications/app-compact-1/")
-        self.assertContains(response, "timeline-compact")
+        response = self.client.get("/observer/member-applications/app-timeline-1/")
+        self.assertContains(response, "timeline timeline-vertical timeline-compact timeline-snap-icon")
+        self.assertContains(response, "timeline-middle")
+        self.assertContains(response, "timeline-end timeline-box")
+        self.assertContains(response, "w-full max-w-none")
         self.assertContains(response, "max-w-6xl")
 
     # ---- proposal_no linkage ----------------------------------------------

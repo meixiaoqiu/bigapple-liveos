@@ -55,7 +55,7 @@ Observer entrypoints are `http://127.0.0.1:20101/observer/` or `http://bigreal.l
 
 成员报名公开展示聚合到 `/observer/member-applications/<application_id>/`。submitted/admitted/rejected 阶段 Event 保留为聚合数据源，但 `/observer/events/<stage-event-id>/` 不再作为公开页面，直接 404。
 
-事项详情页是"治理时间线 + 审计证明一体化"：页面以 daisyUI Timeline 垂直时间线统一展示所有关联 SystemEvent（按 seq 审计事实顺序，不由前端重排），每个时间线节点展示业务语义（收到成员报名 / 准入提案已创建 / 治理成员已投票 / 提案结果 / 成员接纳等），内嵌可展开的哈希证明和现场复算按钮。治理投票人公开姓名和投票选择，报名者继续使用脱敏标签。审计记录 seq 是事实顺序。Hash 复算和 json_script 安全机制与普通事件详情页一致。
+事项详情页是"治理时间线 + 审计证明一体化"：页面使用 daisyUI compact vertical timeline / timeline-snap-icon 样式，左侧窄轨道表示审计链顺序，右侧全宽节点卡片展示业务语义（收到成员报名 / 准入提案已创建 / 治理成员已投票 / 提案结果 / 成员接纳等），内嵌可展开的哈希证明和现场复算按钮。治理投票人公开姓名和投票选择，报名者继续使用脱敏标签。审计记录 seq 是事实顺序。Hash 复算和 json_script 安全机制与普通事件详情页一致。
 
 底层 `SystemEvent` 审计记录仍逐条保留。
 
