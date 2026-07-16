@@ -1,5 +1,5 @@
 {% extends "themes/default_game/base.html" %}
-{% load world_urls %}
+{% load world_urls static %}
 
 {% block title %}成员报名 — {{ application_id }}{% endblock %}
 
@@ -112,8 +112,13 @@
                         {{ item.payload_canonical_json|json_script:item.payload_json_script_id }}
                         {{ item.event_hash_input_canonical_json|json_script:item.event_hash_input_json_script_id }}
                         <div class="flex flex-wrap items-center gap-2 mt-1">
-                          <button class="btn btn-xs btn-primary btn-outline"
-                                  onclick="openAuditVerification('{{ item.payload_json_script_id|escapejs }}', '{{ item.event_hash_input_json_script_id|escapejs }}', {{ item.seq }}, '{{ item.payload_hash|escapejs }}', '{{ item.event_hash|escapejs }}')">
+                          <button type="button" class="btn btn-xs btn-primary btn-outline"
+                                  data-audit-verify-button
+                                  data-payload-script-id="{{ item.payload_json_script_id }}"
+                                  data-event-hash-input-script-id="{{ item.event_hash_input_json_script_id }}"
+                                  data-seq="{{ item.seq }}"
+                                  data-expected-payload-hash="{{ item.payload_hash }}"
+                                  data-expected-event-hash="{{ item.event_hash }}">
                             现场复算哈希链
                           </button>
                           <span id="audit-verify-badge-{{ item.seq }}"></span>
@@ -143,19 +148,14 @@
 <dialog id="audit-verify-modal" class="modal">
   <div class="modal-box max-w-2xl">
     <h3 class="text-lg font-bold mb-3">现场复算哈希链</h3>
-    <div id="audit-verify-steps" class="mockup-code text-xs py-3 max-h-96 overflow-y-auto"></div>
-    <div class="modal-action">
-      <button class="btn btn-sm" onclick="document.getElementById('audit-verify-modal').close()">关闭</button>
-    </div>
+    <div id="audit-verify-steps" class="mockup-code bg-neutral text-neutral-content text-xs py-3 max-h-96 overflow-y-auto overflow-x-hidden"></div>
+    <form method="dialog" class="modal-action">
+      <button class="btn btn-sm">关闭</button>
+    </form>
   </div>
   <form method="dialog" class="modal-backdrop"><button>关闭</button></form>
 </dialog>
 
-<script>
-async function sha256Hex(data){try{var buf=await crypto.subtle.digest("SHA-256",data);return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,"0")}).join("")}catch(_){return _sha256Fallback(data)}}
-function _sha256Fallback(d){var r=_sha256Raw(d);return Promise.resolve(Array.from(new Uint8Array(r)).map(function(b){return b.toString(16).padStart(2,"0")}).join(""))}
-function _sha256Raw(data){var K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];var msg=new Uint8Array(data),bitLen=msg.length*8,padLen=(msg.length+9+63)&~63,padded=new Uint8Array(padLen);padded.set(msg);padded[msg.length]=0x80;new DataView(padded.buffer).setUint32(padLen-4,bitLen,false);var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19],W=new Uint32Array(64);for(var b=0;b<padLen;b+=64){for(var t=0;t<16;t++)W[t]=(padded[b+t*4]<<24)|(padded[b+t*4+1]<<16)|(padded[b+t*4+2]<<8)|padded[b+t*4+3];for(t=16;t<64;t++)W[t]=(function(x){return(((x>>>17)|(x<<15))^((x>>>19)|(x<<13))^(x>>>10))}(W[t-2])+W[t-7]+(function(x){return(((x>>>7)|(x<<25))^((x>>>18)|(x<<14))^(x>>>3))}(W[t-15])+W[t-16])>>>0;var a=H[0],b_=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];for(t=0;t<64;t++){var T1=(h+(function(x){return(((x>>>6)|(x<<26))^((x>>>11)|(x<<21))^((x>>>25)|(x<<7)))}(e)+(e&f^~e&g)+K[t]+W[t])>>>0,T2=((function(x){return(((x>>>2)|(x<<30))^((x>>>13)|(x<<19))^((x>>>22)|(x<<10)))}(a)+(a&b_^a&c^b_&c))>>>0;h=g;g=f;f=e;e=(d+T1)>>>0;d=c;c=b_;b_=a;a=(T1+T2)>>>0}H[0]=(H[0]+a)>>>0;H[1]=(H[1]+b_)>>>0;H[2]=(H[2]+c)>>>0;H[3]=(H[3]+d)>>>0;H[4]=(H[4]+e)>>>0;H[5]=(H[5]+f)>>>0;H[6]=(H[6]+g)>>>0;H[7]=(H[7]+h)>>>0}var result=new Uint8Array(32),outView=new DataView(result.buffer);for(var i=0;i<8;i++)outView.setUint32(i*4,H[i],false);return result}
 
-async function openAuditVerification(payloadScriptId,eventHashInputScriptId,seq,expectedPayloadHash,expectedEventHash){var modal=document.getElementById("audit-verify-modal"),steps=document.getElementById("audit-verify-steps"),badge=document.getElementById("audit-verify-badge-"+seq);if(!modal||!steps)return;steps.innerHTML="";modal.showModal();function log(msg,cls){var pre=document.createElement("pre");pre.setAttribute("data-prefix","$");pre.textContent=msg;if(cls)pre.className=cls;steps.appendChild(pre);steps.scrollTop=steps.scrollHeight}var encoder=new TextEncoder();try{log("===== SystemEvent #"+seq+" 哈希链复算 =====","text-info");var payloadEl=document.getElementById(payloadScriptId);if(!payloadEl){log("ERROR: 未找到 payload JSON script","text-error");modal.close();return}var payloadCanonical=JSON.parse(payloadEl.textContent);log("1. 读取公开 payload 规范化 JSON","text-success");var payloadData=encoder.encode(payloadCanonical),computedPayloadHash=await sha256Hex(payloadData);log("2. SHA-256(payload canonical JSON) = "+computedPayloadHash,"text-warning");var payloadOk=false;if(computedPayloadHash===expectedPayloadHash){log("3. payload_hash 匹配 ✓","text-success");payloadOk=true}else{log("3. payload_hash 不匹配 ✗","text-error")}var inputEl=document.getElementById(eventHashInputScriptId);if(!inputEl){log("ERROR: 未找到 event_hash_input JSON script","text-error");modal.close();return}var eventHashInputCanonical=JSON.parse(inputEl.textContent);log("4. 读取 event_hash 输入规范化 JSON","text-success");var inputData=encoder.encode(eventHashInputCanonical),computedEventHash=await sha256Hex(inputData);log("5. SHA-256(event_hash_input) = "+computedEventHash,"text-warning");var eventOk=false;if(computedEventHash===expectedEventHash){log("6. event_hash 匹配 ✓","text-success");eventOk=true}else{log("6. event_hash 不匹配 ✗","text-error")}log("7. prev_hash 校验结果见上方服务端验证区域","text-info");log("","");if(payloadOk&&eventOk){log("===== 哈希链复算通过 ✓ =====","text-success");if(badge)badge.innerHTML='<span class=\"badge badge-success badge-xs\">复算通过</span>'}else{log("===== 哈希链复算失败 ✗ =====","text-error");if(badge)badge.innerHTML='<span class=\"badge badge-error badge-xs\">复算失败</span>'}}catch(e){log("ERROR: "+e.message,"text-error");if(badge)badge.innerHTML='<span class=\"badge badge-warning badge-xs\">计算异常</span>'}}
-</script>
+<script src="{% static 'observer/audit_verify.js' %}" defer></script>
 {% endblock %}

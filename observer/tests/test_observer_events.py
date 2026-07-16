@@ -242,10 +242,11 @@ class PublicEventsBrowserTests(TestCase):
         event = self._create_public_event(payload={"application_id": "app-jsv"})
         response = self.client.get(self.event_detail_url(event.event_id))
         content = response.content.decode()
+        # Inline JS removed; static file uses correct encoder.encode() without double stringify
         self.assertNotIn("JSON.stringify(payloadCanonical)", content)
         self.assertNotIn("JSON.stringify(eventHashInput)", content)
-        self.assertIn("encoder.encode(payloadCanonical)", content)
-        self.assertIn("encoder.encode(eventHashInputCanonical)", content)
+        # Static JS file is included
+        self.assertContains(response, '/static/observer/audit_verify.js')
 
     # ---- XSS safety -----------------------------------------------------
 
@@ -691,6 +692,122 @@ class PublicEventsBrowserTests(TestCase):
         ev = self._create_public_event(payload={"stage": "admitted"})
         response = self.client.get(self.event_detail_url(ev.event_id))
         self.assertEqual(response.status_code, 200)
+
+    # ---- audit verify JS (static file, data-* binding) -------------------
+
+    def test_audit_verify_uses_static_js_not_inline_onclick(self):
+        self._create_ledger_event(
+            aggregate_type="MemberApplication",
+            aggregate_id="app-jsv",
+            payload_json=_v2_payload(),
+        )
+        ev = self._create_public_event(
+            event_id="not-a-ma-event",
+            payload={"application_id": "app-jsv", "stage": "admitted"},
+        )
+        response = self.client.get(self.event_detail_url(ev.event_id))
+        content = response.content.decode()
+        # Must NOT have inline onclick
+        self.assertNotIn('onclick="openAuditVerification', content)
+        # Must NOT have inline script functions
+        self.assertNotIn('function openAuditVerification', content)
+        # Must have data-* attributes (present if audit section rendered)
+        self.assertContains(response, 'data-audit-verify-button')
+        self.assertContains(response, 'data-payload-script-id')
+        self.assertContains(response, 'data-event-hash-input-script-id')
+        # Must include the static JS file
+        self.assertContains(response, '/static/observer/audit_verify.js')
+
+    def test_ma_page_audit_verify_uses_static_js(self):
+        self._create_ledger_event(aggregate_id="app-av1")
+        self._create_public_event(
+            event_id="member-application-submitted-app-av1",
+            payload={"source": "member_application", "stage": "submitted",
+                     "application_id": "app-av1"},
+        )
+        response = self.client.get("/observer/member-applications/app-av1/")
+        content = response.content.decode()
+        self.assertNotIn('onclick="openAuditVerification', content)
+        self.assertNotIn('function openAuditVerification', content)
+        self.assertContains(response, '/static/observer/audit_verify.js')
+
+    def test_dist_css_contains_audit_verify_classes(self):
+        """Ensure tailwind build has been run and required classes exist."""
+        import os
+        css_path = os.path.join(os.path.dirname(__file__), '..', '..', 'theme', 'static', 'css', 'dist', 'styles.css')
+        with open(css_path, encoding='utf-8') as f:
+            content = f.read()
+        for cls in ('overflow-x-hidden', 'break-words', 'max-w-full', 'whitespace-pre-wrap', 'break-all',
+                     'bg-neutral', 'text-neutral-content', 'px-4', 'text-left', 'rounded-lg'):
+            self.assertIn(cls, content, f"dist/styles.css missing class: {cls}")
+
+    def test_modal_close_uses_method_dialog_not_inline_onclick(self):
+        ev = self._create_public_event(payload={"stage": "admitted"})
+        response = self.client.get(self.event_detail_url(ev.event_id))
+        content = response.content.decode()
+        self.assertNotIn("getElementById('audit-verify-modal').close()", content)
+
+    def test_static_js_file_is_discoverable(self):
+        from django.contrib.staticfiles.finders import find
+        result = find("observer/audit_verify.js")
+        self.assertIsNotNone(result, "audit_verify.js must be found by staticfiles")
+
+    def test_audit_verify_js_has_step_by_step_content(self):
+        """Static JS must contain progressive rendering and detailed computation."""
+        from django.contrib.staticfiles.finders import find
+        path = find("observer/audit_verify.js")
+        self.assertIsNotNone(path)
+        with open(path, encoding='utf-8') as f:
+            content = f.read()
+        # Progressive rendering
+        self.assertIn('await', content)
+        self.assertIn('delay(', content)
+        self.assertIn('_currentRunId', content)
+        # Detailed computation display
+        self.assertIn('UTF-8 byte length', content)
+        self.assertIn('canonical_json(payload_json)', content)
+        self.assertIn('canonical_json(event_hash_input)', content)
+        self.assertIn('浏览器计算值', content)
+        self.assertIn('服务端记录值', content)
+        self.assertIn('prev_hash', content)
+        # Layout fixes
+        self.assertIn('whitespace-pre-wrap', content)
+        self.assertIn('break-words', content)
+        self.assertIn('break-all', content)
+        # Error paths must NOT close modal
+        self.assertNotIn('modal.close(); return', content)
+        self.assertNotIn('modal.close();return', content)
+        # Display actual canonical string, not re-formatted JSON
+        self.assertNotIn('JSON.stringify(JSON.parse(payloadEl.textContent), null, 2)', content)
+        self.assertNotIn('JSON.stringify(JSON.parse(inputEl.textContent), null, 2)', content)
+        self.assertIn('实际参与 SHA-256 的 canonical_json(payload_json)', content)
+        self.assertIn('实际参与 SHA-256 的 canonical_json(event_hash_input)', content)
+        # No light bg / daisyUI collapse / divider in mockup-code
+        self.assertNotIn("bg-base-200", content)
+        self.assertNotIn("divider text-sm", content)
+        self.assertNotIn("collapse collapse-arrow", content)
+        self.assertNotIn("text-base-content/60", content)
+        # Dark terminal friendly classes
+        self.assertIn("text-neutral-content", content)
+        self.assertIn("border-neutral-content/20", content)
+        self.assertIn("px-4", content)
+        self.assertIn("text-left", content)
+
+    def test_steps_container_has_overflow_x_hidden(self):
+        ev = self._create_public_event(payload={"stage": "admitted"})
+        response = self.client.get(self.event_detail_url(ev.event_id))
+        self.assertContains(response, 'mockup-code bg-neutral text-neutral-content')
+        self.assertContains(response, 'overflow-x-hidden')
+
+    def test_ma_steps_container_has_overflow_x_hidden(self):
+        self._create_ledger_event(aggregate_id="app-ox")
+        self._create_public_event(
+            event_id="member-application-submitted-app-ox",
+            payload={"source": "member_application", "stage": "submitted",
+                     "application_id": "app-ox"},
+        )
+        response = self.client.get("/observer/member-applications/app-ox/")
+        self.assertContains(response, 'overflow-x-hidden')
 
     # ---- layout -----------------------------------------------------------
 
