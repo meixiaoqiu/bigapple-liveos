@@ -92,6 +92,8 @@
 Member -> active RoleAssignment -> RolePermission -> Permission
 ```
 
+Proposal 可以决定授予/撤销角色，也可以未来决定授予 Credential。但权限检查仍只能走上述 RoleAssignment 链；Credential 不能成为第二套权限系统。
+
 ### 提案
 
 `Proposal` 只处理“是否批准某件事”。它负责提案内容、表决范围、投票资格快照、通过比例、最低参与人数、截止时间和执行结果。

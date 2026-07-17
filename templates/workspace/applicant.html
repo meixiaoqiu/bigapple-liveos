@@ -23,6 +23,7 @@
             </div>
           </div>
           <nav class="flex flex-wrap justify-end gap-2" aria-label="报名工作台导航">
+            <a class="btn btn-sm" href="{% world_url 'workspace-public-profile' %}">公开资料</a>
             <a class="btn btn-sm" href="{% world_url 'observer-page' %}">观察台</a>
             <form method="post" action="{% world_url 'world-logout' %}">
               {% csrf_token %}

@@ -339,3 +339,18 @@ def application_review_detail_context(*, member: Member, application: MemberAppl
         "decision_note": (application.metadata or {}).get("decision_note", ""),
         "admission_proposal": _proposal_view(application.admission_proposal, viewer=member),
     }
+
+
+def workspace_public_profile_context(member: Member) -> dict[str, Any]:
+    """Context for the self-service public profile page."""
+    from core.models import MemberPublicProfile
+    profile = MemberPublicProfile.objects.filter(member=member).first()
+    return {
+        "member": member,
+        "profile": profile,
+        "profile_form": {
+            "public_name": profile.public_name if profile else "",
+            "avatar_url": profile.avatar_url if profile else "",
+        },
+        "observer_profile_url": f"/observer/members/{member.member_no}/",
+    }

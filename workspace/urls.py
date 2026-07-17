@@ -43,4 +43,14 @@ urlpatterns = [
         world_scoped_view(views.workspace_proposal_execute),
         name="workspace-proposal-execute",
     ),
+    path(
+        "profile/",
+        world_scoped_view(views.workspace_public_profile_page),
+        name="workspace-public-profile",
+    ),
+    path(
+        "profile/update/",
+        world_scoped_view(views.workspace_public_profile_update),
+        name="workspace-public-profile-update",
+    ),
 ]

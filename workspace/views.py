@@ -7,7 +7,7 @@ from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Q
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_GET, require_POST
 
 from live_os.access import (
@@ -38,6 +38,33 @@ PROPOSAL_VOTE_CHOICES = {
     ProposalVote.Choice.YES,
     ProposalVote.Choice.NO,
 }
+
+
+@require_GET
+def workspace_public_profile_page(request: HttpRequest):
+    member = current_member_or_forbidden(request)
+    if isinstance(member, HttpResponseForbidden):
+        return member
+    from .context import workspace_public_profile_context
+    return render(request, "workspace/profile.html", workspace_public_profile_context(member))
+
+
+@require_POST
+def workspace_public_profile_update(request: HttpRequest):
+    member = current_member_or_forbidden(request)
+    if isinstance(member, HttpResponseForbidden):
+        return member
+    public_name = request.POST.get("public_name", "").strip()
+    avatar_url = request.POST.get("avatar_url", "").strip()
+    try:
+        from core.member_profile_services import update_member_public_profile
+        update_member_public_profile(member=member, public_name=public_name, avatar_url=avatar_url)
+        messages.success(request, "公开资料已更新。")
+    except DjangoValidationError as exc:
+        messages.error(request, f"保存失败：{exc}")
+    except DomainError as exc:
+        messages.error(request, f"保存失败：{exc}")
+    return world_redirect(request, "workspace-public-profile")
 
 
 def parse_evidence_refs(raw_value: str) -> list[str]:

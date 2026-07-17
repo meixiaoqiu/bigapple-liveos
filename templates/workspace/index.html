@@ -27,6 +27,7 @@
             {% if is_governance %}
               <a class="btn btn-sm" href="{% world_url 'workspace-applications-review' %}">成员报名审核</a>
             {% endif %}
+            <a class="btn btn-sm" href="{% world_url 'workspace-public-profile' %}">公开资料</a>
             <a class="btn btn-sm" href="{% world_url 'observer-page' %}">观察台</a>
             <form method="post" action="{% world_url 'world-logout' %}">
               {% csrf_token %}

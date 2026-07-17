@@ -47,6 +47,15 @@ POST /workspace/disputes/
 
 任务领取、劳动提交和申诉提交仍通过对应领域服务完成，并写入必要的业务事件和统一事件账本。
 
+### 公开资料维护
+
+```text
+GET  /workspace/profile/
+POST /workspace/profile/update/
+```
+
+当前成员（包括 pending applicant）可以维护公开姓名和头像 URL，展示在 `/observer/members/<member_no>/` 公开主页。不能编辑角色、权限、治理身份，不提供简介和可见性自助编辑。治理身份仍由 RoleAssignment 动态计算，不来自个人填写。
+
 ## 与 Control 后台的关系
 
 `/workspace/` 是成员本人使用的工作台，不承担底层管理职责。

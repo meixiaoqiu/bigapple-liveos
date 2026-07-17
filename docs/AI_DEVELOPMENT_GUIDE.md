@@ -54,6 +54,7 @@
 - 当前 Django Admin 配置按维护域拆分：`core.admin` 是自动发现入口，成员/角色在 `core.admin_identity`，提案在 `core.admin_proposals`，任务/资源/申诉在 `core.admin_operations`，只读历史和事件账本在 `core.admin_events`。底层、危险和兜底维护操作统一归 control 后台；world runtime 只保留成员工作台、观察台、报名入口和 API。
 - 当前模型定义按领域拆分在 `core.models` 包：身份/角色在 `identity`，提案在 `proposals`，项目计划在 `planning`，仿真记录在 `simulation`，仿真快照归档在 `simulation_archives`，任务/积分/资源在 `operations`，事件账本在 `events`，申诉/容量在 `disputes`。`core.models.__init__` 只用于稳定导出。
 - 治理内核不再保留 `core.governance` 大门面；统一事件账本、提案、权限和角色任命应分别从对应领域模块导入。
+- 不要在业务代码中直接根据 Credential/NFT/Badge 判断权限。所有运行时权限判断必须通过 RoleAssignment / RolePermission。详见 `docs/ARCHITECTURE.md` Credential/NFT 章节。
 - 当前本地开发拆为三个站点入口：`bigadmin.local` 使用 `live_os.settings_admin` 和 `live_os.urls_admin`，承载 control plane 的 `/admin/` 与 `/admin/simulation-lab/`；`bigreal.local` 使用 `live_os.settings_real` 和 `live_os.urls_real`，承载真实世界 runtime；`bigsim.local` 使用 `live_os.settings_sim` 和 `live_os.urls_sim`，承载仿真世界 runtime。
 Real and simulation runtimes use the same root paths: `/workspace/`, `/observer/`, `/apply/`, `/apply/partner/`, `/api/v0.1/`. `/apply/` is the member application and account-registration entrypoint; the old `/apply/member/`, old world-prefixed route family, old `/member/` workspace route, and `/live-admin/` route have been removed and must not be used in product code or tests.
 - 当前 `/workspace/` 是固定 world 的成员自助工作台，归属 `workspace` app。身份必须从当前登录账号绑定的 `Member` 推导，不要重新引入 `/members/{member_no}/workspace/` 这种按 URL 选择成员的页面入口。

@@ -1,0 +1,65 @@
+{% load tailwind_tags world_urls %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="bumblebee">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>公开资料 · {{ member.member_no }}</title>
+  {% tailwind_css %}
+</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+  <main class="mx-auto grid w-full max-w-3xl gap-6 p-4 lg:p-8">
+    <header class="card bg-primary text-primary-content shadow-xl">
+      <div class="card-body gap-4">
+        <div>
+          <h1 class="text-3xl font-bold tracking-normal">公开资料</h1>
+          <p class="text-sm opacity-80 mt-1">维护你在观察台的公开展示信息</p>
+        </div>
+      </div>
+    </header>
+
+    {% if messages %}
+      <div class="grid gap-2">
+        {% for msg in messages %}<div class="alert alert-{{ msg.tags|default:'info' }}">{{ msg }}</div>{% endfor %}
+      </div>
+    {% endif %}
+
+    <section class="card bg-base-100 shadow">
+      <div class="card-body gap-4">
+        <form method="post" action="{% world_url 'workspace-public-profile-update' %}">
+          {% csrf_token %}
+          <div class="form-control">
+            <label class="label"><span class="label-text">公开姓名</span></label>
+            <input class="input input-bordered" type="text" name="public_name" maxlength="255"
+                   value="{{ profile_form.public_name }}" placeholder="在观察台显示的公开姓名">
+          </div>
+          <div class="form-control mt-4">
+            <label class="label"><span class="label-text">公开头像 URL</span></label>
+            <input class="input input-bordered" type="url" name="avatar_url" maxlength="1000"
+                   value="{{ profile_form.avatar_url }}" placeholder="https://example.com/avatar.png">
+          </div>
+          {% if profile_form.avatar_url %}
+            <div class="avatar mt-2"><div class="w-12 rounded-full"><img src="{{ profile_form.avatar_url }}" alt="头像预览"></div></div>
+          {% endif %}
+          <div class="mt-6 flex flex-wrap gap-2">
+            <button class="btn btn-primary" type="submit">保存</button>
+            <a class="btn btn-ghost" href="{% world_url 'workspace-page' %}">返回工作台</a>
+            <a class="btn btn-ghost btn-outline" href="{% world_url 'observer-member-profile' member.member_no %}">预览公开主页</a>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="card bg-base-100 shadow">
+      <div class="card-body">
+        <h2 class="card-title text-base">只读信息</h2>
+        <div class="text-sm space-y-2">
+          <p><span class="text-base-content/60">成员编号：</span><span class="font-mono">{{ member.member_no }}</span></p>
+          <p><span class="text-base-content/60">当前角色：</span>{{ member.active_roles_display|default:"暂无角色" }}</p>
+          <p class="text-xs text-base-content/50 mt-2">治理身份来自系统角色任命，不能在这里编辑。</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

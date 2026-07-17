@@ -103,7 +103,7 @@ ProjectPlan / PlanRevision / PlanNode
 Task / Resource / Event / CapacityAssessment
 ```
 
-`ProjectPlan` 和 `PlanNode` 不替代 `Task`。它们回答“为什么要做这些任务、这些任务属于哪个主线目标、完成后增加哪些容量”。`Task` 仍负责具体可领取、可提交、可验收的工作。
+`ProjectPlan` 和 `PlanNode` 不替代 `Task`。它们回答"为什么要做这些任务、这些任务属于哪个主线目标、完成后增加哪些容量"。`Task` 仍负责具体可领取、可提交、可验收的工作。
 
 `views` 应保持轻量：
 
@@ -197,21 +197,31 @@ Observer 不再负责仿真控制。仿真实验的启动和推进归属 `bigadm
 
 ## 长期架构完成清单
 
-这份清单用于判断“边界是否真正清楚”，不是一次性必须完成的功能列表。
+这份清单用于判断"边界是否真正清楚"，不是一次性必须完成的功能列表。
 
 1. `core` 只承载底层规则、共享模型、权限、统一事件账本、API 合约和领域服务，不承载页面入口。
 2. `bigadmin.local/admin/` 只作为 control plane 技术后台、原始数据查看、兜底维护和只读审计入口，不作为日常业务运营后台。
 3. `bigreal.local/workspace/` 和 `bigsim.local/workspace/` 承载各自固定 world 的成员工作台，并走同一套页面和服务边界。
 4. `bigreal.local/observer/` 和 `bigsim.local/observer/` 只负责观察、复盘和展示各自 world 运行结果，不提供仿真控制写入口。
 5. `simulation` 只承载仿真推演逻辑；仿真写入必须绑定明确的 world 数据库和 simulation run，不能默认改写真世界任务、资源、积分、成员或计划。
-6. `/admin/simulation-lab/` 承载仿真实验启动、配置、运行管理和实验结果管理，负责“怎么跑”，不负责手动干预真实业务过程。
+6. `/admin/simulation-lab/` 承载仿真实验启动、配置、运行管理和实验结果管理，负责"怎么跑"，不负责手动干预真实业务过程。
 7. 所有真实世界关键状态变化必须通过对应领域服务模块完成，并追加统一事件账本。
 8. 任务、申诉、提案、积分流水等业务对象保留结构化表；统一事件账本记录关键事实、顺序、责任人和哈希链。
 9. Django `User` 只作为登录账号；业务责任主体是 `Member`，权限来自 `Member -> RoleAssignment -> RolePermission -> Permission`。
 10. `is_staff` / `is_superuser` 只属于 Django 技术后台边界，不能等同于业务治理权限。
 11. Admin、服务、URL、文档和测试必须共同约束边界，避免后续把页面逻辑塞回 `core` 或让仿真误写真实世界。
-12. 早期兼容门面和中间态命名应持续删除，不能因为“能跑”就长期保留。
+12. 早期兼容门面和中间态命名应持续删除，不能因为"能跑"就长期保留。
 13. 模型定义应继续按 `core.models` 领域文件维护；`core.models.__init__` 只能作为导出层，不能重新膨胀为单文件模型仓库。
+
+## Credential / NFT / Badge 与权限边界
+
+- **RoleAssignment / RolePermission 是唯一运行时权限来源。** 业务 view/service/API 在做权限判断时，只能查询 Member 的活跃 RoleAssignment 及其关联的 RolePermission 与 Permission，不能走其他路径。
+- **Credential / NFT / Badge 只能表示公开事实、荣誉、资格材料或历史证明。** 它们可以承载"某成员拥有某项资质/某 NFT"的公开信息，但不能被业务代码直接用来判定该成员是否有权执行某操作。
+- **禁止出现** `if member.has_nft(...): allow_xxx` 这类运行时授权路径。
+- Credential / NFT / Badge 可以作为**授予 RoleAssignment 的依据**（例如治理提案决议"持有 X NFT 的成员获得治理角色"），但链上状态必须先导入/验证为系统记录，再通过治理规则或同步服务生成 RoleAssignment。应用运行时仍只查 RoleAssignment / RolePermission，不直接查询 NFT 所有权。
+- 如果未来链上 NFT 上线，必须经过导入层写入链上证据表，再由治理流程授予相应角色。运行时权限链始终保持：`Member → active RoleAssignment → RolePermission → Permission`。
+
+
 
 ## World Database Boundary
 
