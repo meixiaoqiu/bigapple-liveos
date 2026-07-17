@@ -70,8 +70,14 @@
                   </div>
                   <p class="text-sm text-base-content/70 mb-1">{{ item.summary }}</p>
                   {% if item.actor_display %}
-                    <p class="text-xs text-base-content/50">
-                      {% if item.vote_choice_label %}投票人：{% else %}行为人：{% endif %}{{ item.actor_display }}
+                    <p class="text-xs text-base-content/50 flex flex-wrap items-center gap-1">
+                      {% if item.actor_avatar_url %}<img src="{{ item.actor_avatar_url }}" class="w-4 h-4 rounded-full" alt="">{% endif %}
+                      {% if item.vote_choice_label %}投票人：{% else %}行为人：{% endif %}
+                      {% if item.actor_member_no %}
+                        <a class="link link-hover text-base-content/70" href="{% world_url 'observer-member-profile' item.actor_member_no %}">{{ item.actor_display }}</a>
+                      {% else %}
+                        {{ item.actor_display }}
+                      {% endif %}
                     </p>
                   {% endif %}
                   {% if item.vote_reason %}

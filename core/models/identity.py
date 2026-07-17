@@ -90,6 +90,58 @@ class Member(models.Model):
         return "、".join(self.active_role_names())
 
 
+class MemberPublicProfile(models.Model):
+    """Public-facing profile for a member.
+
+    This is a display profile only — it contains no authority data.
+    Governance roles, permissions and voting eligibility are always
+    computed from RoleAssignment / RolePermission, never from this model.
+    """
+
+    member = models.OneToOneField(
+        Member,
+        on_delete=models.CASCADE,
+        related_name="public_profile",
+        verbose_name="成员",
+    )
+    public_name = models.CharField(
+        "公开姓名",
+        max_length=255,
+        blank=True,
+        help_text="公开显示名，不等同证件实名。为空时回落至 Member.display_name。",
+    )
+    avatar_url = models.URLField(
+        "公开头像URL",
+        max_length=1000,
+        blank=True,
+        help_text="公开头像地址，使用 URL 而非上传文件。",
+    )
+    bio = models.TextField(
+        "公开简介",
+        blank=True,
+        help_text="可选的公开自我介绍，不包含联系方式等隐私信息。",
+    )
+    is_visible = models.BooleanField(
+        "公开展示",
+        default=True,
+        help_text="关闭后公开主页只显示 display_name 回落信息。",
+    )
+    created_at = models.DateTimeField("创建时间", auto_now_add=True)
+    updated_at = models.DateTimeField("更新时间", auto_now=True)
+
+    class Meta:
+        db_table = "core_member_public_profile"
+        verbose_name = "成员公开资料"
+        verbose_name_plural = "成员公开资料"
+        indexes = [
+            models.Index(fields=["is_visible"]),
+            models.Index(fields=["public_name"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"Profile: {self.member_id}"
+
+
 class Organization(models.Model):
     """A governance container. Meaning comes from roles, not organization categories."""
 

@@ -2,7 +2,7 @@
 
 from .base import TimestampedModel
 from .applications import MemberApplication, PartnerApplication, ROLE_GAP_LABELS
-from .identity import Member, Organization, Permission, Role, RoleAssignment, RolePermission
+from .identity import Member, MemberPublicProfile, Organization, Permission, Role, RoleAssignment, RolePermission
 from .proposals import Proposal, ProposalExecution, ProposalVote
 from .planning import (
     PlanCapacityImpact,
@@ -30,6 +30,7 @@ __all__ = [
     "MemberApplication",
     "PartnerApplication",
     "Member",
+    "MemberPublicProfile",
     "Organization",
     "Permission",
     "Role",

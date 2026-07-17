@@ -14,7 +14,7 @@ from .admin_support import (
     StablePrimaryKeyAdminMixin,
     model_field_names,
 )
-from .models import Member, Organization, Permission, Role, RoleAssignment, RolePermission
+from .models import Member, MemberPublicProfile, Organization, Permission, Role, RoleAssignment, RolePermission
 
 
 class ActiveRoleListFilter(admin.SimpleListFilter):
@@ -97,6 +97,14 @@ class RoleAssignmentInline(NoDeleteInlineMixin, admin.TabularInline):
     show_change_link = True
 
 
+class MemberPublicProfileInline(NoDeleteInlineMixin, admin.StackedInline):
+    model = MemberPublicProfile
+    extra = 0
+    max_num = 1
+    fields = ("public_name", "avatar_url", "bio", "is_visible", "created_at", "updated_at")
+    readonly_fields = ("created_at", "updated_at")
+
+
 @admin.register(Member)
 class MemberAdmin(StablePrimaryKeyAdminMixin, NoDeleteAdminMixin, admin.ModelAdmin):
     stable_primary_key = "member_no"
@@ -123,7 +131,7 @@ class MemberAdmin(StablePrimaryKeyAdminMixin, NoDeleteAdminMixin, admin.ModelAdm
     )
     autocomplete_fields = ("user",)
     list_select_related = ("user",)
-    inlines = (MemberRoleAssignmentInline,)
+    inlines = (MemberPublicProfileInline, MemberRoleAssignmentInline,)
     ordering = ("member_no",)
     list_per_page = 50
     readonly_fields = ("created_at",)
@@ -227,3 +235,13 @@ class RolePermissionAdmin(HiddenFromAdminIndexMixin, ImmutableHistoryAdminMixin,
     ordering = ("role__organization", "role__name", "permission__code")
     list_per_page = 100
     readonly_fields = model_field_names(RolePermission)
+
+
+@admin.register(MemberPublicProfile)
+class MemberPublicProfileAdmin(HiddenFromAdminIndexMixin, NoDeleteAdminMixin, admin.ModelAdmin):
+    list_display = ("member", "public_name", "is_visible", "updated_at")
+    list_filter = ("is_visible",)
+    search_fields = ("member__member_no", "member__display_name", "public_name", "bio")
+    autocomplete_fields = ("member",)
+    list_select_related = ("member",)
+    readonly_fields = ("created_at", "updated_at")

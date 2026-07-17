@@ -14,6 +14,14 @@
 /observer/simulations/
 ```
 
+成员公开主页 URL：
+
+```text
+/observer/members/<member_no>/
+```
+
+展示公开姓名、头像、简介、治理身份（从 RoleAssignment/RolePermission 动态计算，非自填）和最近公开治理动作。成员报名时间线中的投票人名称链接到该主页。
+
 隐藏高级审计入口（不在普通导航中展示）：
 
 ```text

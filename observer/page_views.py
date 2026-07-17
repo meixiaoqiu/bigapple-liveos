@@ -174,6 +174,22 @@ def observer_member_application_detail(request: HttpRequest, application_id: str
 
 
 @require_GET
+def observer_member_profile(request: HttpRequest, member_no: str, **_kwargs):
+    """Public member profile page."""
+    apply_theme_query_override(request)
+    from .member_profiles import public_member_profile_context
+
+    context = public_member_profile_context(member_no)
+    if context is None:
+        raise Http404("Member not found.")
+    return render(
+        request,
+        get_theme_template_path(request, "member_profile.html"),
+        context,
+    )
+
+
+@require_GET
 def observer_event_ledger_list(request: HttpRequest, **_kwargs):
     """Public system event audit ledger list page."""
     apply_theme_query_override(request)

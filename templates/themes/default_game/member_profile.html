@@ -1,0 +1,100 @@
+{% extends "themes/default_game/base.html" %}
+{% load world_urls %}
+
+{% block title %}成员公开资料 — {{ identity.public_name }}{% endblock %}
+
+{% block body %}
+<div class="min-h-screen">
+  <div class="navbar bg-base-100 shadow-sm">
+    <div class="navbar-start">
+      <div class="px-2">
+        <h1 class="text-xl font-bold tracking-normal">成员公开资料</h1>
+        <p class="text-sm text-base-content/70">{{ identity.member_no }}</p>
+      </div>
+    </div>
+    <div class="navbar-end gap-2">
+      <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-events-list' %}">事件流</a>
+      <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-page' %}">观察台首页</a>
+    </div>
+  </div>
+
+  <main class="mx-auto grid w-full max-w-4xl gap-6 p-4 lg:p-6">
+
+    <article class="card bg-base-100 shadow">
+      <div class="card-body gap-4 items-center text-center sm:flex-row sm:text-left">
+        {% if identity.avatar_url %}
+          <div class="avatar"><div class="w-20 rounded-full"><img src="{{ identity.avatar_url }}" alt="{{ identity.public_name }}"></div></div>
+        {% else %}
+          <div class="avatar placeholder"><div class="w-20 rounded-full bg-neutral text-neutral-content"><span class="text-2xl">{{ identity.initials }}</span></div></div>
+        {% endif %}
+        <div>
+          <h2 class="text-xl font-bold">{{ identity.public_name }}</h2>
+          <p class="text-sm text-base-content/60">{{ identity.member_no }}</p>
+          {% if identity.bio %}<p class="mt-2 text-sm text-base-content/80">{{ identity.bio }}</p>{% else %}<p class="mt-2 text-sm text-base-content/50 italic">暂未填写公开简介</p>{% endif %}
+        </div>
+      </div>
+    </article>
+
+    <section class="card bg-base-100 shadow">
+      <div class="card-body">
+        <h2 class="card-title">治理身份</h2>
+        {% if governance_roles %}
+          <div class="grid gap-3 mt-2">
+            {% for gr in governance_roles %}
+              <div class="rounded-lg border border-base-300 p-3">
+                <div class="flex flex-wrap items-center gap-2 mb-2">
+                  <span class="font-semibold text-sm">{{ gr.organization_name }}</span>
+                  <span class="badge badge-outline">{{ gr.role_name }}</span>
+                  <span class="badge badge-ghost badge-xs">{{ gr.source_type }}</span>
+                </div>
+                {% if gr.governance_permissions %}
+                  <div class="flex flex-wrap gap-1 mt-1">
+                    {% for perm in gr.governance_permissions %}
+                      <span class="badge badge-info badge-outline badge-xs" title="{{ perm.name }}">{{ perm.code }}</span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+                <p class="text-xs text-base-content/50 mt-1">有效期 {{ gr.start_at|date:"Y-m-d" }} ~ {{ gr.end_at|date:"Y-m-d" }}</p>
+              </div>
+            {% endfor %}
+          </div>
+          <p class="text-xs text-base-content/50 mt-3">以上身份来自系统角色任命，非用户自填。</p>
+        {% else %}
+          <p class="text-sm text-base-content/50 mt-2">当前没有公开治理角色。</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="card bg-base-100 shadow">
+      <div class="card-body">
+        <h2 class="card-title">最近公开治理动作</h2>
+        {% if recent_actions %}
+          <div class="overflow-x-auto mt-2">
+            <table class="table table-sm">
+              <thead><tr><th>序号</th><th>时间</th><th>事件</th><th>哈希</th><th>校验</th></tr></thead>
+              <tbody>
+                {% for ra in recent_actions %}
+                  <tr>
+                    <td class="font-mono text-xs">#{{ ra.seq }}</td>
+                    <td class="text-xs whitespace-nowrap">{{ ra.occurred_at|date:"m-d H:i" }}</td>
+                    <td class="text-xs">{{ ra.summary }}</td>
+                    <td class="font-mono text-xs text-base-content/50">{{ ra.event_hash_short }}</td>
+                    <td>{% if ra.chain_valid %}<span class="badge badge-success badge-xs">通过</span>{% else %}<span class="badge badge-error badge-xs">未通过</span>{% endif %}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="text-sm text-base-content/50 mt-2">暂无公开治理动作记录。</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <div class="flex justify-between">
+      <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-events-list' %}">返回事件流</a>
+      <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-page' %}">返回观察台</a>
+    </div>
+  </main>
+</div>
+{% endblock %}

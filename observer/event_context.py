@@ -346,6 +346,17 @@ def _timeline_node_from_system_event(se: SystemEvent) -> dict[str, Any]:
     vote_choice_label = str(facts.get("vote_choice_label", ""))
     vote_reason = str(facts.get("reason", ""))
 
+    # --- actor member link info (for public profile page) ---
+    actor_member_no = ""
+    actor_avatar_url = ""
+    actor_profile_public_name = ""
+    if se.actor_member:
+        from .member_profiles import public_member_identity as _identity
+        ident = _identity(se.actor_member)
+        actor_member_no = se.actor_member.member_no
+        actor_avatar_url = ident["avatar_url"]
+        actor_profile_public_name = ident["public_name"]
+
     return {
         "seq": se.seq,
         "occurred_at": se.occurred_at,
@@ -357,6 +368,9 @@ def _timeline_node_from_system_event(se: SystemEvent) -> dict[str, Any]:
         "vote_choice_label": vote_choice_label,
         "vote_reason": vote_reason,
         "aggregate_type": se.aggregate_type,
+        "actor_member_no": actor_member_no,
+        "actor_avatar_url": actor_avatar_url,
+        "actor_profile_public_name": actor_profile_public_name,
     }
 
 

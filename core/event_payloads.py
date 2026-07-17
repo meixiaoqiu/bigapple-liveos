@@ -333,7 +333,12 @@ def proposal_payload(proposal: Proposal) -> dict[str, Any]:
 def proposal_vote_payload(vote: ProposalVote, *, previous_choice: str | None = None) -> dict[str, Any]:
     proposal = vote.proposal
     voter = vote.voter_member
-    voter_public_name = voter.display_name or voter.member_no or (voter.user.get_username() if voter.user_id else "") or "治理成员"
+    # Prefer public profile name, fallback to display_name / member_no / username
+    profile = getattr(voter, "public_profile", None)
+    if profile and profile.is_visible and profile.public_name:
+        voter_public_name = profile.public_name
+    else:
+        voter_public_name = voter.display_name or voter.member_no or (voter.user.get_username() if voter.user_id else "") or "治理成员"
     ref = _public_ref("proposal", proposal.proposal_no) if proposal.proposal_no else _public_ref(
         "proposal", proposal.proposal_type, proposal.title
     )
