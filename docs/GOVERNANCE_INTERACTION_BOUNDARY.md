@@ -94,6 +94,39 @@ Member -> active RoleAssignment -> RolePermission -> Permission
 
 Proposal 可以决定授予/撤销角色，也可以未来决定授予 Credential。但权限检查仍只能走上述 RoleAssignment 链；Credential 不能成为第二套权限系统。
 
+### Credential / NFT / Badge
+
+**Credential / NFT / Badge 不是权限。** 它们是公开事实证明，表达"谁拥有什么"的陈述，但不表达"谁可以做什么"的授权。
+
+#### 设计边界
+
+| 概念 | 是什么 | 不是什么 |
+| --- | --- | --- |
+| `Credential Template` | 治理流程创建的可发放凭证模板（如"年度贡献者""导师"） | 不是权限模板，不能自动派生 RolePermission |
+| `Credential Instance` | 按模板发放给某个 Member 的具体凭证实例 | 不是 RoleAssignment，不参与运行时权限判断 |
+| `NFT / Badge` | 链上或系统内不可篡改的所有权标记 | 不是授权 token，不能绕过 RoleAssignment 放行 |
+| `Formal Member Number` | 正式成员编号 Credential，一次性发放、永不复用 | 不是登录账号，不是 member_no 的替代品 |
+
+#### 未来 Credential 生命周期
+
+1. **模板创建**：治理成员通过 `credential_template` 提案创建模板，定义名称、描述、展示规则和发放条件。
+2. **实例发放**：满足条件的 Member 获得 Credential Instance。发放可以由提案执行触发，也可以由业务规则自动触发（如"完成 10 个任务"自动获得"勤奋者"徽章）。
+3. **公开展示**：Credential 在 Observer 公开主页和 workspace 个人资料中展示，表达荣誉、证书、成就或互动玩法身份。
+4. **权限转换（唯一入口）**：如果某个 Credential 需要影响权限（如"持有导师 Credential 的成员可以审核任务"），**必须**通过一份独立提案授予 RoleAssignment：
+
+   ```text
+   Credential Instance → 治理提案决议 → RoleAssignment → RolePermission → Permission
+   ```
+
+   运行时权限判断只看最后的 RoleAssignment 链，不回溯查 Credential。
+
+#### 禁止模式
+
+- **禁止** `if member.has_credential("mentor"): allow_review()` —— 必须走 `if member.has_permission("tasks.review_task"):`。
+- **禁止** `if member.has_nft("governance_nft"): allow_vote()` —— 必须走 RoleAssignment。
+- **禁止** 在 view 或 service 中直接查询 Credential 表来判断操作权限。
+- **禁止** 将正式成员编号（或其他 Credential ID）直接用作权限白名单的 key。
+
 ### 提案
 
 `Proposal` 只处理“是否批准某件事”。它负责提案内容、表决范围、投票资格快照、通过比例、最低参与人数、截止时间和执行结果。

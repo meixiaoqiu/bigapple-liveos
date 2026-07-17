@@ -213,13 +213,55 @@ Observer 不再负责仿真控制。仿真实验的启动和推进归属 `bigadm
 12. 早期兼容门面和中间态命名应持续删除，不能因为"能跑"就长期保留。
 13. 模型定义应继续按 `core.models` 领域文件维护；`core.models.__init__` 只能作为导出层，不能重新膨胀为单文件模型仓库。
 
+## 身份体系
+
+### 三层身份模型
+
+```text
+User          → 登录认证（Django auth）
+Member        → 业务身份（所有注册用户的权威主体）
+Role          → 权限集合（通过 RoleAssignment 授予）
+Credential    → 公开事实证明（非权限来源）
+```
+
+1. **User 只负责登录认证。** `auth_user` 是 Django 的认证账号，承载 username / password / session。User 本身不表达任何业务权限，不存在"某个 User 天生有治理权"的概念。
+
+2. **Member 是所有注册用户的业务身份。** 任何人通过 `/apply/` 注册后，系统立即创建 `Member` 记录。Member 是业务世界的唯一主体：领取任务、提交申诉、持有角色、获得 Credential 都以 Member 为锚点。Member 和 User 是一对一绑定关系。
+
+3. **注册后自动获得基础角色。** 新注册 Member 即刻获得一个基础角色（如 `community_member`），该角色承载所有注册用户共有的最小权限（访问 workspace、维护公开资料、报名正式成员等）。不绑定基础角色的 Member 不能使用任何业务功能。
+
+4. **正式社区成员只是更高权限角色之一。** "正式成员"不是一个新的 Member 记录，也不是一个新的 account——它只是 Member 获得了 `full_member` 角色。该角色通过 `member_admission` 提案投票通过后执行授予，在 RoleAssignment 表中留下一条活跃任命记录，并同时发放正式成员编号 Credential。权限检查只看 RoleAssignment 是否活跃，不查"是不是正式成员"这种硬编码标记。
+
+5. **正式成员编号是一次性发放、永不复用的 Credential。**
+   - 每个正式编号（如 `BA-0001`）全局唯一，只发放一次。
+   - 成员退出后编号不回收、不重新分配给其他人。
+   - 编号作为 `Credential Instance` 持久保留：它记录"谁在什么时间以什么方式成为正式成员"这一历史事实。
+   - 编号自身不自动赋予任何权限——成员退出后 RoleAssignment 已撤销，编号只作为历史归属证明存在。
+
+6. **RoleAssignment / RolePermission 是唯一运行时权限来源。** 所有 view、service、API 的权限判断必须走：
+
+   ```text
+   Member → active RoleAssignment → RolePermission → Permission
+   ```
+
+   不允许为 Credential / NFT / Badge 或 member_no 字符串编写第二套权限路径。`is_staff` / `is_superuser` 仅限 Django Admin 技术后台边界使用，不能等同于业务治理权限。
+
+### 注册与报名的拆分展望
+
+当前实现中 `/apply/` 同时完成"注册 Member"和"发起正式成员报名提案"两个动作。长期架构下这两个动作应拆分为独立步骤：
+
+1. **注册** → 创建 User + Member + 基础角色（`community_member`），可立即访问最小 workspace。
+2. **报名正式成员** → 已注册 Member 提交申请，创建 `member_admission` 提案，通过后授予 `full_member` 角色并发放正式成员编号 Credential。
+
+这一拆分依赖中远期报名流程重构，当前不做迁移。
+
 ## Credential / NFT / Badge 与权限边界
 
-- **RoleAssignment / RolePermission 是唯一运行时权限来源。** 业务 view/service/API 在做权限判断时，只能查询 Member 的活跃 RoleAssignment 及其关联的 RolePermission 与 Permission，不能走其他路径。
 - **Credential / NFT / Badge 只能表示公开事实、荣誉、资格材料或历史证明。** 它们可以承载"某成员拥有某项资质/某 NFT"的公开信息，但不能被业务代码直接用来判定该成员是否有权执行某操作。
-- **禁止出现** `if member.has_nft(...): allow_xxx` 这类运行时授权路径。
-- Credential / NFT / Badge 可以作为**授予 RoleAssignment 的依据**（例如治理提案决议"持有 X NFT 的成员获得治理角色"），但链上状态必须先导入/验证为系统记录，再通过治理规则或同步服务生成 RoleAssignment。应用运行时仍只查 RoleAssignment / RolePermission，不直接查询 NFT 所有权。
+- **禁止出现** `if member.has_nft(...): allow_xxx` 或 `if member.has_credential(...): allow_xxx` 这类运行时授权路径。
+- Credential / NFT / Badge 可以作为**授予 RoleAssignment 的依据**（例如治理提案决议"持有 X NFT 的成员获得治理角色"），但链上状态必须先导入/验证为系统记录，再通过治理规则或同步服务生成 RoleAssignment。应用运行时仍只查 RoleAssignment / RolePermission，不直接查询 NFT 所有权或 Credential 持有情况。
 - 如果未来链上 NFT 上线，必须经过导入层写入链上证据表，再由治理流程授予相应角色。运行时权限链始终保持：`Member → active RoleAssignment → RolePermission → Permission`。
+- Credential Template 与 Credential Instance 是未来可治理对象：社区成员可通过提案创建模板（如"年度贡献者"证书），治理流程核准后按模板发放实例。发放本身是一个有审计记录的业务动作；发放后是否影响权限，必须通过另一份提案授予 RoleAssignment。
 
 
 

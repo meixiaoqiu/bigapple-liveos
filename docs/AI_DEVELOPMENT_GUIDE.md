@@ -11,6 +11,8 @@
 - 积分账本只能追加，不能覆盖历史。
 - 算法可以建议，但不能成为最终责任人。
 - 治理处置必须保留具体实名责任人。
+- **任何 Credential / NFT / Badge 相关功能不得绕过 RoleAssignment / RolePermission。** 权限判断只有一条路径：`Member → active RoleAssignment → RolePermission → Permission`。不得出现 `has_credential`、`has_nft`、`has_badge` 等直接授权路径。
+- **注册与报名拆分后**：注册创建基础 Member + 基础角色；正式成员报名只申请更高角色和正式编号 Credential。Member 和 Role 的耦合只存在于 RoleAssignment 表，不存在于 Member 的字段标记。
 
 ## 修改代码前
 
