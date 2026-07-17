@@ -6,8 +6,18 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from core.member_roles import ROLE_CONTRIBUTOR
-from core.models import CapacityAssessment, Dispute, Event, LedgerEntry, Member, MemberApplication, Resource, Task
+from core.member_roles import ROLE_FORMAL_MEMBER
+from core.models import (
+    CapacityAssessment,
+    Dispute,
+    Event,
+    LedgerEntry,
+    Member,
+    MemberApplication,
+    RoleAssignment,
+    Resource,
+    Task,
+)
 from core.tests.helpers import create_member, login_as_member
 
 
@@ -18,7 +28,7 @@ class WorkspacePageTests(TestCase):
         now = timezone.now()
         self.member = create_member(
             member_no="mem-0001",
-            role_name=ROLE_CONTRIBUTOR,
+            role_name=ROLE_FORMAL_MEMBER,
             status=Member.Status.ADMITTED,
             batch_id="batch-opening",
             joined_simulation_day=1,
@@ -336,3 +346,78 @@ class WorkspacePageTests(TestCase):
         response = self.client.get("/workspace/")
 
         self.assertEqual(response.status_code, 403)
+
+
+class WorkspaceAccessRoleTests(TestCase):
+    """Full workspace access gated by ROLE_FORMAL_MEMBER, not Member.status."""
+
+    def _active_member(self, member_no: str, status: str = Member.Status.ACTIVE, role_name: str | None = None):
+        kwargs = {"member_no": member_no, "status": status}
+        if role_name:
+            kwargs["role_name"] = role_name
+        return create_member(**kwargs)
+
+    def _formal_member(self, member_no: str, status: str = Member.Status.ACTIVE):
+        return create_member(member_no=member_no, role_name=ROLE_FORMAL_MEMBER, status=status)
+
+    # ── status alone does NOT grant full workspace ──
+
+    def test_active_status_without_formal_role_no_full_workspace(self) -> None:
+        member = self._active_member("mem-act-norole")
+        login_as_member(self.client, member)
+        response = self.client.get("/workspace/")
+        self.assertEqual(response.status_code, 200)
+        # must be minimal / applicant workspace, not full workspace
+        self.assertNotContains(response, "可领取任务")
+        self.assertNotContains(response, "提交劳动")
+
+    def test_admitted_status_without_formal_role_no_full_workspace(self) -> None:
+        member = self._active_member("mem-adm-norole", status=Member.Status.ADMITTED)
+        login_as_member(self.client, member)
+        response = self.client.get("/workspace/")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "可领取任务")
+
+    # ── ROLE_FORMAL_MEMBER grants full workspace ──
+
+    def test_formal_role_non_disabled_status_has_full_workspace(self) -> None:
+        member = self._formal_member("mem-formal-active")
+        login_as_member(self.client, member)
+        response = self.client.get("/workspace/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "成员工作台")
+        self.assertContains(response, "mem-formal-active")
+
+    def test_formal_role_pending_review_status_has_full_workspace(self) -> None:
+        member = create_member(member_no="mem-formal-pend", role_name=ROLE_FORMAL_MEMBER, status=Member.Status.PENDING_REVIEW)
+        login_as_member(self.client, member)
+        response = self.client.get("/workspace/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "成员工作台")
+
+    # ── SUSPENDED / EXITED veto ──
+
+    def test_formal_role_suspended_denied_full_workspace(self) -> None:
+        member = self._formal_member("mem-formal-susp", status=Member.Status.SUSPENDED)
+        login_as_member(self.client, member)
+        response = self.client.get("/workspace/")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "可领取任务")
+
+    def test_formal_role_exited_denied_full_workspace(self) -> None:
+        member = self._formal_member("mem-formal-exit", status=Member.Status.EXITED)
+        login_as_member(self.client, member)
+        response = self.client.get("/workspace/")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "可领取任务")
+
+    # ── status change from active → suspended revokes access ──
+
+    def test_active_to_suspended_revokes_full_workspace(self) -> None:
+        member = self._formal_member("mem-active2susp")
+        login_as_member(self.client, member)
+        self.assertEqual(self.client.get("/workspace/").status_code, 200)
+        member.status = Member.Status.SUSPENDED
+        member.save(update_fields=["status"])
+        response = self.client.get("/workspace/")
+        self.assertNotContains(response, "可领取任务")

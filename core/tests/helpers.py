@@ -16,9 +16,13 @@ def grant_governance_admin_role(member: Member):
 
 
 def create_governance_admin_member(member_no: str, **overrides) -> Member:
-    from core.member_roles import ROLE_GOVERNANCE_MEMBER
+    from core.member_roles import ROLE_FORMAL_MEMBER, ROLE_GOVERNANCE_MEMBER
 
     member = create_member(member_no, role_name=ROLE_GOVERNANCE_MEMBER, **overrides)
+    # Governance members are implicitly formal members — full workspace
+    # access is gated by ROLE_FORMAL_MEMBER, not by Member.status.
+    from core.member_roles import ensure_member_role, ensure_role_assignment
+    ensure_role_assignment(member, ensure_member_role(ROLE_FORMAL_MEMBER))
     grant_governance_admin_role(member)
     return member
 

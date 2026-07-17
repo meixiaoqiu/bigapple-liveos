@@ -9,6 +9,7 @@ from django.views.decorators.http import require_http_methods
 
 from core.application_services import submit_member_application, submit_partner_application
 from core.exceptions import DomainError
+from core.member_roles import ROLE_FORMAL_MEMBER, member_has_role
 from core.models import Member, MemberApplication
 from live_os.access import member_for_request
 from worlds.routing import world_redirect
@@ -19,7 +20,24 @@ from .simulation_metadata import metadata_from_signed_form_post
 
 
 MEMBER_APPLICATION_REAPPLY_STATUSES = {MemberApplication.Status.REJECTED, MemberApplication.Status.WITHDREW}
-MEMBER_FULL_ACCESS_STATUSES = {Member.Status.ACTIVE, Member.Status.ADMITTED}
+
+DISABLED_MEMBER_STATUSES: frozenset[str] = frozenset({Member.Status.SUSPENDED, Member.Status.EXITED})
+
+
+def member_is_formal_member(member: Member | None) -> bool:
+    """Return True if *member* is recognisable as a formal member.
+
+    Formal membership is determined by an active ``ROLE_FORMAL_MEMBER``
+    RoleAssignment.  Lifecycle-disabled statuses (``SUSPENDED``,
+    ``EXITED``) veto the check even when the role is present — a
+    suspended or exited member must not be treated as a formal member
+    for application-page purposes.
+    """
+    if member is None:
+        return False
+    if member.status in DISABLED_MEMBER_STATUSES:
+        return False
+    return member_has_role(member, ROLE_FORMAL_MEMBER)
 
 
 def _latest_member_application(*, user=None, member=None):
@@ -40,7 +58,7 @@ def member_application_page(request):
         user=request.user if request.user.is_authenticated else None,
         member=member,
     )
-    if member is not None and member.status in MEMBER_FULL_ACCESS_STATUSES:
+    if member_is_formal_member(member):
         return render(request, "applications/member_application_status.html", {"member": member})
     can_reapply = bool(current_application and current_application.status in MEMBER_APPLICATION_REAPPLY_STATUSES)
     if current_application is not None and not can_reapply:

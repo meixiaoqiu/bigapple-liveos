@@ -255,6 +255,8 @@ http://127.0.0.1:20102/workspace/
 
 `/workspace/` 在正式成员工作台之外，为具备 `governance.view_admin` 权限的治理成员提供成员报名审核入口。普通正式成员、待审核报名人、未绑定 `Member` 的 Django staff/superuser 都看不到入口，直接访问审核 URL 返回 403。
 
+**完整 workspace 判断**：`member_has_full_workspace_access()` 当前基于 active `ROLE_FORMAL_MEMBER` 角色判断（`SUSPENDED` / `EXITED` 作为 veto），不再基于 `Member.status`。`/apply/` 的"已是正式成员"判断同理：`member_is_formal_member(member)` 检查 active `ROLE_FORMAL_MEMBER`，受 `SUSPENDED` / `EXITED` 禁用状态 veto。不要用 `Member.status` 判断正式成员权限。
+
 `/apply/` 提交成员报名后，系统自动创建最小权限 Member、MemberApplication 和 member_admission Proposal，提案直接进入 VOTING 状态。不存在独立的人工审核动作——准入完全由提案生命周期驱动。
 
 member_admission 是 yes/no 二元表决，使用严格多数决：赞成票超过 eligible voters 半数时立即通过；反对票超过 eligible voters 半数时立即失败，并自动将关联 MemberApplication 设为 REJECTED。未形成多数前保持表决中；截止仍未通过则失败。分母始终是 `eligible_voters_snapshot_json` 的人数，不是已投票人数。普通 proposal 规则不变。

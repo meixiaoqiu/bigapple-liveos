@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from core.application_services import submit_member_application
 from core.exceptions import DomainError
+from core.member_roles import ROLE_FORMAL_MEMBER
 from core.models import MemberApplication, PartnerApplication, Proposal, SystemEvent
 from core.models import Member
 from core.tests.helpers import create_governance_admin_member, create_member, login_as_member
@@ -172,7 +173,7 @@ class PublicApplicationPageTests(TestCase):
         self.assertFalse(get_user_model().objects.filter(username="existing-member-no").exists())
 
     def test_existing_member_sees_member_status_instead_of_application_form(self) -> None:
-        member = create_member(member_no="mem-apply-existing", status=Member.Status.ACTIVE)
+        member = create_member(member_no="mem-apply-existing", role_name=ROLE_FORMAL_MEMBER, status=Member.Status.ACTIVE)
         login_as_member(self.client, member)
 
         response = self.client.get("/apply/")
@@ -353,3 +354,143 @@ class PublicApplicationPageTests(TestCase):
         self.assertEqual(result.path, "/apply/")
         self.assertEqual(driver.host, "bigsim.local")
         self.assertTrue(MemberApplication.objects.filter(metadata__external_ref="rooted-path-member-application").exists())
+
+
+class ApplyFormalMemberRoleTests(TestCase):
+    """``/apply/`` formal-member detection is based on ROLE_FORMAL_MEMBER, not Member.status."""
+
+    def _active_no_role(self, member_no: str):
+        return create_member(member_no=member_no, status=Member.Status.ACTIVE)
+
+    def _formal_member(self, member_no: str, status: str = Member.Status.ACTIVE):
+        return create_member(member_no=member_no, role_name=ROLE_FORMAL_MEMBER, status=status)
+
+    # ── ACTIVE without ROLE_FORMAL_MEMBER must NOT show "已是正式成员" ──
+
+    def test_active_without_formal_role_sees_apply_not_status_page(self) -> None:
+        member = self._active_no_role("mem-act-no-formal")
+        login_as_member(self.client, member)
+        response = self.client.get("/apply/")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "你已经是成员")
+        # should still show the application form (or applicant status)
+        self.assertContains(response, "name=")
+
+    # ── ROLE_FORMAL_MEMBER shows "已是正式成员" ──
+
+    def test_formal_role_shows_already_member_status(self) -> None:
+        member = self._formal_member("mem-formal-apply")
+        login_as_member(self.client, member)
+        response = self.client.get("/apply/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "你已经是成员")
+        self.assertNotContains(response, 'name="password1"')
+
+    # ── SUSPENDED / EXITED veto ──
+
+    def test_formal_role_suspended_does_not_show_already_member(self) -> None:
+        member = self._formal_member("mem-formal-susp-a", status=Member.Status.SUSPENDED)
+        login_as_member(self.client, member)
+        response = self.client.get("/apply/")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "你已经是成员")
+
+    def test_formal_role_exited_does_not_show_already_member(self) -> None:
+        member = self._formal_member("mem-formal-exit-a", status=Member.Status.EXITED)
+        login_as_member(self.client, member)
+        response = self.client.get("/apply/")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "你已经是成员")
+
+    # ── service-layer enforcement ──────────────────────────────────────
+
+    def test_active_no_formal_role_can_post_apply(self) -> None:
+        """ACTIVE without ROLE_FORMAL_MEMBER can POST /apply/ and submit."""
+        member = self._active_no_role("mem-act-apply-post")
+        login_as_member(self.client, member)
+        data = {
+            **member_application_post_data(
+                username="mem-act-apply-post",
+                applicant_name="ACTIVE 报名测试",
+                contact="active-test@example.test",
+                motivation="验证 ACTIVE 无正式角色能报名。",
+            ),
+            "password1": "",
+            "password2": "",
+        }
+        response = self.client.post("/apply/", data, follow=True)
+        self.assertEqual(response.status_code, 200)
+        app = MemberApplication.objects.filter(linked_member=member).first()
+        self.assertIsNotNone(app, "应创建 MemberApplication")
+        self.assertEqual(app.linked_member, member)
+        member.refresh_from_db()
+        self.assertEqual(member.status, Member.Status.PENDING_REVIEW)
+
+    def test_formal_role_cannot_submit_duplicate_via_service(self) -> None:
+        """ROLE_FORMAL_MEMBER rejects submit_member_application() directly."""
+        member = self._formal_member("mem-formal-svc-dup")
+        login_as_member(self.client, member)
+        with self.assertRaises(DomainError):
+            submit_member_application(
+                account_user=member.user,
+                applicant_name="重复报名者",
+                contact="dup@example.test",
+                motivation="应该被拒绝。",
+                availability_hours_per_week=8,
+                role_gap="developer_ai_engineer",
+                availability_slots=["weekend"],
+                capability_scores={"文档": 70},
+                requested_member_no=member.member_no,
+            )
+        self.assertFalse(
+            MemberApplication.objects.filter(linked_member=member).exists(),
+            "不应创建 MemberApplication",
+        )
+
+    def test_suspended_formal_member_post_apply_rejected_status_unchanged(self) -> None:
+        """SUSPENDED member POST /apply/ is rejected, status stays SUSPENDED."""
+        member = self._formal_member("mem-formal-susp-post", status=Member.Status.SUSPENDED)
+        login_as_member(self.client, member)
+        data = {
+            **member_application_post_data(
+                username="mem-formal-susp-post",
+                applicant_name="SUSPENDED 报名",
+                contact="susp@example.test",
+                motivation="应该被拒绝。",
+            ),
+            "password1": "",
+            "password2": "",
+        }
+        app_count_before = MemberApplication.objects.count()
+        self.client.post("/apply/", data)
+        self.assertEqual(
+            MemberApplication.objects.count(),
+            app_count_before,
+            "不应创建 MemberApplication",
+        )
+        member.refresh_from_db()
+        self.assertEqual(member.status, Member.Status.SUSPENDED, "状态应仍为 SUSPENDED")
+
+    def test_exited_formal_member_post_apply_rejected_status_unchanged(self) -> None:
+        """EXITED member POST /apply/ is rejected, status stays EXITED."""
+        member = self._formal_member("mem-formal-exit-post", status=Member.Status.EXITED)
+        login_as_member(self.client, member)
+        data = {
+            **member_application_post_data(
+                username="mem-formal-exit-post",
+                applicant_name="EXITED 报名",
+                contact="exit@example.test",
+                motivation="应该被拒绝。",
+            ),
+            "password1": "",
+            "password2": "",
+        }
+        app_count_before = MemberApplication.objects.count()
+        self.client.post("/apply/", data)
+        self.assertEqual(
+            MemberApplication.objects.count(),
+            app_count_before,
+            "不应创建 MemberApplication",
+        )
+        member.refresh_from_db()
+        self.assertEqual(member.status, Member.Status.EXITED, "状态应仍为 EXITED")

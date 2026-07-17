@@ -21,12 +21,19 @@ from core.member_roles import (
     ROLE_GOVERNANCE_MEMBER,
     ensure_member_role,
     ensure_role_assignment,
+    member_has_role,
 )
 from core.models import Member, MemberApplication, PartnerApplication, Proposal, SystemEvent
 
 from .identity_services import register_member
 from .models.applications import ROLE_GAP_LABELS
 from .models.events import Event
+
+
+DISABLED_MEMBER_STATUSES: frozenset[str] = frozenset({
+    Member.Status.SUSPENDED,
+    Member.Status.EXITED,
+})
 
 
 def _nonblank(value: object, field_label: str) -> str:
@@ -286,7 +293,9 @@ def submit_member_application(
         MemberApplication.Status.ADMITTED,
     }
     if existing_member is not None:
-        if existing_member.status in {Member.Status.ACTIVE, Member.Status.ADMITTED}:
+        if existing_member.status in DISABLED_MEMBER_STATUSES:
+            raise DomainError("当前账号成员状态已停用，不能提交成员报名。")
+        if member_has_role(existing_member, ROLE_FORMAL_MEMBER):
             raise DomainError("当前账号已经是正式成员，不能重复报名。")
         active_application_exists = MemberApplication.objects.filter(
             linked_member=existing_member,

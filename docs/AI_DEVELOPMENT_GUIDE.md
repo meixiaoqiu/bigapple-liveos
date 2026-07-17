@@ -13,6 +13,7 @@
 - 治理处置必须保留具体实名责任人。
 - **任何 Credential / NFT / Badge 相关功能不得绕过 RoleAssignment / RolePermission。** 权限判断只有一条路径：`Member → active RoleAssignment → RolePermission → Permission`。不得出现 `has_credential`、`has_nft`、`has_badge` 等直接授权路径。
 - **注册与报名拆分后**：注册创建基础 Member + 基础角色；正式成员报名只申请更高角色和正式编号 Credential。Member 和 Role 的耦合只存在于 RoleAssignment 表，不存在于 Member 的字段标记。
+- **不要用 Member.status 判断正式成员权限**：完整 workspace 和 `/apply/` 的"已是正式成员"判断必须基于 active `ROLE_FORMAL_MEMBER`（`SUSPENDED` / `EXITED` 可 veto）。`Member.status` 只作为生命周发展示字段。
 
 ## 修改代码前
 

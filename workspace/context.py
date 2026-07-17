@@ -13,6 +13,7 @@ from django.db.models import Count, F, Q, Sum
 from django.shortcuts import get_object_or_404
 
 from core.access import is_governance_principal
+from core.member_roles import ROLE_FORMAL_MEMBER, member_has_role
 from core.models import (
     CapacityAssessment,
     Dispute,
@@ -38,7 +39,7 @@ NEXT_ACTION_LABELS = {
     "no_action": "暂无待处理动作",
 }
 
-FULL_WORKSPACE_MEMBER_STATUSES = {Member.Status.ACTIVE, Member.Status.ADMITTED}
+DISABLED_MEMBER_STATUSES: frozenset[str] = frozenset({Member.Status.SUSPENDED, Member.Status.EXITED})
 
 # Admission filter groups driven by the linked member_admission proposal lifecycle.
 # There is no standalone "review" status — every application that reaches the
@@ -55,7 +56,19 @@ ADMISSION_FILTER_LABELS: dict[str, str] = {
 
 
 def member_has_full_workspace_access(member: Member) -> bool:
-    return member.status in FULL_WORKSPACE_MEMBER_STATUSES
+    """Return True if *member* is entitled to the full workspace.
+
+    Full workspace access is primarily granted by the ``ROLE_FORMAL_MEMBER``
+    role.  Lifecycle-disabled statuses (``SUSPENDED``, ``EXITED``) act as a
+    hard veto — even an active ``ROLE_FORMAL_MEMBER`` assignment cannot
+    override them.
+
+    ``Member.status`` is a lifecycle display field and is NOT the source of
+    truth for formal-membership decisions.
+    """
+    if member.status in DISABLED_MEMBER_STATUSES:
+        return False
+    return member_has_role(member, ROLE_FORMAL_MEMBER)
 
 
 def applicant_workspace_context(member_no: str) -> dict[str, Any]:

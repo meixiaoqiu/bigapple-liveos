@@ -40,6 +40,8 @@ User -> Member
 
 3. **正式成员通过角色获得更多功能。** 正式成员只是获得了 `full_member` 角色。该角色在 RoleAssignment 中拥有更多 RolePermission，workspace 根据角色动态展示对应功能模块（任务、申诉、治理审核等）。功能扩展来自 RoleAssignment 的变化，不是"切换 workspace 版本"。
 
+   **当前落地**：完整 workspace 主授权看 active `ROLE_FORMAL_MEMBER`（`member_has_role(member, ROLE_FORMAL_MEMBER)`）。`SUSPENDED` / `EXITED` 作为生命周期禁用状态行使 veto——即使有 `ROLE_FORMAL_MEMBER`，禁用状态成员也不能进入完整 workspace。`Member.status` 只作为生命周发展示字段，不作为权限来源。
+
 4. **正式成员编号不是登录账号，也不是权限来源。**
    - 登录仍使用 `User.username`，不因获得正式编号而创建新账号。
    - 正式成员编号（如 `BA-0001`）是一次性发放的 Credential Instance，永不复用，退出后保留为历史归属证明。
