@@ -96,3 +96,43 @@ class PublicProfilePageTests(TestCase):
         login_as_member(self.client, applicant)
         response = self.client.get("/workspace/")
         self.assertContains(response, "/workspace/profile/")
+
+    def test_workspace_profile_shows_formal_member_number(self):
+        """Workspace profile 显示自己的正式成员编号。"""
+        from core.credential_services import ensure_builtin_credential_templates, issue_formal_member_number
+        from core.member_roles import ROLE_FORMAL_MEMBER
+
+        ensure_builtin_credential_templates()
+        member = create_member(
+            member_no="cred-ws-01",
+            role_name=ROLE_FORMAL_MEMBER,
+            status=Member.Status.ADMITTED,
+            display_name="凭证成员",
+        )
+        issue_formal_member_number(member)
+        login_as_member(self.client, member)
+        response = self.client.get("/workspace/profile/")
+        self.assertContains(response, "正式成员编号")
+        self.assertContains(response, "#1")
+
+    def test_workspace_profile_does_not_leak_internal_pks(self):
+        """Workpace profile 不泄露 CredentialGrant.pk / Member.pk / User.id。"""
+        from core.credential_services import ensure_builtin_credential_templates, issue_formal_member_number
+        from core.member_roles import ROLE_FORMAL_MEMBER
+
+        ensure_builtin_credential_templates()
+        member = create_member(
+            member_no="cred-ws-safe",
+            role_name=ROLE_FORMAL_MEMBER,
+            status=Member.Status.ADMITTED,
+            display_name="安全成员",
+        )
+        issue_formal_member_number(member)
+        login_as_member(self.client, member)
+        response = self.client.get("/workspace/profile/")
+        content = response.content.decode()
+        # Must not expose grant PKs (credential-grant-xxx ids)
+        self.assertNotIn("credential-grant-", content.lower())
+        # Must not expose internal database User ids
+        self.assertNotIn('user_id', content.lower())
+        self.assertNotIn('"id":', content.lower())

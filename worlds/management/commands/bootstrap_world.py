@@ -143,6 +143,8 @@ class Command(BaseCommand):
         database_alias = self._effective_world_alias(world)
         token = set_current_world(world)
         try:
+            from core.credential_services import ensure_builtin_credential_templates
+            ensure_builtin_credential_templates()
             with transaction.atomic(using=database_alias):
                 user = self._ensure_world_user(username=username, password=password, email=email, database_alias=database_alias)
                 member = self._ensure_world_member(

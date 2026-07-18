@@ -264,7 +264,7 @@ Credential    → 公开事实证明（非权限来源）
 - **禁止出现** `if member.has_nft(...): allow_xxx` 或 `if member.has_credential(...): allow_xxx` 这类运行时授权路径。
 - Credential / NFT / Badge 可以作为**授予 RoleAssignment 的依据**（例如治理提案决议"持有 X NFT 的成员获得治理角色"），但链上状态必须先导入/验证为系统记录，再通过治理规则或同步服务生成 RoleAssignment。应用运行时仍只查 RoleAssignment / RolePermission，不直接查询 NFT 所有权或 Credential 持有情况。
 - 如果未来链上 NFT 上线，必须经过导入层写入链上证据表，再由治理流程授予相应角色。运行时权限链始终保持：`Member → active RoleAssignment → RolePermission → Permission`。
-- Credential Template 与 Credential Instance 是未来可治理对象：社区成员可通过提案创建模板（如"年度贡献者"证书），治理流程核准后按模板发放实例。发放本身是一个有审计记录的业务动作；发放后是否影响权限，必须通过另一份提案授予 RoleAssignment。
+- Credential Template 与 Credential Grant 已落地：内置模板（如"正式成员编号"）由 `ensure_builtin_credential_templates()` 幂等创建；发放 `issuance` 本身是一个有审计记录的业务动作（写入 `SystemEvent`）；发放后是否影响权限，必须通过另一份提案授予 RoleAssignment。正式成员编号是 CredentialTemplate 的一个实例，不是 Member 字段，不是权限来源。
 
 
 

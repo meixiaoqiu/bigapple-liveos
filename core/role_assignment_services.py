@@ -61,6 +61,7 @@ def validate_role_assignment_prerequisites(member: Member, role: Role) -> None:
         raise DomainError("授予该角色前必须先拥有基础成员角色。")
 
 
+@atomic_for_model(RoleAssignment)
 def create_role_assignment(
     *,
     member: Member,
@@ -76,7 +77,7 @@ def create_role_assignment(
     if not skip_validation:
         validate_role_assignment_prerequisites(member, role)
     starts_at = start_at or timezone.now()
-    assignment, _created = RoleAssignment.objects.get_or_create(
+    assignment, created = RoleAssignment.objects.get_or_create(
         member=member,
         role=role,
         status=RoleAssignment.Status.ACTIVE,
@@ -89,6 +90,16 @@ def create_role_assignment(
             "source_proposal_execution": source_proposal_execution,
         },
     )
+    # Auto-issue formal member number when ROLE_FORMAL_MEMBER is first granted.
+    if role.organization.name == MEMBER_ROLE_ORGANIZATION_NAME and role.name == ROLE_FORMAL_MEMBER:
+        from .credential_services import issue_formal_member_number
+
+        issue_formal_member_number(
+            member,
+            source_proposal=source_proposal,
+            source_proposal_execution=source_proposal_execution,
+            issued_by=granted_by,
+        )
     return assignment
 
 

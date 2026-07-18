@@ -67,6 +67,31 @@
 
     <section class="card bg-base-100 shadow">
       <div class="card-body">
+        <h2 class="card-title">公开凭证</h2>
+        {% if credentials %}
+          <div class="grid gap-3 mt-2">
+            {% for cred in credentials %}
+              <div class="rounded-lg border border-base-300 p-3">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="font-semibold text-sm">{{ cred.template_name }}</span>
+                  {% if cred.display_no %}
+                    <span class="badge badge-primary">{{ cred.display_no }}</span>
+                  {% endif %}
+                  <span class="badge badge-ghost badge-xs">{{ cred.source_type }}</span>
+                </div>
+                <p class="text-xs text-base-content/50 mt-1">发放时间 {{ cred.issued_at|date:"Y-m-d" }}</p>
+              </div>
+            {% endfor %}
+          </div>
+          <p class="text-xs text-base-content/50 mt-3">Credential 是公开事实/荣誉/资格证明，不是权限来源。</p>
+        {% else %}
+          <p class="text-sm text-base-content/50 mt-2">暂无公开凭证。</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="card bg-base-100 shadow">
+      <div class="card-body">
         <h2 class="card-title">最近公开治理动作</h2>
         {% if recent_actions %}
           <div class="overflow-x-auto mt-2">

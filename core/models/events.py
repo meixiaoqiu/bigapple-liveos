@@ -25,6 +25,7 @@ class SystemEvent(models.Model):
         PROPOSAL_FAILED = "proposal_failed", "提案未通过"
         PROPOSAL_CANCELLED = "proposal_cancelled", "提案已取消"
         PROPOSAL_EXECUTED = "proposal_executed", "提案已执行"
+        CREDENTIAL_GRANTED = "credential_granted", "凭证已发放"
         TASK_CREATED = "task_created", "任务已创建"
         TASK_PUBLISHED = "task_published", "任务已发布"
         TASK_ASSIGNED = "task_assigned", "任务已指派"

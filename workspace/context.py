@@ -359,6 +359,8 @@ def application_review_detail_context(*, member: Member, application: MemberAppl
 def workspace_public_profile_context(member: Member) -> dict[str, Any]:
     """Context for the self-service public profile page."""
     from core.models import MemberPublicProfile
+    from core.credential_services import credentials_for_member
+
     profile = MemberPublicProfile.objects.filter(member=member).first()
     return {
         "member": member,
@@ -368,4 +370,5 @@ def workspace_public_profile_context(member: Member) -> dict[str, Any]:
             "avatar_url": profile.avatar_url if profile else "",
         },
         "observer_profile_url": f"/observer/members/{member.member_no}/",
+        "credentials": credentials_for_member(member),
     }

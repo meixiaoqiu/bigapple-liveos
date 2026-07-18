@@ -399,6 +399,36 @@ def proposal_execution_payload(proposal: Proposal, *, action_type: str, executio
     )
 
 
+def credential_grant_payload(grant) -> dict[str, Any]:
+    template = grant.template
+    recipient_label = _public_member_label(
+        grant.member.display_name or "", grant.member.member_no or ""
+    )
+    return _public_event_payload(
+        subject_type="credential_grant",
+        subject_ref=f"credential:{template.code}:{grant.display_no or grant.serial_no or ''}",
+        subject_label=f"{template.name} {grant.display_no or ''}",
+        action="granted",
+        stage=grant.status,
+        summary=f"成员 {recipient_label} 获得凭证：{template.name} {grant.display_no or ''}。",
+        public_facts={
+            "template_code": template.code,
+            "template_name": template.name,
+            "credential_type": template.credential_type,
+            "display_no": grant.display_no,
+            "serial_no": grant.serial_no,
+            "recipient_public_label": recipient_label,
+            "source_type": grant.source_type,
+        },
+        private_commitments=[
+            _private("member_id", reason="成员内部ID"),
+            _private("grant_id", reason="凭证发放内部ID"),
+            _private("source_proposal_id", present=bool(grant.source_proposal_id), reason="来源提案内部ID"),
+            _private("source_proposal_execution_id", present=bool(grant.source_proposal_execution_id), reason="来源提案执行内部ID"),
+        ],
+    )
+
+
 # Public aliases for backward-compatible imports.
 iso_or_none = _iso
 member_display_name = _member_label

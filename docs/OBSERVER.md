@@ -20,7 +20,7 @@
 /observer/members/<member_no>/
 ```
 
-展示公开姓名、头像、简介、治理身份（从 RoleAssignment/RolePermission 动态计算，非自填）和最近公开治理动作。成员本人在 workspace `/workspace/profile/` 维护公开姓名和头像 URL。成员报名时间线中的投票人名称链接到该主页。
+展示公开姓名、头像、简介、治理身份（从 RoleAssignment/RolePermission 动态计算，非自填）、公开凭证列表（正式成员编号、勋章等）和最近公开治理动作。成员本人在 workspace `/workspace/profile/` 维护公开姓名和头像 URL。成员报名时间线中的投票人名称链接到该主页。凭证由 `credentials_for_member()` 获取，只展示业务字段（`template_name`、`display_no`、`source_type`、`issued_at`），不暴露内部 pk 或 User id。
 
 隐藏高级审计入口（不在普通导航中展示）：
 

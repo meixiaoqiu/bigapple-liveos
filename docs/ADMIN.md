@@ -60,6 +60,8 @@ python manage.py seed_demo --world-id realworld
 | 成员报名、合作方报名 | 查看公开报名入口提交的成员和合作方申请，兜底排障表单、审核状态和仿真来源。 | 禁止删除；首页隐藏，日常审核入口后续应归属 world-scoped 审核流程。 |
 | 组织、角色 | 维护组织结构和角色；权限作为角色能力在角色详情页维护。 | 禁止删除；提供搜索、筛选和外键自动补全。 |
 | 角色任命 | 查看成员当前和历史角色任命（只读）。 | 禁止新增、修改和删除；所有角色授予必须通过 `create_role_assignment()` service 或 `bootstrap_first_governance_member()`，不能在 Admin 中手工创建。`grant_governance_admin` 命令要求目标成员已拥有 `ROLE_FORMAL_MEMBER`，不会自动授予正式成员身份。 |
+| 凭证模板 | 查看已注册的凭证模板（只读）。 | 禁止新增、修改和删除（`has_add_permission=False`、`has_change_permission(obj)=False`、`has_delete_permission=False`）。模板由 `ensure_builtin_credential_templates()` 幂等创建，不应在 Admin 中手工维护。 |
+| 凭证发放 | 查看已发放的凭证实例（只读）。 | 禁止新增和删除（`has_add_permission=False`、`has_delete_permission=False`）。所有字段只读，包括 `grant_id`、`template`、`member`、`serial_no`、`display_no`、`status` 等。凭证发放由 `issue_formal_member_number()` 或 `issue_credential()` service 完成。 |
 | 提案、投票和执行 | 作为业务流程对象保留底层维护入口，可在 control Admin 中查看和兜底维护。 | 禁止删除；关键动作会追加统一事件。 |
 | 统一事件账本 | 在“技术审计与配置”中查看全系统关键事件哈希链。 | 禁止新增、修改和删除。 |
 | 项目执行计划 | 维护主线计划名称、状态、目标地点和责任人。 | 禁止删除；已有记录的 `plan_id` 只读。 |

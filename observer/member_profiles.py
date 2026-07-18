@@ -6,6 +6,7 @@ from typing import Any
 
 from django.utils import timezone
 
+from core.credential_services import credentials_for_member
 from core.event_ledger import PUBLIC_LEDGER_SCHEMA
 from core.models import Member, MemberPublicProfile, SystemEvent
 
@@ -94,4 +95,5 @@ def public_member_profile_context(member_no: str) -> dict[str, Any] | None:
         "identity": public_member_identity(member),
         "governance_roles": public_member_governance_roles(member),
         "recent_actions": public_member_recent_actions(member),
+        "credentials": credentials_for_member(member),
     }

@@ -494,3 +494,30 @@ class AdminConfigTests(TestCase):
         from core.admin_identity import RoleAssignmentInline
         inline = RoleAssignmentInline(Role, self.site)
         self.assertFalse(inline.has_add_permission(self.request))
+
+    def test_credential_template_admin_has_add_permission_false(self) -> None:
+        from core.admin_identity import CredentialTemplateAdmin
+        from core.models import CredentialTemplate
+        admin_instance = CredentialTemplateAdmin(CredentialTemplate, self.site)
+        self.assertFalse(admin_instance.has_add_permission(self.request))
+
+    def test_credential_template_admin_readonly_fields_contains_all_model_fields(self) -> None:
+        from core.admin_identity import CredentialTemplateAdmin
+        from core.admin_support import model_field_names
+        from core.models import CredentialTemplate
+        admin_instance = CredentialTemplateAdmin(CredentialTemplate, self.site)
+        all_fields = set(model_field_names(CredentialTemplate))
+        readonly = set(admin_instance.readonly_fields)
+        self.assertEqual(all_fields, readonly, "All CredentialTemplate fields must be readonly")
+
+    def test_credential_grant_admin_has_add_permission_false(self) -> None:
+        from core.admin_identity import CredentialGrantAdmin
+        from core.models import CredentialGrant
+        admin_instance = CredentialGrantAdmin(CredentialGrant, self.site)
+        self.assertFalse(admin_instance.has_add_permission(self.request))
+
+    def test_credential_grant_admin_has_delete_permission_false(self) -> None:
+        from core.admin_identity import CredentialGrantAdmin
+        from core.models import CredentialGrant
+        admin_instance = CredentialGrantAdmin(CredentialGrant, self.site)
+        self.assertFalse(admin_instance.has_delete_permission(self.request))

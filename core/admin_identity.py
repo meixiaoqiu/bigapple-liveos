@@ -14,7 +14,7 @@ from .admin_support import (
     StablePrimaryKeyAdminMixin,
     model_field_names,
 )
-from .models import Member, MemberPublicProfile, Organization, Permission, Role, RoleAssignment, RolePermission
+from .models import CredentialGrant, CredentialTemplate, Member, MemberPublicProfile, Organization, Permission, Role, RoleAssignment, RolePermission
 
 
 class ActiveRoleListFilter(admin.SimpleListFilter):
@@ -264,3 +264,41 @@ class MemberPublicProfileAdmin(HiddenFromAdminIndexMixin, NoDeleteAdminMixin, ad
     autocomplete_fields = ("member",)
     list_select_related = ("member",)
     readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(CredentialTemplate)
+class CredentialTemplateAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
+    list_display = ("code", "name", "credential_type", "status", "display_order")
+    list_filter = ("status", "credential_type")
+    search_fields = ("code", "name", "description")
+    readonly_fields = model_field_names(CredentialTemplate)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        if obj is not None:
+            return False
+        return super().has_change_permission(request, obj)
+
+
+@admin.register(CredentialGrant)
+class CredentialGrantAdmin(admin.ModelAdmin):
+    list_display = ("grant_id", "template", "member", "display_no", "status", "source_type", "issued_at")
+    list_filter = ("template", "status", "source_type")
+    search_fields = (
+        "grant_id", "display_no", "template__code", "template__name",
+        "member__member_no", "member__display_name",
+    )
+    list_select_related = ("template", "member")
+    readonly_fields = (
+        "grant_id", "template", "member", "serial_no", "display_no", "title",
+        "status", "issued_at", "issued_by", "source_type", "source_proposal",
+        "source_proposal_execution", "metadata", "created_at", "updated_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

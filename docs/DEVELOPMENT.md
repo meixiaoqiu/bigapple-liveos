@@ -454,6 +454,22 @@ docker compose -f docker-compose.dev.yml exec -T big-apple-admin python manage.p
 - `--dry-run` 只输出将修复的记录，不实际写入。
 - 查询和提案创建均在指定 world 数据库内完成，不会跨库。
 
+## Repair Formal Member Credentials
+
+扫描拥有 `ROLE_FORMAL_MEMBER` 角色任命但没有正式成员编号凭证的成员，补发 `formal_member_number` Credential Grant。
+
+```powershell
+.\.venv\Scripts\python.exe manage.py repair_formal_member_credentials --world-id realworld --dry-run
+.\.venv\Scripts\python.exe manage.py repair_formal_member_credentials --world-id realworld
+```
+
+该命令：
+- 必须指定 `--world-id`。
+- `--dry-run` 不写入任何数据（不创建 `CredentialTemplate`，不创建 `CredentialGrant`）。
+- 非 dry-run 时才调用 `ensure_builtin_credential_templates()` 和 `issue_formal_member_number()`。
+- 已有 `formal_member_number` 凭证的成员不会被重复发放。
+- 所有 ORM 读写都在 `command_world_context(world_id)` 内执行，不会写到隐式默认 world。
+
 ## Bootstrap First Accounts
 
 三库迁移完成后，可用 `bootstrap_world` 一次性创建：

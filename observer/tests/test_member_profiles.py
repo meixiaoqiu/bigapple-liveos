@@ -5,7 +5,13 @@ from __future__ import annotations
 from django.test import TestCase
 from django.utils import timezone
 
-from core.models import Member, MemberPublicProfile, Permission, Role, RolePermission, RoleAssignment
+from core.credential_services import (
+    _issue_credential_unlocked,
+    credentials_for_member,
+    ensure_builtin_credential_templates,
+    issue_formal_member_number,
+)
+from core.models import CredentialTemplate, Member, MemberPublicProfile, Permission, Role, RolePermission, RoleAssignment
 from core.tests.helpers import create_member
 
 
@@ -159,3 +165,53 @@ class MemberProfileTests(TestCase):
         flat = str(payload)
         self.assertNotIn("avatar_url", flat)
         self.assertNotIn("bio", flat)
+
+    def test_member_profile_shows_formal_member_number_credential(self):
+        """Observer member profile 显示正式成员编号。"""
+        from core.member_roles import ROLE_FORMAL_MEMBER
+
+        ensure_builtin_credential_templates()
+        member = create_member("cred-obs-01", display_name="凭证成员", role_name=ROLE_FORMAL_MEMBER)
+        issue_formal_member_number(member)
+        response = self.client.get("/observer/members/cred-obs-01/")
+        self.assertContains(response, "正式成员编号")
+        self.assertContains(response, "#1")
+
+    def test_member_profile_does_not_leak_internal_pks(self):
+        """不泄露 CredentialGrant.pk / Member.pk / User.id。"""
+        from core.member_roles import ROLE_FORMAL_MEMBER
+
+        ensure_builtin_credential_templates()
+        member = create_member("cred-obs-safe", display_name="安全成员", role_name=ROLE_FORMAL_MEMBER)
+        issue_formal_member_number(member)
+        response = self.client.get("/observer/members/cred-obs-safe/")
+        content = response.content.decode()
+        # Must not expose grant PKs (credential-grant-xxx ids)
+        self.assertNotIn("credential-grant-", content.lower())
+
+    def test_multiple_credentials_sorted_stable(self):
+        """多个 credential 排序稳定：template.display_order, serial_no, issued_at。"""
+        from core.member_roles import ROLE_FORMAL_MEMBER
+
+        ensure_builtin_credential_templates()
+        member = create_member("cred-obs-sort", role_name=ROLE_FORMAL_MEMBER)
+        issue_formal_member_number(member)
+        # Create another template with higher display_order
+        badge_template = CredentialTemplate.objects.create(
+            template_id="credential-template-test-badge",
+            code="test_badge",
+            name="测试勋章",
+            credential_type=CredentialTemplate.CredentialType.BADGE,
+            visibility=CredentialTemplate.Visibility.PUBLIC,
+            display_order=10,
+        )
+        _issue_credential_unlocked(
+            template=badge_template,
+            member=member,
+            serial_no=1,
+        )
+        creds = credentials_for_member(member)
+        self.assertGreaterEqual(len(creds), 2)
+        # formal_member_number (display_order=1) before badge (display_order=10)
+        self.assertEqual(creds[0]["template_code"], "formal_member_number")
+        self.assertEqual(creds[-1]["template_code"], "test_badge")

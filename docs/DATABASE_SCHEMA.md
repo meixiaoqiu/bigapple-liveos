@@ -948,6 +948,51 @@ SystemEvent(event_type=resource_adjusted) v2 `public_facts` 公开：`name`、`r
 | `created_at` | datetime | 是 | 创建时间。 |
 | `metadata` | json | 是 | 扩展对象。 |
 
+## core_credentialtemplate
+
+凭证模板。定义可发放的凭证类型，例如正式成员编号、勋章、证书、NFT 占位等。模板由 `ensure_builtin_credential_templates()` 幂等创建；不应在 Admin 中新增或修改，所有字段只读。
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `template_id` | string pk | 是 | 稳定业务 ID，例如 `credential-template-formal-member-number`。 |
+| `code` | string unique | 是 | 程序内唯一编码，例如 `formal_member_number`。 |
+| `name` | string | 是 | 显示名称，例如"正式成员编号"。 |
+| `description` | text | 否 | 说明文本。 |
+| `credential_type` | enum string | 是 | `formal_number` / `badge` / `certificate` / `nft_placeholder`。 |
+| `status` | enum string | 是 | `active` / `archived`。 |
+| `visibility` | enum string | 是 | `public` / `internal`。公开凭证可在 Observer 展示。 |
+| `icon_url` | url | 否 | 图标 URL。 |
+| `display_order` | integer | 是 | 展示排序，越小越靠前。 |
+| `metadata` | json | 否 | 扩展数据。 |
+| `created_at` | datetime | 是 | 创建时间。 |
+| `updated_at` | datetime | 是 | 更新时间。 |
+
+## core_credentialgrant
+
+凭证发放实例。按模板发放给 Member 的具体凭证，每个实例有唯一 `grant_id`、递增 `serial_no`（模板内）和展示编号 `display_no`。Credential 是公开事实证明，不参与权限判断。Admin 中只读。
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `grant_id` | string pk | 是 | 业务 ID，自动生成（如 `credential-grant-<uuid>`）。 |
+| `template_id` | fk → CredentialTemplate | 是 | 凭证模板。 |
+| `member_id` | fk → Member | 是 | 接收凭证的成员。 |
+| `serial_no` | positive integer | 否 | 模板内递增序列号（如正式成员编号 1,2,3…）。 |
+| `display_no` | string | 否 | 对外展示编号，如 `#1`。 |
+| `title` | string | 否 | 标题，默认为模板名称。 |
+| `status` | enum string | 是 | `active` / `revoked` / `archived`。 |
+| `issued_at` | datetime | 是 | 发放时间。 |
+| `issued_by_id` | fk → Member | 否 | 发放人。 |
+| `source_type` | enum string | 是 | `system` / `proposal_execution` / `manual` / `earned`。 |
+| `source_proposal_id` | fk → Proposal | 否 | 来源提案。 |
+| `source_proposal_execution_id` | fk → ProposalExecution | 否 | 来源提案执行。 |
+| `metadata` | json | 否 | 扩展数据。 |
+| `created_at` | datetime | 是 | 创建时间。 |
+| `updated_at` | datetime | 是 | 更新时间。 |
+
+唯一约束：
+- `(template, serial_no)` — 同一模板内序列号唯一。
+- `(template, display_no)` — 同一模板内展示编号唯一。
+
 ## worlds_worldregistry
 
 `worlds.WorldRegistry` 是 control DB 中的世界注册表，不是具体 world 的业务表。它负责把稳定的世界 ID 映射到 Django 数据库别名和物理数据库名称。

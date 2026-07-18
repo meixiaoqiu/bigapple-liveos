@@ -42,6 +42,8 @@ class Command(BaseCommand):
                     updated_count += 1
                 return obj
 
+            from core.credential_services import ensure_builtin_credential_templates
+            ensure_builtin_credential_templates()
             ruleset, _plan_revision, plan_nodes = seed_project_plan(now=now, mark=mark)
             members = seed_members(now=now, mark=mark)
             seed_resources(now=now, mark=mark, ruleset=ruleset)

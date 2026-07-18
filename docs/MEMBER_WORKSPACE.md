@@ -44,7 +44,7 @@ User -> Member
 
 4. **正式成员编号不是登录账号，也不是权限来源。**
    - 登录仍使用 `User.username`，不因获得正式编号而创建新账号。
-   - 正式成员编号（如 `BA-0001`）是一次性发放的 Credential Instance，永不复用，退出后保留为历史归属证明。
+   - 正式成员编号（如 `#1`）是一次性发放的 Credential Grant，永不复用，退出后保留为历史归属证明。
    - 编号不参与任何权限判断。成员退出后 RoleAssignment 撤销、workspace 功能回收，编号只作为"曾经是第几号正式成员"的公开记录存在。
 
 ## 当前功能
@@ -76,6 +76,8 @@ POST /workspace/profile/update/
 ```
 
 当前成员（包括 pending applicant）可以维护公开姓名和头像 URL，展示在 `/observer/members/<member_no>/` 公开主页。不能编辑角色、权限、治理身份，不提供简介和可见性自助编辑。治理身份仍由 RoleAssignment 动态计算，不来自个人填写。
+
+公开资料页（`/workspace/profile/`）的"我的凭证"区域展示当前成员的 Credential Grant 列表（通过 `credentials_for_member()` 获取），如正式成员编号 `#1`。凭证只读显示，用户不能编辑。凭证是公开事实/荣誉/资格证明，不是权限来源。
 
 ## 与 Control 后台的关系
 
