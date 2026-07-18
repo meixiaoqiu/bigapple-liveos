@@ -6,6 +6,7 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.forms import UsernameField
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 from core.models import Member
 
@@ -94,6 +95,44 @@ MOTIVATION_REASON_CHOICES = (
 )
 
 
+class ParticipantRegistrationForm(forms.Form):
+    """Create a user account and basic Member identity.
+
+    This form does NOT create a MemberApplication or enter the governance
+    pipeline — it only creates ``User`` + ``Member`` + ``ROLE_BIG_APPLE_MEMBER``.
+    """
+
+    username = UsernameField(label="登录账号", max_length=150)
+    password1 = forms.CharField(label="登录密码", widget=forms.PasswordInput)
+    password2 = forms.CharField(label="确认密码", widget=forms.PasswordInput)
+    display_name = forms.CharField(label="姓名或称呼", max_length=255)
+    contact = forms.CharField(label="联系方式（建议留微信或电话）", max_length=255)
+
+    def clean_username(self) -> str:
+        username = str(self.cleaned_data["username"] or "").strip()
+        if not username:
+            raise forms.ValidationError("登录账号不能为空。")
+        user_model = get_user_model()
+        if user_model.objects.filter(username=username).exists():
+            raise forms.ValidationError("登录账号已存在。")
+        if Member.objects.filter(member_no=username).exists():
+            raise forms.ValidationError("该账号已被成员编号使用。")
+        return username
+
+    def clean(self):
+        cleaned_data = super().clean()
+        password1 = cleaned_data.get("password1")
+        password2 = cleaned_data.get("password2")
+        if password1 and password2 and password1 != password2:
+            self.add_error("password2", "两次输入的密码不一致。")
+        if password1:
+            try:
+                validate_password(password1)
+            except DjangoValidationError as exc:
+                self.add_error("password1", exc)
+        return cleaned_data
+
+
 class MemberApplicationForm(forms.Form):
     username = UsernameField(label="登录账号", max_length=150)
     password1 = forms.CharField(label="登录密码", widget=forms.PasswordInput)
@@ -143,28 +182,13 @@ class MemberApplicationForm(forms.Form):
         self.existing_member = existing_member
         super().__init__(*args, **kwargs)
         if existing_user is not None:
-            username = str(existing_user.get_username() or "").strip()
-            self.fields["username"].initial = username
-            self.fields["username"].disabled = True
-            self.fields["password1"].required = False
-            self.fields["password2"].required = False
-            self.fields["password1"].widget = forms.HiddenInput()
-            self.fields["password2"].widget = forms.HiddenInput()
-            self.fields["requested_member_no"].initial = existing_member.member_no if existing_member else username
-
-    def clean_username(self) -> str:
-        username = str(self.cleaned_data["username"] or "").strip()
-        if self.existing_user is not None:
-            existing_username = str(self.existing_user.get_username() or "").strip()
-            if username != existing_username:
-                raise forms.ValidationError("再次申请必须复用当前登录账号。")
-            return username
-        user_model = get_user_model()
-        if user_model.objects.filter(username=username).exists():
-            raise forms.ValidationError("登录账号已存在。")
-        if Member.objects.filter(member_no=username).exists():
-            raise forms.ValidationError("该账号已被成员编号使用。")
-        return username
+            # Authenticated users already have an account — hide account fields completely.
+            self.fields.pop("username", None)
+            self.fields.pop("password1", None)
+            self.fields.pop("password2", None)
+            self.fields["requested_member_no"].initial = existing_member.member_no if existing_member else str(existing_user.get_username() or "").strip()
+        if existing_member is not None:
+            self.fields["applicant_name"].initial = existing_member.display_name or ""
 
     def clean(self):
         cleaned_data = super().clean()

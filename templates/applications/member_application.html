@@ -1,8 +1,8 @@
 {% extends "applications/base.html" %}
 
 {% block title %}成员报名 · 大苹果{% endblock %}
-{% block heading %}成员报名{% endblock %}
-{% block subtitle %}这里面向明确想参加项目的人。{% endblock %}
+{% block heading %}正式成员报名{% endblock %}
+{% block subtitle %}这里是正式成员报名入口，报名后将进入治理表决流程。{% endblock %}
 
 {% block content %}
   <form class="grid gap-6" method="post" data-draft-key="member_application_draft" data-step-form>
@@ -22,11 +22,13 @@
     {{ form.requested_member_no }}
     {{ form.availability_hours_per_week }}
     {{ form.motivation }}
+    {% if form.username %}{{ form.username }}{% endif %}
+    {% if form.password1 %}{{ form.password1 }}{% endif %}
+    {% if form.password2 %}{{ form.password2 }}{% endif %}
 
     <ul class="steps w-full">
       <li class="step step-primary" data-step-indicator="0">意向</li>
-      <li class="step" data-step-indicator="1">账号</li>
-      <li class="step" data-step-indicator="2">理由</li>
+      <li class="step" data-step-indicator="1">理由</li>
     </ul>
 
     <fieldset class="fieldset rounded-box border border-base-300 bg-base-100 p-4 shadow-sm" data-step-panel="0">
@@ -57,6 +59,22 @@
 
       <div class="divider my-2"></div>
 
+      <div class="grid gap-4 md:grid-cols-2">
+        <label class="fieldset">
+          <span class="fieldset-label">{{ form.applicant_name.label }}</span>
+          {{ form.applicant_name }}
+          {% for error in form.applicant_name.errors %}<span class="label-text-alt text-error">{{ error }}</span>{% endfor %}
+        </label>
+
+        <label class="fieldset">
+          <span class="fieldset-label">{{ form.contact.label }}</span>
+          {{ form.contact }}
+          {% for error in form.contact.errors %}<span class="label-text-alt text-error">{{ error }}</span>{% endfor %}
+        </label>
+      </div>
+
+      <div class="divider my-2"></div>
+
       <div class="fieldset-label font-semibold">{{ form.availability_slots.label }}</div>
       <div class="grid gap-3 sm:grid-cols-3">
         {% for value, label in form.availability_slots.field.choices %}
@@ -75,46 +93,6 @@
     </fieldset>
 
     <fieldset class="fieldset rounded-box border border-base-300 bg-base-100 p-4 shadow-sm hidden" data-step-panel="1">
-      <legend class="fieldset-legend">账号信息</legend>
-      <div class="grid gap-4 md:grid-cols-2">
-        <label class="fieldset">
-          <span class="fieldset-label">{{ form.username.label }}</span>
-          {{ form.username }}
-          {% for error in form.username.errors %}<span class="label-text-alt text-error">{{ error }}</span>{% endfor %}
-        </label>
-
-        {% if not form.existing_user %}
-          <label class="fieldset">
-            <span class="fieldset-label">{{ form.password1.label }}</span>
-            {{ form.password1 }}
-            {% for error in form.password1.errors %}<span class="label-text-alt text-error">{{ error }}</span>{% endfor %}
-          </label>
-
-          <label class="fieldset">
-            <span class="fieldset-label">{{ form.password2.label }}</span>
-            {{ form.password2 }}
-            {% for error in form.password2.errors %}<span class="label-text-alt text-error">{{ error }}</span>{% endfor %}
-          </label>
-        {% else %}
-          {{ form.password1 }}
-          {{ form.password2 }}
-        {% endif %}
-
-        <label class="fieldset">
-          <span class="fieldset-label">{{ form.applicant_name.label }}</span>
-          {{ form.applicant_name }}
-          {% for error in form.applicant_name.errors %}<span class="label-text-alt text-error">{{ error }}</span>{% endfor %}
-        </label>
-
-        <label class="fieldset">
-          <span class="fieldset-label">{{ form.contact.label }}</span>
-          {{ form.contact }}
-          {% for error in form.contact.errors %}<span class="label-text-alt text-error">{{ error }}</span>{% endfor %}
-        </label>
-      </div>
-    </fieldset>
-
-    <fieldset class="fieldset rounded-box border border-base-300 bg-base-100 p-4 shadow-sm hidden" data-step-panel="2">
       <legend class="fieldset-legend">{{ form.motivation_reasons.label }}</legend>
       <div class="grid gap-3 md:grid-cols-2">
         {% for value, label in form.motivation_reasons.field.choices %}

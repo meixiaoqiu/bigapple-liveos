@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.utils import timezone
 
@@ -11,7 +12,7 @@ from core.db import atomic_for_model
 from core.event_ledger import PUBLIC_LEDGER_SCHEMA, append_event
 from core.event_payloads import _member_label, _public_member_label, _private, _public_ref
 from core.exceptions import DomainError
-from core.member_roles import ROLE_BIG_APPLE_MEMBER, ensure_member_role
+from core.member_roles import ROLE_BIG_APPLE_MEMBER, ensure_member_role, ensure_role_assignment
 from core.models import Member, Organization, Role, RoleAssignment, SystemEvent
 from core.role_assignment_services import create_role_assignment
 
@@ -185,3 +186,91 @@ def create_role_template(
         occurred_at=now,
     )
     return role
+
+
+@atomic_for_model(Member)
+def ensure_basic_member_for_user(user) -> Member:
+    """Ensure an authenticated User has the baseline Member identity.
+
+    This creates only User-bound Member + ROLE_BIG_APPLE_MEMBER. It does
+    **not** create MemberApplication, Proposal, or public observer Event.
+
+    Returns the existing Member if *user* is already bound to one.
+    """
+    username = str(user.get_username() or "").strip()
+    if not username:
+        raise DomainError("登录账号不能为空。")
+    member = Member.objects.filter(user=user).first()
+    if member is not None:
+        return member
+    existing = Member.objects.filter(member_no=username).first()
+    if existing is not None:
+        if existing.user_id and existing.user_id != user.pk:
+            raise DomainError("该账号已被其他成员绑定。")
+        existing.user = user
+        if not existing.display_name:
+            existing.display_name = username
+        existing.save(update_fields=["user", "display_name"])
+        ensure_role_assignment(existing, ensure_member_role(ROLE_BIG_APPLE_MEMBER))
+        return existing
+    member = Member.objects.create(
+        member_no=username,
+        display_name=username,
+        status=Member.Status.PENDING_REVIEW,
+        credit_floor=-100,
+        created_at=timezone.now(),
+    )
+    member.user = user
+    member.save(update_fields=["user"])
+    ensure_role_assignment(member, ensure_member_role(ROLE_BIG_APPLE_MEMBER))
+    return member
+
+
+@atomic_for_model(Member)
+def register_participant_account(
+    *,
+    username: str,
+    password: str,
+    display_name: str,
+    contact: str,
+):
+    """Register a participant account and baseline Member identity.
+
+    This is **account registration only**. It must not create
+    MemberApplication, Proposal, or public observer Event.
+
+    Returns ``(user, member)``.
+    """
+    cleaned_username = str(username or "").strip()
+    cleaned_display_name = str(display_name or "").strip()
+    cleaned_contact = str(contact or "").strip()
+    if not cleaned_username:
+        raise DomainError("登录账号不能为空。")
+    if not password:
+        raise DomainError("登录密码不能为空。")
+    if not cleaned_display_name:
+        raise DomainError("姓名或称呼不能为空。")
+    if not cleaned_contact:
+        raise DomainError("联系方式不能为空。")
+    user_model = get_user_model()
+    if user_model.objects.filter(username=cleaned_username).exists():
+        raise DomainError("登录账号已存在。")
+    if Member.objects.filter(member_no=cleaned_username).exists():
+        raise DomainError("该账号已被成员编号使用。")
+
+    user = user_model.objects.create_user(username=cleaned_username, password=password)
+    member = Member.objects.create(
+        member_no=cleaned_username,
+        display_name=cleaned_display_name,
+        status=Member.Status.PENDING_REVIEW,
+        credit_floor=-100,
+        created_at=timezone.now(),
+        metadata={
+            "registration_contact": cleaned_contact,
+            "registration_source": "public_register_form",
+        },
+    )
+    member.user = user
+    member.save(update_fields=["user"])
+    ensure_role_assignment(member, ensure_member_role(ROLE_BIG_APPLE_MEMBER))
+    return user, member

@@ -40,29 +40,45 @@ class HttpFormDriver:
         data: Mapping[str, object],
     ) -> FormSubmissionResult:
         self.client.logout()
-        path = self._application_path(world_id, "member")
-        required_fields = (
-            "username",
-            "password1",
-            "password2",
-            "applicant_name",
-            "contact",
-            "motivation",
-            "role_gap",
-            "availability_slots",
-            "motivation_reasons",
-            "confirm_submit",
-        )
-        page_error = self._verify_form_page(world_id, path, required_fields)
-        if page_error:
-            return FormSubmissionResult(False, path, page_error[0], errors=[page_error[1]])
-        payload = self._payload(
-            data=data,
-            run_id=run_id,
-            simulation_hour=simulation_hour,
-            external_ref=external_ref,
-        )
         with self._fixed_world_urlconf(world_id):
+            # Step 1: register the account first
+            username = str(data.get("username") or "").strip()
+            password = str(data.get("password1") or data.get("password") or "sim-test-password").strip()
+            register_data = {
+                "username": username,
+                "password1": password,
+                "password2": password,
+                "display_name": str(data.get("applicant_name") or username),
+                "contact": str(data.get("contact") or ""),
+            }
+            reg_resp = self.client.post(
+                "/register/", data=register_data, follow=True, HTTP_HOST=self.host
+            )
+            if reg_resp.status_code >= 400:
+                return FormSubmissionResult(
+                    False, "/register/", reg_resp.status_code,
+                    errors=[self._response_error(reg_resp, "注册账号失败。")],
+                )
+
+            # Step 2: use apply/ as authenticated user
+            path = "/apply/"
+            required_fields = (
+                "applicant_name",
+                "contact",
+                "role_gap",
+                "availability_slots",
+                "motivation_reasons",
+                "confirm_submit",
+            )
+            page_error = self._verify_form_page(world_id, path, required_fields)
+            if page_error:
+                return FormSubmissionResult(False, path, page_error[0], errors=[page_error[1]])
+            payload = self._payload(
+                data=data,
+                run_id=run_id,
+                simulation_hour=simulation_hour,
+                external_ref=external_ref,
+            )
             response = self.client.post(path, data=payload, follow=True, HTTP_HOST=self.host)
         application = MemberApplication.objects.filter(metadata__external_ref=external_ref).first()
         if response.status_code >= 400 or application is None:

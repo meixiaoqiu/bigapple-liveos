@@ -1,0 +1,20 @@
+{% extends "applications/base.html" %}
+
+{% block title %}成员报名 · 大苹果{% endblock %}
+{% block heading %}正式成员报名{% endblock %}
+{% block subtitle %}正式成员报名需要先注册账号并登录。{% endblock %}
+
+{% block content %}
+  <div class="card bg-base-100 shadow">
+    <div class="card-body gap-4 text-center">
+      <div class="alert alert-info text-left">
+        <div class="font-bold">成员报名需要先注册账号</div>
+        <div class="text-sm">注册账号后你将拥有最小工作台，可以从那里发起正式成员报名申请。报名提交后将进入公开治理表决流程。</div>
+      </div>
+      <div class="flex flex-wrap justify-center gap-4">
+        <a class="btn btn-primary" href="/register/?next=/apply/">注册账号</a>
+        <a class="btn btn-outline" href="/login/?next=/apply/">已有账号，立即登录</a>
+      </div>
+    </div>
+  </div>
+{% endblock %}

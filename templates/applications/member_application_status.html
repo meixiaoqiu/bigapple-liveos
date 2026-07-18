@@ -5,7 +5,18 @@
 {% block subtitle %}成员报名已经和登录账号绑定。准入决议完成前，账号可以进入最小权限工作台查看自己的报名状态。{% endblock %}
 
 {% block content %}
-  {% if member %}
+  {% if disabled_member %}
+    <div class="alert alert-warning">
+      <div>
+        <div class="font-bold">当前账号暂不能提交成员报名</div>
+        <div class="text-sm">{{ disabled_reason }}</div>
+        <div class="text-sm">成员编号：{{ disabled_member.member_no }}，状态：{{ disabled_member.get_status_display }}</div>
+      </div>
+    </div>
+    <div class="flex justify-end">
+      <a class="btn btn-primary" href="/workspace/">返回工作台</a>
+    </div>
+  {% elif member %}
     <div class="alert alert-success">
       <div>
         <div class="font-bold">你已经是成员</div>

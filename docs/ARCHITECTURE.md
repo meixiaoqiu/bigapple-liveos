@@ -246,7 +246,7 @@ Credential    → 公开事实证明（非权限来源）
 
    不允许为 Credential / NFT / Badge 或 member_no 字符串编写第二套权限路径。`is_staff` / `is_superuser` 仅限 Django Admin 技术后台边界使用，不能等同于业务治理权限。
 
-   **当前落地**：`workspace/context.member_has_full_workspace_access()` 和 `applications/views.member_is_formal_member()` 已基于 active `ROLE_FORMAL_MEMBER` + `SUSPENDED`/`EXITED` veto 实现。`Member.status` 不再作为权限来源。
+   **当前落地**：`/register/` 创建 User+Member+ROLE_BIG_APPLE_MEMBER，`/apply/` 处理正式成员报名（登录后）。`workspace/context.member_has_full_workspace_access()` 和 `applications/views.member_is_formal_member()` 已基于 active `ROLE_FORMAL_MEMBER` + `SUSPENDED`/`EXITED` veto 实现。`Member.status` 不再作为权限来源。
 
 ### 注册与报名的拆分展望
 
