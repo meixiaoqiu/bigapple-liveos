@@ -59,7 +59,7 @@ python manage.py seed_demo --world-id realworld
 | 成员 | 查看和维护成员角色、状态、画像、批次和积分下限。 | 禁止删除；已有记录的 `member_no` 只读。 |
 | 成员报名、合作方报名 | 查看公开报名入口提交的成员和合作方申请，兜底排障表单、审核状态和仿真来源。 | 禁止删除；首页隐藏，日常审核入口后续应归属 world-scoped 审核流程。 |
 | 组织、角色 | 维护组织结构和角色；权限作为角色能力在角色详情页维护。 | 禁止删除；提供搜索、筛选和外键自动补全。 |
-| 角色任命 | 查看成员当前和历史角色任命。 | 禁止删除；关键动作会追加统一事件。 |
+| 角色任命 | 查看成员当前和历史角色任命（只读）。 | 禁止新增、修改和删除；所有角色授予必须通过 `create_role_assignment()` service 或 `bootstrap_first_governance_member()`，不能在 Admin 中手工创建。`grant_governance_admin` 命令要求目标成员已拥有 `ROLE_FORMAL_MEMBER`，不会自动授予正式成员身份。 |
 | 提案、投票和执行 | 作为业务流程对象保留底层维护入口，可在 control Admin 中查看和兜底维护。 | 禁止删除；关键动作会追加统一事件。 |
 | 统一事件账本 | 在“技术审计与配置”中查看全系统关键事件哈希链。 | 禁止新增、修改和删除。 |
 | 项目执行计划 | 维护主线计划名称、状态、目标地点和责任人。 | 禁止删除；已有记录的 `plan_id` 只读。 |
@@ -103,7 +103,7 @@ python manage.py seed_demo --world-id realworld
 - 任务创建、发布、指派、领取、劳动提交、验收和关闭的正式状态变化应优先通过 API 或 `core.tasks.*` 领域服务完成，这些服务会追加 `task_*` 统一事件账本记录。
 - 申诉提交、受理和处理结论应优先通过 API 或 `core.dispute_services` 完成，这些服务会追加 `dispute_*` 统一事件账本记录。
 - 当前 Admin 可以用于早期维护资源、供应商报价、成员和申诉数据，但涉及审计链的操作后续应迁移到运营后台。库存流水是只读查账记录，不能通过 Admin 新增、修改或删除。资源运营页会基于已发布计划需求、当前库存和有效供应商报价展示资源缺口，并展示近期库存流水；这不是完整采购系统，也不会自动创建采购单。
-- Public application entrypoints on fixed-world sites are `/apply/` for member application/account registration and `/apply/partner/` for partner application. Zero-start simulation submits these real forms; field, validation, or save-chain failures end the simulation run as a system-interaction failure. The first driver does not execute browser JavaScript yet; browser sampling should attach to the same flow later.
+- Public entrypoints on fixed-world sites: `/register/` for account registration, `/workspace/apply/` for member application (login required). `/apply/` and `/apply/partner/` have been removed. Zero-start simulation submits member applications through the workspace form flow and partner applications through a service adapter; field, validation, or save-chain failures end the simulation run as a system-interaction failure.
 
 ## 治理权限迁移
 

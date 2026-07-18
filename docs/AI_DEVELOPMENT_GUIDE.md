@@ -13,8 +13,10 @@
 - 治理处置必须保留具体实名责任人。
 - **任何 Credential / NFT / Badge 相关功能不得绕过 RoleAssignment / RolePermission。** 权限判断只有一条路径：`Member → active RoleAssignment → RolePermission → Permission`。不得出现 `has_credential`、`has_nft`、`has_badge` 等直接授权路径。
 - **注册与报名拆分后**：注册创建基础 Member + 基础角色；正式成员报名只申请更高角色和正式编号 Credential。Member 和 Role 的耦合只存在于 RoleAssignment 表，不存在于 Member 的字段标记。
-- **不要用 Member.status 判断正式成员权限**：完整 workspace 和 `/apply/` 的"已是正式成员"判断必须基于 active `ROLE_FORMAL_MEMBER`（`SUSPENDED` / `EXITED` 可 veto）。`Member.status` 只作为生命周发展示字段。
-- **注册与报名分离**：`/register/` 只创建 User + Member + ROLE_BIG_APPLE_MEMBER，不写公开 Event、不创建 MemberApplication。`/apply/` 是正式成员报名入口，需登录后访问。
+- **不要用 Member.status 判断正式成员权限**：完整 workspace 和 `/workspace/apply/` 的"已是正式成员"判断必须基于 active `ROLE_FORMAL_MEMBER`（`SUSPENDED` / `EXITED` 可 veto）。`Member.status` 只作为生命周发展示字段。
+- **禁止直接创建 RoleAssignment**：所有角色授予必须通过 `core.role_assignment_services.create_role_assignment()` 或 `bootstrap_first_governance_member()`。RoleAssignment Admin 已设为只读，不能通过 Django Admin 手工新增或修改角色任命。
+- **高权限角色前置条件**：授予 `ROLE_GOVERNANCE_MEMBER` 或任何带 `governance.*` permission 的角色前，目标成员必须已拥有 `ROLE_FORMAL_MEMBER`。`SUSPENDED`/`EXITED` 成员拒绝一切新角色。
+- **注册与报名分离**：`/register/` 只创建 User + Member + ROLE_BIG_APPLE_MEMBER，不写公开 Event、不创建 MemberApplication。`/workspace/apply/` 是登录后的正式成员报名入口，属于 workspace 子功能。
 
 ## 修改代码前
 
@@ -60,7 +62,7 @@
 - 治理内核不再保留 `core.governance` 大门面；统一事件账本、提案、权限和角色任命应分别从对应领域模块导入。
 - 不要在业务代码中直接根据 Credential/NFT/Badge 判断权限。所有运行时权限判断必须通过 RoleAssignment / RolePermission。详见 `docs/ARCHITECTURE.md` Credential/NFT 章节。
 - 当前本地开发拆为三个站点入口：`bigadmin.local` 使用 `live_os.settings_admin` 和 `live_os.urls_admin`，承载 control plane 的 `/admin/` 与 `/admin/simulation-lab/`；`bigreal.local` 使用 `live_os.settings_real` 和 `live_os.urls_real`，承载真实世界 runtime；`bigsim.local` 使用 `live_os.settings_sim` 和 `live_os.urls_sim`，承载仿真世界 runtime。
-Real and simulation runtimes use the same root paths: `/workspace/`, `/observer/`, `/apply/`, `/apply/partner/`, `/api/v0.1/`. `/apply/` is the member application and account-registration entrypoint; the old `/apply/member/`, old world-prefixed route family, old `/member/` workspace route, and `/live-admin/` route have been removed and must not be used in product code or tests.
+Real and simulation runtimes use the same root paths: `/workspace/`, `/observer/`, `/register/`, `/api/v0.1/`. `/register/` is the account-registration entrypoint; `/workspace/apply/` is the member application entrypoint (login required). `/apply/`, `/apply/partner/`, `/apply/member/`, old world-prefixed route family, old `/member/` workspace route, and `/live-admin/` route have been removed and must not be used in product code or tests.
 - 当前 `/workspace/` 是固定 world 的成员自助工作台，归属 `workspace` app。身份必须从当前登录账号绑定的 `Member` 推导，不要重新引入 `/members/{member_no}/workspace/` 这种按 URL 选择成员的页面入口。
 - 当前 `/observer/` 是固定 world 的时间线指挥台式观察台，使用 Django Templates、Tailwind、daisyUI 和 HTMX partial。仿真实验启动和推进归属 control plane 的 `/admin/simulation-lab/`，观察和复盘归属对应 world runtime 的 observer；不能把命令行 runner 当成产品形态，也不能让 simulation 默认写真实世界数据。
 - 当前项目执行计划已经数据库化，`bigapple001据点执行计划` 是主线任务线源头。不要把主线计划只写在 Markdown 或代码常量里。
@@ -71,7 +73,7 @@ Real and simulation runtimes use the same root paths: `/workspace/`, `/observer/
 - 可以运行 `python manage.py seed_demo --world-id realworld` 写入指定 world 的后台预览用演示数据；运行时启用 world 数据库路由后，直接写入型命令不能依赖隐式默认 world。仿真 world 后台预览用 `python manage.py seed_world simulation0001 --template demo`；真正从一个发起人开始的仿真基线用 `python manage.py seed_world simulation0001 --template zero_start`。启用仿真 bootstrap admin 时，`zero_start` 的唯一初始发起人应是配置的真实登录成员。
 - 可以运行 `python manage.py smoke_workflow --world-id realworld` 或 `--world-id simulation0001` 通过 HTTP API 验证目标 world 的第一条业务闭环。真实世界不会默认写入演示数据；需要本地演示数据时显式传入 `--seed-demo`，仿真 world 会自动使用 `seed_world`。
 - 可以运行 `python manage.py run_simulation_smoke --world-id simulation0001` 验证仿真 world 的自动推演闭环：幂等初始化、创建 `SimulationRun`、自动推进主线计划、生成 turn / observer event / 失败反馈，并在启用 world 数据库路由时检查 `realworld` 关键表记录数不变。
-- `python manage.py run_zero_start_simulation --world-id simulation0001 --hours 168` verifies zero-start social-media recruitment and launch-threshold closure. The simulation drives virtual subjects through the real fixed-world forms at `/apply/` and `/apply/partner/`; it must not bypass the view / form / service chain to create application members directly. After the launch threshold is satisfied, the same run enters `pre_engineering` and records candidate sites, grid pre-screening, conditional lease review, and responsibility-document milestones in `SimulationTurn.metadata`; do not create a parallel simulation command for this phase unless the model boundary genuinely changes.
+- `python manage.py run_zero_start_simulation --world-id simulation0001 --hours 168` verifies zero-start social-media recruitment and launch-threshold closure. Member applications go through `/register/` + `/workspace/apply/`; partner applications use a service adapter (`/apply/partner/` has been removed and the partner system will be designed separately). After the launch threshold is satisfied, the same run enters `pre_engineering` and records candidate sites, grid pre-screening, conditional lease review, and responsibility-document milestones in `SimulationTurn.metadata`; do not create a parallel simulation command for this phase unless the model boundary genuinely changes.
 - 可以运行 `python manage.py archive_simulation_run --world-id simulation0001 --run-id sim-run-xxx` 把已结束的仿真 run 归档为 control DB 中的 `SimulationSnapshot` / `SimulationSnapshotItem` 和文件系统中的原始归档包。原始归档包默认在 `var/simulation_archives/`，不进入 Git；归档后用 `python manage.py verify_simulation_snapshot snapshot-xxx` 校验 raw 文件哈希、manifest 和标准化索引。
 - 已结束的仿真 run 在同一 world 启动下一轮前必须被人工处置：要么通过 `/admin/simulation-lab/` 或 `archive_simulation_run` 归档为快照，要么通过 `/admin/simulation-lab/` 或 `discard_simulation_run --reason "..."` 明确放弃归档。两种处置都会写入 control DB 的 `SimulationRunDisposition`；Django Admin `LogEntry` 只记录技术后台操作，不能替代仿真处置结论。
 - 仍在 `running` 但已经确认没有继续价值的 run，应先在 `/admin/simulation-lab/` 详情页执行“中止本轮仿真”，状态变为 `aborted` 后再归档或废弃。

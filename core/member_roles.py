@@ -7,8 +7,6 @@ single ``Member.role`` field.
 
 from __future__ import annotations
 
-from datetime import timedelta
-
 from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
@@ -117,17 +115,12 @@ def ensure_member_roles() -> dict[str, object]:
 
 def ensure_role_assignment(member, role, *, granted_by=None, start_at=None):
     from .models import RoleAssignment
+    from .role_assignment_services import create_role_assignment
 
-    starts_at = start_at or timezone.now()
-    assignment, _created = RoleAssignment.objects.get_or_create(
+    return create_role_assignment(
         member=member,
         role=role,
-        status=RoleAssignment.Status.ACTIVE,
-        defaults={
-            "granted_by": granted_by,
-            "start_at": starts_at,
-            "end_at": starts_at + timedelta(days=DEFAULT_ROLE_ASSIGNMENT_DAYS),
-            "source_type": RoleAssignment.SourceType.INITIALIZATION,
-        },
+        granted_by=granted_by,
+        start_at=start_at,
+        source_type=RoleAssignment.SourceType.INITIALIZATION,
     )
-    return assignment

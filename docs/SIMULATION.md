@@ -96,7 +96,7 @@ python manage.py run_zero_start_simulation --world-id simulation0001 --hours 168
 
 - 只预置一个发起人、一个极简 `ProjectPlan` 和一个已发布 `PlanRevision`；启用仿真 bootstrap admin 时，该发起人就是配置的真实登录成员。
 - 按整数小时推进自媒体曝光、主动报名、初筛、候选、备用、项目拒绝和主动退出过程。默认 168 小时是压缩后的观察窗口，不是终局；报名密度不是平均分布，后续波次会随曝光积累逐步增加，用来模拟真实世界中从早期零星报名到后期集中增长的趋势。
-- Virtual applicants and partners are no longer inserted directly by simulation code. The state machine chooses actions, then submits the real fixed-world application forms at `/apply/` and `/apply/partner/`.
+- Virtual applicants are no longer inserted directly by simulation code. The state machine chooses actions, then submits through the real workspace flow: registration at `/register/`, then member application at `/workspace/apply/`. Partner applications use a service adapter (`core.application_services.submit_partner_application`) because `/apply/partner/` has been removed.
 - 当前第一版 driver 是 `http_form`：它会先 GET 报名页并检查关键 HTML 表单字段，再 POST 表单，让 view、form、service、事件账本和数据库写入走真实路径；它不执行浏览器 JS。后续可在同一 driver 边界接入 Playwright 抽样模式，让每类关键行为前 N 次走真实浏览器，其余大量重复样本走 HTTP form。
 - 为每个虚拟小时记录 `SimulationTurn` 和公开观察 `Event`。每小时 payload 至少包含虚拟小时、状态机名称、表单 driver、成员/合作方报名增量、筛选增量、累计候选池、合作方状态、能力矩阵、文件签署方矩阵、当前阻塞项和下一步动作。
 - 成员报名先写入 `MemberApplication` 并自动创建 `member_admission` 治理提案。仿真的候选/备用/拒绝/退出筛选结果写入 `metadata.screening_status`，不写入权威 `MemberApplication.status`。
@@ -113,7 +113,7 @@ python manage.py run_zero_start_simulation --world-id simulation0001 --hours 168
 
 零起点仿真按职责拆分为多层，降低未来业务流程变化对仿真的连锁影响：
 
-**Driver 层（`simulation/form_drivers.py`）：** 调用真实报名表单和服务（`/apply/`、`submit_member_application`）。负责把虚拟主体动作转化为真实系统写入，不直接做统计查询。
+**Driver 层（`simulation/form_drivers.py`）：** 调用真实注册表单和服务（`/register/` → `/workspace/apply/` → `submit_member_application`；partner 通过 `submit_partner_application` service adapter）。负责把虚拟主体动作转化为真实系统写入，不直接做统计查询。
 
 **Projection 层（`simulation/projections.py`）：** 读取真实状态和仿真 metadata，负责候选池、启动门槛 summary、能力覆盖、文件签署方覆盖、成员/合作方快照等 read-model 组装，为 Strategy 层提供稳定输入。
 - `screening_status_for(application)` — 读取 `metadata.screening_status`
@@ -122,7 +122,7 @@ python manage.py run_zero_start_simulation --world-id simulation0001 --hours 168
 
 **Strategy/Scenario 层（`simulation/zero_start_strategy.py`、`simulation/zero_start.py`）：** 负责虚拟主体配置、报名时机、筛选规则、启动门槛需求常量等场景定义，以及小时级推进编排。筛选决策和需求配置集中在 `zero_start_strategy.py`，引擎编排保留在 `zero_start.py`。
 
-**Form Submission 层（`simulation/zero_start_form_submission.py`）：** 负责把 ApplicantSpec / PartnerSpec 转换成真实 /apply/ 表单 payload 并通过 HttpFormDriver 提交。
+**Form Submission 层（`simulation/zero_start_form_submission.py`）：** 负责把 ApplicantSpec 转换成 `/register/` + `/workspace/apply/` 表单 payload，PartnerSpec 通过 service adapter 提交；通过 HttpFormDriver 执行写入。
 
 **Screening 层（`simulation/zero_start_screening.py`）：** 负责仿真筛选结果写入 metadata，不改变权威 MemberApplication.status。
 
@@ -241,4 +241,4 @@ python manage.py run_simulation_smoke --world-id simulation0001 --max-turns 30 -
 python manage.py run_zero_start_simulation --world-id simulation0001 --hours 168
 ```
 
-它同样只接受仿真 world，会校验每个虚拟小时的 `SimulationTurn`、公开观察 `Event`、成员报名申请、合作方报名申请、启动门槛观察证据、计划修订建议和结构化变更集。启动门槛未满足时 run 会保持 `running`，再次执行命令会继续推进同一个 run；系统交互链路失败才会终止为 `failed`。
+它同样只接受仿真 world，会校验每个虚拟小时的 `SimulationTurn`、公开观察 `Event`、成员报名申请（通过 `/register/` + `/workspace/apply/`）、合作方报名申请（通过 service adapter）、启动门槛观察证据、计划修订建议和结构化变更集。启动门槛未满足时 run 会保持 `running`，再次执行命令会继续推进同一个 run；系统交互链路失败才会终止为 `failed`。

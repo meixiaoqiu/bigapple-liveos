@@ -912,10 +912,12 @@ class PublicEventsBrowserTests(TestCase):
     def test_real_member_admission_flow_shows_timeline_with_proposal_and_vote(self):
         """End-to-end: submit → proposal created → timeline shows core events."""
         from core.application_services import submit_member_application
-        from core.member_roles import ROLE_GOVERNANCE_MEMBER, ensure_member_role, ensure_role_assignment
+        from core.member_roles import ROLE_FORMAL_MEMBER, ROLE_GOVERNANCE_MEMBER, ensure_member_role, ensure_role_assignment
 
         # Ensure governance voter exists before application (needed for eligible_voter_snapshot)
+        formal_role = ensure_member_role(ROLE_FORMAL_MEMBER)
         gov_role = ensure_member_role(ROLE_GOVERNANCE_MEMBER)
+        ensure_role_assignment(self.member, formal_role)
         ensure_role_assignment(self.member, gov_role)
 
         # Submit real member application

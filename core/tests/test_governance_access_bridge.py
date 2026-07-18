@@ -48,6 +48,7 @@ class GovernanceAccessBridgeTests(TestCase):
             role_name=ROLE_GOVERNANCE_MEMBER,
             profile={"display_name": "member-admin-role"},
             created_at=timezone.now(),
+            skip_role_validation=True,
         )
         user = self.create_user(member.member_no)
 

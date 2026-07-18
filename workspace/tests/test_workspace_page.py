@@ -358,7 +358,9 @@ class WorkspaceAccessRoleTests(TestCase):
         return create_member(**kwargs)
 
     def _formal_member(self, member_no: str, status: str = Member.Status.ACTIVE):
-        return create_member(member_no=member_no, role_name=ROLE_FORMAL_MEMBER, status=status)
+        skip = status in {Member.Status.SUSPENDED, Member.Status.EXITED}
+        return create_member(member_no=member_no, role_name=ROLE_FORMAL_MEMBER, status=status,
+                             skip_role_validation=skip)
 
     # ── status alone does NOT grant full workspace ──
 

@@ -262,8 +262,10 @@ class ProposalTests(TestCase):
 
         # Grant voters the governance member role so they are in the auto-created
         # proposal's eligible voter snapshot.
+        formal_role = ensure_member_role(ROLE_FORMAL_MEMBER)
         gov_role = ensure_member_role(ROLE_GOVERNANCE_MEMBER)
         for voter in (self.voter_1, self.voter_2):
+            ensure_role_assignment(voter, formal_role)
             ensure_role_assignment(voter, gov_role)
 
         application = submit_member_application(
@@ -323,6 +325,8 @@ class ProposalTests(TestCase):
         self.assertIn(SystemEvent.EventType.ROLE_ASSIGNED, event_types)
 
     def test_member_has_permission_is_unchanged_after_proposal_execution(self) -> None:
+        from core.member_roles import ROLE_FORMAL_MEMBER, ensure_member_role, ensure_role_assignment
+        ensure_role_assignment(self.target, ensure_member_role(ROLE_FORMAL_MEMBER))
         permission = Permission.objects.create(
             code="governance.test_permission",
             name="Test permission",
@@ -339,9 +343,11 @@ class ProposalTests(TestCase):
     # ---- member_admission majority rule ----------------------------------
 
     def _ensure_gov_for_voters(self, *voters) -> None:
-        from core.member_roles import ROLE_GOVERNANCE_MEMBER, ensure_member_role, ensure_role_assignment
+        from core.member_roles import ROLE_FORMAL_MEMBER, ROLE_GOVERNANCE_MEMBER, ensure_member_role, ensure_role_assignment
+        formal_role = ensure_member_role(ROLE_FORMAL_MEMBER)
         gov_role = ensure_member_role(ROLE_GOVERNANCE_MEMBER)
         for v in voters:
+            ensure_role_assignment(v, formal_role)
             ensure_role_assignment(v, gov_role)
 
     def _make_admission(self, applicant_name: str, username: str):

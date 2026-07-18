@@ -286,34 +286,6 @@ class MemberApplicationForm(forms.Form):
         ]
 
 
-class PartnerApplicationForm(forms.Form):
-    organization_name = forms.CharField(label="合作方名称", max_length=255)
-    contact_name = forms.CharField(label="联系人", max_length=255)
-    contact = forms.CharField(label="联系方式", max_length=255)
-    service_domains_text = forms.CharField(
-        label="服务能力",
-        help_text="用逗号或换行分隔，例如结构检测、光伏设计、电气并网。",
-        widget=forms.Textarea,
-    )
-    can_issue_responsibility_documents = forms.BooleanField(label="可以出具责任文件", required=False)
-    responsibility_document_domains_text = forms.CharField(
-        label="可出具责任文件领域",
-        required=False,
-        widget=forms.Textarea,
-    )
-    qualification_summary = forms.CharField(label="资质说明", required=False, widget=forms.Textarea)
-    quote_summary = forms.CharField(label="报价说明", required=False, widget=forms.Textarea)
-    service_area = forms.CharField(label="服务地区", max_length=255, required=False)
-    delivery_cycle_days = forms.IntegerField(label="交付周期天数", min_value=0, required=False)
-    constraints = forms.CharField(label="限制条件", required=False, widget=forms.Textarea)
-
-    def service_domains(self) -> list[str]:
-        return _text_list(self.cleaned_data["service_domains_text"])
-
-    def responsibility_document_domains(self) -> list[str]:
-        return _text_list(self.cleaned_data.get("responsibility_document_domains_text", ""))
-
-
 def apply_daisyui_widgets(form: forms.Form) -> forms.Form:
     for field in form.fields.values():
         widget = field.widget

@@ -10,7 +10,6 @@ from core.member_roles import (
     ROLE_FORMAL_MEMBER,
     ROLE_GOVERNANCE_MEMBER,
     ensure_member_role,
-    ensure_role_assignment,
 )
 from core.models import Member
 
@@ -143,16 +142,41 @@ def seed_members(*, now, mark) -> dict[str, Member]:
         )
     )
 
+    from core.role_assignment_services import create_role_assignment
+
+    def _assign(member, role_name):
+        create_role_assignment(
+            member=member,
+            role=ensure_member_role(ROLE_BIG_APPLE_MEMBER),
+            source_type="system",
+            skip_validation=True,
+        )
+        create_role_assignment(
+            member=member,
+            role=ensure_member_role(role_name),
+            source_type="system",
+            skip_validation=True,
+        )
+
     for member, role_name in (
-        (admin_member, ROLE_GOVERNANCE_MEMBER),
         (member_1, ROLE_CONTRIBUTOR),
         (member_2, ROLE_CONTRIBUTOR),
         (member_3, ROLE_FORMAL_MEMBER),
         (candidate_member, ROLE_CANDIDATE),
     ):
-        ensure_role_assignment(member, ensure_member_role(ROLE_BIG_APPLE_MEMBER))
-        ensure_role_assignment(member, ensure_member_role(role_name))
-    ensure_role_assignment(admin_member, governance_setup["role"])
+        _assign(member, role_name)
+    # admin_member: order matters — FORMAL before GOVERNANCE
+    _assign(admin_member, ROLE_FORMAL_MEMBER)
+    create_role_assignment(
+        member=admin_member,
+        role=ensure_member_role(ROLE_GOVERNANCE_MEMBER),
+        source_type="system",
+    )
+    create_role_assignment(
+        member=admin_member,
+        role=governance_setup["role"],
+        source_type="system",
+    )
     return {
         "admin": admin_member,
         "member_1": member_1,

@@ -1,20 +1,20 @@
-{% load tailwind_tags world_urls %}
+{% load tailwind_tags %}
 <!doctype html>
 <html lang="zh-Hans" data-theme="bumblebee">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}大苹果公开报名{% endblock %}</title>
+  <title>{% block title %}大苹果{% endblock %}</title>
   {% tailwind_css %}
 </head>
 <body class="min-h-screen bg-base-200 text-base-content">
   <main class="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-6 px-4 py-8">
     <nav class="navbar rounded-box bg-base-100 shadow">
       <div class="navbar-start">
-        <a class="btn btn-ghost text-xl" href="{% world_url 'member-application-page' %}">大苹果报名</a>
+        <a class="btn btn-ghost text-xl" href="/register/">大苹果注册</a>
       </div>
       <div class="navbar-end gap-2">
-        <a class="btn btn-ghost" href="{% world_url 'member-application-page' %}">成员报名</a>
+        <a class="btn btn-ghost" href="/workspace/">工作台</a>
       </div>
     </nav>
 

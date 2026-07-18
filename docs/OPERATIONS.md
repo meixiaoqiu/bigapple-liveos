@@ -2,17 +2,16 @@
 
 ## 当前结论
 
-世界站点只保留成员工作台、观察台、报名入口和 API：
+世界站点只保留成员工作台、观察台、注册入口和 API：
 
 ```text
 /workspace/
 /observer/
-/apply/
-/apply/partner/
+/register/
 /api/v0.1/
 ```
 
-`/live-admin/` 已移除。真实世界和仿真世界 runtime 不暴露 `/admin/`，也不暴露独立业务后台。
+`/apply/`、`/apply/partner/` 已删除。正式成员报名是 workspace 子功能 (`/workspace/apply/`)。合作方/供应商系统后续单独设计。`/live-admin/` 已移除。真实世界和仿真世界 runtime 不暴露 `/admin/`，也不暴露独立业务后台。
 
 ## Control 后台
 
@@ -36,14 +35,14 @@ control 后台负责：
 ```text
 bigreal.local/workspace/
 bigreal.local/observer/
-bigreal.local/apply/
-bigreal.local/apply/partner/
+bigreal.local/register/
 
 bigsim.local/workspace/
 bigsim.local/observer/
-bigsim.local/apply/
-bigsim.local/apply/partner/
+bigsim.local/register/
 ```
+
+`/workspace/apply/` 是正式成员报名入口（workspace 子功能）。`/apply/`、`/apply/partner/` 已删除。
 
 `/workspace/` 只面向当前登录成员本人，身份来自当前 world 数据库中的 `User -> Member` 绑定。它不是底层管理后台。
 

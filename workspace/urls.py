@@ -44,6 +44,11 @@ urlpatterns = [
         name="workspace-proposal-execute",
     ),
     path(
+        "apply/",
+        world_scoped_view(views.workspace_member_application),
+        name="workspace-member-application",
+    ),
+    path(
         "profile/",
         world_scoped_view(views.workspace_public_profile_page),
         name="workspace-public-profile",

@@ -62,8 +62,14 @@ class MemberRoleAssignmentInline(NoDeleteInlineMixin, admin.TabularInline):
         "updated_at",
     )
     autocomplete_fields = ("role", "source_proposal", "source_proposal_execution", "granted_by", "revoked_by")
-    readonly_fields = ("created_at", "updated_at")
+    readonly_fields = (
+        "role", "status", "source_type", "source_proposal", "source_proposal_execution",
+        "start_at", "end_at", "granted_by", "revoked_by", "created_at", "updated_at",
+    )
     show_change_link = True
+
+    def has_add_permission(self, request, obj=None):
+        return False
 
 
 class RolePermissionInline(ImmutableHistoryInlineMixin, admin.TabularInline):
@@ -93,8 +99,14 @@ class RoleAssignmentInline(NoDeleteInlineMixin, admin.TabularInline):
         "updated_at",
     )
     autocomplete_fields = ("member", "source_proposal", "source_proposal_execution", "granted_by", "revoked_by")
-    readonly_fields = ("created_at", "updated_at")
+    readonly_fields = (
+        "member", "status", "source_type", "source_proposal", "source_proposal_execution",
+        "start_at", "end_at", "granted_by", "revoked_by", "created_at", "updated_at",
+    )
     show_change_link = True
+
+    def has_add_permission(self, request, obj=None):
+        return False
 
 
 class MemberPublicProfileInline(NoDeleteInlineMixin, admin.StackedInline):
@@ -222,7 +234,14 @@ class RoleAssignmentAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
     date_hierarchy = "start_at"
     ordering = ("-start_at", "member__member_no")
     list_per_page = 100
-    readonly_fields = ("created_at", "updated_at")
+    readonly_fields = (
+        "member", "role", "status", "source_type", "source_proposal",
+        "source_proposal_execution", "start_at", "end_at", "granted_by",
+        "revoked_by", "created_at", "updated_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(RolePermission)

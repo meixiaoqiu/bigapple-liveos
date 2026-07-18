@@ -1,7 +1,9 @@
 """Zero-start simulation: form-submission adapters.
 
-Translates ApplicantSpec / PartnerSpec into real /apply/ form payloads
-and submits them through HttpFormDriver.  Does NOT import zero_start.py.
+Member applications are submitted through the real workspace form flow
+(/register/ → /workspace/apply/).  Partner applications use a service
+adapter because /apply/partner/ has been removed; the partner system
+will be designed separately in a future iteration.
 """
 
 from __future__ import annotations

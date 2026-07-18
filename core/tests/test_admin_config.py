@@ -472,3 +472,25 @@ class AdminConfigTests(TestCase):
         self.assertFalse(operation_admin.has_add_permission(self.request))
         self.assertFalse(operation_admin.has_change_permission(self.request, operation))
         self.assertFalse(operation_admin.has_delete_permission(self.request, operation))
+
+    def test_role_assignment_admin_has_add_permission_false(self) -> None:
+        from core.admin_identity import RoleAssignmentAdmin
+        admin_instance = RoleAssignmentAdmin(RoleAssignment, self.site)
+        self.assertFalse(admin_instance.has_add_permission(self.request))
+
+    def test_role_assignment_admin_readonly_fields(self) -> None:
+        from core.admin_identity import RoleAssignmentAdmin
+        admin_instance = RoleAssignmentAdmin(RoleAssignment, self.site)
+        protected = {"member", "role", "status", "source_type", "granted_by", "revoked_by"}
+        for field in protected:
+            self.assertIn(field, admin_instance.readonly_fields, f"{field} must be readonly in RoleAssignmentAdmin")
+
+    def test_member_role_assignment_inline_has_add_permission_false(self) -> None:
+        from core.admin_identity import MemberRoleAssignmentInline
+        inline = MemberRoleAssignmentInline(Member, self.site)
+        self.assertFalse(inline.has_add_permission(self.request))
+
+    def test_role_assignment_inline_has_add_permission_false(self) -> None:
+        from core.admin_identity import RoleAssignmentInline
+        inline = RoleAssignmentInline(Role, self.site)
+        self.assertFalse(inline.has_add_permission(self.request))

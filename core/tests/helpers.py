@@ -4,30 +4,52 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from django.utils import timezone
 
-from core.member_roles import ROLE_BIG_APPLE_MEMBER, ensure_member_role, ensure_role_assignment
+from core.member_roles import (
+    ROLE_BIG_APPLE_MEMBER,
+    ROLE_FORMAL_MEMBER,
+    ROLE_GOVERNANCE_MEMBER,
+    ensure_member_role,
+    ensure_role_assignment,
+)
 from core.models import Member
 
 
 def grant_governance_admin_role(member: Member):
+    from core.role_assignment_services import create_role_assignment
+
+    setup = _ensure_gov_admin_setup()
+    return create_role_assignment(
+        member=member,
+        role=setup["role"],
+        source_type="direct",
+    )
+
+
+def _ensure_gov_admin_setup():
     from core.governance_setup import ensure_governance_admin_role
 
-    setup = ensure_governance_admin_role()
-    return ensure_role_assignment(member, setup["role"])
+    return ensure_governance_admin_role()
 
 
 def create_governance_admin_member(member_no: str, **overrides) -> Member:
-    from core.member_roles import ROLE_FORMAL_MEMBER, ROLE_GOVERNANCE_MEMBER
+    """Create a member with ROLE_BIG_APPLE_MEMBER → ROLE_FORMAL_MEMBER → ROLE_GOVERNANCE_MEMBER → governance-admin."""
+    from core.role_assignment_services import bootstrap_first_governance_member
 
-    member = create_member(member_no, role_name=ROLE_GOVERNANCE_MEMBER, **overrides)
-    # Governance members are implicitly formal members — full workspace
-    # access is gated by ROLE_FORMAL_MEMBER, not by Member.status.
-    from core.member_roles import ensure_member_role, ensure_role_assignment
-    ensure_role_assignment(member, ensure_member_role(ROLE_FORMAL_MEMBER))
-    grant_governance_admin_role(member)
+    member = create_member(member_no, role_name=ROLE_FORMAL_MEMBER, skip_role_validation=True, **overrides)
+    # Use bootstrap to grant the full chain (already has BIG_APPLE + FORMAL from create_member)
+    bootstrap_first_governance_member(member)
     return member
 
 
-def create_member(member_no: str, *, role_name: str = ROLE_BIG_APPLE_MEMBER, **overrides) -> Member:
+def create_member(
+    member_no: str,
+    *,
+    role_name: str = ROLE_BIG_APPLE_MEMBER,
+    skip_role_validation: bool = False,
+    **overrides,
+) -> Member:
+    from core.role_assignment_services import create_role_assignment
+
     defaults = {
         "display_name": str(overrides.get("profile", {}).get("display_name") or member_no),
         "status": Member.Status.ACTIVE,
@@ -39,9 +61,19 @@ def create_member(member_no: str, *, role_name: str = ROLE_BIG_APPLE_MEMBER, **o
     }
     defaults.update(overrides)
     member = Member.objects.create(member_no=member_no, **defaults)
-    ensure_role_assignment(member, ensure_member_role(ROLE_BIG_APPLE_MEMBER))
-    if role_name != ROLE_BIG_APPLE_MEMBER:
-        ensure_role_assignment(member, ensure_member_role(role_name))
+    create_role_assignment(
+        member=member,
+        role=ensure_member_role(ROLE_BIG_APPLE_MEMBER),
+        source_type="system",
+        skip_validation=skip_role_validation,
+    )
+    if role_name and role_name != ROLE_BIG_APPLE_MEMBER:
+        create_role_assignment(
+            member=member,
+            role=ensure_member_role(role_name),
+            source_type="system",
+            skip_validation=skip_role_validation,
+        )
     return member
 
 

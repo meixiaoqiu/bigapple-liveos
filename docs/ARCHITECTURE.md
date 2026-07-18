@@ -64,7 +64,7 @@ MySQL
 当前默认运行入口分为三个站点：
 
 - `bigadmin.local` / `live_os.settings_admin`：control plane。`/admin/` 是技术后台、原始数据和兜底维护入口；`/admin/simulation-lab/` 是仿真实验后台，负责启动、推进、归档和废弃仿真实验。
-- `bigreal.local` / `live_os.settings_real`：真实世界 runtime。固定绑定 `realworld`，使用根路径 `/api/v0.1/`、`/observer/`、`/workspace/`、成员报名 `/apply/` 和合作方报名 `/apply/partner/`。
+- `bigreal.local` / `live_os.settings_real`：真实世界 runtime。固定绑定 `realworld`，使用根路径 `/api/v0.1/`、`/observer/`、`/workspace/`、`/register/`。正式成员报名是 workspace 子功能（`/workspace/apply/`），`/apply/` 和 `/apply/partner/` 已删除。
 - `bigsim.local` / `live_os.settings_sim`：仿真世界 runtime。固定绑定 `simulation0001`，使用与真实世界相同的根路径和同一套页面/服务代码。
 
 The old world-prefixed route family has been removed from runtime URLConfs. Real and simulation worlds are bound by fixed host settings, not by a world id in the URL.
@@ -226,7 +226,7 @@ Credential    → 公开事实证明（非权限来源）
 
 1. **User 只负责登录认证。** `auth_user` 是 Django 的认证账号，承载 username / password / session。User 本身不表达任何业务权限，不存在"某个 User 天生有治理权"的概念。
 
-2. **Member 是所有注册用户的业务身份。** 任何人通过 `/apply/` 注册后，系统立即创建 `Member` 记录。Member 是业务世界的唯一主体：领取任务、提交申诉、持有角色、获得 Credential 都以 Member 为锚点。Member 和 User 是一对一绑定关系。
+2. **Member 是所有注册用户的业务身份。** 任何人通过 `/register/` 注册后，系统立即创建 `Member` 记录。Member 是业务世界的唯一主体：领取任务、提交申诉、持有角色、获得 Credential 都以 Member 为锚点。Member 和 User 是一对一绑定关系。
 
 3. **注册后自动获得基础角色。** 新注册 Member 即刻获得一个基础角色（如 `community_member`），该角色承载所有注册用户共有的最小权限（访问 workspace、维护公开资料、报名正式成员等）。不绑定基础角色的 Member 不能使用任何业务功能。
 
@@ -246,11 +246,12 @@ Credential    → 公开事实证明（非权限来源）
 
    不允许为 Credential / NFT / Badge 或 member_no 字符串编写第二套权限路径。`is_staff` / `is_superuser` 仅限 Django Admin 技术后台边界使用，不能等同于业务治理权限。
 
-   **当前落地**：`/register/` 创建 User+Member+ROLE_BIG_APPLE_MEMBER，`/apply/` 处理正式成员报名（登录后）。`workspace/context.member_has_full_workspace_access()` 和 `applications/views.member_is_formal_member()` 已基于 active `ROLE_FORMAL_MEMBER` + `SUSPENDED`/`EXITED` veto 实现。`Member.status` 不再作为权限来源。
+   **当前落地**：`/register/` 创建 User+Member+ROLE_BIG_APPLE_MEMBER，`/workspace/apply/` 处理正式成员报名（登录后）。`workspace/context.member_has_full_workspace_access()` 已基于 active `ROLE_FORMAL_MEMBER` + `SUSPENDED`/`EXITED` veto 实现。`Member.status` 不再作为权限来源。
+   **高权限角色前置条件**：`ROLE_GOVERNANCE_MEMBER` 和任何带 `governance.*` permission 的角色要求目标成员已拥有 `ROLE_FORMAL_MEMBER`。`SUSPENDED` / `EXITED` 成员不能授予任何新角色。`create_role_assignment()` 默认执行前置校验；`bootstrap_first_governance_member()` 在事务内按顺序授予完整权限链。RoleAssignment Admin 只读，禁止手工创建或修改。
 
 ### 注册与报名的拆分展望
 
-当前实现中 `/apply/` 同时完成"注册 Member"和"发起正式成员报名提案"两个动作。长期架构下这两个动作应拆分为独立步骤：
+当前实现已拆分为两个独立步骤：1) `/register/` 创建账号和基础 Member；2) `/workspace/apply/` 提交正式成员报名。
 
 1. **注册** → 创建 User + Member + 基础角色（`community_member`），可立即访问最小 workspace。
 2. **报名正式成员** → 已注册 Member 提交申请，创建 `member_admission` 提案，通过后授予 `full_member` 角色并发放正式成员编号 Credential。

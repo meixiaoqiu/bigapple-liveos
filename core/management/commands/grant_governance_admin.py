@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
-from django.utils import timezone
 
-from core.governance_setup import default_role_assignment_end_at, ensure_governance_admin_role
-from core.models import Member, RoleAssignment
+from core.exceptions import DomainError
+from core.governance_setup import ensure_governance_admin_role
+from core.models import Member
+from core.role_assignment_services import create_role_assignment
 from worlds.command_context import command_world_context, command_world_label
 
 
@@ -35,21 +36,22 @@ class Command(BaseCommand):
             member = self._resolve_member(provided)
             result = ensure_governance_admin_role()
             role = result["role"]
-            assignment, created = RoleAssignment.objects.get_or_create(
-                member=member,
-                role=role,
-                status=RoleAssignment.Status.ACTIVE,
-                defaults={
-                    "start_at": timezone.now(),
-                    "end_at": default_role_assignment_end_at(),
-                    "source_type": RoleAssignment.SourceType.DIRECT,
-                },
-            )
+            try:
+                assignment = create_role_assignment(
+                    member=member,
+                    role=role,
+                    source_type="direct",
+                )
+            except DomainError as exc:
+                raise CommandError(
+                    f"授予治理管理员角色失败：{exc}\n"
+                    "授予治理管理员角色前，目标成员必须先成为正式成员（拥有 ROLE_FORMAL_MEMBER）。"
+                    "本命令不会自动授予正式成员身份。请先通过正式成员准入流程或 bootstrap 完成正式成员认证。"
+                ) from exc
 
-            state = "created" if created else "already_exists"
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Governance admin role assignment {state}: world_id={command_world_label(world)}, "
+                    f"Governance admin role assignment created: world_id={command_world_label(world)}, "
                     f"member_no={member.member_no}, role_id={role.pk}, role_assignment_id={assignment.pk}. "
                     "Django User.is_staff and User.is_superuser were not changed."
                 )

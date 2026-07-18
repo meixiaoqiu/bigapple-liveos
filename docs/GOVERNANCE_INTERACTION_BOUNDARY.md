@@ -86,6 +86,8 @@
 
 `RoleAssignment.source_type`、`source_proposal` 和 `source_proposal_execution` 用于记录任命来源。直接任命、提案执行和初始化最终都会落到同一张 `RoleAssignment` 表，避免保留多套平行任命结构。
 
+**创建约束**：所有 RoleAssignment 必须通过 `core.role_assignment_services.create_role_assignment()` 创建。该 service 强制执行前置条件校验：`ROLE_GOVERNANCE_MEMBER` 和 `governance.*` permission 角色要求 `ROLE_FORMAL_MEMBER`；`SUSPENDED`/`EXITED` 成员拒绝一切新角色。`bootstrap_first_governance_member()` 是唯一可按事务顺序授予完整权限链的入口，内部仍调用 `create_role_assignment()` 并受校验保护。Django Admin 中的 RoleAssignment 已设为只读，禁止手工创建或修改。
+
 无论来源是什么，最终权限判断仍走：
 
 ```text

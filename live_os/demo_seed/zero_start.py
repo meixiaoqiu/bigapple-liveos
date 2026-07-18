@@ -9,7 +9,13 @@ from __future__ import annotations
 
 from django.utils import timezone
 
-from core.member_roles import ROLE_BIG_APPLE_MEMBER, ROLE_GOVERNANCE_MEMBER, ensure_member_role, ensure_role_assignment
+from core.member_roles import (
+    ROLE_BIG_APPLE_MEMBER,
+    ROLE_FORMAL_MEMBER,
+    ROLE_GOVERNANCE_MEMBER,
+    ensure_member_role,
+    ensure_role_assignment,
+)
 from core.models import Member, PlanRevision, ProjectPlan
 
 from .helpers import actor, upsert
@@ -52,6 +58,7 @@ def seed_zero_start(*, founder_member_no: str = "", founder_display_name: str = 
         },
     )
     ensure_role_assignment(founder, ensure_member_role(ROLE_BIG_APPLE_MEMBER))
+    ensure_role_assignment(founder, ensure_member_role(ROLE_FORMAL_MEMBER))
     ensure_role_assignment(founder, ensure_member_role(ROLE_GOVERNANCE_MEMBER))
     founder_actor_type = "human_member" if founder.user_id else "virtual_member"
     founder_actor = actor(founder.member_no, founder.display_name or founder.member_no, founder_actor_type)

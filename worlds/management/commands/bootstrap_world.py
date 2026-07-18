@@ -10,8 +10,9 @@ from django.db import transaction
 from django.utils import timezone
 
 from core.governance_setup import default_role_assignment_end_at, ensure_governance_admin_role
-from core.member_roles import ROLE_BIG_APPLE_MEMBER, ROLE_GOVERNANCE_MEMBER, ensure_member_role, ensure_role_assignment
+from core.member_roles import ensure_member_role
 from core.models import Member, RoleAssignment
+from core.role_assignment_services import bootstrap_first_governance_member
 from worlds.context import DEFAULT_REALWORLD_ID, WorldContext, context_from_registry
 from worlds.models import WorldRegistry
 from worlds.state import reset_current_world, set_current_world
@@ -150,19 +151,13 @@ class Command(BaseCommand):
                     display_name=display_name,
                     database_alias=database_alias,
                 )
-                ensure_role_assignment(member, ensure_member_role(ROLE_BIG_APPLE_MEMBER))
-                ensure_role_assignment(member, ensure_member_role(ROLE_GOVERNANCE_MEMBER))
-                setup = ensure_governance_admin_role()
-                assignment, created_assignment = RoleAssignment.objects.get_or_create(
-                    member=member,
-                    role=setup["role"],
-                    status=RoleAssignment.Status.ACTIVE,
-                    defaults={
-                        "start_at": timezone.now(),
-                        "end_at": default_role_assignment_end_at(),
-                        "source_type": RoleAssignment.SourceType.INITIALIZATION,
-                    },
-                )
+                admin_role = ensure_governance_admin_role()["role"]
+                admin_assignment_before = RoleAssignment.objects.filter(
+                    member=member, role=admin_role, status=RoleAssignment.Status.ACTIVE
+                ).first()
+                result = bootstrap_first_governance_member(member)
+                assignment = result["admin"]
+                created_assignment = admin_assignment_before is None
                 assignment_updated = self._ensure_assignment_window(assignment)
         finally:
             reset_current_world(token)

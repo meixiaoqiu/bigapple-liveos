@@ -22,12 +22,30 @@ FIXED_REALWORLD_SETTINGS = {
 
 class SplitSiteEntrypointTests(TestCase):
     @override_settings(**FIXED_REALWORLD_SETTINGS)
-    def test_fixed_world_public_application_url_does_not_require_world_prefix(self) -> None:
-        response = self.client.get("/apply/")
+    def test_fixed_world_register_url_does_not_require_world_prefix(self) -> None:
+        response = self.client.get("/register/")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.wsgi_request.world_id, "realworld")
-        self.assertContains(response, "成员报名")
+        self.assertContains(response, "name=")
+
+    @override_settings(**FIXED_REALWORLD_SETTINGS)
+    def test_apply_returns_404(self) -> None:
+        self.assertEqual(self.client.get("/apply/").status_code, 404)
+
+    @override_settings(**FIXED_REALWORLD_SETTINGS)
+    def test_workspace_apply_unauthenticated_redirects_to_login(self) -> None:
+        response = self.client.get("/workspace/apply/")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login/", response["Location"])
+
+    @override_settings(**FIXED_REALWORLD_SETTINGS)
+    def test_workspace_apply_authenticated_shows_form(self) -> None:
+        member = create_member(member_no="mem-site-apply", status=Member.Status.ACTIVE)
+        login_as_member(self.client, member)
+        response = self.client.get("/workspace/apply/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="applicant_name"')
 
     @override_settings(**FIXED_REALWORLD_SETTINGS)
     def test_legacy_member_application_url_is_removed(self) -> None:

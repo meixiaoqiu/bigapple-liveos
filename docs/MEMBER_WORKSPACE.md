@@ -31,7 +31,7 @@ User -> Member
 
 当前 workspace 入口只对已绑定 Member 的登录用户开放，正式成员和报名审核中的申请人看到的页面不同。长期架构下，**所有注册用户都拥有最小 workspace**，其设计原则如下：
 
-1. **注册即获 workspace。** 通过 `/register/` 注册并绑定 Member 的用户，无论是否通过正式成员审核，都可访问 `/workspace/`。最小 workspace 不依赖正式成员身份。`/apply/` 是登录后的正式成员报名入口，不会创建账号。
+1. **注册即获 workspace。** 通过 `/register/` 注册并绑定 Member 的用户，无论是否通过正式成员审核，都可访问 `/workspace/`。最小 workspace 不依赖正式成员身份。`/workspace/apply/` 是登录后的正式成员报名入口，不会创建账号。
 
 2. **最小 workspace 至少包含：**
    - 公开资料维护（`/workspace/profile/`）：编辑公开姓名、头像 URL，展示在 Observer 公开主页。

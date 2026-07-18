@@ -59,11 +59,22 @@ def member_application_post_data(
     return data
 
 
+def _apply_post_data(applicant_name: str, contact: str, motivation: str, **overrides) -> dict[str, object]:
+    return {
+        "applicant_name": applicant_name,
+        "contact": contact,
+        "role_gap": overrides.get("role_gap", "developer_ai_engineer"),
+        "availability_slots": overrides.get("availability_slots", ["off_hours", "weekend"]),
+        "motivation_reasons": overrides.get("motivation_reasons", ["other"]),
+        "motivation_other_text": motivation,
+        "confirm_submit": "on",
+    }
+
+
 class PublicApplicationPageTests(TestCase):
-    """Member application flow: /register/ + authenticated /apply/."""
+    """Member application flow: /register/ + /workspace/apply/."""
 
     def _register(self, username: str, password: str = "test-password-123", applicant_name: str = "") -> None:
-        """Helper: POST /register/ to create account."""
         self.client.post(
             "/register/",
             {
@@ -75,20 +86,6 @@ class PublicApplicationPageTests(TestCase):
             },
             follow=True,
         )
-
-    def _apply_authenticated_post(self, username: str, applicant_name: str, contact: str,
-                                   motivation: str, **overrides) -> object:
-        """POST /apply/ as authenticated user (must have registered first)."""
-        data = {
-            "applicant_name": applicant_name,
-            "contact": contact,
-            "role_gap": overrides.get("role_gap", "developer_ai_engineer"),
-            "availability_slots": overrides.get("availability_slots", ["off_hours", "weekend"]),
-            "motivation_reasons": overrides.get("motivation_reasons", ["other"]),
-            "motivation_other_text": motivation,
-            "confirm_submit": "on",
-        }
-        return self.client.post("/apply/", data, follow=True)
 
     # ── /register/ tests ────────────────────────────────────────────────
 
@@ -120,9 +117,7 @@ class PublicApplicationPageTests(TestCase):
         self.assertEqual((member.metadata or {}).get("registration_contact"), "reg@example.test")
         self.assertEqual((member.metadata or {}).get("registration_source"), "public_register_form")
         self.assertTrue(member_has_role(member, ROLE_BIG_APPLE_MEMBER))
-        # No MemberApplication created
         self.assertFalse(MemberApplication.objects.filter(linked_member=member).exists())
-        # No public Event from registration
         self.assertEqual(Event.objects.count(), event_count_before)
 
     def test_authenticated_with_member_redirects_from_register(self) -> None:
@@ -139,49 +134,66 @@ class PublicApplicationPageTests(TestCase):
         member = Member.objects.get(member_no="reg-auto-mem")
         self.assertTrue(member_has_role(member, ROLE_BIG_APPLE_MEMBER))
 
-    # ── /apply/ unauthenticated → guide page ───────────────────────────
+    # ── /apply/ 404 ─────────────────────────────────────────────────────
 
-    def test_unauthenticated_get_apply_shows_guide_not_form(self) -> None:
-        response = self.client.get("/apply/")
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "成员报名需要先注册账号")
-        self.assertNotContains(response, 'name="applicant_name"')
-        self.assertNotContains(response, 'name="username"')
+    def test_get_apply_returns_404(self) -> None:
+        self.assertEqual(self.client.get("/apply/").status_code, 404)
 
-    def test_unauthenticated_post_apply_redirects_to_login(self) -> None:
+    def test_post_apply_returns_404(self) -> None:
         data = member_application_post_data(
-            username="no-reg-user",
-            applicant_name="未注册报名",
-            contact="no@example.test",
-            motivation="不应成功。",
+            username="no-user", applicant_name="X", contact="x@t", motivation="x",
         )
         response = self.client.post("/apply/", data)
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(get_user_model().objects.filter(username="no-user").exists())
+
+    def test_get_apply_partner_returns_404(self) -> None:
+        self.assertEqual(self.client.get("/apply/partner/").status_code, 404)
+
+    def test_legacy_member_application_path_is_not_exposed(self) -> None:
+        self.assertEqual(self.client.get("/apply/member/").status_code, 404)
+
+    # ── /workspace/apply/ auth boundary ─────────────────────────────────
+
+    def test_unauthenticated_get_workspace_apply_redirects_to_login(self) -> None:
+        response = self.client.get("/workspace/apply/")
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login/", response["Location"])
-        self.assertIn("next=/apply/", response["Location"])
-        self.assertFalse(MemberApplication.objects.filter(requested_member_no="no-reg-user").exists())
-        self.assertFalse(get_user_model().objects.filter(username="no-reg-user").exists())
 
-    # ── /apply/ authenticated flow ──────────────────────────────────────
+    def test_unauthenticated_post_workspace_apply_redirects_to_login(self) -> None:
+        response = self.client.post("/workspace/apply/", _apply_post_data(
+            "X", "x@t", "x",
+        ))
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(MemberApplication.objects.filter(applicant_name="X").exists())
 
-    def test_authenticated_member_apply_form_no_account_fields(self) -> None:
-        self._register("apply-auth", applicant_name="报名测试")
-        response = self.client.get("/apply/")
+    def test_authenticated_no_member_auto_creates_on_workspace_apply(self) -> None:
+        user = get_user_model().objects.create_user(username="ws-apply-auto", password="p")
+        self.client.force_login(user)
+        response = self.client.get("/workspace/apply/")
+        self.assertEqual(response.status_code, 200)
+        member = Member.objects.get(member_no="ws-apply-auto")
+        self.assertTrue(member_has_role(member, ROLE_BIG_APPLE_MEMBER))
+        self.assertContains(response, 'name="applicant_name"')
+
+    # ── /workspace/apply/ authenticated flow ────────────────────────────
+
+    def test_workspace_apply_form_no_account_fields(self) -> None:
+        self._register("ws-apply-auth", applicant_name="报名测试")
+        response = self.client.get("/workspace/apply/")
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'name="username"')
         self.assertNotContains(response, 'name="password1"')
         self.assertContains(response, 'name="applicant_name"')
-        self.assertContains(response, 'name="contact"')
 
-    def test_authenticated_member_post_apply_creates_application(self) -> None:
-        self._register("apply-post-user", applicant_name="POST 报名者")
-        response = self._apply_authenticated_post(
-            "apply-post-user", "POST 报名者", "post@example.test", "想参加测试。",
-        )
+    def test_workspace_apply_post_creates_application(self) -> None:
+        self._register("ws-apply-post", applicant_name="POST 报名")
+        response = self.client.post("/workspace/apply/", _apply_post_data(
+            "POST 报名", "post@example.test", "想参加测试。",
+        ), follow=True)
         self.assertEqual(response.status_code, 200)
-        app = MemberApplication.objects.filter(requested_member_no="apply-post-user").first()
+        app = MemberApplication.objects.filter(requested_member_no="ws-apply-post").first()
         self.assertIsNotNone(app)
-        self.assertEqual(app.applicant_name, "POST 报名者")
         self.assertEqual(app.status, MemberApplication.Status.ADMISSION_VOTING)
         self.assertTrue(
             SystemEvent.objects.filter(
@@ -190,71 +202,122 @@ class PublicApplicationPageTests(TestCase):
             ).exists()
         )
 
-    def test_active_no_formal_role_can_post_apply_and_binds_member(self) -> None:
-        self._register("act-no-role", applicant_name="角色测试")
-        member = Member.objects.get(member_no="act-no-role")
+    def test_active_no_formal_role_can_post_workspace_apply(self) -> None:
+        member = create_member(member_no="act-no-role", status=Member.Status.ACTIVE)
         login_as_member(self.client, member)
-        data = {
-            **member_application_post_data(
-                username="act-no-role",
-                applicant_name="角色测试",
-                contact="act@example.test",
-                motivation="验证 ACTIVE 报名。",
-            ),
-            "password1": "",
-            "password2": "",
-        }
-        response = self.client.post("/apply/", data, follow=True)
+        response = self.client.post("/workspace/apply/", _apply_post_data(
+            "角色测试", "act@example.test", "验证报名。",
+        ), follow=True)
         self.assertEqual(response.status_code, 200)
         app = MemberApplication.objects.filter(linked_member=member).first()
         self.assertIsNotNone(app)
         member.refresh_from_db()
         self.assertEqual(member.status, Member.Status.PENDING_REVIEW)
 
-    def test_existing_member_sees_member_status_instead_of_application_form(self) -> None:
-        member = create_member(member_no="mem-apply-existing", role_name=ROLE_FORMAL_MEMBER, status=Member.Status.ACTIVE)
+    def test_formal_role_workspace_apply_shows_already_member(self) -> None:
+        member = create_member(member_no="mem-fml-ws", role_name=ROLE_FORMAL_MEMBER, status=Member.Status.ACTIVE)
         login_as_member(self.client, member)
-
-        response = self.client.get("/apply/")
-
+        response = self.client.get("/workspace/apply/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "你已经是成员")
-        self.assertContains(response, "/workspace/")
-        self.assertNotContains(response, 'name="password1"')
 
-    def test_member_application_auto_creates_proposal_and_binds_account(self) -> None:
-        self._register("candidate-a", applicant_name="候选成员 A")
-        response = self._apply_authenticated_post(
-            "candidate-a", "候选成员 A", "candidate-a@example.test", "愿意参加。",
-        )
-        self.assertEqual(response.status_code, 200)
-        member_application = MemberApplication.objects.get(requested_member_no="candidate-a")
-        self.assertEqual(member_application.status, MemberApplication.Status.ADMISSION_VOTING)
-        self.assertIsNotNone(member_application.admission_proposal_id)
-        self.assertEqual(
-            member_application.admission_proposal.proposal_type,
-            Proposal.ProposalType.MEMBER_ADMISSION,
-        )
-        member = member_application.linked_member
-        self.assertEqual(member.member_no, "candidate-a")
-        self.assertEqual(member.status, Member.Status.PENDING_REVIEW)
-        self.assertEqual(member.user, member_application.account_user)
-
-    def test_member_application_rejects_conflicting_availability_slots(self) -> None:
+    def test_workspace_apply_rejects_conflicting_availability_slots(self) -> None:
         self._register("slot-conflict", applicant_name="时段冲突")
-        data = {
+        response = self.client.post("/workspace/apply/", {
             "applicant_name": "时段冲突",
-            "contact": "slot-conflict@example.test",
+            "contact": "slot@example.test",
             "role_gap": "developer_ai_engineer",
             "availability_slots": ["any_time", "weekend"],
             "motivation_reasons": ["other"],
-            "motivation_other_text": "验证时段冲突。",
+            "motivation_other_text": "验证。",
             "confirm_submit": "on",
-        }
-        response = self.client.post("/apply/", data)
+        })
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "全天可用")
         self.assertFalse(MemberApplication.objects.filter(requested_member_no="slot-conflict").exists())
+
+    # ── workspace apply: application-status flow ────────────────────────
+
+    def test_pending_application_workspace_apply_shows_status(self) -> None:
+        self._register("pending-ws", applicant_name="待审")
+        self.client.post("/workspace/apply/", _apply_post_data(
+            "待审", "pending@example.test", "想参加。",
+        ), follow=True)
+        response = self.client.get("/workspace/apply/")
+        self.assertContains(response, "报名已提交")
+        self.assertNotContains(response, 'name="applicant_name"')
+
+    def test_rejected_applicant_can_reapply_from_workspace_apply(self) -> None:
+        self._register("reapply-ws", applicant_name="再次申请者")
+        self.client.post("/workspace/apply/", _apply_post_data(
+            "再次申请者", "reapply-ws@example.test", "第一次。",
+        ), follow=True)
+        first = MemberApplication.objects.get(requested_member_no="reapply-ws")
+        proposal = first.admission_proposal
+        past_time = timezone.now() - timezone.timedelta(hours=2)
+        proposal.start_at = past_time
+        proposal.deadline_at = past_time + timezone.timedelta(hours=1)
+        proposal.save(update_fields=["start_at", "deadline_at"])
+        from core.proposals.voting import evaluate_proposal
+        evaluate_proposal(proposal)
+        first.refresh_from_db()
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, Proposal.Status.FAILED)
+        self.assertEqual(first.status, MemberApplication.Status.REJECTED)
+        member = first.linked_member
+        member.refresh_from_db()
+        self.assertEqual(member.status, Member.Status.APPLICATION_REJECTED)
+        self.client.force_login(first.account_user)
+        response = self.client.post("/workspace/apply/", _apply_post_data(
+            "再次申请者", "reapply-ws@example.test", "第二次。",
+            role_gap="service_resident",
+            availability_slots=["weekend"],
+        ), follow=True)
+        self.assertEqual(response.status_code, 200)
+        apps = list(MemberApplication.objects.filter(requested_member_no="reapply-ws").order_by("submitted_at"))
+        self.assertEqual(len(apps), 2)
+        self.assertEqual(apps[-1].linked_member, member)
+        member.refresh_from_db()
+        self.assertEqual(member.status, Member.Status.PENDING_REVIEW)
+
+    # ── SUSPENDED / EXITED ──────────────────────────────────────────────
+
+    def test_suspended_workspace_apply_shows_warning(self) -> None:
+        member = create_member(member_no="susp-ws", role_name=ROLE_FORMAL_MEMBER, status=Member.Status.SUSPENDED, skip_role_validation=True)
+        login_as_member(self.client, member)
+        response = self.client.get("/workspace/apply/")
+        self.assertContains(response, "当前账号暂不能提交成员报名")
+        self.assertNotContains(response, 'name="applicant_name"')
+
+    def test_exited_workspace_apply_shows_warning(self) -> None:
+        member = create_member(member_no="exit-ws", role_name=ROLE_FORMAL_MEMBER, status=Member.Status.EXITED, skip_role_validation=True)
+        login_as_member(self.client, member)
+        response = self.client.get("/workspace/apply/")
+        self.assertContains(response, "当前账号暂不能提交成员报名")
+
+    def test_suspended_post_workspace_apply_rejected(self) -> None:
+        member = create_member(member_no="susp-post-ws", role_name=ROLE_FORMAL_MEMBER, status=Member.Status.SUSPENDED, skip_role_validation=True)
+        login_as_member(self.client, member)
+        app_before = MemberApplication.objects.count()
+        self.client.post("/workspace/apply/", _apply_post_data(
+            "SUSPENDED", "susp@example.test", "x",
+        ))
+        self.assertEqual(MemberApplication.objects.count(), app_before)
+        member.refresh_from_db()
+        self.assertEqual(member.status, Member.Status.SUSPENDED)
+
+    def test_exited_post_workspace_apply_rejected(self) -> None:
+        member = create_member(member_no="exit-post-ws", role_name=ROLE_FORMAL_MEMBER, status=Member.Status.EXITED, skip_role_validation=True)
+        login_as_member(self.client, member)
+        app_before = MemberApplication.objects.count()
+        self.client.post("/workspace/apply/", _apply_post_data(
+            "EXITED", "exit@example.test", "x",
+        ))
+        self.assertEqual(MemberApplication.objects.count(), app_before)
+        member.refresh_from_db()
+        self.assertEqual(member.status, Member.Status.EXITED)
+
+    # ── service rejects account / member_no mismatch ────────────────────
 
     def test_member_application_service_rejects_account_and_member_no_mismatch(self) -> None:
         with self.assertRaises(DomainError):
@@ -271,7 +334,6 @@ class PublicApplicationPageTests(TestCase):
                 requested_member_no="different-member-no",
             )
         self.assertFalse(get_user_model().objects.filter(username="account-a").exists())
-        self.assertFalse(MemberApplication.objects.filter(applicant_name="报名者 A").exists())
 
     def test_member_application_service_rejects_existing_member_no(self) -> None:
         create_member(member_no="existing-member-no")
@@ -279,56 +341,15 @@ class PublicApplicationPageTests(TestCase):
             submit_member_application(
                 account_username="existing-member-no",
                 account_password="test-password-123",
-                applicant_name="报名者 B",
-                contact="applicant-b@example.test",
-                motivation="想参加。",
+                applicant_name="B",
+                contact="b@example.test",
+                motivation="x",
                 availability_hours_per_week=12,
                 role_gap="developer_ai_engineer",
                 availability_slots=["weekend"],
                 capability_scores={"整理": 70},
             )
         self.assertFalse(get_user_model().objects.filter(username="existing-member-no").exists())
-
-    def test_rejected_applicant_can_reapply_with_same_account_and_member(self) -> None:
-        self._register("reapply-a", applicant_name="再次申请者")
-        response = self._apply_authenticated_post(
-            "reapply-a", "再次申请者", "reapply-a@example.test", "第一次申请。",
-        )
-        self.assertEqual(response.status_code, 200)
-        first_application = MemberApplication.objects.get(requested_member_no="reapply-a")
-        proposal = first_application.admission_proposal
-        past_time = timezone.now() - timezone.timedelta(hours=2)
-        proposal.start_at = past_time
-        proposal.deadline_at = past_time + timezone.timedelta(hours=1)
-        proposal.save(update_fields=["start_at", "deadline_at"])
-        from core.proposals.voting import evaluate_proposal
-        evaluate_proposal(proposal)
-        first_application.refresh_from_db()
-        proposal.refresh_from_db()
-        self.assertEqual(proposal.status, Proposal.Status.FAILED)
-        self.assertEqual(first_application.status, MemberApplication.Status.REJECTED)
-        member = first_application.linked_member
-        member.refresh_from_db()
-        self.assertEqual(member.status, Member.Status.APPLICATION_REJECTED)
-
-        self.client.force_login(first_application.account_user)
-        data = {
-            "applicant_name": "再次申请者",
-            "contact": "reapply-a@example.test",
-            "role_gap": "service_resident",
-            "availability_slots": ["weekend"],
-            "motivation_reasons": ["other"],
-            "motivation_other_text": "第二次申请。",
-            "confirm_submit": "on",
-        }
-        response = self.client.post("/apply/", data, follow=True)
-        self.assertEqual(response.status_code, 200)
-        applications = list(MemberApplication.objects.filter(requested_member_no="reapply-a").order_by("submitted_at"))
-        self.assertEqual(len(applications), 2)
-        self.assertEqual(applications[-1].linked_member, member)
-        member.refresh_from_db()
-        self.assertEqual(member.status, Member.Status.PENDING_REVIEW)
-        self.assertContains(response, "报名工作台")
 
     # ── service-layer direct tests ──────────────────────────────────────
 
@@ -343,7 +364,6 @@ class PublicApplicationPageTests(TestCase):
         )
         self.assertEqual(user.username, "svc-reg-user")
         self.assertEqual(member.member_no, "svc-reg-user")
-        self.assertEqual(member.display_name, "Service 注册")
         self.assertEqual(member.status, Member.Status.PENDING_REVIEW)
         self.assertEqual((member.metadata or {}).get("registration_contact"), "svc-reg@example.test")
         self.assertTrue(member_has_role(member, ROLE_BIG_APPLE_MEMBER))
@@ -356,11 +376,10 @@ class PublicApplicationPageTests(TestCase):
         self.assertEqual(member.member_no, "svc-ens-user")
         self.assertEqual(member.user, user)
         self.assertTrue(member_has_role(member, ROLE_BIG_APPLE_MEMBER))
-        # idempotent
         member2 = ensure_basic_member_for_user(user)
         self.assertEqual(member2.pk, member.pk)
 
-    # ── transaction rollback tests ──────────────────────────────────────
+    # ── transaction rollback ────────────────────────────────────────────
 
     def test_register_participant_account_rolls_back_when_role_assignment_fails(self) -> None:
         with patch("core.identity_services.ensure_role_assignment", side_effect=RuntimeError("boom")):
@@ -368,7 +387,7 @@ class PublicApplicationPageTests(TestCase):
                 register_participant_account(
                     username="rollback-reg-user",
                     password="rollback-pass-123",
-                    display_name="Rollback 注册",
+                    display_name="Rollback",
                     contact="rollback@example.test",
                 )
         self.assertFalse(get_user_model().objects.filter(username="rollback-reg-user").exists())
@@ -384,59 +403,50 @@ class PublicApplicationPageTests(TestCase):
     # ── legacy / other ──────────────────────────────────────────────────
 
     def test_review_member_application_no_longer_importable(self) -> None:
-        """The old review_member_application service has been removed."""
         with self.assertRaises(ImportError):
             from core.application_services import review_member_application  # noqa: F811
 
-    def test_legacy_member_application_path_is_not_exposed(self) -> None:
-        response = self.client.get("/apply/member/")
-
-        self.assertEqual(response.status_code, 404)
-
     def test_partner_application_page_submits_real_form_and_writes_event(self) -> None:
         response = self.client.get("/apply/partner/")
+        self.assertEqual(response.status_code, 404)
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'name="organization_name"')
-        self.assertContains(response, 'name="service_domains_text"')
+    # ── simulation partner service adapter test ─────────────────────────
 
-        response = self.client.post(
-            "/apply/partner/",
-            {
-                "organization_name": "结构检测机构 A",
-                "contact_name": "联系人 A",
-                "contact": "partner-a@example.test",
-                "service_domains_text": "结构检测\n屋顶荷载复核",
+    def test_http_form_driver_submit_partner_application_via_service(self) -> None:
+        driver = HttpFormDriver()
+        result = driver.submit_partner_application(
+            world_id="realworld",
+            run_id="sim-run-partner",
+            simulation_hour=1,
+            external_ref="partner-svc-test",
+            data={
+                "organization_name": "service-partner-corp",
+                "contact_name": "Contact Person",
+                "contact": "partner-svc@example.test",
+                "service_domains_text": "结构检测\n屋顶复核",
                 "can_issue_responsibility_documents": "on",
-                "responsibility_document_domains_text": "structural_safety_document",
-                "qualification_summary": "可出具结构安全评估报告。",
-                "quote_summary": "按项目报价。",
-                "service_area": "本地",
+                "responsibility_document_domains_text": "structural_safety",
+                "qualification_summary": "qualified",
+                "quote_summary": "per project",
+                "service_area": "local",
                 "delivery_cycle_days": "10",
-                "constraints": "需现场踏勘。",
-                "external_ref": "test-partner-application",
-                "simulation_run_id": "forged-run-id",
+                "constraints": "none",
             },
-            follow=True,
         )
+        self.assertTrue(result.success, result.errors)
+        self.assertEqual(result.path, "service:submit_partner_application")
+        app = PartnerApplication.objects.filter(metadata__external_ref="partner-svc-test").first()
+        self.assertIsNotNone(app)
+        self.assertEqual(app.organization_name, "service-partner-corp")
+        self.assertEqual((app.metadata or {}).get("external_ref"), "partner-svc-test")
+        self.assertEqual((app.metadata or {}).get("simulation_run_id"), "sim-run-partner")
+        self.assertNotIn("_simulation_form_token", (app.metadata or {}))
 
-        self.assertEqual(response.status_code, 200)
-        application = PartnerApplication.objects.get(organization_name="结构检测机构 A")
-        self.assertEqual(application.organization_name, "结构检测机构 A")
-        self.assertIn("结构检测", application.service_domains)
-        self.assertTrue(application.can_issue_responsibility_documents)
-        self.assertEqual(application.metadata, {"source": "public_form"})
-        self.assertTrue(
-            SystemEvent.objects.filter(
-                event_type=SystemEvent.EventType.PARTNER_APPLICATION_SUBMITTED,
-                aggregate_id=application.application_id,
-            ).exists()
-        )
+    # ── simulation driver ───────────────────────────────────────────────
 
     @override_settings(ALLOWED_HOSTS=["big.local"])
     def test_http_form_driver_uses_allowed_host_instead_of_testserver(self) -> None:
         driver = HttpFormDriver()
-
         result = driver.submit_member_application(
             world_id="realworld",
             run_id="sim-run-host-test",
@@ -445,24 +455,23 @@ class PublicApplicationPageTests(TestCase):
             data={
                 **member_application_post_data(
                     username="host-test-member",
-                    applicant_name="Host 测试报名者",
+                    applicant_name="Host 测试",
                     contact="host-test@example.test",
-                    motivation="验证仿真表单 driver 使用允许的 Host。",
+                    motivation="验证仿真。",
                     capabilities_text="文档:70",
                 ),
                 "availability_hours_per_week": "8",
                 "requested_member_no": "host-test-member",
             },
         )
-
         self.assertTrue(result.success, result.errors)
         self.assertEqual(driver.host, "big.local")
+        self.assertEqual(result.path, "/workspace/apply/")
         self.assertTrue(MemberApplication.objects.filter(metadata__external_ref="host-test-member-application").exists())
 
     @override_settings(ALLOWED_HOSTS=["bigsim.local"], **FIXED_SIM_SETTINGS)
     def test_http_form_driver_uses_rooted_simulation_application_path(self) -> None:
         driver = HttpFormDriver()
-
         result = driver.submit_member_application(
             world_id="simulation0001",
             run_id="sim-run-rooted-path-test",
@@ -471,58 +480,44 @@ class PublicApplicationPageTests(TestCase):
             data={
                 **member_application_post_data(
                     username="rooted-path-member",
-                    applicant_name="Rooted Path Applicant",
+                    applicant_name="Rooted Path",
                     contact="rooted-path@example.test",
-                    motivation="Verify rooted simulation application path.",
+                    motivation="Verify rooted sim path.",
                     capabilities_text="Documentation:70",
                 ),
                 "availability_hours_per_week": "8",
                 "requested_member_no": "rooted-path-member",
             },
         )
-
         self.assertTrue(result.success, result.errors)
-        self.assertEqual(result.path, "/apply/")
+        self.assertEqual(result.path, "/workspace/apply/")
         self.assertEqual(driver.host, "bigsim.local")
         self.assertTrue(MemberApplication.objects.filter(metadata__external_ref="rooted-path-member-application").exists())
 
 
 class ApplyFormalMemberRoleTests(TestCase):
-    """``/apply/`` formal-member detection is based on ROLE_FORMAL_MEMBER, not Member.status."""
+    """``/workspace/apply/`` formal-member detection based on ROLE_FORMAL_MEMBER."""
 
     def _active_no_role(self, member_no: str):
         return create_member(member_no=member_no, status=Member.Status.ACTIVE)
 
     def _formal_member(self, member_no: str, status: str = Member.Status.ACTIVE):
-        return create_member(member_no=member_no, role_name=ROLE_FORMAL_MEMBER, status=status)
-
-    # ── ACTIVE without ROLE_FORMAL_MEMBER must NOT show "已是正式成员" ──
-
-    def test_active_without_formal_role_sees_apply_not_status_page(self) -> None:
-        member = self._active_no_role("mem-act-no-formal")
-        login_as_member(self.client, member)
-        response = self.client.get("/apply/")
-        self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "你已经是成员")
-        # should still show the application form (or applicant status)
-        self.assertContains(response, "name=")
-
-    # ── ROLE_FORMAL_MEMBER shows "已是正式成员" ──
+        skip = status in {Member.Status.SUSPENDED, Member.Status.EXITED}
+        return create_member(member_no=member_no, role_name=ROLE_FORMAL_MEMBER, status=status,
+                             skip_role_validation=skip)
 
     def test_formal_role_shows_already_member_status(self) -> None:
         member = self._formal_member("mem-formal-apply")
         login_as_member(self.client, member)
-        response = self.client.get("/apply/")
+        response = self.client.get("/workspace/apply/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "你已经是成员")
         self.assertNotContains(response, 'name="password1"')
 
-    # ── SUSPENDED / EXITED veto ──
-
     def test_formal_role_suspended_does_not_show_already_member(self) -> None:
         member = self._formal_member("mem-formal-susp-a", status=Member.Status.SUSPENDED)
         login_as_member(self.client, member)
-        response = self.client.get("/apply/")
+        response = self.client.get("/workspace/apply/")
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "你已经是成员")
         self.assertContains(response, "当前账号暂不能提交成员报名")
@@ -531,44 +526,40 @@ class ApplyFormalMemberRoleTests(TestCase):
     def test_formal_role_exited_does_not_show_already_member(self) -> None:
         member = self._formal_member("mem-formal-exit-a", status=Member.Status.EXITED)
         login_as_member(self.client, member)
-        response = self.client.get("/apply/")
+        response = self.client.get("/workspace/apply/")
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "你已经是成员")
         self.assertContains(response, "当前账号暂不能提交成员报名")
         self.assertNotContains(response, 'name="applicant_name"')
 
-    # ── service-layer enforcement ──────────────────────────────────────
-
-    def test_active_no_formal_role_can_post_apply(self) -> None:
-        """ACTIVE without ROLE_FORMAL_MEMBER can POST /apply/ and submit."""
+    def test_active_no_formal_role_can_post_workspace_apply(self) -> None:
         member = self._active_no_role("mem-act-apply-post")
         login_as_member(self.client, member)
         data = {
             **member_application_post_data(
                 username="mem-act-apply-post",
-                applicant_name="ACTIVE 报名测试",
+                applicant_name="ACTIVE 报名",
                 contact="active-test@example.test",
-                motivation="验证 ACTIVE 无正式角色能报名。",
+                motivation="验证。",
             ),
             "password1": "",
             "password2": "",
         }
-        response = self.client.post("/apply/", data, follow=True)
+        response = self.client.post("/workspace/apply/", data, follow=True)
         self.assertEqual(response.status_code, 200)
         app = MemberApplication.objects.filter(linked_member=member).first()
-        self.assertIsNotNone(app, "应创建 MemberApplication")
+        self.assertIsNotNone(app)
         self.assertEqual(app.linked_member, member)
         member.refresh_from_db()
         self.assertEqual(member.status, Member.Status.PENDING_REVIEW)
 
     def test_formal_role_cannot_submit_duplicate_via_service(self) -> None:
-        """ROLE_FORMAL_MEMBER rejects submit_member_application() directly."""
         member = self._formal_member("mem-formal-svc-dup")
         login_as_member(self.client, member)
         with self.assertRaises(DomainError):
             submit_member_application(
                 account_user=member.user,
-                applicant_name="重复报名者",
+                applicant_name="重复",
                 contact="dup@example.test",
                 motivation="应该被拒绝。",
                 availability_hours_per_week=8,
@@ -577,55 +568,4 @@ class ApplyFormalMemberRoleTests(TestCase):
                 capability_scores={"文档": 70},
                 requested_member_no=member.member_no,
             )
-        self.assertFalse(
-            MemberApplication.objects.filter(linked_member=member).exists(),
-            "不应创建 MemberApplication",
-        )
-
-    def test_suspended_formal_member_post_apply_rejected_status_unchanged(self) -> None:
-        """SUSPENDED member POST /apply/ is rejected, status stays SUSPENDED."""
-        member = self._formal_member("mem-formal-susp-post", status=Member.Status.SUSPENDED)
-        login_as_member(self.client, member)
-        data = {
-            **member_application_post_data(
-                username="mem-formal-susp-post",
-                applicant_name="SUSPENDED 报名",
-                contact="susp@example.test",
-                motivation="应该被拒绝。",
-            ),
-            "password1": "",
-            "password2": "",
-        }
-        app_count_before = MemberApplication.objects.count()
-        self.client.post("/apply/", data)
-        self.assertEqual(
-            MemberApplication.objects.count(),
-            app_count_before,
-            "不应创建 MemberApplication",
-        )
-        member.refresh_from_db()
-        self.assertEqual(member.status, Member.Status.SUSPENDED, "状态应仍为 SUSPENDED")
-
-    def test_exited_formal_member_post_apply_rejected_status_unchanged(self) -> None:
-        """EXITED member POST /apply/ is rejected, status stays EXITED."""
-        member = self._formal_member("mem-formal-exit-post", status=Member.Status.EXITED)
-        login_as_member(self.client, member)
-        data = {
-            **member_application_post_data(
-                username="mem-formal-exit-post",
-                applicant_name="EXITED 报名",
-                contact="exit@example.test",
-                motivation="应该被拒绝。",
-            ),
-            "password1": "",
-            "password2": "",
-        }
-        app_count_before = MemberApplication.objects.count()
-        self.client.post("/apply/", data)
-        self.assertEqual(
-            MemberApplication.objects.count(),
-            app_count_before,
-            "不应创建 MemberApplication",
-        )
-        member.refresh_from_db()
-        self.assertEqual(member.status, Member.Status.EXITED, "状态应仍为 EXITED")
+        self.assertFalse(MemberApplication.objects.filter(linked_member=member).exists())

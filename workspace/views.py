@@ -8,7 +8,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Q
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, render
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from live_os.access import (
     is_authenticated,
@@ -16,9 +16,14 @@ from live_os.access import (
     page_forbidden,
     world_login_url_for_request,
 )
+from applications.forms import MemberApplicationForm, apply_daisyui_widgets
+from applications.simulation_metadata import metadata_from_signed_form_post
 from core.access import is_governance_principal
+from core.application_services import submit_member_application
 from core.dispute_services import submit_dispute
 from core.exceptions import DomainError
+from core.identity_services import ensure_basic_member_for_user
+from core.member_roles import ROLE_FORMAL_MEMBER, member_has_role
 from core.models import Member, MemberApplication, Proposal, ProposalVote, Task
 from core.proposals.execution import execute_proposal
 from core.proposals.voting import cast_proposal_vote
@@ -32,6 +37,9 @@ from .context import (
     member_has_full_workspace_access,
     workspace_context,
 )
+
+MEMBER_APPLICATION_REAPPLY_STATUSES = {MemberApplication.Status.REJECTED, MemberApplication.Status.WITHDREW}
+DISABLED_MEMBER_STATUSES: frozenset[str] = frozenset({Member.Status.SUSPENDED, Member.Status.EXITED})
 
 
 PROPOSAL_VOTE_CHOICES = {
@@ -90,6 +98,14 @@ def current_full_member_or_forbidden(request: HttpRequest) -> Member | HttpRespo
     return member
 
 
+def _member_is_formal_member(member: Member | None) -> bool:
+    if member is None:
+        return False
+    if member.status in DISABLED_MEMBER_STATUSES:
+        return False
+    return member_has_role(member, ROLE_FORMAL_MEMBER)
+
+
 @require_GET
 def workspace_page(request: HttpRequest):
     member = current_member_or_forbidden(request)
@@ -98,6 +114,84 @@ def workspace_page(request: HttpRequest):
     if not member_has_full_workspace_access(member):
         return render(request, "workspace/applicant.html", applicant_workspace_context(member.member_no))
     return render(request, "workspace/index.html", workspace_context(member.member_no))
+
+
+def _latest_member_application(*, user=None, member=None):
+    queryset = MemberApplication.objects.select_related("linked_member", "account_user")
+    if member is not None:
+        queryset = queryset.filter(linked_member=member)
+    elif user is not None and getattr(user, "is_authenticated", False):
+        queryset = queryset.filter(account_user=user)
+    else:
+        return None
+    return queryset.order_by("-submitted_at", "application_id").first()
+
+
+@require_http_methods(["GET", "POST"])
+def workspace_member_application(request: HttpRequest):
+    if not is_authenticated(request):
+        return redirect_to_login(request.get_full_path(), login_url=world_login_url_for_request(request))
+
+    member = member_for_request(request)
+    if member is None:
+        member = ensure_basic_member_for_user(request.user)
+
+    current_application = _latest_member_application(user=request.user, member=member)
+
+    if _member_is_formal_member(member):
+        return render(request, "applications/member_application_status.html", {"member": member})
+
+    can_reapply = bool(current_application and current_application.status in MEMBER_APPLICATION_REAPPLY_STATUSES)
+    if current_application is not None and not can_reapply:
+        return render(
+            request,
+            "applications/member_application_status.html",
+            {"application": current_application},
+        )
+
+    if member.status in DISABLED_MEMBER_STATUSES:
+        return render(
+            request,
+            "applications/member_application_status.html",
+            {
+                "disabled_member": member,
+                "disabled_reason": "当前账号成员状态已停用，不能提交成员报名。",
+            },
+        )
+
+    if request.method == "POST":
+        form = apply_daisyui_widgets(
+            MemberApplicationForm(request.POST, existing_user=request.user, existing_member=member)
+        )
+        if form.is_valid():
+            try:
+                application = submit_member_application(
+                    account_user=request.user,
+                    applicant_name=form.cleaned_data["applicant_name"],
+                    contact=form.cleaned_data["contact"],
+                    motivation=form.motivation_text(),
+                    availability_hours_per_week=form.cleaned_data["availability_hours_per_week"],
+                    role_gap=form.cleaned_data["role_gap"],
+                    availability_slots=form.cleaned_data["availability_slots"],
+                    dynamic_answers=form.dynamic_answers(),
+                    capability_scores=form.capability_scores(),
+                    can_issue_responsibility_documents=False,
+                    document_authority_domains=form.document_authority_domains(),
+                    requested_member_no=form.cleaned_data["requested_member_no"],
+                    metadata=metadata_from_signed_form_post(request.POST),
+                )
+            except DomainError as exc:
+                messages.error(request, f"成员报名提交失败：{exc}")
+            else:
+                messages.success(request, f"成员报名已提交：{application.application_id}")
+                return world_redirect(request, "workspace-page")
+    else:
+        form = apply_daisyui_widgets(MemberApplicationForm(existing_user=request.user, existing_member=member))
+    return render(
+        request,
+        "applications/member_application.html",
+        {"form": form, "is_reapply": can_reapply, "previous_application": current_application},
+    )
 
 
 @require_POST

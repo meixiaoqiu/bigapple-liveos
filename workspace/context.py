@@ -83,6 +83,7 @@ def applicant_workspace_context(member_no: str) -> dict[str, Any]:
         latest_application
         and latest_application.status in {MemberApplication.Status.REJECTED, MemberApplication.Status.WITHDREW}
     )
+    can_apply = latest_application is None or can_reapply
     role_gap_label = ""
     if latest_application:
         role_gap_label = ROLE_GAP_LABELS.get(latest_application.role_gap, latest_application.role_gap or "未记录")
@@ -90,6 +91,7 @@ def applicant_workspace_context(member_no: str) -> dict[str, Any]:
         "member": member,
         "application": latest_application,
         "can_reapply": can_reapply,
+        "can_apply": can_apply,
         "role_gap_label": role_gap_label,
     }
 

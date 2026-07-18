@@ -249,17 +249,17 @@ http://127.0.0.1:20101/workspace/
 http://127.0.0.1:20102/workspace/
 ```
 
-真实世界和仿真世界 runtime 不暴露 `/live-admin/` 或 `/admin/`。底层维护、仿真实验和高影响操作统一进入 control plane 的 `http://127.0.0.1:20100/admin/`；成员日常使用 `/workspace/`，公开观察使用 `/observer/`，成员报名使用 `/apply/`，合作方报名使用 `/apply/partner/`。
+真实世界和仿真世界 runtime 不暴露 `/live-admin/` 或 `/admin/`。底层维护、仿真实验和高影响操作统一进入 control plane 的 `http://127.0.0.1:20100/admin/`；成员日常使用 `/workspace/`，公开观察使用 `/observer/`。`/apply/` 和 `/apply/partner/` 已删除，正式成员报名移至 `/workspace/apply/`，合作方报名后续单独设计。
 
 ### Workspace 成员报名审核模块
 
 `/workspace/` 在正式成员工作台之外，为具备 `governance.view_admin` 权限的治理成员提供成员报名审核入口。普通正式成员、待审核报名人、未绑定 `Member` 的 Django staff/superuser 都看不到入口，直接访问审核 URL 返回 403。
 
-**注册与报名分离**：`/register/` 只创建 `User` + `Member` + `ROLE_BIG_APPLE_MEMBER`，不写公开 Event。`/apply/` 是正式成员报名入口，必须登录后才能使用；未登录访问显示注册/登录引导页。报名表不再包含账号密码字段。
+**注册与报名分离**：`/register/` 只创建 `User` + `Member` + `ROLE_BIG_APPLE_MEMBER`，不写公开 Event。`/workspace/apply/` 是登录后的正式成员报名入口，报名表不再包含账号密码字段。
 
-**完整 workspace 判断**：`member_has_full_workspace_access()` 当前基于 active `ROLE_FORMAL_MEMBER` 角色判断（`SUSPENDED` / `EXITED` 作为 veto），不再基于 `Member.status`。`/apply/` 的"已是正式成员"判断同理：`member_is_formal_member(member)` 检查 active `ROLE_FORMAL_MEMBER`，受 `SUSPENDED` / `EXITED` 禁用状态 veto。不要用 `Member.status` 判断正式成员权限。
+**完整 workspace 判断**：`member_has_full_workspace_access()` 当前基于 active `ROLE_FORMAL_MEMBER` 角色判断（`SUSPENDED` / `EXITED` 作为 veto），不再基于 `Member.status`。`/workspace/apply/` 的"已是正式成员"判断同理。不要用 `Member.status` 判断正式成员权限。
 
-`/apply/` 提交成员报名后，系统自动创建最小权限 Member、MemberApplication 和 member_admission Proposal，提案直接进入 VOTING 状态。不存在独立的人工审核动作——准入完全由提案生命周期驱动。
+`/workspace/apply/` 提交成员报名后，系统自动创建 MemberApplication 和 member_admission Proposal，提案直接进入 VOTING 状态。不存在独立的人工审核动作——准入完全由提案生命周期驱动。
 
 member_admission 是 yes/no 二元表决，使用严格多数决：赞成票超过 eligible voters 半数时立即通过；反对票超过 eligible voters 半数时立即失败，并自动将关联 MemberApplication 设为 REJECTED。未形成多数前保持表决中；截止仍未通过则失败。分母始终是 `eligible_voters_snapshot_json` 的人数，不是已投票人数。普通 proposal 规则不变。
 

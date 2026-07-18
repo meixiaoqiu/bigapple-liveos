@@ -13,6 +13,13 @@ from core.governance_setup import (
     GOVERNANCE_ADMIN_ROLE_NAME,
     GOVERNANCE_VIEW_ADMIN_PERMISSION,
 )
+from core.member_roles import (
+    MEMBER_ROLE_ORGANIZATION_NAME,
+    ROLE_BIG_APPLE_MEMBER,
+    ROLE_FORMAL_MEMBER,
+    ROLE_GOVERNANCE_MEMBER,
+    member_has_role,
+)
 from core.models import Member, Organization, Role, RoleAssignment, SystemEvent
 
 
@@ -58,7 +65,16 @@ class BootstrapWorldCommandTests(TestCase):
                 status=RoleAssignment.Status.ACTIVE,
             ).exists()
         )
+        # Verify full role chain
+        self.assertTrue(member_has_role(member, ROLE_BIG_APPLE_MEMBER))
+        self.assertTrue(member_has_role(member, ROLE_FORMAL_MEMBER))
+        self.assertTrue(member_has_role(member, ROLE_GOVERNANCE_MEMBER))
         self.assertTrue(user_has_governance_permission(world_user, GOVERNANCE_VIEW_ADMIN_PERMISSION))
+        # No stray "治理管理员" role in the basic-member organization
+        basic_org = Organization.objects.get(name="基础角色")
+        self.assertFalse(
+            Role.objects.filter(organization=basic_org, name="治理管理员").exists()
+        )
 
     def test_bootstrap_is_idempotent_for_world_governance_admin(self) -> None:
         self.call_bootstrap()
