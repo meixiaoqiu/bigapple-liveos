@@ -77,7 +77,7 @@ GET  /workspace/profile/
 POST /workspace/profile/update/
 ```
 
-当前成员（包括 pending applicant）可以维护公开姓名和头像 URL，展示在 `/members/<member_no>/` 公开主页。不能编辑角色、权限、治理身份，不提供简介和可见性自助编辑。治理身份仍由 RoleAssignment 动态计算，不来自个人填写。
+当前成员（包括 pending applicant）可以维护公开姓名和头像 URL，展示在 `/u/<member_no>/` 公开主页。不能编辑角色、权限、治理身份，不提供简介和可见性自助编辑。治理身份仍由 RoleAssignment 动态计算，不来自个人填写。
 
 公开资料页（`/workspace/profile/`）的"我的凭证"区域展示当前成员的 Credential Grant 列表（通过 `credentials_for_member()` 获取），如正式成员编号 `#1`。凭证只读显示，用户不能编辑。凭证是公开事实/荣誉/资格证明，不是权限来源。
 

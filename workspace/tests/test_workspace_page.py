@@ -332,7 +332,7 @@ class WorkspacePageTests(TestCase):
         self.assertEqual(Dispute.objects.count(), dispute_count)
 
     def test_member_no_workspace_route_is_not_exposed(self) -> None:
-        response = self.client.get("/members/mem-0002/workspace/")
+        response = self.client.get("/u/mem-0002/workspace/")
 
         self.assertEqual(response.status_code, 404)
 

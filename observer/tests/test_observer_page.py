@@ -22,7 +22,7 @@ from core.models import (
     SimulationSnapshotItem,
     Task,
 )
-from core.tests.helpers import create_member
+from core.tests.helpers import create_member, login_as_member
 from observer.theme import THEME_SESSION_KEY
 
 
@@ -231,6 +231,10 @@ class ObserverPageTests(TestCase):
         # / 现在是首页
         self.assertEqual(self.client.get("/").status_code, 200)
 
+    def test_old_members_path_returns_404(self) -> None:
+        """旧 /members/<no>/ 返回 404，新路径是 /u/<no>/。"""
+        self.assertEqual(self.client.get("/members/test-01/").status_code, 404)
+
     def test_observer_page_renders_core_state(self) -> None:
         response = self.client.get(self.observer_url())
 
@@ -415,4 +419,46 @@ class ObserverPageTests(TestCase):
         self.assertContains(response, "结构/建筑安全责任文件")
         self.assertContains(response, "电气接入与并网责任文件")
         self.assertContains(response, "租场地前先做并网预筛")
+
+    # ── top-nav / auth-aware navigation ─────────────────────────────────
+
+    def test_homepage_nav_unauthenticated(self) -> None:
+        """未登录首页导航包含注册、登录、Workspace。"""
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "/register/")
+        self.assertContains(response, "/login/?next=/workspace/")
+        self.assertContains(response, "/workspace/")
+
+    def test_homepage_nav_authenticated_with_member(self) -> None:
+        """已登录且有 Member 的首页导航包含我的主页、Workspace、退出，不含注册/登录。"""
+        member = create_member(
+            member_no="nav-member-01",
+            status=Member.Status.ADMITTED,
+            batch_id="batch-opening",
+            joined_simulation_day=1,
+            credit_floor=-100,
+            profile={"display_name": "导航测试"},
+            created_at=timezone.now(),
+        )
+        login_as_member(self.client, member)
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "/u/nav-member-01/")
+        self.assertContains(response, "/workspace/")
+        self.assertContains(response, "/logout/")
+        self.assertNotContains(response, "/register/")
+        self.assertNotContains(response, "/login/")
+
+    def test_homepage_nav_authenticated_no_member(self) -> None:
+        """已登录但无 Member 的首页导航不包含 /u/。"""
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        user = User.objects.create_user(username="nav-no-member", password="pass")
+        self.client.force_login(user)
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "/workspace/")
+        self.assertContains(response, "/logout/")
+        self.assertNotContains(response, "/u/")
 

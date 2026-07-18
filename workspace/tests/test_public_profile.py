@@ -25,6 +25,8 @@ class PublicProfilePageTests(TestCase):
         self.assertContains(response, "公开资料")
         self.assertContains(response, "保存")
         self.assertContains(response, "预览公开主页")
+        # 预览链接应使用 /u/<member_no>/
+        self.assertContains(response, "/u/mem-profile-01/")
 
     def test_member_can_update_own_public_profile(self):
         response = self.client.post("/workspace/profile/update/", {

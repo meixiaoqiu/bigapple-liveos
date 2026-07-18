@@ -286,7 +286,7 @@ GET  /workspace/profile/                    # 成员自助资料维护页
 POST /workspace/profile/update/             # 更新公开姓名/头像 URL
 ```
 
-当前成员（含 pending applicant）可维护公开姓名和头像 URL，展示在 `/members/<member_no>/`。不能编辑角色/权限/治理身份，不提供简介和可见性自助编辑。
+当前成员（含 pending applicant）可维护公开姓名和头像 URL，展示在 `/u/<member_no>/`。不能编辑角色/权限/治理身份，不提供简介和可见性自助编辑。
 
 正式接纳只能通过 proposal vote -> passed -> execute_proposal 完成。未通过/拒绝来自提案投票结果或提案生命周期（过期未达票数），不存在单人点击的“拒绝报名”按钮。未绑定 Member 的 Django staff/superuser 不能绕过治理成员身份要求。
 

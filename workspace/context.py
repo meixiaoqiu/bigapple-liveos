@@ -369,6 +369,6 @@ def workspace_public_profile_context(member: Member) -> dict[str, Any]:
             "public_name": profile.public_name if profile else "",
             "avatar_url": profile.avatar_url if profile else "",
         },
-        "observer_profile_url": f"/members/{member.member_no}/",
+        "observer_profile_url": f"/u/{member.member_no}/",
         "credentials": credentials_for_member(member),
     }

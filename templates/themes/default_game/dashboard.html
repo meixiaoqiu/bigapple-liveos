@@ -26,8 +26,9 @@
               {% endfor %}
             </select>
           </form>
-          <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-page' %}">刷新</a>
-          <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-events-list' %}">事件流</a>
+          {% for item in dashboard.top_nav %}
+            <a class="btn btn-sm btn-ghost" href="{{ item.url }}">{{ item.label }}</a>
+          {% endfor %}
           <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-simulation-reports' %}">仿真档案馆</a>
           <a class="btn btn-sm btn-ghost" href="{% world_url 'world-observer-summary' %}">数据日志</a>
         </div>
