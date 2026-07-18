@@ -113,7 +113,7 @@ def workspace_page(request: HttpRequest):
         return render(request, "workspace/login_required.html", {
             "register_url": "/register/",
             "login_url": "/login/?next=/workspace/",
-            "observer_url": "/observer/",
+            "observer_url": "/",
         })
     member = current_member_or_forbidden(request)
     if isinstance(member, HttpResponseForbidden):

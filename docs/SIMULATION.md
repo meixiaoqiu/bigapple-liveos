@@ -13,13 +13,13 @@
 ## 当前入口
 
 ```text
-/observer/
+/
 /admin/simulation-lab/
 POST /admin/simulation-lab/advance/
 POST /admin/simulation-lab/run-until-failure/
 ```
 
-Fixed-world `/observer/` observes the target world. Control-plane `/admin/simulation-lab/` starts and advances simulation experiments. `/admin/simulation-lab/run-until-failure/` is the current zero-start simulation entrypoint. `/admin/simulation-lab/advance/` is a legacy boundary self-check entrypoint marked as pending deprecation; it is not a simulation advance feature. If removed later, remove its URL, view, page button, and page-level test together.
+Fixed-world `/` observes the target world. Control-plane `/admin/simulation-lab/` starts and advances simulation experiments. `/admin/simulation-lab/run-until-failure/` is the current zero-start simulation entrypoint. `/admin/simulation-lab/advance/` is a legacy boundary self-check entrypoint marked as pending deprecation; it is not a simulation advance feature. If removed later, remove its URL, view, page button, and page-level test together.
 
 ## 自动跑到失败
 
@@ -164,7 +164,7 @@ python manage.py verify_simulation_snapshot snapshot-xxx
 访客查看的公开仿真档案归属 Observer：
 
 ```text
-/observer/simulations/
+/simulations/
 ```
 
 公开档案馆读取 `SimulationSnapshot` 和 `SimulationSnapshotItem`，生成可读报告、关键发现、修订方向和标准化时间线。它不展示 raw 归档路径、来源数据库名或内部备注；raw 包校验仍由内部 `/admin/simulation-lab/` 或 `verify_simulation_snapshot` 命令完成。

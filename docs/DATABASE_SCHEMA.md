@@ -330,7 +330,7 @@ legacy v1：旧记录使用旧 hash 输入（含 `aggregate_id`、`actor_member_
 
 Django Admin 当前只在 control plane 暴露，并提供关系化底层维护入口：`Member` 详情页内联显示和新增 `RoleAssignment`，`Organization` 详情页内联显示 `Role`，`Role` 详情页内联显示 `RolePermission` 和拥有该角色的成员。`Proposal` 用于查看和维护通用治理提案，详情页内联显示 `ProposalVote` 和 `ProposalExecution`。固定 world 站点不暴露 `/admin/`；真实世界和仿真世界的日常用户系统不需要 `is_staff` 账号。`SystemEvent` 和 `LedgerEntry` 集中在“技术审计与配置”分组；其中 `SystemEvent` 在 Admin 中仍然只读，只用于查看事件快照和哈希链信息。
 
-`SimulationSnapshot`, `SimulationSnapshotItem`, `SimulationRunDisposition`, and the simulation lab entrypoint live under the control-plane `/admin/` simulation group. The lab keeps only unique actions such as start, advance, run review, abort, archive, and reject. Business `Event` is not registered in Django Admin; fixed-world API and `/observer/` display it. `Ruleset` changes should go through proposals or a dedicated rule publishing flow, `CapacityAssessment` belongs to observer summaries, and `Permission` / `RolePermission` are primarily maintained through role detail screens.
+`SimulationSnapshot`, `SimulationSnapshotItem`, `SimulationRunDisposition`, and the simulation lab entrypoint live under the control-plane `/admin/` simulation group. The lab keeps only unique actions such as start, advance, run review, abort, archive, and reject. Business `Event` is not registered in Django Admin; fixed-world API and `/` display it. `Ruleset` changes should go through proposals or a dedicated rule publishing flow, `CapacityAssessment` belongs to observer summaries, and `Permission` / `RolePermission` are primarily maintained through role detail screens.
 
 ## core_ruleset
 

@@ -208,5 +208,7 @@ class WorldRouteTests(TestCase):
 
         response = self.client.get("/workspace/")
 
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 200)
         self.assertNotIn(SESSION_KEY, self.client.session)
+        self.assertContains(response, "登录")
+        self.assertContains(response, "注册")

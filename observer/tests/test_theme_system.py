@@ -11,7 +11,7 @@ from observer.theme import (
     get_theme_config,
     get_theme_partial_path,
 )
-def request_with_session(path: str = "/observer/"):
+def request_with_session(path: str = "/"):
     request = RequestFactory().get(path)
     middleware = SessionMiddleware(lambda req: None)
     middleware.process_request(request)
@@ -50,7 +50,7 @@ class ThemeSystemTests(TestCase):
         request = request_with_session()
         context = build_dashboard_theme_context(request)
 
-        self.assertEqual(context["hero"]["title"], "大苹果观察台")
+        self.assertEqual(context["hero"]["title"], "大苹果社区动态")
         self.assertEqual(context["stats"], [])
         self.assertEqual(context["missions"], [])
         self.assertEqual(context["events"], [])
@@ -69,7 +69,7 @@ class ThemeSystemTests(TestCase):
         self.assertIn("remaining", context["capacity"])
 
     def test_unknown_theme_query_parameter_falls_back_without_session_mutation(self) -> None:
-        request = request_with_session("/observer/?theme=missing-theme")
+        request = request_with_session("/?theme=missing-theme")
         from observer.theme_views import apply_theme_query_override
 
         apply_theme_query_override(request)

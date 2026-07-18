@@ -24,16 +24,16 @@ class PublicEventsBrowserTests(TestCase):
     """Cover public Event pages and the SystemEvent ledger browser."""
 
     def events_list_url(self) -> str:
-        return "/observer/events/"
+        return "/events/"
 
     def event_detail_url(self, event_id: str) -> str:
-        return f"/observer/events/{event_id}/"
+        return f"/events/{event_id}/"
 
     def ledger_list_url(self) -> str:
-        return "/observer/event-ledger/"
+        return "/event-ledger/"
 
     def ledger_detail_url(self, seq: int) -> str:
-        return f"/observer/event-ledger/{seq}/"
+        return f"/event-ledger/{seq}/"
 
     def setUp(self) -> None:
         self.member = create_member(
@@ -125,10 +125,10 @@ class PublicEventsBrowserTests(TestCase):
 
     def test_homepage_event_card_links_to_public_event_detail(self):
         event = self._create_public_event()
-        response = self.client.get("/observer/")
+        response = self.client.get("/")
         self.assertContains(response, "事件时间线")
         self.assertContains(response, event.title)
-        self.assertContains(response, f'/observer/events/{event.event_id}/"')
+        self.assertContains(response, f'/events/{event.event_id}/"')
 
     # ---- semantic summary -----------------------------------------------
 
@@ -157,7 +157,7 @@ class PublicEventsBrowserTests(TestCase):
                 "role_gap_label": "系统开发与 AI 工程",
             },
         )
-        response = self.client.get("/observer/member-applications/member-application-abc123/")
+        response = self.client.get("/member-applications/member-application-abc123/")
         self.assertContains(response, "报名者")
         self.assertContains(response, "w**y")
         self.assertContains(response, "意向角色")
@@ -414,14 +414,14 @@ class PublicEventsBrowserTests(TestCase):
     # ---- no ledger links on public pages --------------------------------
 
     def test_homepage_no_ledger_link(self):
-        response = self.client.get("/observer/")
+        response = self.client.get("/")
         self.assertContains(response, "事件流")
-        self.assertNotContains(response, "/observer/event-ledger/")
+        self.assertNotContains(response, "/event-ledger/")
 
     def test_events_list_no_ledger_link(self):
         self._create_public_event()
         response = self.client.get(self.events_list_url())
-        self.assertNotContains(response, "/observer/event-ledger/")
+        self.assertNotContains(response, "/event-ledger/")
 
     def test_event_detail_no_ledger_link(self):
         self._create_ledger_event(
@@ -431,7 +431,7 @@ class PublicEventsBrowserTests(TestCase):
         )
         event = self._create_public_event(payload={"application_id": "app-nl1"})
         response = self.client.get(self.event_detail_url(event.event_id))
-        self.assertNotContains(response, "/observer/event-ledger/")
+        self.assertNotContains(response, "/event-ledger/")
 
     # ---- member application page -----------------------------------------
 
@@ -475,7 +475,7 @@ class PublicEventsBrowserTests(TestCase):
                 "role_gap_label": "开发",
             },
         )
-        response = self.client.get("/observer/member-applications/app-detail-1/")
+        response = self.client.get("/member-applications/app-detail-1/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "治理时间线")
         self.assertContains(response, "哈希证明")
@@ -498,13 +498,13 @@ class PublicEventsBrowserTests(TestCase):
                 "role_gap_label": "开发",
             },
         )
-        response = self.client.get("/observer/member-applications/app-sens-1/")
+        response = self.client.get("/member-applications/app-sens-1/")
         self.assertNotContains(response, "real-contact@secret.com")
         self.assertNotContains(response, "secret_user")
         self.assertNotContains(response, "uuid-secret")
 
     def test_member_application_detail_404_not_found(self):
-        response = self.client.get("/observer/member-applications/nonexistent-app/")
+        response = self.client.get("/member-applications/nonexistent-app/")
         self.assertEqual(response.status_code, 404)
 
     def test_events_list_aggregates_member_application_cards(self):
@@ -518,10 +518,10 @@ class PublicEventsBrowserTests(TestCase):
             payload={"source": "member_application", "stage": "rejected", "application_id": "app-el-1",
                      "public_applicant_label": "王**五", "role_gap_label": "厨艺"},
         )
-        response = self.client.get("/observer/events/")
+        response = self.client.get("/events/")
         response_text = response.content.decode()
-        self.assertContains(response, "/observer/member-applications/app-el-1/")
-        self.assertNotIn("/observer/events/member-application-submitted-app-el/", response_text)
+        self.assertContains(response, "/member-applications/app-el-1/")
+        self.assertNotIn("/events/member-application-submitted-app-el/", response_text)
 
     def test_homepage_aggregates_member_application_cards(self):
         self._create_public_event(
@@ -534,12 +534,12 @@ class PublicEventsBrowserTests(TestCase):
             payload={"source": "member_application", "stage": "rejected", "application_id": "app-hp-1",
                      "public_applicant_label": "李**四", "role_gap_label": "开发"},
         )
-        response = self.client.get("/observer/")
+        response = self.client.get("/")
         response_text = response.content.decode()
         # Must link to aggregated page, not raw stage events
-        self.assertContains(response, "/observer/member-applications/app-hp-1/")
-        self.assertNotIn("/observer/events/member-application-submitted-app-hp/", response_text)
-        self.assertNotIn("/observer/events/member-application-rejected-app-hp/", response_text)
+        self.assertContains(response, "/member-applications/app-hp-1/")
+        self.assertNotIn("/events/member-application-submitted-app-hp/", response_text)
+        self.assertNotIn("/events/member-application-rejected-app-hp/", response_text)
 
     def test_timeline_events_sorted_by_occurred_at_desc(self):
         """Newer normal event must appear before older member application card."""
@@ -591,9 +591,9 @@ class PublicEventsBrowserTests(TestCase):
             event_id="member-application-submitted-nosource",
             payload={"stage": "submitted", "application_id": "app-nosource-1"},
         )
-        response = self.client.get("/observer/events/")
+        response = self.client.get("/events/")
         response_text = response.content.decode()
-        self.assertNotIn("/observer/events/member-application-submitted-nosource/", response_text)
+        self.assertNotIn("/events/member-application-submitted-nosource/", response_text)
 
     def test_payload_source_member_app_without_prefix_404(self):
         ev = self._create_public_event(
@@ -644,7 +644,7 @@ class PublicEventsBrowserTests(TestCase):
             event_id="member-application-submitted-app-timeline",
             payload={"source": "member_application", "stage": "submitted", "application_id": "app-timeline-1"},
         )
-        response = self.client.get("/observer/member-applications/app-timeline-1/")
+        response = self.client.get("/member-applications/app-timeline-1/")
         self.assertContains(response, "治理时间线")
         self.assertContains(response, "哈希证明")
         # No separate stage-list or audit section titles
@@ -666,7 +666,7 @@ class PublicEventsBrowserTests(TestCase):
             event_id="member-application-submitted-app-vote",
             payload={"source": "member_application", "stage": "submitted", "application_id": "app-vote-1"},
         )
-        response = self.client.get("/observer/member-applications/app-vote-1/")
+        response = self.client.get("/member-applications/app-vote-1/")
         self.assertContains(response, "wzy")
         self.assertContains(response, "反对")
         self.assertContains(response, "能力不匹配")
@@ -685,7 +685,7 @@ class PublicEventsBrowserTests(TestCase):
             payload={"source": "member_application", "stage": "submitted",
                      "application_id": "app-deid-1", "public_applicant_label": "w**y"},
         )
-        response = self.client.get("/observer/member-applications/app-deid-1/")
+        response = self.client.get("/member-applications/app-deid-1/")
         self.assertContains(response, "w**y")
 
     def test_event_detail_still_works_for_non_member_app(self):
@@ -725,7 +725,7 @@ class PublicEventsBrowserTests(TestCase):
             payload={"source": "member_application", "stage": "submitted",
                      "application_id": "app-av1"},
         )
-        response = self.client.get("/observer/member-applications/app-av1/")
+        response = self.client.get("/member-applications/app-av1/")
         content = response.content.decode()
         self.assertNotIn('onclick="openAuditVerification', content)
         self.assertNotIn('function openAuditVerification', content)
@@ -806,7 +806,7 @@ class PublicEventsBrowserTests(TestCase):
             payload={"source": "member_application", "stage": "submitted",
                      "application_id": "app-ox"},
         )
-        response = self.client.get("/observer/member-applications/app-ox/")
+        response = self.client.get("/member-applications/app-ox/")
         self.assertContains(response, 'overflow-x-hidden')
 
     # ---- layout -----------------------------------------------------------
@@ -818,7 +818,7 @@ class PublicEventsBrowserTests(TestCase):
             payload={"source": "member_application", "stage": "submitted",
                      "application_id": "app-timeline-1"},
         )
-        response = self.client.get("/observer/member-applications/app-timeline-1/")
+        response = self.client.get("/member-applications/app-timeline-1/")
         self.assertContains(response, "timeline timeline-vertical timeline-compact timeline-snap-icon")
         self.assertContains(response, "timeline-middle")
         self.assertContains(response, "timeline-end timeline-box")
@@ -842,7 +842,7 @@ class PublicEventsBrowserTests(TestCase):
             payload={"source": "member_application", "stage": "rejected",
                      "application_id": "app-legacy-link", "proposal_no": "0007"},
         )
-        response = self.client.get("/observer/member-applications/app-legacy-link/")
+        response = self.client.get("/member-applications/app-legacy-link/")
         self.assertContains(response, "治理成员已投票")
         self.assertContains(response, "wzy")
         self.assertContains(response, "反对")
@@ -864,7 +864,7 @@ class PublicEventsBrowserTests(TestCase):
             payload={"source": "member_application", "stage": "submitted",
                      "application_id": "app-dup-1", "proposal_no": "0009"},
         )
-        response = self.client.get("/observer/member-applications/app-dup-1/")
+        response = self.client.get("/member-applications/app-dup-1/")
         content = response.content.decode()
         self.assertEqual(content.count("治理成员已投票"), 1,
                          "Vote event must appear exactly once")
@@ -884,7 +884,7 @@ class PublicEventsBrowserTests(TestCase):
             event_id="member-application-rejected-app-nosource",
             payload={"application_id": "app-nosource", "proposal_no": "0010", "stage": "rejected"},
         )
-        response = self.client.get("/observer/member-applications/app-nosource/")
+        response = self.client.get("/member-applications/app-nosource/")
         self.assertContains(response, "wzy")
 
     def test_proposal_id_linkage_hides_pk_in_page(self):
@@ -902,7 +902,7 @@ class PublicEventsBrowserTests(TestCase):
                      "application_id": "app-pid", "proposal_id": "prop-pk-999",
                      "proposal_no": "0011"},
         )
-        response = self.client.get("/observer/member-applications/app-pid/")
+        response = self.client.get("/member-applications/app-pid/")
         content = response.content.decode()
         self.assertNotIn("prop-pk-999", content)
         self.assertNotIn("proposal_id", content)
@@ -931,7 +931,7 @@ class PublicEventsBrowserTests(TestCase):
         )
         proposal = app.admission_proposal
 
-        response = self.client.get(f"/observer/member-applications/{app.application_id}/")
+        response = self.client.get(f"/member-applications/{app.application_id}/")
         self.assertEqual(response.status_code, 200)
 
         # Core timeline entries
@@ -983,7 +983,7 @@ class PublicEventsBrowserTests(TestCase):
     def test_first_ledger_event_has_no_previous_link(self):
         first = SystemEvent.objects.order_by("seq").first()
         response = self.client.get(self.ledger_detail_url(first.seq))
-        self.assertNotContains(response, f"/observer/event-ledger/{first.seq - 1}/")
+        self.assertNotContains(response, f"/event-ledger/{first.seq - 1}/")
 
     def test_ledger_chain_invalid_payload_hash(self):
         event = self._create_ledger_event(payload_json=_v2_payload(reason="original"))

@@ -1,23 +1,23 @@
-# 观察台
+# 公开首页
 
-观察台是 Live OS 面向普通观察者的只读入口。
+`observer` 是 Live OS 的内部 Django app / 模块名。产品入口是站点根路径 `/`，即面向所有访客的公开首页（社区动态）。
 
-成员报名/准入流程会同时写入 `core_system_event` 审计账本和脱敏公开 `core_event`。Observer 时间线展示的是公开 Event，不展示 contact、账号、内部用户 ID。公开 Event 包含 `submitted`（收到成员报名）、`admitted`（新成员已加入）和 `rejected`（成员报名未通过）三个阶段，使用脱敏公开名称，payload 不含隐私字段。
+成员报名/准入流程会同时写入 `core_system_event` 审计账本和脱敏公开 `core_event`。公开首页时间线展示的是公开 Event，不展示 contact、账号、内部用户 ID。公开 Event 包含 `submitted`（收到成员报名）、`admitted`（新成员已加入）和 `rejected`（成员报名未通过）三个阶段，使用脱敏公开名称，payload 不含隐私字段。
 
 当前路径（普通用户可见）：
 
 ```text
-/observer/
-/observer/events/
-/observer/events/<event_id>/
-/observer/member-applications/<application_id>/
-/observer/simulations/
+/
+/events/
+/events/<event_id>/
+/member-applications/<application_id>/
+/simulations/
 ```
 
 成员公开主页 URL：
 
 ```text
-/observer/members/<member_no>/
+/members/<member_no>/
 ```
 
 展示公开姓名、头像、简介、治理身份（从 RoleAssignment/RolePermission 动态计算，非自填）、公开凭证列表（正式成员编号、勋章等）和最近公开治理动作。成员本人在 workspace `/workspace/profile/` 维护公开姓名和头像 URL。成员报名时间线中的投票人名称链接到该主页。凭证由 `credentials_for_member()` 获取，只展示业务字段（`template_name`、`display_no`、`source_type`、`issued_at`），不暴露内部 pk 或 User id。
@@ -25,11 +25,11 @@
 隐藏高级审计入口（不在普通导航中展示）：
 
 ```text
-/observer/event-ledger/
-/observer/event-ledger/<seq>/
+/event-ledger/
+/event-ledger/<seq>/
 ```
 
-Observer entrypoints are `http://127.0.0.1:20101/observer/` or `http://bigreal.local/observer/` for realworld, and `http://127.0.0.1:20102/observer/` or `http://bigsim.local/observer/` for simulation.
+站点入口为 `http://127.0.0.1:20101/` 或 `http://bigreal.local/`（realworld），以及 `http://127.0.0.1:20102/` 或 `http://bigsim.local/`（simulation）。旧路径 `/observer/` 已移除，返回 404。
 
 ## 当前展示内容
 
@@ -55,13 +55,13 @@ Observer entrypoints are `http://127.0.0.1:20101/observer/` or `http://bigreal.l
 
 ## 公共事件流
 
-`/observer/events/` 是面向访客的公开社区事件流。首页“事件时间线”和事件流列表都基于 `core_event` 的公开记录，按时间展示社区当前发生的事情。Observer 顶层展示"事项/过程"，不是每个阶段都一个公开详情页。同一成员报名的多个阶段（submitted/admitted/rejected）聚合成一条事项卡片；普通事件每个仍对应一个详情页。
+`/events/` 是面向访客的公开社区事件流。首页“事件时间线”和事件流列表都基于 `core_event` 的公开记录，按时间展示社区当前发生的事情。Observer 顶层展示"事项/过程"，不是每个阶段都一个公开详情页。同一成员报名的多个阶段（submitted/admitted/rejected）聚合成一条事项卡片；普通事件每个仍对应一个详情页。
 
-列表页 `/observer/events/` 展示最近 100 条公开事件/事项，每条显示标题、摘要、事件类型、严重程度、发生时间和来源。详情页 `/observer/events/<event_id>/` 展示完整标题和摘要，并用产品化的"事件概要"语义摘要。
+列表页 `/events/` 展示最近 100 条公开事件/事项，每条显示标题、摘要、事件类型、严重程度、发生时间和来源。详情页 `/events/<event_id>/` 展示完整标题和摘要，并用产品化的"事件概要"语义摘要。
 
 ## 成员报名事项页
 
-成员报名公开展示聚合到 `/observer/member-applications/<application_id>/`。submitted/admitted/rejected 阶段 Event 保留为聚合数据源，但 `/observer/events/<stage-event-id>/` 不再作为公开页面，直接 404。
+成员报名公开展示聚合到 `/member-applications/<application_id>/`。submitted/admitted/rejected 阶段 Event 保留为聚合数据源，但 `/events/<stage-event-id>/` 不再作为公开页面，直接 404。
 
 事项详情页是"治理时间线 + 审计证明一体化"：页面使用 daisyUI compact vertical timeline / timeline-snap-icon 样式，左侧窄轨道表示审计链顺序，右侧全宽节点卡片展示业务语义（收到成员报名 / 准入提案已创建 / 治理成员已投票 / 提案结果 / 成员接纳等），内嵌可展开的哈希证明和现场复算按钮。治理投票人公开姓名和投票选择，报名者继续使用脱敏标签。审计记录 seq 是事实顺序。Hash 复算和 json_script 安全机制与普通事件详情页一致。
 
@@ -75,7 +75,7 @@ event_id 规则：成员报名阶段事件为 `member-application-{stage}-{appli
 
 ## 事件审计账本（隐藏高级入口）
 
-`/observer/event-ledger/` 是隐藏的高级审计入口，基于 `core_system_event` 哈希链提供每条记录的脱敏投影和链校验。它不是普通观察者的主入口，不在首页、事件流或事件详情页的导航中展示。
+`/event-ledger/` 是隐藏的高级审计入口，基于 `core_system_event` 哈希链提供每条记录的脱敏投影和链校验。它不是普通观察者的主入口，不在首页、事件流或事件详情页的导航中展示。
 
 SystemEvent v2 设计原则：
 
@@ -85,7 +85,7 @@ SystemEvent v2 设计原则：
 - 密钥、联系方式、用户名、真实姓名等绝不写入 `public_facts`。
 - 旧格式事件（无 schema）显示"旧格式审计事件，不公开复算"，chain_valid 可能为 false。这是清库前允许状态。
 
-普通用户通过 `/observer/events/<event_id>/` 查看公开事件详情时，审计证明默认展开，不暴露 `/observer/event-ledger/` 链接。
+普通用户通过 `/events/<event_id>/` 查看公开事件详情时，审计证明默认展开，不暴露 `/event-ledger/` 链接。
 
 哈希链校验规则：
 
@@ -96,7 +96,7 @@ SystemEvent v2 设计原则：
 
 ## 公开仿真档案馆
 
-`/observer/simulations/` 是面向访客的公开仿真档案馆。它不负责启动仿真，也不直接暴露内部 raw 归档包；它把已归档的 `SimulationSnapshot` 和 `SimulationSnapshotItem` 转换成访客可读报告。
+`/simulations/` 是面向访客的公开仿真档案馆。它不负责启动仿真，也不直接暴露内部 raw 归档包；它把已归档的 `SimulationSnapshot` 和 `SimulationSnapshotItem` 转换成访客可读报告。
 
 公开报告第一版展示：
 
@@ -186,29 +186,29 @@ static/themes/default_game/
 HTMX partial URL：
 
 ```text
-/observer/dashboard/partials/missions/
-/observer/dashboard/partials/events/
-/observer/dashboard/partials/map-points/
-/observer/dashboard/partials/task-detail/
-/observer/dashboard/partials/risk/
-/observer/dashboard/partials/capacity/
-/observer/dashboard/partials/photo-stories/
+/dashboard/partials/missions/
+/dashboard/partials/events/
+/dashboard/partials/map-points/
+/dashboard/partials/task-detail/
+/dashboard/partials/risk/
+/dashboard/partials/capacity/
+/dashboard/partials/photo-stories/
 ```
 
 公开页面 URL：
 
 ```text
-/observer/events/
-/observer/events/{event_id}/
-/observer/simulations/
-/observer/simulations/{snapshot_id}/
+/events/
+/events/{event_id}/
+/simulations/
+/simulations/{snapshot_id}/
 ```
 
 隐藏高级审计入口 URL（不在普通导航中展示）：
 
 ```text
-/observer/event-ledger/
-/observer/event-ledger/{seq}/
+/event-ledger/
+/event-ledger/{seq}/
 ```
 
 修改观察台模板或 Tailwind class 后执行：
@@ -235,7 +235,7 @@ start.bat
 访问：
 
 ```text
-http://127.0.0.1:20101/observer/
+http://127.0.0.1:20101/
 ```
 
 自动化测试：

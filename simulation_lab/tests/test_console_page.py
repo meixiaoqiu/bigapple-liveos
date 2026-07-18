@@ -236,10 +236,10 @@ class ObserverSimulationConsoleTests(TestCase):
         )
 
     def test_observer_page_renders_simulation_console(self) -> None:
-        response = self.client.get("/observer/")
+        response = self.client.get("/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "大苹果观察台")
+        self.assertContains(response, "大苹果社区动态")
         self.assertContains(response, "事件时间线")
         self.assertContains(response, "数据日志")
         self.assertContains(response, "任务与提案线索")

@@ -62,9 +62,9 @@
 - 治理内核不再保留 `core.governance` 大门面；统一事件账本、提案、权限和角色任命应分别从对应领域模块导入。
 - 不要在业务代码中直接根据 Credential/NFT/Badge 判断权限。所有运行时权限判断必须通过 RoleAssignment / RolePermission。详见 `docs/ARCHITECTURE.md` Credential/NFT 章节。
 - 当前本地开发拆为三个站点入口：`bigadmin.local` 使用 `live_os.settings_admin` 和 `live_os.urls_admin`，承载 control plane 的 `/admin/` 与 `/admin/simulation-lab/`；`bigreal.local` 使用 `live_os.settings_real` 和 `live_os.urls_real`，承载真实世界 runtime；`bigsim.local` 使用 `live_os.settings_sim` 和 `live_os.urls_sim`，承载仿真世界 runtime。
-Real and simulation runtimes use the same root paths: `/workspace/`, `/observer/`, `/register/`, `/api/v0.1/`. `/register/` is the account-registration entrypoint; `/workspace/apply/` is the member application entrypoint (login required). `/apply/`, `/apply/partner/`, `/apply/member/`, old world-prefixed route family, old `/member/` workspace route, and `/live-admin/` route have been removed and must not be used in product code or tests.
+Real and simulation runtimes use the same root paths: `/workspace/`, `/`, `/register/`, `/api/v0.1/`. `/register/` is the account-registration entrypoint; `/workspace/apply/` is the member application entrypoint (login required). `/apply/`, `/apply/partner/`, `/apply/member/`, old world-prefixed route family, old `/member/` workspace route, and `/live-admin/` route have been removed and must not be used in product code or tests.
 - 当前 `/workspace/` 是固定 world 的成员自助工作台，归属 `workspace` app。身份必须从当前登录账号绑定的 `Member` 推导，不要重新引入 `/members/{member_no}/workspace/` 这种按 URL 选择成员的页面入口。
-- 当前 `/observer/` 是固定 world 的时间线指挥台式观察台，使用 Django Templates、Tailwind、daisyUI 和 HTMX partial。仿真实验启动和推进归属 control plane 的 `/admin/simulation-lab/`，观察和复盘归属对应 world runtime 的 observer；不能把命令行 runner 当成产品形态，也不能让 simulation 默认写真实世界数据。
+- 当前 `/` 是固定 world 的时间线指挥台式观察台，使用 Django Templates、Tailwind、daisyUI 和 HTMX partial。仿真实验启动和推进归属 control plane 的 `/admin/simulation-lab/`，观察和复盘归属对应 world runtime 的 observer；不能把命令行 runner 当成产品形态，也不能让 simulation 默认写真实世界数据。
 - 当前项目执行计划已经数据库化，`bigapple001据点执行计划` 是主线任务线源头。不要把主线计划只写在 Markdown 或代码常量里。
 - 当前资源供需匹配复用既有结构：`Resource` 是资源主档和当前库存缓存，`ResourceTransaction` 是只追加库存流水，`PlanRequirement.resource` 是计划需求指向库存台账的桥，`SupplierQuote` 是合作方报名对具体资源的报价。不要另起一套平行资源库；完整采购、定标和合同流程后续再在这层之上扩展。
 - `seed_demo` 命令只做演示数据编排，具体演示数据写入逻辑放在 `live_os.demo_seed`；不要把演示数据写回 core 规则引擎。
@@ -90,9 +90,9 @@ Use fixed-world site URLs for business pages. The real world site is `bigreal.lo
 - Control plane: `http://bigadmin.local/admin/`
 - Simulation lab: `http://bigadmin.local/admin/simulation-lab/`
 - Real member workspace: `http://bigreal.local/workspace/`
-- Real observer: `http://bigreal.local/observer/`
+- Real observer: `http://bigreal.local/`
 - Simulation member workspace: `http://bigsim.local/workspace/`
-- Simulation observer: `http://bigsim.local/observer/`
+- Simulation observer: `http://bigsim.local/`
 - Legacy world-prefixed routes have been removed from runtime URLConfs; use fixed-world root paths in tests and product code.
 - Default local database aliases are `default -> dev_big_control`, `realworld -> dev_big_real` and `simulation0001 -> dev_big_sim0001`; additional simulation aliases can be declared through `BIG_APPLE_WORLD_DATABASE_ALIASES` and matching `BIG_APPLE_{ALIAS}_DB_NAME` / `BIG_APPLE_{ALIAS}_DATABASE_URL`.
 

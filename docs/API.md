@@ -129,11 +129,11 @@ GET /events
 当前仿真推进通过服务端渲染页面完成：
 
 ```text
-GET  /observer/
+GET  /
 POST /admin/simulation-lab/advance/
 ```
 
-这些路径不是 contract-facing API；`GET /observer/` 是观察复盘界面，`POST /admin/simulation-lab/run-until-failure/` 是当前仿真实验后台表单动作。`POST /admin/simulation-lab/advance/` 是待遗弃的仿真写库边界自检入口，不是仿真推进功能；如果后续删除，应连同 URL、view、页面按钮和页面级测试一起删除。
+这些路径不是 contract-facing API；`GET /` 是公开首页，`POST /admin/simulation-lab/run-until-failure/` 是当前仿真实验后台表单动作。`POST /admin/simulation-lab/advance/` 是待遗弃的仿真写库边界自检入口，不是仿真推进功能；如果后续删除，应连同 URL、view、页面按钮和页面级测试一起删除。
 
 推进一回合后，外部客户端仍通过既有契约读取结果：
 

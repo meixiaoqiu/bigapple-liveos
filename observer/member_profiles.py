@@ -86,7 +86,7 @@ def public_member_recent_actions(member: Member) -> list[dict[str, Any]]:
 
 
 def public_member_profile_context(member_no: str) -> dict[str, Any] | None:
-    """Build context for /observer/members/<member_no>/."""
+    """Build context for /members/<member_no>/."""
     try:
         member = Member.objects.get(member_no=member_no)
     except Member.DoesNotExist:

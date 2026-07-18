@@ -78,7 +78,7 @@ python manage.py seed_demo --world-id realworld
 | 申诉 | 查看早期申诉记录，必要时做底层维护。 | 禁止删除；已有记录的 `dispute_id` 只读；提交时间只读；申诉受理和处理结论应优先走 API 或 `core.dispute_services`，以便生成申诉事件。 |
 | 规则版本 | 不注册到 `/admin/`；后续应通过专门规则发布流程创建新版本。 | 不通过 Django Admin 维护。 |
 | 积分流水 | 在“技术审计与配置”中查看积分业务流水，并追溯统一事件。 | 禁止新增、修改和删除。 |
-| 业务事件流 | 不注册到 `/admin/`；通过 API 和 `/observer/` 查看。 | 不通过 Django Admin 维护。 |
+| 业务事件流 | 不注册到 `/admin/`；通过 API 和公开首页 `/` 查看。 | 不通过 Django Admin 维护。 |
 | 容量评估 | 不注册到 `/admin/`；通过 observer 查看当前 world 的容量状态。 | 不通过 Django Admin 维护。 |
 
 ## 操作原则
@@ -86,7 +86,7 @@ python manage.py seed_demo --world-id realworld
 - Control Admin 首页按底层维护域分组：`技术审计与配置` 保留统一事件账本和积分流水，`仿真` 保留仿真快照、快照明细、处置记录和仿真实验后台入口；世界目录由 `worlds.WorldRegistry` 统一管理，不再保留独立的仿真世界模型。
 - 在 control plane 中，成员、成员报名、合作方报名、组织、角色、角色任命、提案、任务、资源、供应商报价、库存流水、申诉、项目计划和仿真运行会作为底层数据管理模型展示。它们用于技术维护和兜底排障，不替代后续专门业务流程页。
 - 真实世界和仿真世界不暴露 `/admin/`。所有 Django Admin 级底层管理都收敛到 `bigadmin.local/admin/`，避免 world 用户系统出现 `is_staff` 日常账号和 Django Admin 入口。
-- 当前真实世界和仿真世界 runtime 只提供 `/workspace/`、`/observer/`、报名入口和 API，不暴露独立业务后台。底层维护、仿真实验和高影响操作归属 `bigadmin.local/admin/` 与 `bigadmin.local/admin/simulation-lab/`，其中仿真实验入口仅限 superuser。
+- 当前真实世界和仿真世界 runtime 只提供 `/workspace/`、`/`、报名入口和 API，不暴露独立业务后台。底层维护、仿真实验和高影响操作归属 `bigadmin.local/admin/` 与 `bigadmin.local/admin/simulation-lab/`，其中仿真实验入口仅限 superuser。
 - `Permission` 和 `RolePermission` 是底层能力目录，不作为日常顶层菜单展示；管理员主要从 `Role` 详情页通过角色权限 inline 查看和维护角色能力。
 - 成员身份类型字段和单个 `Member.role` 字段已删除。成员当前身份和职责统一由 active `RoleAssignment` 表示；每个成员至少应拥有 `基础角色 / 大苹果成员`，成员可以同时拥有多个角色。
 - 是否虚拟成员不再是成员字段，而由当前世界实例类型决定：`WORLD_INSTANCE_TYPE=simulation` 时 actor 输出为 `virtual_member`，`WORLD_INSTANCE_TYPE=real` 时 actor 输出为 `human_member`。

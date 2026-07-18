@@ -186,6 +186,6 @@ class MemberApplicationPublicEventsTests(TestCase):
         self.assertEqual(ma["title"], "成员报名")
         self.assertEqual(
             ma["_member_application_detail_url"],
-            f"/observer/member-applications/{application.application_id}/",
+            f"/member-applications/{application.application_id}/",
         )
         self.assertEqual(ma["metric_value"], "已通过")

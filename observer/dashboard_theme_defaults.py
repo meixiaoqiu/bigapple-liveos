@@ -8,7 +8,7 @@ from typing import Any
 def _default_dashboard_context() -> dict[str, Any]:
     return {
         "hero": {
-            "title": "大苹果观察台",
+            "title": "大苹果社区动态",
             "subtitle": "未配置据点 · 第1天 · 待初始化",
             "status_label": "待初始化",
             "status_level": "watch",
@@ -37,7 +37,7 @@ def _default_dashboard_context() -> dict[str, Any]:
         "capacity": {"current": 0, "total": 0, "percent": 0, "safe_threshold": 85, "remaining": 0},
         "user_progress": {"level": 1, "xp": 0, "xp_next": 100, "points": 0, "badges_count": 0},
         "navigation": [
-            {"key": "overview", "label": "总览", "href": "/observer/"},
+            {"key": "overview", "label": "总览", "href": "/"},
             {"key": "missions", "label": "全部任务", "href": "#missions"},
             {"key": "events", "label": "事件", "href": "#events"},
             {"key": "resources", "label": "全部资源", "href": "/api/v0.1/resources"},

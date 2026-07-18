@@ -29,7 +29,7 @@ class MemberProfileTests(TestCase):
             bio="项目发起人",
             is_visible=True,
         )
-        response = self.client.get("/observer/members/test-profile-01/")
+        response = self.client.get("/members/test-profile-01/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "王梓尧")
         self.assertContains(response, "项目发起人")
@@ -37,13 +37,13 @@ class MemberProfileTests(TestCase):
 
     def test_member_profile_page_fallback_without_profile(self):
         self._create_member("test-noprofile", "张三")
-        response = self.client.get("/observer/members/test-noprofile/")
+        response = self.client.get("/members/test-noprofile/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "张三")
         self.assertContains(response, "暂未填写公开简介")
 
     def test_member_profile_404_nonexistent(self):
-        response = self.client.get("/observer/members/nonexistent-no/")
+        response = self.client.get("/members/nonexistent-no/")
         self.assertEqual(response.status_code, 404)
 
     def test_member_profile_shows_role_assignment_as_governance_identity(self):
@@ -60,7 +60,7 @@ class MemberProfileTests(TestCase):
             end_at=timezone.now() + timezone.timedelta(days=365),
             source_type=RoleAssignment.SourceType.INITIALIZATION,
         )
-        response = self.client.get("/observer/members/test-gov-01/")
+        response = self.client.get("/members/test-gov-01/")
         self.assertContains(response, "治理委员会")
         self.assertContains(response, "Governance Member")
         self.assertContains(response, "governance.view_admin")
@@ -86,7 +86,7 @@ class MemberProfileTests(TestCase):
             payload_json=payload,
             occurred_at=timezone.now(),
         )
-        response = self.client.get("/observer/members/test-recent/")
+        response = self.client.get("/members/test-recent/")
         self.assertContains(response, "成员执行了测试操作")
 
     def test_member_application_timeline_links_voter_profile(self):
@@ -134,8 +134,8 @@ class MemberProfileTests(TestCase):
             generated_by="live_os",
             severity="info",
         )
-        response = self.client.get("/observer/member-applications/app-voter-link/")
-        self.assertContains(response, "/observer/members/voter-01/")
+        response = self.client.get("/member-applications/app-voter-link/")
+        self.assertContains(response, "/members/voter-01/")
         self.assertContains(response, "反对")
         self.assertContains(response, "能力不足")
 
@@ -173,7 +173,7 @@ class MemberProfileTests(TestCase):
         ensure_builtin_credential_templates()
         member = create_member("cred-obs-01", display_name="凭证成员", role_name=ROLE_FORMAL_MEMBER)
         issue_formal_member_number(member)
-        response = self.client.get("/observer/members/cred-obs-01/")
+        response = self.client.get("/members/cred-obs-01/")
         self.assertContains(response, "正式成员编号")
         self.assertContains(response, "#1")
 
@@ -184,7 +184,7 @@ class MemberProfileTests(TestCase):
         ensure_builtin_credential_templates()
         member = create_member("cred-obs-safe", display_name="安全成员", role_name=ROLE_FORMAL_MEMBER)
         issue_formal_member_number(member)
-        response = self.client.get("/observer/members/cred-obs-safe/")
+        response = self.client.get("/members/cred-obs-safe/")
         content = response.content.decode()
         # Must not expose grant PKs (credential-grant-xxx ids)
         self.assertNotIn("credential-grant-", content.lower())

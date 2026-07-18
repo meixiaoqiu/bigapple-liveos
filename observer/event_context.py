@@ -113,7 +113,7 @@ def public_event_row(event: Event) -> dict[str, Any]:
         "simulation_day": event.simulation_day,
         "related_task_id": event.related_task_id,
         "related_dispute_id": event.related_dispute_id,
-        "detail_url": f"/observer/events/{event.event_id}/",
+        "detail_url": f"/events/{event.event_id}/",
     }
 
 
@@ -473,7 +473,7 @@ def public_member_application_rows() -> list[dict[str, Any]]:
             "subtitle": f"报名者 {applicant}，意向 {role}，当前 {status}",
             "status": status,
             "occurred_at": ev.occurred_at,
-            "detail_url": f"/observer/member-applications/{app_id}/",
+            "detail_url": f"/member-applications/{app_id}/",
             "is_member_application": True,
         })
     return rows
@@ -728,7 +728,7 @@ def public_system_event_row(event: SystemEvent) -> dict[str, Any]:
         "actor_label": _actor_label(event),
         "occurred_at": event.occurred_at,
         "event_hash_short": _short_hash(event.event_hash),
-        "detail_url": f"/observer/event-ledger/{event.seq}/",
+        "detail_url": f"/event-ledger/{event.seq}/",
         "detail_name": "observer-event-ledger-detail",
     }
 

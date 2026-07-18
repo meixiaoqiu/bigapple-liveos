@@ -221,7 +221,6 @@ class WorkspacePageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.wsgi_request.world_id, "simulation0001")
         self.assertContains(response, "当前世界：simulation0001")
-        self.assertContains(response, "/observer/")
         self.assertContains(response, "/workspace/tasks/task-0001/submit-labor/")
         self.assertContains(response, "/workspace/tasks/task-0002/claim/")
         self.assertContains(response, "/workspace/disputes/")
@@ -347,7 +346,7 @@ class WorkspacePageTests(TestCase):
         self.assertContains(response, "登录已有账号")
         self.assertContains(response, "/register/")
         self.assertContains(response, "/login/?next=/workspace/")
-        self.assertContains(response, "/observer/")
+        self.assertNotContains(response, "/observer/")
         self.assertContains(response, "申请正式成员")
         # 不应该包含旧的 forbidden 文案
         self.assertNotContains(response, "需要登录并绑定成员身份")

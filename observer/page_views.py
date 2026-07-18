@@ -136,7 +136,7 @@ def observer_event_detail(request: HttpRequest, event_id: str, **_kwargs):
 
     Member-application stage events (submitted / admitted / rejected) are
     not exposed as standalone detail pages; they 404 here.  Use
-    ``/observer/member-applications/<application_id>/`` instead.
+    ``/member-applications/<application_id>/`` instead.
     """
     apply_theme_query_override(request)
     from .event_context import is_member_application_stage_event, public_event_detail

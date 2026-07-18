@@ -238,8 +238,8 @@ http://bigadmin.local/admin/
 观察台页面：
 
 ```text
-http://127.0.0.1:20101/observer/
-http://bigreal.local/observer/
+http://127.0.0.1:20101/
+http://bigreal.local/
 ```
 
 成员工作台页面：
@@ -249,7 +249,7 @@ http://127.0.0.1:20101/workspace/
 http://127.0.0.1:20102/workspace/
 ```
 
-真实世界和仿真世界 runtime 不暴露 `/live-admin/` 或 `/admin/`。底层维护、仿真实验和高影响操作统一进入 control plane 的 `http://127.0.0.1:20100/admin/`；成员日常使用 `/workspace/`，公开观察使用 `/observer/`。`/apply/` 和 `/apply/partner/` 已删除，正式成员报名移至 `/workspace/apply/`，合作方报名后续单独设计。
+真实世界和仿真世界 runtime 不暴露 `/live-admin/` 或 `/admin/`。底层维护、仿真实验和高影响操作统一进入 control plane 的 `http://127.0.0.1:20100/admin/`；成员日常使用 `/workspace/`，公开观察使用公开首页 `/`。`/apply/` 和 `/apply/partner/` 已删除，正式成员报名移至 `/workspace/apply/`，合作方报名后续单独设计。
 
 ### Workspace 成员报名审核模块
 
@@ -286,7 +286,7 @@ GET  /workspace/profile/                    # 成员自助资料维护页
 POST /workspace/profile/update/             # 更新公开姓名/头像 URL
 ```
 
-当前成员（含 pending applicant）可维护公开姓名和头像 URL，展示在 `/observer/members/<member_no>/`。不能编辑角色/权限/治理身份，不提供简介和可见性自助编辑。
+当前成员（含 pending applicant）可维护公开姓名和头像 URL，展示在 `/members/<member_no>/`。不能编辑角色/权限/治理身份，不提供简介和可见性自助编辑。
 
 正式接纳只能通过 proposal vote -> passed -> execute_proposal 完成。未通过/拒绝来自提案投票结果或提案生命周期（过期未达票数），不存在单人点击的“拒绝报名”按钮。未绑定 Member 的 Django staff/superuser 不能绕过治理成员身份要求。
 
@@ -294,10 +294,10 @@ POST /workspace/profile/update/             # 更新公开姓名/头像 URL
 观察台：
 
 ```text
-http://127.0.0.1:20101/observer/
+http://127.0.0.1:20101公开首页 `/`
 ```
 
-`/observer/` 当前是固定 world 的时间线指挥台式总览，使用 Tailwind、daisyUI 和 HTMX 渲染。首页重点展示今日事件时间线、核心指标、风险侧栏、容量评估、高负载岗位和待处理争议。`/observer/events/` 是公开社区事件流，普通观察者的主入口；事件详情展示语义摘要（非数据库字段表）和带现场验证的审计证明。`/observer/event-ledger/` 是底层 SystemEvent 哈希链审计账本，作为隐藏高级审计入口保留，不在普通 observer 导航中展示。观察台导航只指向页面内只读区域或公开只读 API，不提供后台入口。
+`/` 当前是固定 world 的时间线指挥台式总览，使用 Tailwind、daisyUI 和 HTMX 渲染。首页重点展示今日事件时间线、核心指标、风险侧栏、容量评估、高负载岗位和待处理争议。`/events/` 是公开社区事件流，普通观察者的主入口；事件详情展示语义摘要（非数据库字段表）和带现场验证的审计证明。`/event-ledger/` 是底层 SystemEvent 哈希链审计账本，作为隐藏高级审计入口保留，不在普通导航中展示。导航只指向页面内只读区域或公开只读 API，不提供后台入口。
 
 仿真实验后台负责仿真 POST 动作；Observer 只负责观察：
 
@@ -381,9 +381,9 @@ World routing now separates the control database from world databases. The defau
 ```text
 http://127.0.0.1:20100/admin/                  # control / bigadmin.local
 http://127.0.0.1:20101/workspace/              # real world / bigreal.local
-http://127.0.0.1:20101/observer/
+http://127.0.0.1:20101/                              # real world / bigreal.local
 http://127.0.0.1:20102/workspace/              # simulation world / bigsim.local
-http://127.0.0.1:20102/observer/
+http://127.0.0.1:20102/                              # simulation world / bigsim.local
 ```
 
 Legacy world-prefixed paths have been removed. Real and simulation development should use the fixed-world site settings and root paths.

@@ -31,7 +31,7 @@
 ```env
 DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,你的远程开发域名
 DJANGO_CSRF_TRUSTED_ORIGINS=https://你的远程开发域名:20101
-REMOTE_DEV_PUBLIC_URL=https://你的远程开发域名:20101/observer/
+REMOTE_DEV_PUBLIC_URL=https://你的远程开发域名:20101/
 REMOTE_DEV_MYSQL_HOST=mysql
 REMOTE_DEV_MYSQL_PORT=3306
 ```
@@ -58,7 +58,7 @@ REMOTE_DEV_MYSQL_PORT=3306
 本机或 SSH 转发访问：
 
 ```text
-http://127.0.0.1:20101/observer/
+http://127.0.0.1:20101/
 ```
 
 远程公开或 VPN 访问地址通过 `REMOTE_DEV_PUBLIC_URL` 配置。

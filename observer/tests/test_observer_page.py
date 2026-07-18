@@ -28,12 +28,12 @@ from observer.theme import THEME_SESSION_KEY
 
 
 class ObserverPageTests(TestCase):
-    """覆盖面向 Admin 观察台页面的关键指标渲染。"""
+    """覆盖面向公开首页的关键指标渲染。"""
 
-    observer_base = "/observer/"
+    observer_base = ""
 
     def observer_url(self, path: str = "") -> str:
-        return f"{self.observer_base}{path}"
+        return "/" + path
 
     def setUp(self) -> None:
         now = timezone.now()
@@ -224,10 +224,12 @@ class ObserverPageTests(TestCase):
         )
         return snapshot
 
-    def test_world_prefixed_observer_route_is_removed(self) -> None:
-        response = self.client.get("/world/realworld/observer/")
-
-        self.assertEqual(response.status_code, 404)
+    def test_observer_prefix_route_is_removed(self) -> None:
+        """旧 /observer/ 路径应 404，首页已移至 /。"""
+        self.assertEqual(self.client.get("/observer/").status_code, 404)
+        self.assertEqual(self.client.get("/observer/events/").status_code, 404)
+        # / 现在是首页
+        self.assertEqual(self.client.get("/").status_code, 200)
 
     def test_observer_page_renders_core_state(self) -> None:
         response = self.client.get(self.observer_url())
@@ -236,7 +238,7 @@ class ObserverPageTests(TestCase):
         self.assertNotContains(response, "/live-admin/")
         self.assertNotContains(response, "/admin/core/member/")
         self.assertNotContains(response, "/admin/core/ruleset/")
-        self.assertContains(response, "大苹果观察台")
+        self.assertContains(response, "大苹果社区动态")
         self.assertContains(response, "bigapple001据点")
         self.assertContains(response, "活跃成员")
         self.assertContains(response, "当前容量")

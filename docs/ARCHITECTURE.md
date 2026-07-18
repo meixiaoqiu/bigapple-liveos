@@ -64,7 +64,7 @@ MySQL
 当前默认运行入口分为三个站点：
 
 - `bigadmin.local` / `live_os.settings_admin`：control plane。`/admin/` 是技术后台、原始数据和兜底维护入口；`/admin/simulation-lab/` 是仿真实验后台，负责启动、推进、归档和废弃仿真实验。
-- `bigreal.local` / `live_os.settings_real`：真实世界 runtime。固定绑定 `realworld`，使用根路径 `/api/v0.1/`、`/observer/`、`/workspace/`、`/register/`。正式成员报名是 workspace 子功能（`/workspace/apply/`），`/apply/` 和 `/apply/partner/` 已删除。
+- `bigreal.local` / `live_os.settings_real`：真实世界 runtime。固定绑定 `realworld`，使用根路径 `/api/v0.1/`、`/`、`/workspace/`、`/register/`。正式成员报名是 workspace 子功能（`/workspace/apply/`），`/apply/` 和 `/apply/partner/` 已删除。
 - `bigsim.local` / `live_os.settings_sim`：仿真世界 runtime。固定绑定 `simulation0001`，使用与真实世界相同的根路径和同一套页面/服务代码。
 
 The old world-prefixed route family has been removed from runtime URLConfs. Real and simulation worlds are bound by fixed host settings, not by a world id in the URL.
@@ -72,7 +72,7 @@ The old world-prefixed route family has been removed from runtime URLConfs. Real
 固定 world runtime 的业务路由：
 
 - `/api/v0.1/`：contract-facing JSON API。
-- `/observer/`：面向观察者的观察复盘界面，只展示当前固定 world 的运行结果；`/observer/simulations/` 展示公开仿真档案和可读报告。
+- `/`：面向公众的公开首页/社区动态，只展示当前固定 world 的运行结果；`/simulations/` 展示公开仿真档案和可读报告。
 - `/workspace/`：面向当前登录成员的自助工作台页面。
 
 当前代码边界：
@@ -165,7 +165,7 @@ Simulation Engine 不可以：
 - 绕过申诉流程
 - 绕过规则版本
 
-Observer 不再负责仿真控制。仿真实验的启动和推进归属 `bigadmin.local/admin/simulation-lab/`；`bigreal.local/observer/` 和 `bigsim.local/observer/` 只负责观察和复盘各自固定 world，`/observer/simulations/` 负责把已归档仿真快照转成公开可读报告。`simulation` 服务可以读取真实计划和资源作为输入，但写入必须归属于明确的 world 数据库和 simulation run，不能默认修改真实任务、真实库存、真实积分或真实计划。
+Observer 不再负责仿真控制。仿真实验的启动和推进归属 `bigadmin.local/admin/simulation-lab/`；`bigreal.local/` 和 `bigsim.local/` 只负责观察和复盘各自固定 world，`/simulations/` 负责把已归档仿真快照转成公开可读报告。`simulation` 服务可以读取真实计划和资源作为输入，但写入必须归属于明确的 world 数据库和 simulation run，不能默认修改真实任务、真实库存、真实积分或真实计划。
 
 项目执行计划是模拟和真实执行都可引用的计划源头，不能只写在 Markdown 中。Markdown 只说明规则和边界；计划本体必须落库、可编辑、可版本化，并能被观察台和后续模拟运行引用。
 
@@ -202,7 +202,7 @@ Observer 不再负责仿真控制。仿真实验的启动和推进归属 `bigadm
 1. `core` 只承载底层规则、共享模型、权限、统一事件账本、API 合约和领域服务，不承载页面入口。
 2. `bigadmin.local/admin/` 只作为 control plane 技术后台、原始数据查看、兜底维护和只读审计入口，不作为日常业务运营后台。
 3. `bigreal.local/workspace/` 和 `bigsim.local/workspace/` 承载各自固定 world 的成员工作台，并走同一套页面和服务边界。
-4. `bigreal.local/observer/` 和 `bigsim.local/observer/` 只负责观察、复盘和展示各自 world 运行结果，不提供仿真控制写入口。
+4. `bigreal.local/` 和 `bigsim.local/` 只负责观察、复盘和展示各自 world 运行结果，不提供仿真控制写入口。
 5. `simulation` 只承载仿真推演逻辑；仿真写入必须绑定明确的 world 数据库和 simulation run，不能默认改写真世界任务、资源、积分、成员或计划。
 6. `/admin/simulation-lab/` 承载仿真实验启动、配置、运行管理和实验结果管理，负责"怎么跑"，不负责手动干预真实业务过程。
 7. 所有真实世界关键状态变化必须通过对应领域服务模块完成，并追加统一事件账本。

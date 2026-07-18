@@ -6,7 +6,7 @@
 
 ```text
 /workspace/
-/observer/
+/
 /register/
 /api/v0.1/
 ```
@@ -34,11 +34,11 @@ control 后台负责：
 
 ```text
 bigreal.local/workspace/
-bigreal.local/observer/
+bigreal.local/
 bigreal.local/register/
 
 bigsim.local/workspace/
-bigsim.local/observer/
+bigsim.local/
 bigsim.local/register/
 ```
 

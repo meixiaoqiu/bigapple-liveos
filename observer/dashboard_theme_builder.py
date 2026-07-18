@@ -38,7 +38,7 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
     if current_time:
         subtitle = f"{subtitle} · 当前时间 {current_time}"
     context["hero"] = {
-        "title": "大苹果观察台",
+        "title": "大苹果社区动态",
         "subtitle": subtitle,
         "status_label": str(health.get("label") or "待初始化"),
         "status_level": "risk" if "风险" in str(health.get("label", "")) else "watch",
@@ -91,7 +91,7 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
             detail_url = ma_url
             action_label = "查看事项"
         else:
-            detail_url = f"/observer/events/{event_id}/" if event_id else ""
+            detail_url = f"/events/{event_id}/" if event_id else ""
             action_label = "查看详情"
         events.append(
             {
@@ -244,7 +244,7 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
         "points": raw.get("ledger_entries", 0) or 0,
         "badges_count": unlocked_count,
     }
-    context["navigation"][0]["href"] = "/observer/"
+    context["navigation"][0]["href"] = "/"
     context["navigation"][3]["href"] = "/api/v0.1/resources"
     context["navigation"][5]["href"] = "/api/v0.1/observer/summary"
 
