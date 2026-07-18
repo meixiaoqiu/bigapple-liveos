@@ -255,6 +255,8 @@ http://127.0.0.1:20102/workspace/
 
 `/workspace/` 在正式成员工作台之外，为具备 `governance.view_admin` 权限的治理成员提供成员报名审核入口。普通正式成员、待审核报名人、未绑定 `Member` 的 Django staff/superuser 都看不到入口，直接访问审核 URL 返回 403。
 
+**未登录入口**：未登录用户 GET `/workspace/` 不再返回 403，而是渲染 `workspace/login_required.html` 入口门禁页（200），展示注册、登录和观察台入口。登录后才进入个人 workspace。不改变已登录成员的权限判断逻辑。
+
 **注册与报名分离**：`/register/` 只创建 `User` + `Member` + `ROLE_BIG_APPLE_MEMBER`，不写公开 Event。`/workspace/apply/` 是登录后的正式成员报名入口，报名表不再包含账号密码字段。
 
 **完整 workspace 判断**：`member_has_full_workspace_access()` 当前基于 active `ROLE_FORMAL_MEMBER` 角色判断（`SUSPENDED` / `EXITED` 作为 veto），不再基于 `Member.status`。`/workspace/apply/` 的"已是正式成员"判断同理。不要用 `Member.status` 判断正式成员权限。

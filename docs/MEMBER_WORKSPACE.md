@@ -8,6 +8,8 @@
 /workspace/
 ```
 
+未登录用户访问 `/workspace/` 时，展示 **workspace 入口门禁页**（`templates/workspace/login_required.html`），引导注册、登录或先去观察台，不直接返回 403。登录后才进入个人 workspace。
+
 本地开发常用入口：
 
 ```text

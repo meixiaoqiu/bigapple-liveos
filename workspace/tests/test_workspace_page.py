@@ -337,6 +337,21 @@ class WorkspacePageTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    def test_workspace_unauthenticated_shows_entry_page(self) -> None:
+        """未登录访问 /workspace/ 展示入口门禁页，200，不 403。"""
+        self.client.logout()
+        response = self.client.get("/workspace/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "社区工作台")
+        self.assertContains(response, "注册账号")
+        self.assertContains(response, "登录已有账号")
+        self.assertContains(response, "/register/")
+        self.assertContains(response, "/login/?next=/workspace/")
+        self.assertContains(response, "/observer/")
+        self.assertContains(response, "申请正式成员")
+        # 不应该包含旧的 forbidden 文案
+        self.assertNotContains(response, "需要登录并绑定成员身份")
+
     def test_staff_without_member_binding_cannot_open_workspace(self) -> None:
         staff_user = get_user_model().objects.create_user(username="staff-user", password="test-password")
         staff_user.is_staff = True

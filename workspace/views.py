@@ -108,6 +108,13 @@ def _member_is_formal_member(member: Member | None) -> bool:
 
 @require_GET
 def workspace_page(request: HttpRequest):
+    # Unauthenticated visitors see the workspace entry gate instead of 403.
+    if not is_authenticated(request):
+        return render(request, "workspace/login_required.html", {
+            "register_url": "/register/",
+            "login_url": "/login/?next=/workspace/",
+            "observer_url": "/observer/",
+        })
     member = current_member_or_forbidden(request)
     if isinstance(member, HttpResponseForbidden):
         return member

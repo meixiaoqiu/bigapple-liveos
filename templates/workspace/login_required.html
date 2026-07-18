@@ -1,0 +1,62 @@
+{% load tailwind_tags %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="bumblebee">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>社区工作台</title>
+  {% tailwind_css %}
+</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+  <div class="navbar bg-base-100 shadow-sm">
+    <div class="navbar-start">
+      <span class="text-lg font-bold px-2">社区工作台</span>
+    </div>
+    <div class="navbar-end gap-2">
+      <a class="btn btn-ghost btn-sm" href="{{ observer_url }}">观察台</a>
+      <a class="btn btn-outline btn-sm" href="{{ login_url }}">登录</a>
+    </div>
+  </div>
+
+  <main class="mx-auto grid w-full max-w-2xl gap-6 p-4 lg:p-8 mt-12">
+    <div class="card bg-base-100 shadow">
+      <div class="card-body gap-6 items-center text-center">
+        <h1 class="text-2xl font-bold tracking-normal">社区工作台</h1>
+        <p class="text-base text-base-content/70 leading-relaxed max-w-lg">
+          注册后即可获得基础参与者身份，进入自己的 workspace。
+          正式成员申请、公开资料维护和后续社区协作都在这里进行。
+        </p>
+        <div class="flex flex-wrap justify-center gap-3">
+          <a class="btn btn-primary" href="{{ register_url }}">注册账号</a>
+          <a class="btn btn-outline" href="{{ login_url }}">登录已有账号</a>
+        </div>
+        <a class="text-sm text-base-content/60 hover:underline" href="{{ observer_url }}">先看公开观察页</a>
+      </div>
+    </div>
+
+    <ul class="steps steps-horizontal w-full">
+      <li class="step step-primary">注册账号</li>
+      <li class="step">进入 workspace</li>
+      <li class="step">申请正式成员</li>
+    </ul>
+
+    <div class="alert alert-info text-sm">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+      <div>
+        <p><strong>注册不是报名。</strong> 注册后你立即获得基础参与者身份，可进入个人 workspace 并维护公开资料。</p>
+        <p class="mt-1">正式成员报名是登录后 workspace 内的子功能，需要提交申请并通过社区投票。</p>
+      </div>
+    </div>
+
+    <div class="card bg-base-100 shadow">
+      <div class="card-body">
+        <h2 class="card-title text-base">已有账号？</h2>
+        <p class="text-sm text-base-content/60">登录后直接进入你的个人 workspace，查看任务、积分和公开资料。</p>
+        <div class="card-actions mt-2">
+          <a class="btn btn-outline btn-sm" href="{{ login_url }}">登录已有账号</a>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
