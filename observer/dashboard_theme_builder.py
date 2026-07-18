@@ -248,7 +248,7 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
     context["navigation"][3]["href"] = "/api/v0.1/resources"
     context["navigation"][5]["href"] = "/api/v0.1/observer/summary"
 
-    # ── top-nav (auth-aware) ──────────────────────────────────────────
+    # Auth-aware top navigation.
     from live_os.access import is_authenticated, member_for_request
 
     top_nav: list[dict[str, Any]] = []
@@ -259,7 +259,7 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
         if member is not None:
             top_nav.append({"label": "我的主页", "url": f"/u/{member.member_no}/"})
         top_nav.append({"label": "Workspace", "url": "/workspace/"})
-        top_nav.append({"label": "退出", "url": "/logout/"})
+        top_nav.append({"label": "退出", "url": "/logout/", "method": "post"})
     else:
         top_nav.append({"label": "首页", "url": "/"})
         top_nav.append({"label": "事件流", "url": "/events/"})

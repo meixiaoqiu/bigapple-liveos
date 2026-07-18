@@ -20,7 +20,13 @@
 /u/<member_no>/
 ```
 
-展示公开姓名、头像、简介、治理身份（从 RoleAssignment/RolePermission 动态计算，非自填）、公开凭证列表（正式成员编号、勋章等）和最近公开治理动作。成员本人在 workspace `/workspace/profile/` 维护公开姓名和头像 URL。成员报名时间线中的投票人名称链接到该主页。凭证由 `credentials_for_member()` 获取，只展示业务字段（`template_name`、`display_no`、`source_type`、`issued_at`），不暴露内部 pk 或 User id。
+页面结构包含 4 个区域：
+- **身份头部**：头像、公开姓名、`@member_no`、身份 badge（注册参与者 / 正式成员 / 治理成员）、正式成员编号 Credential（如 `正式成员 #1`）。不展示 bio 或 is_visible 字段
+- **公开凭证区**：`credentials_for_member()` 获取，只展示业务字段（`template_name`、`display_no`、`title`、`source_type`、`issued_at`），正式成员编号置顶，不暴露内部 pk
+- **治理身份区**：从 active RoleAssignment 动态计算，权限显示为中文语义（如"参与治理投票"），不是裸 permission code。RoleAssignment → RolePermission 是唯一权限来源
+- **公开治理记录**：最近 20 条 SystemEvent（投票、提案、执行、凭证发放等），展示时间、标题、摘要、投票选择/理由、hash 短值和链校验状态。治理成员姓名公开，不脱敏
+
+成员本人在 workspace `/workspace/profile/` 维护公开姓名和头像 URL。成员报名时间线中的投票人名称链接到该主页。
 
 隐藏高级审计入口（不在普通导航中展示）：
 

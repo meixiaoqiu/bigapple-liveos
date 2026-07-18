@@ -27,7 +27,14 @@
             </select>
           </form>
           {% for item in dashboard.top_nav %}
-            <a class="btn btn-sm btn-ghost" href="{{ item.url }}">{{ item.label }}</a>
+            {% if item.method == "post" %}
+              <form method="post" action="{{ item.url }}" class="inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-ghost">{{ item.label }}</button>
+              </form>
+            {% else %}
+              <a class="btn btn-sm btn-ghost" href="{{ item.url }}">{{ item.label }}</a>
+            {% endif %}
           {% endfor %}
           <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-simulation-reports' %}">仿真档案馆</a>
           <a class="btn btn-sm btn-ghost" href="{% world_url 'world-observer-summary' %}">数据日志</a>

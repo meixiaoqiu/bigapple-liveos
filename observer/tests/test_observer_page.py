@@ -446,7 +446,8 @@ class ObserverPageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "/u/nav-member-01/")
         self.assertContains(response, "/workspace/")
-        self.assertContains(response, "/logout/")
+        self.assertContains(response, 'method="post" action="/logout/"', html=False)
+        self.assertNotContains(response, 'href="/logout/"')
         self.assertNotContains(response, "/register/")
         self.assertNotContains(response, "/login/")
 
@@ -459,6 +460,7 @@ class ObserverPageTests(TestCase):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "/workspace/")
-        self.assertContains(response, "/logout/")
+        self.assertContains(response, 'method="post" action="/logout/"', html=False)
+        self.assertNotContains(response, 'href="/logout/"')
         self.assertNotContains(response, "/u/")
 

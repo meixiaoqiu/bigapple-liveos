@@ -1,15 +1,15 @@
 {% extends "themes/default_game/base.html" %}
 {% load world_urls %}
 
-{% block title %}成员公开资料 — {{ identity.public_name }}{% endblock %}
+{% block title %}{{ identity.public_name }} — 公开主页{% endblock %}
 
 {% block body %}
 <div class="min-h-screen">
   <div class="navbar bg-base-100 shadow-sm">
     <div class="navbar-start">
       <div class="px-2">
-        <h1 class="text-xl font-bold tracking-normal">成员公开资料</h1>
-        <p class="text-sm text-base-content/70">{{ identity.member_no }}</p>
+        <h1 class="text-xl font-bold tracking-normal">公开主页</h1>
+        <p class="text-sm text-base-content/70">@{{ identity.member_no }}</p>
       </div>
     </div>
     <div class="navbar-end gap-2">
@@ -20,6 +20,7 @@
 
   <main class="mx-auto grid w-full max-w-4xl gap-6 p-4 lg:p-6">
 
+    {# A. Identity header #}
     <article class="card bg-base-100 shadow">
       <div class="card-body gap-4 items-center text-center sm:flex-row sm:text-left">
         {% if identity.avatar_url %}
@@ -27,14 +28,59 @@
         {% else %}
           <div class="avatar placeholder"><div class="w-20 rounded-full bg-neutral text-neutral-content"><span class="text-2xl">{{ identity.initials }}</span></div></div>
         {% endif %}
-        <div>
+        <div class="flex-1">
           <h2 class="text-xl font-bold">{{ identity.public_name }}</h2>
-          <p class="text-sm text-base-content/60">{{ identity.member_no }}</p>
-          {% if identity.bio %}<p class="mt-2 text-sm text-base-content/80">{{ identity.bio }}</p>{% else %}<p class="mt-2 text-sm text-base-content/50 italic">暂未填写公开简介</p>{% endif %}
+          <p class="text-sm text-base-content/60 font-mono">@{{ identity.member_no }}</p>
+
+          <div class="flex flex-wrap gap-2 mt-2 justify-center sm:justify-start">
+            {% for badge in badges %}
+              <span class="badge {{ badge.style }}">{{ badge.label }}</span>
+            {% endfor %}
+          </div>
+
+          {% for cred in credentials %}
+            {% if cred.template_code == "formal_member_number" %}
+              <div class="mt-3">
+                <span class="badge badge-primary badge-lg text-base py-4 px-4">正式成员 {{ cred.display_no }}</span>
+              </div>
+            {% endif %}
+          {% endfor %}
+
+          <p class="text-xs text-base-content/50 mt-3">身份和凭证来自系统记录，不是用户自填。</p>
         </div>
       </div>
     </article>
 
+    {# B. Public credentials #}
+    <section class="card bg-base-100 shadow">
+      <div class="card-body">
+        <h2 class="card-title">公开凭证</h2>
+        {% if credentials %}
+          <div class="grid gap-3 mt-2">
+            {% for cred in credentials %}
+              <div class="rounded-lg border border-base-300 p-3 {% if cred.template_code == 'formal_member_number' %}border-primary/30 bg-primary/5{% endif %}">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="font-semibold text-sm">{{ cred.template_name }}</span>
+                  {% if cred.display_no %}
+                    <span class="badge {% if cred.template_code == 'formal_member_number' %}badge-primary{% else %}badge-outline{% endif %}">{{ cred.display_no }}</span>
+                  {% endif %}
+                  <span class="badge badge-ghost badge-xs">{{ cred.source_type }}</span>
+                </div>
+                {% if cred.title and cred.title != cred.template_name %}
+                  <p class="text-xs text-base-content/70 mt-1">{{ cred.title }}</p>
+                {% endif %}
+                <p class="text-xs text-base-content/50 mt-1">发放 {{ cred.issued_at|date:"Y-m-d" }}</p>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-sm text-base-content/50 mt-2">暂无公开凭证。</p>
+        {% endif %}
+        <p class="text-xs text-base-content/50 mt-3">Credential 是公开事实/荣誉/资格证明，不是权限来源。</p>
+      </div>
+    </section>
+
+    {# C. Governance identity #}
     <section class="card bg-base-100 shadow">
       <div class="card-body">
         <h2 class="card-title">治理身份</h2>
@@ -47,10 +93,10 @@
                   <span class="badge badge-outline">{{ gr.role_name }}</span>
                   <span class="badge badge-ghost badge-xs">{{ gr.source_type }}</span>
                 </div>
-                {% if gr.governance_permissions %}
+                {% if gr.permission_labels %}
                   <div class="flex flex-wrap gap-1 mt-1">
-                    {% for perm in gr.governance_permissions %}
-                      <span class="badge badge-info badge-outline badge-xs" title="{{ perm.name }}">{{ perm.code }}</span>
+                    {% for label in gr.permission_labels %}
+                      <span class="badge badge-info badge-outline badge-xs">{{ label }}</span>
                     {% endfor %}
                   </div>
                 {% endif %}
@@ -58,61 +104,63 @@
               </div>
             {% endfor %}
           </div>
-          <p class="text-xs text-base-content/50 mt-3">以上身份来自系统角色任命，非用户自填。</p>
         {% else %}
           <p class="text-sm text-base-content/50 mt-2">当前没有公开治理角色。</p>
         {% endif %}
+        <p class="text-xs text-base-content/50 mt-3">治理身份来自角色任命（RoleAssignment），非用户自填。运行时权限通过 RoleAssignment → RolePermission 判断。</p>
       </div>
     </section>
 
-    <section class="card bg-base-100 shadow">
-      <div class="card-body">
-        <h2 class="card-title">公开凭证</h2>
-        {% if credentials %}
-          <div class="grid gap-3 mt-2">
-            {% for cred in credentials %}
-              <div class="rounded-lg border border-base-300 p-3">
-                <div class="flex flex-wrap items-center gap-2">
-                  <span class="font-semibold text-sm">{{ cred.template_name }}</span>
-                  {% if cred.display_no %}
-                    <span class="badge badge-primary">{{ cred.display_no }}</span>
-                  {% endif %}
-                  <span class="badge badge-ghost badge-xs">{{ cred.source_type }}</span>
-                </div>
-                <p class="text-xs text-base-content/50 mt-1">发放时间 {{ cred.issued_at|date:"Y-m-d" }}</p>
-              </div>
-            {% endfor %}
-          </div>
-          <p class="text-xs text-base-content/50 mt-3">Credential 是公开事实/荣誉/资格证明，不是权限来源。</p>
-        {% else %}
-          <p class="text-sm text-base-content/50 mt-2">暂无公开凭证。</p>
-        {% endif %}
-      </div>
-    </section>
-
+    {# D. Recent governance activity #}
     <section class="card bg-base-100 shadow">
       <div class="card-body">
         <h2 class="card-title">最近公开治理动作</h2>
         {% if recent_actions %}
-          <div class="overflow-x-auto mt-2">
-            <table class="table table-sm">
-              <thead><tr><th>序号</th><th>时间</th><th>事件</th><th>哈希</th><th>校验</th></tr></thead>
-              <tbody>
-                {% for ra in recent_actions %}
-                  <tr>
-                    <td class="font-mono text-xs">#{{ ra.seq }}</td>
-                    <td class="text-xs whitespace-nowrap">{{ ra.occurred_at|date:"m-d H:i" }}</td>
-                    <td class="text-xs">{{ ra.summary }}</td>
-                    <td class="font-mono text-xs text-base-content/50">{{ ra.event_hash_short }}</td>
-                    <td>{% if ra.chain_valid %}<span class="badge badge-success badge-xs">通过</span>{% else %}<span class="badge badge-error badge-xs">未通过</span>{% endif %}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
+          <ul class="timeline timeline-vertical mt-3">
+            {% for ra in recent_actions %}
+              <li>
+                <hr {% if forloop.last %}class="hidden"{% endif %}>
+                <div class="timeline-start timeline-box text-xs text-base-content/60">
+                  {{ ra.occurred_at|date:"m-d H:i" }}
+                </div>
+                <div class="timeline-middle">
+                  {% if ra.chain_valid %}
+                    <span class="text-success">&#x2713;</span>
+                  {% else %}
+                    <span class="text-error">&#x2717;</span>
+                  {% endif %}
+                </div>
+                <div class="timeline-end timeline-box p-3">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="font-semibold text-sm">{{ ra.title }}</span>
+                    {% if ra.vote_choice %}
+                      <span class="badge badge-sm {% if ra.vote_choice == '赞成' %}badge-success{% elif ra.vote_choice == '反对' %}badge-error{% else %}badge-ghost{% endif %}">{{ ra.vote_choice }}</span>
+                    {% endif %}
+                    {% if ra.credential_label %}
+                      <span class="badge badge-sm badge-primary">{{ ra.credential_label }}</span>
+                    {% endif %}
+                    {% if ra.role_name %}
+                      <span class="badge badge-sm badge-outline">{{ ra.role_name }}</span>
+                    {% endif %}
+                    {% if ra.chain_valid %}
+                      <span class="badge badge-success badge-xs">已校验</span>
+                    {% else %}
+                      <span class="badge badge-error badge-xs">未校验</span>
+                    {% endif %}
+                  </div>
+                  <p class="text-xs text-base-content/70 mt-1">{{ ra.summary }}</p>
+                  {% if ra.vote_reason %}
+                    <p class="text-xs text-base-content/50 mt-1">理由：{{ ra.vote_reason }}</p>
+                  {% endif %}
+                  <p class="font-mono text-xs text-base-content/40 mt-1">#{{ ra.seq }} · {{ ra.event_hash_short }}</p>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
         {% else %}
           <p class="text-sm text-base-content/50 mt-2">暂无公开治理动作记录。</p>
         {% endif %}
+        <p class="text-xs text-base-content/50 mt-3">以上记录含本人执行的公开治理动作及授予给本人的角色/凭证公开事实。治理成员姓名公开，不脱敏。</p>
       </div>
     </section>
 
