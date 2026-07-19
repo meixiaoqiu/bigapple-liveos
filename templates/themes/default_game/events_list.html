@@ -5,17 +5,7 @@
 
 {% block body %}
 <div class="min-h-screen">
-  <div class="navbar bg-base-100 shadow-sm">
-    <div class="navbar-start">
-      <div class="px-2">
-        <h1 class="text-xl font-bold tracking-normal">公共事件流</h1>
-        <p class="text-sm text-base-content/70">按时间展示社区正在发生的公开事件</p>
-      </div>
-    </div>
-    <div class="navbar-end gap-2">
-      <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-page' %}">首页</a>
-    </div>
-  </div>
+  {% include "partials/runtime_header.html" %}
 
   <main class="mx-auto grid max-w-3xl gap-4 p-4 lg:p-6">
     {% for event in events %}

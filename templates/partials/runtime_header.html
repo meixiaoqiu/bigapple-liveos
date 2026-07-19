@@ -1,0 +1,27 @@
+{% load world_urls %}
+<div class="navbar bg-base-100 shadow-sm">
+  <div class="navbar-start">
+    <a class="btn btn-ghost text-lg font-bold px-2" href="{{ runtime_nav.home_url }}">{{ runtime_nav.brand_label }}</a>
+    <form action="{% world_url 'switch-theme' %}" method="post" class="ml-2">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <select class="select select-bordered select-sm" name="theme" aria-label="切换主题" onchange="this.form.submit()">
+        {% for theme in available_themes %}
+          <option value="{{ theme.key }}" {% if theme.key == active_theme %}selected{% endif %}>{{ theme.name }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+  <div class="navbar-end gap-2">
+    {% for item in runtime_nav.items %}
+      {% if item.method == "post" %}
+        <form method="post" action="{{ item.url }}" class="inline">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm btn-ghost">{{ item.label }}</button>
+        </form>
+      {% else %}
+        <a class="btn btn-sm btn-ghost" href="{{ item.url }}">{{ item.label }}</a>
+      {% endif %}
+    {% endfor %}
+  </div>
+</div>

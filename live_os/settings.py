@@ -149,6 +149,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "observer.context_processors.theme_context",
+                "live_os.context_processors.runtime_nav",
             ],
         },
     },

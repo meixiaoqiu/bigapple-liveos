@@ -6,40 +6,7 @@
 {% block body %}
   {% with dashboard=dashboard_context %}
     <div class="min-h-screen">
-      <div class="navbar bg-base-100 shadow-sm">
-        <div class="navbar-start">
-          <div class="px-2">
-            <h1 class="text-xl font-bold tracking-normal">{{ dashboard.hero.title }}</h1>
-            <p class="text-sm text-base-content/70">{{ dashboard.hero.subtitle }}</p>
-          </div>
-        </div>
-        <div class="navbar-end gap-2">
-          <span class="badge {% if dashboard.hero.status_level == 'risk' %}badge-error{% elif dashboard.hero.status_level == 'watch' %}badge-warning{% else %}badge-success{% endif %}">
-            {{ dashboard.hero.status_label }}
-          </span>
-          <form action="{% world_url 'switch-theme' %}" method="post">
-            {% csrf_token %}
-            <input type="hidden" name="next" value="{{ request.get_full_path }}">
-            <select class="select select-bordered select-sm" name="theme" aria-label="切换主题" onchange="this.form.submit()">
-              {% for theme in available_themes %}
-                <option value="{{ theme.key }}" {% if theme.key == active_theme %}selected{% endif %}>{{ theme.name }}</option>
-              {% endfor %}
-            </select>
-          </form>
-          {% for item in dashboard.top_nav %}
-            {% if item.method == "post" %}
-              <form method="post" action="{{ item.url }}" class="inline">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-sm btn-ghost">{{ item.label }}</button>
-              </form>
-            {% else %}
-              <a class="btn btn-sm btn-ghost" href="{{ item.url }}">{{ item.label }}</a>
-            {% endif %}
-          {% endfor %}
-          <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-simulation-reports' %}">仿真档案馆</a>
-          <a class="btn btn-sm btn-ghost" href="{% world_url 'world-observer-summary' %}">数据日志</a>
-        </div>
-      </div>
+      {% include "partials/runtime_header.html" %}
 
       {% if messages %}
         <section class="mx-auto grid max-w-7xl gap-2 p-4" aria-label="系统消息">
@@ -52,6 +19,22 @@
       {% endif %}
 
       <main class="mx-auto grid max-w-7xl gap-6 p-4 lg:p-6">
+        <section class="card bg-base-100 shadow-sm">
+          <div class="card-body flex-row flex-wrap items-center justify-between gap-4">
+            <div>
+              <h1 class="text-xl font-bold tracking-normal">{{ dashboard.hero.title }}</h1>
+              <p class="mt-1 text-sm text-base-content/70">{{ dashboard.hero.subtitle }}</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="badge {% if dashboard.hero.status_level == 'risk' %}badge-error{% elif dashboard.hero.status_level == 'watch' %}badge-warning{% else %}badge-success{% endif %}">
+                {{ dashboard.hero.status_label }}
+              </span>
+              <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-simulation-reports' %}">仿真档案馆</a>
+              <a class="btn btn-sm btn-ghost" href="{% world_url 'world-observer-summary' %}">数据日志</a>
+            </div>
+          </div>
+        </section>
+
         <section class="stats stats-vertical bg-base-100 shadow md:stats-horizontal" aria-label="核心指标">
           {% for stat in dashboard.stats %}
             <div class="stat">

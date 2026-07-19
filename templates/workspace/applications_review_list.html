@@ -8,6 +8,7 @@
   {% tailwind_css %}
 </head>
 <body class="min-h-screen bg-base-200 text-base-content">
+  {% include "partials/runtime_header.html" %}
   <main class="mx-auto grid w-full max-w-7xl gap-6 p-4 lg:p-8">
     <header class="card bg-primary text-primary-content shadow-xl">
       <div class="card-body gap-4">
@@ -24,11 +25,6 @@
           </div>
           <nav class="flex flex-wrap justify-end gap-2" aria-label="报名审核导航">
             <a class="btn btn-sm" href="{% world_url 'workspace-page' %}">返回工作台</a>
-            <a class="btn btn-sm" href="{% world_url 'observer-page' %}">首页</a>
-            <form method="post" action="{% world_url 'world-logout' %}">
-              {% csrf_token %}
-              <button class="btn btn-sm btn-outline border-primary-content text-primary-content hover:border-base-100 hover:bg-base-100 hover:text-primary" type="submit">退出</button>
-            </form>
           </nav>
         </div>
       </div>
