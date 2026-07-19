@@ -410,3 +410,78 @@ def workspace_proposal_execute(request: HttpRequest, proposal_id: str):
 
 # Removed _redirect_to_proposal_application (no longer needed — the only valid
 # return from this module is the application detail page).
+
+
+# --- Recruitment-direction maintenance -----------------------------------------
+# Governance-only surface that lets governance members update the recruitment
+# metadata (show_on_application, public_label, required_count, etc.) stored in
+# CredentialTemplate.metadata["recruitment"].  No CredentialGrant issuance,
+# no CredentialTemplate CRUD, no new database tables.
+
+
+@require_http_methods(["GET", "POST"])
+def workspace_recruitment(request: HttpRequest):
+    member = current_governance_member_or_forbidden(request)
+    if isinstance(member, HttpResponse):
+        return member
+
+    from core.credential_services import (
+        create_recruitment_template,
+        recruitment_templates_for_management,
+        update_recruitment_template_config,
+    )
+
+    if request.method == "POST":
+        action = str(request.POST.get("action", "update")).strip()
+        template_code = str(request.POST.get("template_code", "")).strip()
+        public_label = str(request.POST.get("public_label", "")).strip()
+        public_description = str(request.POST.get("public_description", "")).strip()
+        required_count_raw = request.POST.get("required_count", "0")
+        sort_order_raw = request.POST.get("sort_order", "100")
+
+        if action == "create":
+            code = str(request.POST.get("code", "")).strip()
+            try:
+                create_recruitment_template(
+                    actor_member=member,
+                    code=code,
+                    public_label=public_label,
+                    public_description=public_description,
+                    required_count=required_count_raw,
+                    sort_order=sort_order_raw,
+                )
+                messages.success(request, f"招募方向 {code} 已创建。")
+            except DomainError as exc:
+                messages.error(request, f"创建失败：{exc}")
+            return world_redirect(request, "workspace-recruitment")
+
+        elif action == "update":
+            show_on_application = request.POST.get("show_on_application") == "on"
+            try:
+                update_recruitment_template_config(
+                    actor_member=member,
+                    template_code=template_code,
+                    show_on_application=show_on_application,
+                    public_label=public_label,
+                    public_description=public_description,
+                    required_count=required_count_raw,
+                    sort_order=sort_order_raw,
+                )
+                messages.success(request, f"招募方向 {template_code} 已更新。")
+            except DomainError as exc:
+                messages.error(request, f"更新失败：{exc}")
+            return world_redirect(request, "workspace-recruitment")
+
+        else:
+            messages.error(request, "未知的招募方向操作。")
+            return world_redirect(request, "workspace-recruitment")
+
+    templates = recruitment_templates_for_management()
+    return render(
+        request,
+        "workspace/recruitment.html",
+        {
+            "member": member,
+            "templates": templates,
+        },
+    )

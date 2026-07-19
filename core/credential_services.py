@@ -7,6 +7,7 @@ They are NOT a permission source — runtime authorisation MUST go through
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from django.db import IntegrityError
@@ -444,3 +445,244 @@ def credentials_for_member(member: Member) -> list[dict[str, Any]]:
         }
         for g in grants
     ]
+
+
+# Recruitment management -------------------------------------------------
+
+_RECRUITMENT_CODE_RE = re.compile(r"^[a-z][a-z0-9_]{2,63}$")
+
+
+def normalize_recruitment_template_code(raw: str) -> str:
+    """Normalise a user-supplied recruitment template code.
+
+    Rules:
+      - strip whitespace
+      - lowercase
+      - whitespace / hyphens → ``_``
+      - only ``a-z``, ``0-9``, ``_`` allowed
+      - multiple consecutive ``_`` collapsed to single
+      - leading / trailing ``_`` removed
+      - must start with a letter
+      - length 3-64
+
+    Raises ``DomainError`` when the input cannot be normalised into a valid
+    code, including raw Chinese characters.
+    """
+    if not isinstance(raw, str):
+        raise DomainError("编码必须是非空字符串。")
+    s = raw.strip().lower()
+    if not s:
+        raise DomainError("编码不能为空。")
+    # Reject any character outside [a-z0-9 _-] – this catches Chinese, emoji etc.
+    if not re.fullmatch(r"[a-z0-9 _\-]+", s):
+        raise DomainError(
+            "编码只能使用小写英文字母、数字和下划线，且必须以字母开头。"
+        )
+    s = re.sub(r"[\s\-]+", "_", s)
+    s = re.sub(r"_+", "_", s)
+    s = s.strip("_")
+    if not _RECRUITMENT_CODE_RE.match(s):
+        raise DomainError(
+            "编码必须以小写英文字母开头，长度 3 到 64 个字符，且只能包含字母、数字和下划线。"
+        )
+    return s
+
+
+def create_recruitment_template(
+    *,
+    actor_member: Member,
+    code: str,
+    public_label: str,
+    public_description: str = "",
+    required_count: int | str = 0,
+    sort_order: int | str = 100,
+) -> CredentialTemplate:
+    """Create a restricted recruitment-direction ``CredentialTemplate``.
+
+    Only governance principals may call this.  The new template is always
+    ``certificate`` / ``public`` / ``active``.  No ``CredentialGrant`` is
+    issued and no event is written.
+
+    Raises ``DomainError`` when:
+    - *actor_member* is not a governance principal.
+    - *code* is invalid or normalises to ``formal_member_number``.
+    - *code* already exists.
+    - *public_label* is empty or exceeds 255 characters.
+    - *public_description* exceeds 500 characters.
+    - *required_count* or *sort_order* is not a valid integer.
+    """
+    from core.access import is_governance_principal
+
+    if not is_governance_principal(actor_member):
+        raise DomainError("只有治理成员可以新增招募方向。")
+
+    norm_code = normalize_recruitment_template_code(code)
+    if norm_code == "formal_member_number":
+        raise DomainError("正式成员编号不能作为招募方向编码。")
+
+    if CredentialTemplate.objects.filter(code=norm_code).exists():
+        raise DomainError("招募方向编码已存在。")
+
+    public_label = str(public_label or "").strip()
+    if not public_label:
+        raise DomainError("公开名称不能为空。")
+    if len(public_label) > 255:
+        raise DomainError("公开名称不能超过 255 个字符。")
+
+    public_description = str(public_description or "").strip()
+    if len(public_description) > 500:
+        raise DomainError("公开说明不能超过 500 个字符。")
+
+    try:
+        required_count = int(required_count)
+    except (TypeError, ValueError):
+        raise DomainError("需要人数必须是整数。")
+    if required_count < 0:
+        raise DomainError("需要人数不能为负数。")
+
+    try:
+        sort_order = int(sort_order)
+    except (TypeError, ValueError):
+        raise DomainError("排序必须是整数。")
+
+    from uuid import uuid4
+
+    template_id = f"credential-template-{norm_code}"
+    # If template_id is taken (unlikely but defensive), append a suffix.
+    if CredentialTemplate.objects.filter(template_id=template_id).exists():
+        template_id = f"credential-template-{norm_code}-{uuid4().hex[:6]}"
+
+    template = CredentialTemplate.objects.create(
+        template_id=template_id,
+        code=norm_code,
+        name=public_label,
+        description=public_description,
+        credential_type=CredentialTemplate.CredentialType.CERTIFICATE,
+        status=CredentialTemplate.Status.ACTIVE,
+        visibility=CredentialTemplate.Visibility.PUBLIC,
+        display_order=sort_order,
+        metadata={
+            "recruitment": {
+                "show_on_application": True,
+                "public_label": public_label,
+                "public_description": public_description,
+                "required_count": required_count,
+                "sort_order": sort_order,
+            },
+        },
+    )
+    return template
+
+
+def recruitment_templates_for_management() -> list[dict[str, Any]]:
+    """Return all recruitment-direction templates with gap info for management.
+
+    Ensures built-in templates exist, then returns every active
+    ``CredentialTemplate`` except ``formal_member_number``, each annotated
+    with its current recruitment metadata and gap counts.  Sorted by
+    ``sort_order``, ``display_order``, ``code``.
+    """
+    ensure_builtin_credential_templates()
+    templates = CredentialTemplate.objects.filter(
+        status=CredentialTemplate.Status.ACTIVE,
+    ).exclude(code="formal_member_number")
+
+    rows: list[dict[str, Any]] = []
+    for t in templates:
+        gap = credential_recruitment_gap(t)
+        meta = _recruitment_meta(t)
+        rows.append({
+            "code": t.code,
+            "name": t.name,
+            "credential_type": t.credential_type,
+            "show_on_application": bool(meta.get("show_on_application")),
+            "public_label": gap["public_label"],
+            "public_description": gap["public_description"],
+            "required_count": gap["required_count"],
+            "current_count": gap["current_count"],
+            "missing_count": gap["missing_count"],
+            "sort_order": gap["sort_order"],
+            "display_order": gap["display_order"],
+            "is_open": gap["is_open"],
+        })
+
+    rows.sort(key=lambda r: (r["sort_order"], r.get("display_order", 100), r["code"]))
+    return rows
+
+
+def update_recruitment_template_config(
+    *,
+    actor_member: Member,
+    template_code: str,
+    show_on_application: bool = True,
+    public_label: str = "",
+    public_description: str = "",
+    required_count: int | str = 0,
+    sort_order: int | str = 100,
+) -> dict[str, Any]:
+    """Update the recruitment config of a credential template.
+
+    Only governance principals may call this.  Updates are written into
+    ``CredentialTemplate.metadata["recruitment"]`` — no new tables, no new
+    migrations, no ``CredentialGrant`` issuance.
+
+    Raises ``DomainError`` when:
+    - *actor_member* is not a governance principal.
+    - *template_code* is ``formal_member_number``.
+    - *template_code* cannot be found.
+    - *required_count* or *sort_order* is not a valid integer.
+
+    Returns the full recruitment gap dict after the update so callers can
+    re-render with fresh data.
+    """
+    from core.access import is_governance_principal
+
+    if not is_governance_principal(actor_member):
+        raise DomainError("只有治理成员可以维护招募方向配置。")
+
+    if template_code == "formal_member_number":
+        raise DomainError("正式成员编号不是招募方向，不能修改。")
+
+    try:
+        required_count = int(required_count)
+    except (TypeError, ValueError):
+        raise DomainError("需要人数必须是整数。")
+    if required_count < 0:
+        raise DomainError("需要人数不能为负数。")
+
+    try:
+        sort_order = int(sort_order)
+    except (TypeError, ValueError):
+        raise DomainError("排序必须是整数。")
+
+    template = CredentialTemplate.objects.filter(
+        code=template_code, status=CredentialTemplate.Status.ACTIVE,
+    ).first()
+    if template is None:
+        raise DomainError(f"未找到招募方向模板：{template_code}")
+
+    label = str(public_label or template.name).strip()
+    if not label:
+        raise DomainError("公开名称不能为空。")
+    if len(label) > 255:
+        raise DomainError("公开名称不能超过 255 个字符。")
+
+    desc = str(public_description or "").strip()
+    if len(desc) > 500:
+        raise DomainError("公开说明不能超过 500 个字符。")
+
+    current_metadata = dict(template.metadata or {})
+    current_metadata["recruitment"] = {
+        "show_on_application": bool(show_on_application),
+        "public_label": label,
+        "public_description": desc,
+        "required_count": required_count,
+        "sort_order": sort_order,
+    }
+    # Sync top-level name / description so the template table stays consistent.
+    template.name = label
+    template.description = desc
+    template.metadata = current_metadata
+    template.save(update_fields=["name", "description", "metadata", "updated_at"])
+
+    return credential_recruitment_gap(template)

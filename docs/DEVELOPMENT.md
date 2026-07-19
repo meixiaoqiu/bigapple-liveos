@@ -278,6 +278,8 @@ http://127.0.0.1:20102/workspace/
 
 `/workspace/apply/` 提交成员报名后，系统自动创建 MemberApplication 和 member_admission Proposal，提案直接进入 VOTING 状态。不存在独立的人工审核动作——准入完全由提案生命周期驱动。
 
+**招募方向维护** (`/workspace/recruitment/`)：治理成员可以进行受限招募方向管理——`action=create` 新增 certificate/public/active 的招募方向模板（自动填充 `metadata.recruitment`），`action=update` 修改已有方向的配置。该页面不开放完整 CredentialTemplate CRUD：不允许删除、不允许改 credential_type / visibility / status。新增和更新都不会发放 CredentialGrant。修改后 `/workspace/apply/` 的表单卡片立刻反映新配置。普通成员无法访问该页面。
+
 member_admission 是 yes/no 二元表决，使用严格多数决：赞成票超过 eligible voters 半数时立即通过；反对票超过 eligible voters 半数时立即失败，并自动将关联 MemberApplication 设为 REJECTED。未形成多数前保持表决中；截止仍未通过则失败。分母始终是 `eligible_voters_snapshot_json` 的人数，不是已投票人数。普通 proposal 规则不变。
 
 ```text

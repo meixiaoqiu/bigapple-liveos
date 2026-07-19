@@ -88,4 +88,9 @@ urlpatterns = [
         world_scoped_view(finance_views.finance_claim_withdraw),
         name="workspace-finance-withdraw",
     ),
+    path(
+        "recruitment/",
+        world_scoped_view(views.workspace_recruitment),
+        name="workspace-recruitment",
+    ),
 ]

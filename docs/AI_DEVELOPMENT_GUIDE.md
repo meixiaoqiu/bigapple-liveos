@@ -12,6 +12,7 @@
 - 算法可以建议，但不能成为最终责任人。
 - 治理处置必须保留具体实名责任人。
 - **任何 Credential / NFT / Badge 相关功能不得绕过 RoleAssignment / RolePermission。** 权限判断只有一条路径：`Member → active RoleAssignment → RolePermission → Permission`。不得出现 `has_credential`、`has_nft`、`has_badge` 等直接授权路径。
+- **CredentialTemplate.metadata.recruitment 只影响报名页展示，不授予 Role 或 Credential。** 通过 `/workspace/apply/` 提交的申请方向来自 recruitment 配置，但申请通过后不会自动发放对应 Credential 或 Role。治理成员可以通过 `/workspace/recruitment/` 维护招募配置，包括新增受限模板（certificate / public / active）。不要把这个页面当成完整 CredentialTemplate 管理器——它只能创建 recruitment template，不允许删除、不允许改 credential_type / visibility / status。
 - **注册与报名拆分后**：注册创建基础 Member + 基础角色；正式成员报名只申请更高角色和正式编号 Credential。Member 和 Role 的耦合只存在于 RoleAssignment 表，不存在于 Member 的字段标记。
 - **不要用 Member.status 判断正式成员权限**：完整 workspace 和 `/workspace/apply/` 的"已是正式成员"判断必须基于 active `ROLE_FORMAL_MEMBER`（`SUSPENDED` / `EXITED` 可 veto）。`Member.status` 只作为生命周发展示字段。
 - **禁止直接创建 RoleAssignment**：所有角色授予必须通过 `core.role_assignment_services.create_role_assignment()` 或 `bootstrap_first_governance_member()`。RoleAssignment Admin 已设为只读，不能通过 Django Admin 手工新增或修改角色任命。

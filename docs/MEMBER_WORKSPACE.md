@@ -103,6 +103,21 @@ POST /workspace/finance/claims/<claim_id>/withdraw/
 
 财务审核和付款不是用户自助资料的一部分，必须由财务角色执行。申请人不能审核或付款自己的报销；拒绝报销必须填写理由。已批准并付款的记录会生成只追加 `FinanceTransaction` 流水，并进入 `/finance/` 公开财务页。
 
+### 招募方向维护（治理成员）
+
+```text
+GET  /workspace/recruitment/
+POST /workspace/recruitment/  (action=create / action=update)
+```
+
+治理成员可以在工作台维护报名页 `/workspace/apply/` 展示的申请方向配置：
+- 新增招募方向模板（`action=create`）：创建受限 `CredentialTemplate`（certificate / public / active），自动写入 `metadata.recruitment`。
+- 更新已有方向配置（`action=update`）：修改 `show_on_application`、`public_label`、`public_description`、`required_count`、`sort_order`，并同步 `CredentialTemplate.name` 和 `description`。
+- 不支持删除模板——只能通过取消"在报名页展示"来隐藏。
+- 不发放任何 `CredentialGrant`，新增方向不授予 Role。
+
+普通成员和未登录用户看不到该入口。
+
 ## 与 Control 后台的关系
 
 `/workspace/` 是成员本人使用的工作台，不承担底层管理职责。

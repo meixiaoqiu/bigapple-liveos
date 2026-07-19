@@ -1048,7 +1048,7 @@ SystemEvent(event_type=resource_adjusted) v2 `public_facts` 公开：`name`、`r
 | `created_at` | datetime | 是 | 创建时间。 |
 | `updated_at` | datetime | 是 | 更新时间。 |
 
-`metadata.recruitment` 约定：
+`metadata.recruitment` 约定（由 workspace 招募页 `/workspace/recruitment/` 维护，支持内置模板和自定义模板）：
 
 ```json
 {
@@ -1065,6 +1065,7 @@ SystemEvent(event_type=resource_adjusted) v2 `public_facts` 公开：`name`、`r
 - `missing_count = max(required_count - current_count, 0)`。
 - `required_count=0` 表示不限量招募。
 - Credential 仍不是权限来源。
+- 自定义招募方向 code 规则：`a-z0-9_`、字母开头、长度 3-64。
 
 ## core_credentialgrant
 

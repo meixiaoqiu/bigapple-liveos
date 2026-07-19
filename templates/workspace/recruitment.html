@@ -1,0 +1,145 @@
+{% load tailwind_tags world_urls %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="bumblebee">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>招募方向维护 · 工作台</title>
+  {% tailwind_css %}
+</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+  {% include "partials/runtime_header.html" %}
+  <main class="mx-auto grid w-full max-w-7xl gap-6 p-4 lg:p-8">
+    <header class="card bg-primary text-primary-content shadow-xl">
+      <div class="card-body gap-2">
+        <h1 class="text-3xl font-bold">招募方向维护</h1>
+        <p class="text-sm opacity-80">
+          这里维护报名页展示的申请方向。新增的是招募方向模板，不是权限角色，不会自动发放 Credential 或 Role。不支持的模板可以通过取消"在报名页展示"来隐藏，不支持删除。
+        </p>
+      </div>
+    </header>
+
+    {% if messages %}
+      <section class="grid gap-2" aria-label="操作结果">
+        {% for message in messages %}
+          <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-error{% else %}alert-info{% endif %}">
+            <span>{{ message }}</span>
+          </div>
+        {% endfor %}
+      </section>
+    {% endif %}
+
+    <div class="flex justify-end">
+      <a class="btn btn-outline btn-sm" href="{% world_url 'workspace-page' %}">返回工作台</a>
+    </div>
+
+    <!-- --- 新增招募方向 ---------------------------------------------------------------- -->
+    <section class="card bg-base-100 shadow">
+      <div class="card-body gap-4">
+        <h2 class="card-title">新增招募方向模板</h2>
+        <p class="text-sm text-base-content/60">
+          新增的方向自动设为 certificate / public / active，立即出现在报名页。
+        </p>
+        <form class="grid gap-4 md:grid-cols-2" method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create">
+
+          <label class="form-control w-full">
+            <div class="label"><span class="label-text">编码（a-z0-9_，字母开头，3-64 字符）</span></div>
+            <input type="text" name="code" value="" class="input input-bordered w-full"
+                   required pattern="[a-z][a-z0-9_]{2,63}" maxlength="64">
+          </label>
+
+          <label class="form-control w-full">
+            <div class="label"><span class="label-text">排序</span></div>
+            <input type="number" name="sort_order" value="100"
+                   class="input input-bordered w-full" min="0">
+          </label>
+
+          <label class="form-control w-full">
+            <div class="label"><span class="label-text">公开名称</span></div>
+            <input type="text" name="public_label" value="" class="input input-bordered w-full"
+                   required maxlength="255">
+          </label>
+
+          <label class="form-control w-full">
+            <div class="label"><span class="label-text">需要人数（0 = 不限）</span></div>
+            <input type="number" name="required_count" value="0"
+                   class="input input-bordered w-full" min="0">
+          </label>
+
+          <label class="form-control w-full md:col-span-2">
+            <div class="label"><span class="label-text">公开说明</span></div>
+            <textarea name="public_description" class="textarea textarea-bordered w-full" rows="2" maxlength="500"></textarea>
+          </label>
+
+          <div class="md:col-span-2">
+            <button class="btn btn-primary" type="submit">创建招募方向</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    {% for t in templates %}
+      <section class="card bg-base-100 shadow">
+        <div class="card-body gap-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 class="card-title">{{ t.name }}</h2>
+              <p class="text-sm text-base-content/60">code: {{ t.code }}</p>
+            </div>
+            <div class="flex flex-wrap gap-3 text-sm text-base-content/70">
+              <span>需要 <strong>{{ t.required_count }}</strong> 人</span>
+              <span>已有 <strong>{{ t.current_count }}</strong> 人</span>
+              <span>缺 <strong class="{% if t.missing_count > 0 %}text-warning{% endif %}">{{ t.missing_count }}</strong> 人</span>
+            </div>
+          </div>
+
+          <form class="grid gap-4 md:grid-cols-2" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update">
+            <input type="hidden" name="template_code" value="{{ t.code }}">
+
+            <label class="flex cursor-pointer items-center gap-3">
+              <input type="checkbox" name="show_on_application" class="checkbox checkbox-primary"
+                     {% if t.show_on_application %}checked{% endif %}>
+              <span class="label-text">在报名页展示</span>
+            </label>
+
+            <label class="form-control w-full">
+              <div class="label"><span class="label-text">排序</span></div>
+              <input type="number" name="sort_order" value="{{ t.sort_order }}"
+                     class="input input-bordered w-full" min="0">
+            </label>
+
+            <label class="form-control w-full">
+              <div class="label"><span class="label-text">公开名称</span></div>
+              <input type="text" name="public_label" value="{{ t.public_label }}"
+                     class="input input-bordered w-full" maxlength="255">
+            </label>
+
+            <label class="form-control w-full">
+              <div class="label"><span class="label-text">需要人数（0 = 不限）</span></div>
+              <input type="number" name="required_count" value="{{ t.required_count }}"
+                     class="input input-bordered w-full" min="0">
+            </label>
+
+            <label class="form-control w-full md:col-span-2">
+              <div class="label"><span class="label-text">公开说明</span></div>
+              <textarea name="public_description" class="textarea textarea-bordered w-full" rows="2" maxlength="500">{{ t.public_description }}</textarea>
+            </label>
+
+            <div class="md:col-span-2">
+              <button class="btn btn-primary" type="submit">保存</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    {% endfor %}
+
+    {% if not templates %}
+      <div class="alert">暂无可维护的招募方向。</div>
+    {% endif %}
+  </main>
+</body>
+</html>
