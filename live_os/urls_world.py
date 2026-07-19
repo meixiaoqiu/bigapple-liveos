@@ -17,6 +17,7 @@ urlpatterns = [
     path("logout/", world_views.world_logout, name="world-logout"),
     path("register/", world_scoped_view(application_views.register_page), name="register-page"),
     path("workspace/", include("workspace.urls")),
+    path("feedback/", include("feedback.urls")),
     path("api/v0.1/observer/summary", observer_summary, name="world-observer-summary"),
     path("api/v0.1/", include("live_os.api.urls")),
     path("", include("observer.urls")),

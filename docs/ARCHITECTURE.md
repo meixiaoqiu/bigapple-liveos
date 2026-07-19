@@ -266,6 +266,18 @@ Credential    → 公开事实证明（非权限来源）
 - 如果未来链上 NFT 上线，必须经过导入层写入链上证据表，再由治理流程授予相应角色。运行时权限链始终保持：`Member → active RoleAssignment → RolePermission → Permission`。
 - Credential Template 与 Credential Grant 已落地：内置模板（如"正式成员编号"）由 `ensure_builtin_credential_templates()` 幂等创建；发放 `issuance` 本身是一个有审计记录的业务动作（写入 `SystemEvent`）；发放后是否影响权限，必须通过另一份提案授予 RoleAssignment。正式成员编号是 CredentialTemplate 的一个实例，不是 Member 字段，不是权限来源。
 
+## Community Feedback / 公众参与层
+
+`CommunityFeedback` 是注册用户公开发声的轻量入口，不是治理提案，也不是评论论坛。
+
+- 未登录用户可以浏览公开反馈。
+- 注册用户可以提交公开问题、建议、担忧、提案种子或其他反馈。
+- 治理成员可以回应、隐藏或把反馈关联到正式 `Proposal`。
+- 反馈提交、治理回应和关联提案只写普通公开 `Event`，用于首页和事件流展示。
+- 隐藏反馈不写新的公开 Event，并会把该反馈既有公开 Event 转为 internal，避免放大违规内容。
+- Feedback 不写 `SystemEvent` 哈希链，不改变 RoleAssignment、RolePermission、Credential、Proposal 执行结果或其他权威状态。
+- Feedback 不能作为运行时权限来源；如反馈需要变成正式行动，必须由治理成员转入 Proposal 或对应领域服务流程。
+
 
 
 ## World Database Boundary

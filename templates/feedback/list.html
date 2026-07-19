@@ -1,0 +1,58 @@
+{% load tailwind_tags %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="bumblebee">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>社区反馈</title>
+  {% tailwind_css %}
+</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+  {% include "partials/runtime_header.html" %}
+
+  <main class="mx-auto grid w-full max-w-3xl gap-6 p-4 lg:p-6">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 class="text-2xl font-bold tracking-normal">社区反馈</h1>
+        <p class="text-sm text-base-content/60">公开问题、建议和倡议。反馈不是治理提案。</p>
+      </div>
+      <a class="btn btn-primary" href="{% url 'feedback-create' %}">提出反馈</a>
+    </div>
+
+    {% if messages %}
+      <div class="grid gap-2">
+        {% for msg in messages %}
+          <div class="alert alert-{{ msg.tags|default:'info' }}">{{ msg }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if feedbacks %}
+      <div class="grid gap-4">
+        {% for fb in feedbacks %}
+          <article class="card bg-base-100 shadow">
+            <div class="card-body p-4">
+              <div class="flex flex-wrap items-center gap-2 mb-1">
+                <span class="badge badge-sm {% if fb.category == 'concern' %}badge-warning{% elif fb.category == 'suggestion' %}badge-info{% elif fb.category == 'proposal_seed' %}badge-accent{% elif fb.category == 'question' %}badge-primary{% else %}badge-ghost{% endif %}">{{ fb.get_category_display }}</span>
+                <span class="badge badge-sm {% if fb.status == 'open' %}badge-outline{% elif fb.status == 'answered' %}badge-success{% elif fb.status == 'linked' %}badge-accent{% elif fb.status == 'closed' %}badge-ghost{% else %}badge-outline{% endif %}">{{ fb.get_status_display }}</span>
+              </div>
+              <h2 class="card-title text-base">
+                <a class="hover:underline" href="{% url 'feedback-detail' fb.feedback_id %}">{{ fb.title }}</a>
+              </h2>
+              <div class="text-xs text-base-content/50">
+                <a href="/u/{{ fb.author_member.member_no }}/" class="hover:underline">@{{ fb.author_member.member_no }}</a>
+                · {{ fb.created_at|date:"Y-m-d" }}
+              </div>
+              <div class="card-actions justify-end">
+                <a class="btn btn-sm btn-ghost" href="{% url 'feedback-detail' fb.feedback_id %}">查看详情</a>
+              </div>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-sm text-base-content/50">暂无公开反馈。</p>
+    {% endif %}
+  </main>
+</body>
+</html>

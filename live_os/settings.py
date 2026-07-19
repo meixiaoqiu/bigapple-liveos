@@ -118,6 +118,7 @@ INSTALLED_APPS = [
     "observer.apps.ObserverConfig",
     "simulation.apps.SimulationConfig",
     "simulation_lab.apps.SimulationLabConfig",
+    "feedback.apps.FeedbackConfig",
     "theme",
 ]
 

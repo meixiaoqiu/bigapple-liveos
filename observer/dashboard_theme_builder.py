@@ -248,4 +248,22 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
     context["navigation"][3]["href"] = "/api/v0.1/resources"
     context["navigation"][5]["href"] = "/api/v0.1/observer/summary"
 
+    # Recent community feedback
+    from core.models import CommunityFeedback
+    recent = CommunityFeedback.objects.exclude(
+        status=CommunityFeedback.Status.HIDDEN,
+    ).select_related("author_member").order_by("-created_at")[:5]
+    context["recent_feedbacks"] = [
+        {
+            "feedback_id": fb.feedback_id,
+            "title": fb.title,
+            "category": fb.category,
+            "category_display": fb.get_category_display(),
+            "body": fb.body[:200] if fb.body else "",
+            "author_member_no": fb.author_member.member_no,
+            "created_at": fb.created_at,
+        }
+        for fb in recent
+    ]
+
     return context

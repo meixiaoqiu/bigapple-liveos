@@ -17,6 +17,7 @@
 - **禁止直接创建 RoleAssignment**：所有角色授予必须通过 `core.role_assignment_services.create_role_assignment()` 或 `bootstrap_first_governance_member()`。RoleAssignment Admin 已设为只读，不能通过 Django Admin 手工新增或修改角色任命。
 - **高权限角色前置条件**：授予 `ROLE_GOVERNANCE_MEMBER` 或任何带 `governance.*` permission 的角色前，目标成员必须已拥有 `ROLE_FORMAL_MEMBER`。`SUSPENDED`/`EXITED` 成员拒绝一切新角色。
 - **注册与报名分离**：`/register/` 只创建 User + Member + ROLE_BIG_APPLE_MEMBER，不写公开 Event、不创建 MemberApplication。`/workspace/apply/` 是登录后的正式成员报名入口，属于 workspace 子功能。
+- **公开反馈不是治理提案**：`CommunityFeedback` 只用于注册用户公开提问、建议、担忧或倡议。它不得直接改变权威状态，不得授予权限，不得替代 Proposal；如需正式行动，必须转入 Proposal 或对应领域服务。Feedback 不写 `SystemEvent` 哈希链，只按规则写普通公开 `Event`；隐藏反馈必须撤下既有公开 Event，避免放大违规内容。
 
 ## 修改代码前
 

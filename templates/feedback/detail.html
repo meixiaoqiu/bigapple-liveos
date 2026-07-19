@@ -1,0 +1,114 @@
+{% load tailwind_tags %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="bumblebee">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ feedback.title }}</title>
+  {% tailwind_css %}
+</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+  {% include "partials/runtime_header.html" %}
+
+  <main class="mx-auto grid w-full max-w-2xl gap-6 p-4 lg:p-6">
+    {% if messages %}
+      <div class="grid gap-2">
+        {% for msg in messages %}
+          <div class="alert alert-{{ msg.tags|default:'info' }}">{{ msg }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <div class="flex flex-wrap items-center gap-2">
+      <a class="btn btn-sm btn-ghost" href="{% url 'feedback-list' %}">返回列表</a>
+    </div>
+
+    <article class="card bg-base-100 shadow">
+      <div class="card-body gap-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="badge badge-sm {% if feedback.category == 'concern' %}badge-warning{% elif feedback.category == 'suggestion' %}badge-info{% elif feedback.category == 'proposal_seed' %}badge-accent{% elif feedback.category == 'question' %}badge-primary{% else %}badge-ghost{% endif %}">{{ feedback.get_category_display }}</span>
+          <span class="badge badge-sm {% if feedback.status == 'open' %}badge-outline{% elif feedback.status == 'answered' %}badge-success{% elif feedback.status == 'linked' %}badge-accent{% elif feedback.status == 'closed' %}badge-ghost{% else %}badge-outline{% endif %}">{{ feedback.get_status_display }}</span>
+        </div>
+        <h1 class="text-xl font-bold">{{ feedback.title }}</h1>
+        <p class="text-sm text-base-content/60">
+          由 <a class="hover:underline font-semibold" href="/u/{{ feedback.author_member.member_no }}/">@{{ feedback.author_member.member_no }}</a>
+          发布于 {{ feedback.created_at|date:"Y-m-d H:i" }}
+        </p>
+        <div class="divider my-1"></div>
+        <p class="text-base whitespace-pre-wrap">{{ feedback.body }}</p>
+      </div>
+    </article>
+
+    {# official response #}
+    {% if feedback.official_response and feedback.status != 'hidden' %}
+      <section class="card bg-base-100 shadow border-l-4 border-primary">
+        <div class="card-body gap-2">
+          <h2 class="card-title text-base">官方回应</h2>
+          {% if feedback.responded_by %}
+            <p class="text-xs text-base-content/50">
+              回应人：<a class="hover:underline" href="/u/{{ feedback.responded_by.member_no }}/">@{{ feedback.responded_by.member_no }}</a>
+              · {{ feedback.responded_at|date:"Y-m-d H:i" }}
+            </p>
+          {% endif %}
+          <p class="text-sm whitespace-pre-wrap mt-1">{{ feedback.official_response }}</p>
+        </div>
+      </section>
+    {% endif %}
+
+    {# linked proposal #}
+    {% if feedback.linked_proposal %}
+      <section class="card bg-base-100 shadow">
+        <div class="card-body gap-2">
+          <h2 class="card-title text-base">关联提案</h2>
+          <p class="text-sm">提案 {{ feedback.linked_proposal.proposal_no }}：{{ feedback.linked_proposal.title }}</p>
+        </div>
+      </section>
+    {% endif %}
+
+    {# governance response form #}
+    {% if is_gov and response_form %}
+      <section class="card bg-base-100 shadow">
+        <div class="card-body gap-4">
+          <h2 class="card-title text-base">治理操作</h2>
+          <form method="post" action="{% url 'feedback-respond' feedback.feedback_id %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="respond">
+            <div class="form-control">
+              <label class="label"><span class="label-text">状态</span></label>
+              <select class="select select-bordered" name="status">
+                <option value="acknowledged">已看到</option>
+                <option value="answered" selected>已回应</option>
+                <option value="closed">已关闭</option>
+              </select>
+            </div>
+            <div class="form-control mt-3">
+              <label class="label"><span class="label-text">回应内容</span></label>
+              <textarea class="textarea textarea-bordered" name="official_response" rows="3"></textarea>
+            </div>
+            <button class="btn btn-primary mt-3" type="submit">发布回应</button>
+          </form>
+
+          <div class="divider text-xs text-base-content/40">其他操作</div>
+
+          <form method="post" action="{% url 'feedback-respond' feedback.feedback_id %}" class="flex flex-wrap gap-2">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="link">
+            <input class="input input-bordered input-sm" type="text" name="proposal_no" placeholder="提案编号">
+            <button class="btn btn-outline btn-sm" type="submit">关联提案</button>
+          </form>
+
+          <form method="post" action="{% url 'feedback-respond' feedback.feedback_id %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="hide">
+            <button class="btn btn-error btn-sm" type="submit">隐藏此反馈</button>
+          </form>
+        </div>
+      </section>
+    {% endif %}
+
+    <div class="alert text-sm">
+      <span>公开反馈不会直接形成治理决议；治理成员可将其转入正式治理流程。</span>
+    </div>
+  </main>
+</body>
+</html>

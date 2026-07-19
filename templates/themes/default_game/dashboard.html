@@ -129,6 +129,31 @@
             </div>
           </div>
         </section>
+
+        <section class="card bg-base-100 shadow">
+          <div class="card-body">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <h2 class="card-title">社区反馈</h2>
+              <a class="btn btn-xs btn-ghost" href="/feedback/">查看全部</a>
+            </div>
+            {% if dashboard.recent_feedbacks %}
+              <div class="grid gap-3 mt-2">
+                {% for fb in dashboard.recent_feedbacks %}
+                  <a href="/feedback/{{ fb.feedback_id }}/" class="rounded-lg border border-base-300 p-3 hover:border-primary/50 transition-colors no-underline">
+                    <div class="flex flex-wrap items-center gap-2 mb-1">
+                      <span class="badge badge-sm {% if fb.category == 'concern' %}badge-warning{% elif fb.category == 'suggestion' %}badge-info{% elif fb.category == 'proposal_seed' %}badge-accent{% elif fb.category == 'question' %}badge-primary{% else %}badge-ghost{% endif %}">{{ fb.category_display }}</span>
+                      <span class="text-sm font-semibold">{{ fb.title }}</span>
+                    </div>
+                    <p class="text-xs text-base-content/60 mt-1">{{ fb.body|default:"" }}</p>
+                    <p class="text-xs text-base-content/40 mt-1">@{{ fb.author_member_no }} · {{ fb.created_at|date:"m-d" }}</p>
+                  </a>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="text-sm text-base-content/50 mt-2">暂无公开反馈。<a class="hover:underline" href="/feedback/new/">提出第一条</a></p>
+            {% endif %}
+          </div>
+        </section>
       </main>
     </div>
   {% endwith %}

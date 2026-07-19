@@ -1,0 +1,57 @@
+{% load tailwind_tags %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="bumblebee">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>提出反馈</title>
+  {% tailwind_css %}
+</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+  {% include "partials/runtime_header.html" %}
+
+  <main class="mx-auto grid w-full max-w-xl gap-6 p-4 lg:p-8">
+    <h1 class="text-2xl font-bold tracking-normal">提出反馈</h1>
+
+    {% if messages %}
+      <div class="grid gap-2">
+        {% for msg in messages %}
+          <div class="alert alert-{{ msg.tags|default:'info' }}">{{ msg }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <form method="post" class="card bg-base-100 shadow">
+      <div class="card-body gap-4">
+        {% csrf_token %}
+        {% for error in form.non_field_errors %}
+          <div class="alert alert-error">{{ error }}</div>
+        {% endfor %}
+        <div class="form-control">
+          <label class="label"><span class="label-text">标题</span></label>
+          {{ form.title }}
+          {% for error in form.title.errors %}<span class="label-text-alt text-error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-control">
+          <label class="label"><span class="label-text">类别</span></label>
+          {{ form.category }}
+          {% for error in form.category.errors %}<span class="label-text-alt text-error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="form-control">
+          <label class="label"><span class="label-text">正文</span></label>
+          {{ form.body }}
+          {% for error in form.body.errors %}<span class="label-text-alt text-error">{{ error }}</span>{% endfor %}
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-primary" type="submit">提交反馈</button>
+          <a class="btn btn-ghost" href="{% url 'feedback-list' %}">取消</a>
+        </div>
+      </div>
+    </form>
+
+    <div class="alert text-sm">
+      <span>公开反馈不会直接形成治理决议；治理成员可将其转入正式治理流程。</span>
+    </div>
+  </main>
+</body>
+</html>

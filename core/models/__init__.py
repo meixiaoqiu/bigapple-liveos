@@ -25,6 +25,7 @@ from .simulation_archives import SimulationRunDisposition, SimulationSnapshot, S
 from .operations import LedgerEntry, Resource, ResourceTransaction, SupplierQuote, Task
 from .events import Event, SystemEvent
 from .disputes import CapacityAssessment, Dispute
+from .feedback import CommunityFeedback
 
 __all__ = [
     "TimestampedModel",
@@ -68,4 +69,5 @@ __all__ = [
     "Event",
     "Dispute",
     "CapacityAssessment",
+    "CommunityFeedback",
 ]

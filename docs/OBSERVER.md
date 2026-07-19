@@ -11,6 +11,8 @@
 /events/
 /events/<event_id>/
 /member-applications/<application_id>/
+/feedback/
+/feedback/<feedback_id>/
 /simulations/
 ```
 
@@ -77,6 +79,14 @@
 `/events/` 是面向访客的公开社区事件流。首页“事件时间线”和事件流列表都基于 `core_event` 的公开记录，按时间展示社区当前发生的事情。Observer 顶层展示"事项/过程"，不是每个阶段都一个公开详情页。同一成员报名的多个阶段（submitted/admitted/rejected）聚合成一条事项卡片；普通事件每个仍对应一个详情页。
 
 列表页 `/events/` 展示最近 100 条公开事件/事项，每条显示标题、摘要、事件类型、严重程度、发生时间和来源。详情页 `/events/<event_id>/` 展示完整标题和摘要，并用产品化的"事件概要"语义摘要。
+
+## 公开反馈
+
+`/feedback/` 是公开反馈列表，未登录用户可以浏览，注册用户可以提交问题、建议、担忧、提案种子或其他反馈。反馈不是治理提案，不直接形成治理决议。
+
+`/feedback/<feedback_id>/` 展示反馈正文、作者公开身份、当前状态、治理回应和关联提案。治理成员可以回应、关闭、隐藏或关联正式提案；普通用户不能执行治理操作。
+
+首页展示最近 5 条非隐藏反馈。反馈提交、治理回应和关联提案会写普通公开 `core_event`，进入首页和 `/events/`；隐藏反馈不会写新的公开 Event，并会把该反馈既有公开 Event 转为 internal。Feedback 不写 `core_system_event` 哈希链。
 
 ## 成员报名事项页
 

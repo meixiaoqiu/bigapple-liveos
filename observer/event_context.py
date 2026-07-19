@@ -38,6 +38,12 @@ _PUBLIC_PAYLOAD_WHITELIST: frozenset[str] = frozenset([
     "reason",
     "title",
     "summary",
+    "feedback_id",
+    "feedback_category",
+    "feedback_category_label",
+    "feedback_status",
+    "feedback_status_label",
+    "public_author_label",
 ])
 
 # Keys that must never appear in public payload output.
@@ -63,6 +69,12 @@ _GENERIC_LABEL_MAP: dict[str, str] = {
     "reason": "原因",
     "title": "标题",
     "summary": "摘要",
+    "feedback_id": "反馈编号",
+    "feedback_category": "反馈类别",
+    "feedback_category_label": "反馈类别",
+    "feedback_status": "反馈状态",
+    "feedback_status_label": "反馈状态",
+    "public_author_label": "反馈人",
 }
 
 
@@ -498,9 +510,50 @@ def _generic_semantic_summary(event: Event) -> list[dict[str, str]]:
     return entries
 
 
+_FEEDBACK_EVENT_PREFIX = "community-feedback-"
+
+
+def _is_feedback_event(event: Event) -> bool:
+    payload = event.payload or {}
+    return payload.get("source") == "community_feedback" or (event.event_id or "").startswith(_FEEDBACK_EVENT_PREFIX)
+
+
+def _feedback_semantic_summary(event: Event) -> list[dict[str, str]]:
+    payload = event.payload or {}
+    entries: list[dict[str, str]] = []
+    action = str(payload.get("action_type") or "").strip()
+    if action == "submitted":
+        entries.append({"label": "事项", "value": event.title or "收到公开反馈"})
+    elif action == "answered":
+        entries.append({"label": "事项", "value": event.title or "治理成员回应反馈"})
+    elif action == "linked":
+        entries.append({"label": "事项", "value": event.title or "反馈已转入治理流程"})
+    else:
+        entries.append({"label": "事项", "value": "社区反馈"})
+    title = str(payload.get("title") or "").strip()
+    if title:
+        entries.append({"label": "标题", "value": title})
+    author = str(payload.get("public_author_label") or "").strip()
+    if author:
+        entries.append({"label": "反馈人", "value": author})
+    category = str(payload.get("feedback_category_label") or "").strip()
+    if category:
+        entries.append({"label": "类别", "value": category})
+    status = str(payload.get("feedback_status_label") or "").strip()
+    if status:
+        entries.append({"label": "状态", "value": status})
+    proposal_no = str(payload.get("proposal_no") or "").strip()
+    if proposal_no:
+        entries.append({"label": "关联提案", "value": proposal_no})
+    entries.append({"label": "摘要", "value": event.summary or ""})
+    return entries
+
+
 def public_event_semantic_summary(event: Event) -> list[dict[str, str]]:
     if _is_member_application_event(event):
         return _member_application_semantic_summary(event)
+    if _is_feedback_event(event):
+        return _feedback_semantic_summary(event)
     return _generic_semantic_summary(event)
 
 
