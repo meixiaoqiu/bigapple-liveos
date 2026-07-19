@@ -1,0 +1,23 @@
+{% load tailwind_tags %}{% load world_urls %}
+<!doctype html><html lang="zh-Hans" data-theme="bumblebee">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ claim.title }}</title>{% tailwind_css %}</head>
+<body class="min-h-screen bg-base-200 text-base-content">{% include "partials/runtime_header.html" %}
+<main class="mx-auto grid w-full max-w-2xl gap-6 p-4 lg:p-6">
+<a class="btn btn-sm btn-ghost" href="{% world_url 'workspace-finance-list' %}">返回列表</a>
+{% if messages %}<div class="grid gap-2">{% for msg in messages %}<div class="alert alert-{{ msg.tags|default:'info' }}">{{ msg }}</div>{% endfor %}</div>{% endif %}
+<article class="card bg-base-100 shadow"><div class="card-body gap-3">
+<div class="flex flex-wrap items-center gap-2"><span class="badge badge-sm {% if claim.status == 'approved' %}badge-success{% elif claim.status == 'rejected' %}badge-error{% elif claim.status == 'paid' %}badge-info{% else %}badge-outline{% endif %}">{{ claim.get_status_display }}</span><span class="badge badge-sm badge-outline">{{ claim.get_category_display }}</span></div>
+<h1 class="text-xl font-bold">{{ claim.title }}</h1>
+<p class="text-sm text-base-content/60">申请人 <a class="hover:underline font-semibold" href="/u/{{ claim.claimant_member.member_no }}/">@{{ claim.claimant_member.member_no }}</a> · {{ claim.created_at|date:"Y-m-d H:i" }}</p>
+<div class="stats stats-vertical lg:stats-horizontal shadow mt-2">
+<div class="stat"><div class="stat-title">金额</div><div class="stat-value text-primary">{{ claim.amount }}</div><div class="stat-desc">{{ claim.currency }}</div></div>
+<div class="stat"><div class="stat-title">支出日期</div><div class="stat-value text-sm">{{ claim.expense_date }}</div></div>
+{% if claim.vendor %}<div class="stat"><div class="stat-title">收款方</div><div class="stat-value text-sm">{{ claim.vendor }}</div></div>{% endif %}
+</div>
+{% if claim.description %}<div class="divider my-1"></div><p class="whitespace-pre-wrap">{{ claim.description }}</p>{% endif %}
+</div></article>
+{% if reviews %}<section class="card bg-base-100 shadow"><div class="card-body gap-3"><h2 class="card-title text-base">审核记录</h2>{% for r in reviews %}<div class="rounded-lg border border-base-300 p-3"><div class="flex flex-wrap items-center gap-2"><span class="badge {% if r.decision == 'approved' %}badge-success{% else %}badge-error{% endif %}">{{ r.get_decision_display }}</span><span class="text-sm">审核人 @{{ r.reviewer_member.member_no }}</span></div>{% if r.reason %}<p class="text-sm mt-1">{{ r.reason }}</p>{% endif %}<p class="text-xs text-base-content/50">审核时间 {{ r.reviewed_at|date:"Y-m-d H:i" }}</p></div>{% endfor %}</div></section>{% endif %}
+{% if can_review %}<section class="card bg-base-100 shadow"><div class="card-body gap-4"><h2 class="card-title text-base">审核操作</h2><form method="post" action="{% world_url 'workspace-finance-review' claim.claim_id %}">{% csrf_token %}<div class="form-control"><label class="label"><span class="label-text">{{ review_form.decision.label }}</span></label>{{ review_form.decision }}</div><div class="form-control mt-3"><label class="label"><span class="label-text">理由（拒绝时必填）</span></label>{{ review_form.reason }}</div><button class="btn btn-primary mt-3" type="submit">提交审核</button></form></div></section>{% endif %}
+{% if can_pay %}<form method="post" action="{% world_url 'workspace-finance-pay' claim.claim_id %}" class="mt-3">{% csrf_token %}<button class="btn btn-info" type="submit">标记已付款</button></form>{% endif %}
+{% if can_withdraw %}<form method="post" action="{% world_url 'workspace-finance-withdraw' claim.claim_id %}" class="mt-3">{% csrf_token %}<button class="btn btn-ghost" type="submit">撤回申请</button></form>{% endif %}
+</main></body></html>

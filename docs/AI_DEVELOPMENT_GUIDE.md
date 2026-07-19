@@ -15,9 +15,10 @@
 - **注册与报名拆分后**：注册创建基础 Member + 基础角色；正式成员报名只申请更高角色和正式编号 Credential。Member 和 Role 的耦合只存在于 RoleAssignment 表，不存在于 Member 的字段标记。
 - **不要用 Member.status 判断正式成员权限**：完整 workspace 和 `/workspace/apply/` 的"已是正式成员"判断必须基于 active `ROLE_FORMAL_MEMBER`（`SUSPENDED` / `EXITED` 可 veto）。`Member.status` 只作为生命周发展示字段。
 - **禁止直接创建 RoleAssignment**：所有角色授予必须通过 `core.role_assignment_services.create_role_assignment()` 或 `bootstrap_first_governance_member()`。RoleAssignment Admin 已设为只读，不能通过 Django Admin 手工新增或修改角色任命。
-- **高权限角色前置条件**：授予 `ROLE_GOVERNANCE_MEMBER` 或任何带 `governance.*` permission 的角色前，目标成员必须已拥有 `ROLE_FORMAL_MEMBER`。`SUSPENDED`/`EXITED` 成员拒绝一切新角色。
+- **高权限角色前置条件**：授予 `ROLE_GOVERNANCE_MEMBER`、任何带 `governance.*` permission 的角色或任何带 `finance.*` permission 的角色前，目标成员必须已拥有 `ROLE_FORMAL_MEMBER`。`SUSPENDED`/`EXITED` 成员拒绝一切新角色。
 - **注册与报名分离**：`/register/` 只创建 User + Member + ROLE_BIG_APPLE_MEMBER，不写公开 Event、不创建 MemberApplication。`/workspace/apply/` 是登录后的正式成员报名入口，属于 workspace 子功能。
 - **公开反馈不是治理提案**：`CommunityFeedback` 只用于注册用户公开提问、建议、担忧或倡议。它不得直接改变权威状态，不得授予权限，不得替代 Proposal；如需正式行动，必须转入 Proposal 或对应领域服务。Feedback 不写 `SystemEvent` 哈希链，只按规则写普通公开 `Event`；隐藏反馈必须撤下既有公开 Event，避免放大违规内容。
+- **公开财务不是第二套治理权限系统**：报销、审核和付款必须通过 `core.finance_services`，权限只看 `finance.review` / `finance.pay` / `finance.view_private` 这类 RolePermission。财务角色属于高信任角色，授予前同样要求目标成员已经是 `ROLE_FORMAL_MEMBER`，并禁止申请人自审或自付。
 
 ## 修改代码前
 
@@ -78,7 +79,7 @@ Real and simulation runtimes use the same root paths: `/workspace/`, `/`, `/regi
 - 可以运行 `python manage.py archive_simulation_run --world-id simulation0001 --run-id sim-run-xxx` 把已结束的仿真 run 归档为 control DB 中的 `SimulationSnapshot` / `SimulationSnapshotItem` 和文件系统中的原始归档包。原始归档包默认在 `var/simulation_archives/`，不进入 Git；归档后用 `python manage.py verify_simulation_snapshot snapshot-xxx` 校验 raw 文件哈希、manifest 和标准化索引。
 - 已结束的仿真 run 在同一 world 启动下一轮前必须被人工处置：要么通过 `/admin/simulation-lab/` 或 `archive_simulation_run` 归档为快照，要么通过 `/admin/simulation-lab/` 或 `discard_simulation_run --reason "..."` 明确放弃归档。两种处置都会写入 control DB 的 `SimulationRunDisposition`；Django Admin `LogEntry` 只记录技术后台操作，不能替代仿真处置结论。
 - 仍在 `running` 但已经确认没有继续价值的 run，应先在 `/admin/simulation-lab/` 详情页执行“中止本轮仿真”，状态变为 `aborted` 后再归档或废弃。
-- 修改任务创建、发布、指派、关闭、领取、提交、验收、资源调整、申诉处理、仿真推进、账本、事件或 world 边界逻辑后，必须运行对应 app 测试；完整本地回归使用 `python manage.py test core live_os observer workspace simulation simulation_lab worlds --settings=live_os.test_settings`。
+- 修改任务创建、发布、指派、关闭、领取、提交、验收、资源调整、公开财务报销、申诉处理、仿真推进、账本、事件或 world 边界逻辑后，必须运行对应 app 测试；完整本地回归使用 `python manage.py test core live_os observer workspace simulation simulation_lab worlds --settings=live_os.test_settings`。
 - 新增后台高风险动作（如清空世界数据、直接修改权威状态）必须测试 world 边界：不得对 `realworld` 生效，只允许作用 `world_type=simulation` 的 `active` world，且必须写入 control DB 的审计记录。
 - 已实现最小 session 身份绑定：`User.username == Member.member_no` 代表成员本人，活跃治理成员或 staff / superuser 可执行运营写入。不要重新引入由 payload 或表单选择责任人的 actor 绑定。
 - 观察台中的满意度、疲劳值等指标目前是占位值，后续需要每日指标表。

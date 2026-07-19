@@ -1,0 +1,9 @@
+{% load tailwind_tags %}{% load world_urls %}
+<!doctype html><html lang="zh-Hans" data-theme="bumblebee">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>报销管理</title>{% tailwind_css %}</head>
+<body class="min-h-screen bg-base-200 text-base-content">{% include "partials/runtime_header.html" %}
+<main class="mx-auto grid w-full max-w-4xl gap-6 p-4 lg:p-6">
+<div class="flex flex-wrap items-center justify-between gap-3"><div><h1 class="text-2xl font-bold">报销管理</h1><p class="text-sm text-base-content/60">{{ is_finance|yesno:"财务视图,我的报销" }}</p></div><a class="btn btn-primary" href="{% world_url 'workspace-finance-new' %}">提交报销</a></div>
+{% if messages %}<div class="grid gap-2">{% for msg in messages %}<div class="alert alert-{{ msg.tags|default:'info' }}">{{ msg }}</div>{% endfor %}</div>{% endif %}
+{% if claims %}<div class="grid gap-4">{% for c in claims %}<a href="{% world_url 'workspace-finance-detail' c.claim_id %}" class="card bg-base-100 shadow hover:shadow-md transition-shadow no-underline"><div class="card-body p-4"><div class="flex flex-wrap items-center gap-2"><span class="badge badge-sm {% if c.status == 'approved' %}badge-success{% elif c.status == 'rejected' %}badge-error{% elif c.status == 'paid' %}badge-info{% elif c.status == 'withdrawn' %}badge-ghost{% else %}badge-outline{% endif %}">{{ c.get_status_display }}</span><span class="badge badge-sm badge-outline">{{ c.get_category_display }}</span></div><h2 class="card-title text-base mt-1">{{ c.title }}</h2><div class="text-sm text-base-content/70">{{ c.amount }} {{ c.currency }}</div><div class="text-xs text-base-content/50">申请人 @{{ c.claimant_member.member_no }} · {{ c.created_at|date:"Y-m-d" }}</div></div></a>{% endfor %}</div>{% else %}<p class="text-sm text-base-content/50">暂无报销记录。</p>{% endif %}
+</main></body></html>

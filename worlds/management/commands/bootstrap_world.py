@@ -9,6 +9,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
+from core.finance_setup import ensure_finance_roles
 from core.governance_setup import default_role_assignment_end_at, ensure_governance_admin_role
 from core.member_roles import ensure_member_role
 from core.models import Member, RoleAssignment
@@ -145,6 +146,7 @@ class Command(BaseCommand):
         try:
             from core.credential_services import ensure_builtin_credential_templates
             ensure_builtin_credential_templates()
+            ensure_finance_roles()
             with transaction.atomic(using=database_alias):
                 user = self._ensure_world_user(username=username, password=password, email=email, database_alias=database_alias)
                 member = self._ensure_world_member(

@@ -521,3 +521,18 @@ class AdminConfigTests(TestCase):
         from core.models import CredentialGrant
         admin_instance = CredentialGrantAdmin(CredentialGrant, self.site)
         self.assertFalse(admin_instance.has_delete_permission(self.request))
+
+    def test_finance_admins_are_readonly(self) -> None:
+        from core.admin_finance import ExpenseClaimAdmin, FinanceReviewAdmin, FinanceTransactionAdmin
+        from core.admin_support import model_field_names
+        from core.models import ExpenseClaim, FinanceReview, FinanceTransaction
+
+        for model, admin_class in (
+            (ExpenseClaim, ExpenseClaimAdmin),
+            (FinanceReview, FinanceReviewAdmin),
+            (FinanceTransaction, FinanceTransactionAdmin),
+        ):
+            admin_instance = admin_class(model, self.site)
+            self.assertFalse(admin_instance.has_add_permission(self.request))
+            self.assertFalse(admin_instance.has_delete_permission(self.request))
+            self.assertEqual(set(model_field_names(model)), set(admin_instance.readonly_fields))

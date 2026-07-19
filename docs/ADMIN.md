@@ -62,6 +62,9 @@ python manage.py seed_demo --world-id realworld
 | 角色任命 | 查看成员当前和历史角色任命（只读）。 | 禁止新增、修改和删除；所有角色授予必须通过 `create_role_assignment()` service 或 `bootstrap_first_governance_member()`，不能在 Admin 中手工创建。`grant_governance_admin` 命令要求目标成员已拥有 `ROLE_FORMAL_MEMBER`，不会自动授予正式成员身份。 |
 | 凭证模板 | 查看已注册的凭证模板（只读）。 | 禁止新增、修改和删除（`has_add_permission=False`、`has_change_permission(obj)=False`、`has_delete_permission=False`）。模板由 `ensure_builtin_credential_templates()` 幂等创建，不应在 Admin 中手工维护。 |
 | 凭证发放 | 查看已发放的凭证实例（只读）。 | 禁止新增和删除（`has_add_permission=False`、`has_delete_permission=False`）。所有字段只读，包括 `grant_id`、`template`、`member`、`serial_no`、`display_no`、`status` 等。凭证发放由 `issue_formal_member_number()` 或 `issue_credential()` service 完成。 |
+| 报销申请 | 查看成员提交的报销申请，兜底排障状态和公开说明。 | 禁止新增、修改和删除；真实提交、审核、付款和撤回应通过 workspace 财务页面或 `core.finance_services` 完成。 |
+| 财务审核 | 查看每次报销审核决定、审核人和理由。 | 禁止新增、修改和删除；审核必须通过 `review_expense_claim()`，并受 `finance.review` 权限、自审禁止和拒绝理由校验保护。 |
+| 财务流水 | 查看已记录的收入、支出、报销和冲正流水。 | 禁止新增、修改和删除；流水只追加，付款必须通过 `mark_expense_claim_paid()`，错误用后续冲正流水表达。 |
 | 提案、投票和执行 | 作为业务流程对象保留底层维护入口，可在 control Admin 中查看和兜底维护。 | 禁止删除；关键动作会追加统一事件。 |
 | 统一事件账本 | 在“技术审计与配置”中查看全系统关键事件哈希链。 | 禁止新增、修改和删除。 |
 | 项目执行计划 | 维护主线计划名称、状态、目标地点和责任人。 | 禁止删除；已有记录的 `plan_id` 只读。 |
@@ -84,7 +87,7 @@ python manage.py seed_demo --world-id realworld
 ## 操作原则
 
 - Control Admin 首页按底层维护域分组：`技术审计与配置` 保留统一事件账本和积分流水，`仿真` 保留仿真快照、快照明细、处置记录和仿真实验后台入口；世界目录由 `worlds.WorldRegistry` 统一管理，不再保留独立的仿真世界模型。
-- 在 control plane 中，成员、成员报名、合作方报名、组织、角色、角色任命、提案、任务、资源、供应商报价、库存流水、申诉、项目计划和仿真运行会作为底层数据管理模型展示。它们用于技术维护和兜底排障，不替代后续专门业务流程页。
+- 在 control plane 中，成员、成员报名、合作方报名、组织、角色、角色任命、报销申请、财务审核、财务流水、提案、任务、资源、供应商报价、库存流水、申诉、项目计划和仿真运行会作为底层数据管理模型展示。它们用于技术维护和兜底排障，不替代后续专门业务流程页。
 - 真实世界和仿真世界不暴露 `/admin/`。所有 Django Admin 级底层管理都收敛到 `bigadmin.local/admin/`，避免 world 用户系统出现 `is_staff` 日常账号和 Django Admin 入口。
 - 当前真实世界和仿真世界 runtime 只提供 `/workspace/`、`/`、报名入口和 API，不暴露独立业务后台。底层维护、仿真实验和高影响操作归属 `bigadmin.local/admin/` 与 `bigadmin.local/admin/simulation-lab/`，其中仿真实验入口仅限 superuser。
 - `Permission` 和 `RolePermission` 是底层能力目录，不作为日常顶层菜单展示；管理员主要从 `Role` 详情页通过角色权限 inline 查看和维护角色能力。
@@ -111,7 +114,7 @@ python manage.py seed_demo --world-id realworld
 
 当前治理入口的主路径是 `Member -> RoleAssignment -> RolePermission -> Permission`。`core.access.user_has_governance_permission()` 会根据用户关联的 `Member` 检查角色能力；`基础角色 / 治理成员` 只是普通角色名，本身不再作为隐式权限 fallback。
 
-基础治理权限 code：
+基础治理和财务权限 code：
 
 - `governance.view_admin`
 - `governance.manage_people`
@@ -119,6 +122,9 @@ python manage.py seed_demo --world-id realworld
 - `governance.manage_roles`
 - `governance.manage_permissions`
 - `governance.view_event_ledger`
+- `finance.review`
+- `finance.pay`
+- `finance.view_private`
 
 初始化基础权限、组织和角色：
 
@@ -126,7 +132,7 @@ python manage.py seed_demo --world-id realworld
 python manage.py init_governance_permissions --world-id realworld
 ```
 
-该命令可重复执行，会在指定 world 中创建或复用 `大苹果治理组`、`治理管理员` 角色，并把上述权限绑定到该角色；它不会自动批量给 `基础角色 / 治理成员` 成员新增长期治理任命。运行时启用 world 数据库路由后，直接执行必须显式传入 `--world-id`。
+该命令可重复执行，会在指定 world 中创建或复用 `大苹果治理组`、`治理管理员`、`大苹果财务组`、`财务审核员` 和 `财务付款员`，并把上述权限绑定到对应角色；它不会自动批量给成员新增长期治理或财务任命。运行时启用 world 数据库路由后，直接执行必须显式传入 `--world-id`。
 
 也可以用命令把一个已有 `Member` 授予治理管理员角色：
 
@@ -146,7 +152,7 @@ python manage.py grant_governance_admin --world-id realworld --member-no mem-000
 
 Admin 中的治理关系查看入口：
 
-- `Member` 列表显示 `User`、显示名称、当前角色、状态和创建时间；详情页内联显示该成员的 `RoleAssignment`，也可直接新增角色任命。角色任命列表和 inline 会显示来源类型；由提案执行产生的任命会关联来源提案和执行记录。
+- `Member` 列表显示 `User`、显示名称、当前角色、状态和创建时间；详情页内联只读显示该成员的 `RoleAssignment`。角色任命列表和 inline 会显示来源类型；由提案执行产生的任命会关联来源提案和执行记录。新增或撤销角色任命必须通过领域服务或对应命令完成。
 - 成员账号绑定、当前角色任命、权限来源和任命历史当前通过 control Admin 兜底维护；后续专用业务页面应支持按 `member_no` 创建或绑定登录账号、重置密码、启停账号，以及授予或撤销生效中的角色任命。
 - MemberPublicProfile 在 Member 详情页通过 inline 维护（public_name、avatar_url、bio、is_visible）。这是公开展示资料，不同于 Django User 和 Member 权威身份。职务/权限不能手填，来自角色任命。
 - `Organization` 详情页内联显示组织下的 `Role`。
@@ -156,6 +162,7 @@ Admin 中的治理关系查看入口：
 - `Permission` 和 `RolePermission` 仍保留为底层模型供角色 inline、自动补全和初始化命令使用，但不作为成员管理的顶层入口。
 - `LedgerEntry` 是贡献积分业务流水，余额从 `posted` 流水汇总得到；冲正通过新的 `reversal` 流水表达，流水会关联到对应 `SystemEvent`，排序和审计顺序使用 `SystemEvent.seq`。
 - `Task` 列表会显示来源类型，支持区分直接运营创建、提案执行、计划派生、仿真产生或系统规则产生的任务；由提案执行产生的任务会关联来源提案和执行记录。
+- `ExpenseClaim`、`FinanceReview` 和 `FinanceTransaction` 是公开财务流程的底层记录。Admin 只读查看；提交、审核、付款和撤回必须走 workspace 财务页面或 `core.finance_services`，权限来自 `finance.review` / `finance.pay` 等 RolePermission。
 - `SystemEvent` 是统一只读事件账本，在 Admin 中只能查看 `seq`、事件类型、聚合对象（含内部 `aggregate_id`）、行为人、行为角色任命、发生时间和短 hash。observer 公开页面使用 `subject_ref`（取自 `payload_json.subject.ref`）作为审计对象标识，不展示内部 `aggregate_id`。
 
 ## P1 强化范围
@@ -214,5 +221,5 @@ live_os.api.tasks
 - `is_staff=True` 只表示 control 技术账号可以进入 Django Admin 技术入口；它不等同于拥有大苹果业务治理权限。
 - 普通世界治理管理员推荐账号状态是 `is_active=True`、`is_staff=False`、`is_superuser=False`，并通过 `Member -> RoleAssignment -> RolePermission -> Permission` 获得具体治理权限。
 - `grant_governance_admin` 只授予 `Member` 的治理管理员角色任命，不会修改 `is_staff` 或 `is_superuser`。真实和仿真 world 不暴露 `/admin/`，所以业务治理账号不需要 `is_staff=True`。
-- `core.access.user_has_governance_permission()` 的主路径是 `User -> Member -> RoleAssignment -> RolePermission -> Permission`。普通治理管理员应被授予 `治理管理员` 角色或其他绑定了 `governance.*` 权限的角色，不能只依赖 `基础角色 / 治理成员`。
+- `core.access.user_has_governance_permission()` 的主路径是 `User -> Member -> RoleAssignment -> RolePermission -> Permission`。普通治理管理员应被授予 `治理管理员` 角色或其他绑定了 `governance.*` 权限的角色，不能只依赖 `基础角色 / 治理成员`。财务审核和付款同理只看 `finance.*` RolePermission，不看 Django staff/superuser。
 - 当前 Django Admin 的模型增删改查权限仍主要依赖 Django model permissions；这意味着普通 staff 不会自动拥有所有模型权限，但精细到 `governance.*` 业务权限的 Admin 对象级控制仍是后续工作。

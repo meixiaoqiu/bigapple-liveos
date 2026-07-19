@@ -7,6 +7,8 @@ from typing import Any
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 
+from live_os.access import is_authenticated
+
 
 def render_runtime_error(
     request: HttpRequest,
@@ -15,12 +17,16 @@ def render_runtime_error(
     title: str,
     message: str,
     detail: str = "",
+    allow_methods: str = "",
 ) -> HttpResponse:
+    authenticated = is_authenticated(request)
     context: dict[str, Any] = {
         "status_code": status_code,
         "title": title,
         "message": message,
         "detail": detail,
+        "authenticated": authenticated,
+        "allow_methods": allow_methods,
         "home_url": "/",
         "workspace_url": "/workspace/",
         "login_url": "/login/?next=/workspace/",
@@ -72,13 +78,15 @@ def server_error(request: HttpRequest) -> HttpResponse:
 def method_not_allowed(request: HttpRequest, allowed_methods: str = "") -> HttpResponse:
     detail = "这个操作不能通过直接访问链接完成。"
     if request.path == "/logout/":
-        detail = "退出登录需要从页面上的“退出”按钮提交，不能通过地址栏直接访问。"
+        detail = "退出登录需要从页面上的「退出」按钮提交，不能通过地址栏直接访问。"
     if allowed_methods:
         detail = f"{detail} 允许的请求方式：{allowed_methods}。"
+
     return render_runtime_error(
         request,
         status_code=405,
         title="请求方式不正确",
         message="当前页面收到了不支持的请求方式。",
         detail=detail,
+        allow_methods=allowed_methods,
     )

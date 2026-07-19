@@ -87,6 +87,22 @@ POST /workspace/profile/update/
 
 反馈页面会显示作者公开身份并链接到 `/u/<member_no>/`。治理成员可以回应、关闭、隐藏或关联正式提案；普通注册用户不能执行这些治理操作。`hidden` 反馈不会出现在公开列表或首页。
 
+### 公开财务 / 报销
+
+```text
+GET  /workspace/finance/claims/
+GET  /workspace/finance/claims/new/
+POST /workspace/finance/claims/new/
+GET  /workspace/finance/claims/<claim_id>/
+POST /workspace/finance/claims/<claim_id>/review/
+POST /workspace/finance/claims/<claim_id>/pay/
+POST /workspace/finance/claims/<claim_id>/withdraw/
+```
+
+注册成员可以在 workspace 中提交自己的报销申请，并查看自己的报销状态。拥有 `finance.review` 或 `finance.pay` 权限的财务成员可以查看全部报销；普通成员不能查看他人的报销详情。
+
+财务审核和付款不是用户自助资料的一部分，必须由财务角色执行。申请人不能审核或付款自己的报销；拒绝报销必须填写理由。已批准并付款的记录会生成只追加 `FinanceTransaction` 流水，并进入 `/finance/` 公开财务页。
+
 ## 与 Control 后台的关系
 
 `/workspace/` 是成员本人使用的工作台，不承担底层管理职责。

@@ -26,6 +26,7 @@ from .operations import LedgerEntry, Resource, ResourceTransaction, SupplierQuot
 from .events import Event, SystemEvent
 from .disputes import CapacityAssessment, Dispute
 from .feedback import CommunityFeedback
+from .finance import ExpenseClaim, FinanceReview, FinanceTransaction
 
 __all__ = [
     "TimestampedModel",
@@ -70,4 +71,7 @@ __all__ = [
     "Dispute",
     "CapacityAssessment",
     "CommunityFeedback",
+    "ExpenseClaim",
+    "FinanceReview",
+    "FinanceTransaction",
 ]

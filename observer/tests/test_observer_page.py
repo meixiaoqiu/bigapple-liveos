@@ -426,6 +426,7 @@ class ObserverPageTests(TestCase):
         """未登录首页导航包含注册、登录、Workspace。"""
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "/finance/")
         self.assertContains(response, "/register/")
         self.assertContains(response, "/login/?next=/workspace/")
         self.assertContains(response, "/workspace/")
@@ -444,6 +445,7 @@ class ObserverPageTests(TestCase):
         login_as_member(self.client, member)
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "/finance/")
         self.assertContains(response, "/u/nav-member-01/")
         self.assertContains(response, "/workspace/")
         self.assertContains(response, 'method="post" action="/logout/"', html=False)
@@ -459,6 +461,7 @@ class ObserverPageTests(TestCase):
         self.client.force_login(user)
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "/finance/")
         self.assertContains(response, "/workspace/")
         self.assertContains(response, 'method="post" action="/logout/"', html=False)
         self.assertNotContains(response, 'href="/logout/"')

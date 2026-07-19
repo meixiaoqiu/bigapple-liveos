@@ -429,6 +429,85 @@ def credential_grant_payload(grant) -> dict[str, Any]:
     )
 
 
+def expense_claim_payload(claim) -> dict[str, Any]:
+    claimant_label = str(claim.claimant_member.display_name or claim.claimant_member.member_no)
+    return _public_event_payload(
+        subject_type="expense_claim",
+        subject_ref=_public_ref("expense-claim", claim.claim_id),
+        subject_label=claim.title,
+        action="submitted",
+        stage=claim.status,
+        summary=f"报销申请《{claim.title}》{claim.amount} {claim.currency}",
+        public_facts={
+            "source": "finance",
+            "claim_id": claim.claim_id,
+            "title": claim.title,
+            "amount": str(claim.amount),
+            "currency": claim.currency,
+            "category": claim.category,
+            "category_label": claim.get_category_display(),
+            "status": claim.status,
+            "status_label": claim.get_status_display(),
+            "claimant_public_name": claimant_label,
+        },
+        private_commitments=[
+            _private("member_id", reason="申请人内部ID"),
+        ],
+    )
+
+
+def finance_review_payload(review) -> dict[str, Any]:
+    reviewer_label = str(review.reviewer_member.display_name or review.reviewer_member.member_no)
+    reason = str(review.reason or "")[:200]
+    return _public_event_payload(
+        subject_type="finance_review",
+        subject_ref=_public_ref("finance-review", review.review_id),
+        subject_label=f"审核-{review.claim.claim_id}",
+        action=review.decision,
+        stage=review.decision,
+        summary=f"报销审核：{review.get_decision_display()}",
+        public_facts={
+            "source": "finance",
+            "claim_id": review.claim.claim_id,
+            "title": review.claim.title,
+            "amount": str(review.claim.amount),
+            "currency": review.claim.currency,
+            "decision": review.decision,
+            "decision_label": review.get_decision_display(),
+            "reason": reason,
+            "reviewer_public_name": reviewer_label,
+        },
+        private_commitments=[
+            _private("member_id", reason="审核人内部ID"),
+        ],
+    )
+
+
+def finance_transaction_payload(txn) -> dict[str, Any]:
+    payer_label = str(txn.recorded_by.display_name or txn.recorded_by.member_no) if txn.recorded_by_id else ""
+    return _public_event_payload(
+        subject_type="finance_transaction",
+        subject_ref=_public_ref("finance-transaction", txn.transaction_id),
+        subject_label=txn.summary,
+        action="recorded",
+        stage="recorded",
+        summary=f"{txn.get_transaction_type_display()} {txn.amount} {txn.currency}",
+        public_facts={
+            "source": "finance",
+            "transaction_id": txn.transaction_id,
+            "claim_id": txn.claim.claim_id if txn.claim_id else "",
+            "transaction_type": txn.transaction_type,
+            "transaction_type_label": txn.get_transaction_type_display(),
+            "amount": str(txn.amount),
+            "currency": txn.currency,
+            "direction": txn.direction,
+            "summary": txn.summary,
+            "payer_public_name": payer_label,
+        },
+        private_commitments=[],
+    )
+
+
 # Public aliases for backward-compatible imports.
 iso_or_none = _iso
 member_display_name = _member_label

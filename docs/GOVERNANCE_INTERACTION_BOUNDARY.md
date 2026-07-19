@@ -86,7 +86,7 @@
 
 `RoleAssignment.source_type`、`source_proposal` 和 `source_proposal_execution` 用于记录任命来源。直接任命、提案执行和初始化最终都会落到同一张 `RoleAssignment` 表，避免保留多套平行任命结构。
 
-**创建约束**：所有 RoleAssignment 必须通过 `core.role_assignment_services.create_role_assignment()` 创建。该 service 强制执行前置条件校验：`ROLE_GOVERNANCE_MEMBER` 和 `governance.*` permission 角色要求 `ROLE_FORMAL_MEMBER`；`SUSPENDED`/`EXITED` 成员拒绝一切新角色。`bootstrap_first_governance_member()` 是唯一可按事务顺序授予完整权限链的入口，内部仍调用 `create_role_assignment()` 并受校验保护。Django Admin 中的 RoleAssignment 已设为只读，禁止手工创建或修改。
+**创建约束**：所有 RoleAssignment 必须通过 `core.role_assignment_services.create_role_assignment()` 创建。该 service 强制执行前置条件校验：`ROLE_GOVERNANCE_MEMBER`、`governance.*` permission 角色和 `finance.*` permission 角色都要求 `ROLE_FORMAL_MEMBER`；`SUSPENDED`/`EXITED` 成员拒绝一切新角色。`bootstrap_first_governance_member()` 是唯一可按事务顺序授予完整权限链的入口，内部仍调用 `create_role_assignment()` 并受校验保护。Django Admin 中的 RoleAssignment 已设为只读，禁止手工创建或修改。
 
 无论来源是什么，最终权限判断仍走：
 
@@ -150,6 +150,20 @@ role_appointment Proposal -> ProposalVote -> ProposalExecution -> RoleAssignment
 
 
 未来规则、政策、预算、项目计划、重大申诉裁决和重大任务发布可以使用同一套提案流程，但执行后仍应落到具体业务对象。
+
+### 公开财务
+
+公开财务是具体业务对象，不是提案父类。它回答“谁申请了哪笔支出、谁审核、谁付款、状态如何”，而不是“是否批准某项治理规则”。
+
+```text
+ExpenseClaim -> FinanceReview -> FinanceTransaction -> Event/SystemEvent
+```
+
+- 报销申请由 `ExpenseClaim` 承载，提交后写公开 `Event` 和 `expense_claim_submitted` 统一事件。
+- 审核决定由 `FinanceReview` 承载，审核人必须拥有 `finance.review`，不能自审；拒绝必须填写理由。
+- 付款流水由只追加的 `FinanceTransaction` 承载，记录人必须拥有 `finance.pay`，不能自付；历史流水不能修改，只能后续用冲正类流水表达更正。
+- 财务角色由 `ensure_finance_roles()` 初始化，并通过 RoleAssignment 授予。`finance.*` 权限角色和 `governance.*` 权限角色一样，需要目标成员先具备 `ROLE_FORMAL_MEMBER`。
+- 报销流程本身不要求 Proposal；只有高影响预算、异常争议、财务规则变更或需要共同授权的情况，才应升级为 Proposal。
 
 ### 统一事件账本
 

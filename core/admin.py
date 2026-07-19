@@ -34,6 +34,7 @@ from .admin_proposals import (
     ProposalVoteAdmin,
 )
 from .admin_operations import DisputeAdmin, ResourceAdmin, ResourceTransactionAdmin, SupplierQuoteAdmin, TaskAdmin
+from .admin_finance import ExpenseClaimAdmin, FinanceReviewAdmin, FinanceTransactionAdmin
 
 
 TECHNICAL_ADMIN_OBJECTS = {

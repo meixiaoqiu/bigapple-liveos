@@ -1,0 +1,13 @@
+{% load tailwind_tags %}
+<!doctype html><html lang="zh-Hans" data-theme="bumblebee">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>公开财务</title>{% tailwind_css %}</head>
+<body class="min-h-screen bg-base-200 text-base-content">{% include "partials/runtime_header.html" %}
+<main class="mx-auto grid w-full max-w-4xl gap-6 p-4 lg:p-6">
+<h1 class="text-2xl font-bold">公开财务</h1>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+<div class="stat bg-base-100 shadow rounded-box p-4"><div class="stat-title">总支出</div>{% if total_out_by_currency %}{% for row in total_out_by_currency %}<div class="stat-value text-primary">{{ row.total|floatformat:2 }}</div><div class="stat-desc">{{ row.currency }}</div>{% endfor %}{% else %}<div class="stat-value text-primary">0.00</div><div class="stat-desc">暂无流水</div>{% endif %}</div>
+<div class="stat bg-base-100 shadow rounded-box p-4"><div class="stat-title">待审核</div><div class="stat-value text-warning">{{ pending_count }}</div><div class="stat-desc">条报销申请</div></div>
+</div>
+<section class="card bg-base-100 shadow"><div class="card-body"><h2 class="card-title">最近报销</h2><div class="grid gap-3 mt-2">{% for c in claims %}<div class="rounded-lg border border-base-300 p-3"><div class="flex flex-wrap items-center gap-2"><span class="badge badge-sm {% if c.status == 'approved' %}badge-success{% elif c.status == 'paid' %}badge-info{% else %}badge-outline{% endif %}">{{ c.get_status_display }}</span><span class="font-semibold text-sm">{{ c.title }}</span></div><p class="text-sm mt-1">{{ c.amount }} {{ c.currency }} · {{ c.get_category_display }} · @{{ c.claimant_member.member_no }} · {{ c.created_at|date:"m-d" }}</p></div>{% empty %}<p class="text-sm text-base-content/50">暂无公开报销记录。</p>{% endfor %}</div></div></section>
+<section class="card bg-base-100 shadow"><div class="card-body"><h2 class="card-title">近期财务流水</h2><div class="overflow-x-auto mt-2"><table class="table table-sm"><thead><tr><th>时间</th><th>类型</th><th>金额</th><th>摘要</th></tr></thead><tbody>{% for txn in transactions %}<tr><td class="text-xs">{{ txn.occurred_at|date:"m-d H:i" }}</td><td><span class="badge badge-xs {% if txn.direction == 'out' %}badge-error{% else %}badge-success{% endif %}">{{ txn.get_transaction_type_display }}</span></td><td class="font-mono text-xs">{{ txn.amount }} {{ txn.currency }}</td><td class="text-xs">{{ txn.summary }}</td></tr>{% empty %}<tr><td colspan="4" class="text-sm text-base-content/50">暂无公开流水。</td></tr>{% endfor %}</tbody></table></div></div></section>
+</main></body></html>

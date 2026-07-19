@@ -30,7 +30,7 @@ def _role_requires_formal_member(role: Role) -> bool:
             return True
     for rp in role.role_permissions.select_related("permission"):
         code = getattr(rp.permission, "code", "")
-        if code and str(code).startswith("governance."):
+        if code and str(code).startswith(("governance.", "finance.")):
             return True
     return False
 

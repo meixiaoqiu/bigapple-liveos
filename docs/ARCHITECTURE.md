@@ -247,7 +247,7 @@ Credential    → 公开事实证明（非权限来源）
    不允许为 Credential / NFT / Badge 或 member_no 字符串编写第二套权限路径。`is_staff` / `is_superuser` 仅限 Django Admin 技术后台边界使用，不能等同于业务治理权限。
 
    **当前落地**：`/register/` 创建 User+Member+ROLE_BIG_APPLE_MEMBER，`/workspace/apply/` 处理正式成员报名（登录后）。`workspace/context.member_has_full_workspace_access()` 已基于 active `ROLE_FORMAL_MEMBER` + `SUSPENDED`/`EXITED` veto 实现。`Member.status` 不再作为权限来源。
-   **高权限角色前置条件**：`ROLE_GOVERNANCE_MEMBER` 和任何带 `governance.*` permission 的角色要求目标成员已拥有 `ROLE_FORMAL_MEMBER`。`SUSPENDED` / `EXITED` 成员不能授予任何新角色。`create_role_assignment()` 默认执行前置校验；`bootstrap_first_governance_member()` 在事务内按顺序授予完整权限链。RoleAssignment Admin 只读，禁止手工创建或修改。
+   **高权限角色前置条件**：`ROLE_GOVERNANCE_MEMBER`、任何带 `governance.*` permission 的角色和任何带 `finance.*` permission 的角色要求目标成员已拥有 `ROLE_FORMAL_MEMBER`。`SUSPENDED` / `EXITED` 成员不能授予任何新角色。`create_role_assignment()` 默认执行前置校验；`bootstrap_first_governance_member()` 在事务内按顺序授予完整权限链。RoleAssignment Admin 只读，禁止手工创建或修改。
 
 ### 注册与报名的拆分展望
 
@@ -277,6 +277,19 @@ Credential    → 公开事实证明（非权限来源）
 - 隐藏反馈不写新的公开 Event，并会把该反馈既有公开 Event 转为 internal，避免放大违规内容。
 - Feedback 不写 `SystemEvent` 哈希链，不改变 RoleAssignment、RolePermission、Credential、Proposal 执行结果或其他权威状态。
 - Feedback 不能作为运行时权限来源；如反馈需要变成正式行动，必须由治理成员转入 Proposal 或对应领域服务流程。
+
+## Public Finance / 公开财务层
+
+公开财务用于把社区报销、审核和付款记录变成可观察、可追责的业务流程。它不是第二套治理系统，也不替代 Proposal。
+
+- `ExpenseClaim` 记录成员提交的报销申请。任何非 `SUSPENDED` / `EXITED` 的注册成员都可以提交。
+- `FinanceReview` 记录财务审核决定。审核人必须拥有 `finance.review` 权限，并且不能审核自己的报销；拒绝必须填写理由。
+- `FinanceTransaction` 是只追加财务流水。标记付款的人必须拥有 `finance.pay` 权限，并且不能给自己的报销标记付款。
+- 财务角色由 `ensure_finance_roles()` 幂等创建，属于 `大苹果财务组`，运行时权限仍通过 `Member -> active RoleAssignment -> RolePermission -> Permission` 判断。
+- 任何带 `finance.*` permission 的角色都属于高信任角色，授予前要求目标成员已经拥有 `ROLE_FORMAL_MEMBER`。
+- 报销提交、审核和付款会写普通公开 `Event`，进入首页、事件流和 `/finance/` 公开财务页；同时写入 `SystemEvent` 哈希链，便于审计证明。
+- 撤回报销只写普通公开 `Event`，不写新的 `SystemEvent` 哈希链记录。
+- 公开页面只展示业务摘要、金额、状态、申请人/审核人/付款人公开名称和可公开说明，不展示内部 pk、User.id、Member.id、联系方式或私密凭证材料。
 
 
 

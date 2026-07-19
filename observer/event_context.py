@@ -44,6 +44,20 @@ _PUBLIC_PAYLOAD_WHITELIST: frozenset[str] = frozenset([
     "feedback_status",
     "feedback_status_label",
     "public_author_label",
+    "claim_id",
+    "transaction_id",
+    "amount",
+    "currency",
+    "category",
+    "category_label",
+    "claimant_public_name",
+    "reviewer_public_name",
+    "payer_public_name",
+    "decision",
+    "decision_label",
+    "transaction_type",
+    "transaction_type_label",
+    "direction",
 ])
 
 # Keys that must never appear in public payload output.
@@ -75,6 +89,20 @@ _GENERIC_LABEL_MAP: dict[str, str] = {
     "feedback_status": "反馈状态",
     "feedback_status_label": "反馈状态",
     "public_author_label": "反馈人",
+    "claim_id": "报销编号",
+    "transaction_id": "流水编号",
+    "amount": "金额",
+    "currency": "货币",
+    "category": "类别",
+    "category_label": "类别",
+    "claimant_public_name": "申请人",
+    "reviewer_public_name": "审核人",
+    "payer_public_name": "付款人",
+    "decision": "决定",
+    "decision_label": "决定",
+    "transaction_type": "流水类型",
+    "transaction_type_label": "流水类型",
+    "direction": "方向",
 }
 
 
@@ -549,11 +577,47 @@ def _feedback_semantic_summary(event: Event) -> list[dict[str, str]]:
     return entries
 
 
+def _is_finance_event(event: Event) -> bool:
+    payload = event.payload or {}
+    return payload.get("source") == "finance" or (event.event_id or "").startswith("expense-claim-")
+
+
+def _finance_semantic_summary(event: Event) -> list[dict[str, str]]:
+    payload = event.payload or {}
+    entries: list[dict[str, str]] = [{"label": "事项", "value": event.title or "公开财务"}]
+    title = str(payload.get("title") or "").strip()
+    if title:
+        entries.append({"label": "标题", "value": title})
+    claimant = str(payload.get("claimant_public_name") or "").strip()
+    if claimant:
+        entries.append({"label": "申请人", "value": claimant})
+    amount = str(payload.get("amount") or "").strip()
+    currency = str(payload.get("currency") or "").strip()
+    if amount:
+        entries.append({"label": "金额", "value": f"{amount} {currency}".strip()})
+    category = str(payload.get("category_label") or "").strip()
+    if category:
+        entries.append({"label": "类别", "value": category})
+    decision = str(payload.get("decision_label") or "").strip()
+    if decision:
+        entries.append({"label": "审核决定", "value": decision})
+    reviewer = str(payload.get("reviewer_public_name") or "").strip()
+    if reviewer:
+        entries.append({"label": "审核人", "value": reviewer})
+    transaction_type = str(payload.get("transaction_type_label") or "").strip()
+    if transaction_type:
+        entries.append({"label": "流水类型", "value": transaction_type})
+    entries.append({"label": "摘要", "value": event.summary or ""})
+    return entries
+
+
 def public_event_semantic_summary(event: Event) -> list[dict[str, str]]:
     if _is_member_application_event(event):
         return _member_application_semantic_summary(event)
     if _is_feedback_event(event):
         return _feedback_semantic_summary(event)
+    if _is_finance_event(event):
+        return _finance_semantic_summary(event)
     return _generic_semantic_summary(event)
 
 
@@ -581,6 +645,14 @@ def _system_event_filter_for_public_event(event: Event) -> Q:
     dispute_id = str(payload.get("dispute_id") or event.related_dispute_id or "").strip()
     if dispute_id:
         query |= Q(aggregate_type="Dispute", aggregate_id=dispute_id)
+    claim_id = str(payload.get("claim_id") or "").strip()
+    if claim_id:
+        query |= Q(aggregate_type="ExpenseClaim", aggregate_id=claim_id)
+        query |= Q(payload_json__public_facts__claim_id=claim_id)
+    transaction_id = str(payload.get("transaction_id") or "").strip()
+    if transaction_id:
+        query |= Q(aggregate_type="FinanceTransaction", aggregate_id=transaction_id)
+        query |= Q(payload_json__public_facts__transaction_id=transaction_id)
     return query
 
 

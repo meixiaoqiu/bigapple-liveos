@@ -13,6 +13,7 @@
 /member-applications/<application_id>/
 /feedback/
 /feedback/<feedback_id>/
+/finance/
 /simulations/
 ```
 
@@ -87,6 +88,16 @@
 `/feedback/<feedback_id>/` 展示反馈正文、作者公开身份、当前状态、治理回应和关联提案。治理成员可以回应、关闭、隐藏或关联正式提案；普通用户不能执行治理操作。
 
 首页展示最近 5 条非隐藏反馈。反馈提交、治理回应和关联提案会写普通公开 `core_event`，进入首页和 `/events/`；隐藏反馈不会写新的公开 Event，并会把该反馈既有公开 Event 转为 internal。Feedback 不写 `core_system_event` 哈希链。
+
+## 公开财务
+
+`/finance/` 是面向访客的公开财务页，展示已提交、已审核和已付款的报销事项，以及已记录的财务流水。它用于回答“项目的钱花在哪里、由谁申请、由谁审核、是否付款”，不是后台审批入口。
+
+- 报销提交、审核和付款会写普通公开 `core_event`，进入首页和 `/events/`。
+- 报销提交、审核和付款同时写 `core_system_event` 哈希链，便于后续在事件详情中验证顺序和责任人。
+- 撤回报销只写普通公开 `Event`，不写新的 `SystemEvent`。
+- 公开页不展示联系方式、User.id、Member.id、内部 pk 或私密凭证材料；只展示标题、金额、币种、类别、状态、申请人/审核人/付款人的公开名称和公开说明。
+- 财务角色来自 RoleAssignment / RolePermission。`finance.review` 成员负责审核，`finance.pay` 成员负责记录付款；申请人不能自审或自付。
 
 ## 成员报名事项页
 

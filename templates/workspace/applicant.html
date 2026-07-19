@@ -88,6 +88,7 @@
           </dl>
         {% endif %}
         <div class="flex flex-wrap justify-end gap-2">
+          <a class="btn btn-outline" href="{% world_url 'workspace-finance-list' %}">财务 / 报销</a>
           {% if can_apply %}
             <a class="btn btn-primary" href="{% world_url 'workspace-member-application' %}">申请正式成员</a>
           {% elif application %}

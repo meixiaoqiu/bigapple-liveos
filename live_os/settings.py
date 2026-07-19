@@ -119,6 +119,7 @@ INSTALLED_APPS = [
     "simulation.apps.SimulationConfig",
     "simulation_lab.apps.SimulationLabConfig",
     "feedback.apps.FeedbackConfig",
+    "finance.apps.FinanceConfig",
     "theme",
 ]
 

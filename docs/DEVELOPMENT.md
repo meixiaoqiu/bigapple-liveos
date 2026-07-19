@@ -314,6 +314,31 @@ POST /feedback/<feedback_id>/respond/  # 治理成员回应、隐藏或关联提
 .\.venv\Scripts\python.exe manage.py test feedback observer --settings=live_os.test_settings
 ```
 
+### 公开财务模块
+
+公开财务用于处理成员报销、财务审核和付款流水。它是具体业务流程，不是治理提案本身；只有高影响预算、异常争议或规则变更才应升级为 Proposal。
+
+```text
+GET  /finance/                                      # 公开财务页，未登录可访问
+GET  /workspace/finance/claims/                     # 报销列表；普通成员看自己，财务成员看全部
+GET  /workspace/finance/claims/new/                 # 新建报销表单
+POST /workspace/finance/claims/new/                 # 提交报销，创建 ExpenseClaim + Event + SystemEvent
+GET  /workspace/finance/claims/<claim_id>/          # 报销详情
+POST /workspace/finance/claims/<claim_id>/review/   # 财务审核，需 finance.review
+POST /workspace/finance/claims/<claim_id>/pay/      # 标记付款，需 finance.pay
+POST /workspace/finance/claims/<claim_id>/withdraw/ # 申请人撤回
+```
+
+状态变化必须通过 `core.finance_services`：`submit_expense_claim()`、`review_expense_claim()`、`mark_expense_claim_paid()`、`withdraw_expense_claim()`。不要在 view、Admin 或测试里直接改 `ExpenseClaim.status` 或直接创建 `FinanceReview` / `FinanceTransaction` 来表达真实流程。
+
+财务权限由 `core.finance_setup.ensure_finance_roles()` 幂等初始化。`finance.review` / `finance.pay` / `finance.view_private` 都是 RolePermission；授予带 `finance.*` 权限的角色前，目标成员必须已经拥有 `ROLE_FORMAL_MEMBER`。申请人不能审核或付款自己的报销；拒绝必须填写理由。`FinanceTransaction` 只追加，错误应通过后续冲正流水处理。
+
+相关测试：
+
+```powershell
+.\.venv\Scripts\python.exe manage.py test core.tests.test_finance --settings=live_os.test_settings
+```
+
 成员公开资料自助维护：
 
 ```text

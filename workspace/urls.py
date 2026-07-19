@@ -3,7 +3,7 @@
 from django.urls import path
 from worlds.routing import world_scoped_view
 
-from . import views
+from . import views, finance_views
 
 
 urlpatterns = [
@@ -57,5 +57,35 @@ urlpatterns = [
         "profile/update/",
         world_scoped_view(views.workspace_public_profile_update),
         name="workspace-public-profile-update",
+    ),
+    path(
+        "finance/claims/",
+        world_scoped_view(finance_views.finance_claims_list),
+        name="workspace-finance-list",
+    ),
+    path(
+        "finance/claims/new/",
+        world_scoped_view(finance_views.finance_claim_form),
+        name="workspace-finance-new",
+    ),
+    path(
+        "finance/claims/<str:claim_id>/",
+        world_scoped_view(finance_views.finance_claim_detail),
+        name="workspace-finance-detail",
+    ),
+    path(
+        "finance/claims/<str:claim_id>/review/",
+        world_scoped_view(finance_views.finance_claim_review),
+        name="workspace-finance-review",
+    ),
+    path(
+        "finance/claims/<str:claim_id>/pay/",
+        world_scoped_view(finance_views.finance_claim_pay),
+        name="workspace-finance-pay",
+    ),
+    path(
+        "finance/claims/<str:claim_id>/withdraw/",
+        world_scoped_view(finance_views.finance_claim_withdraw),
+        name="workspace-finance-withdraw",
     ),
 ]

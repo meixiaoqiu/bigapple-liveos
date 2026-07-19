@@ -7,6 +7,7 @@ the site root (``/``, ``/events/``, ``/u/<member_no>/``, etc.).
 from django.urls import include, path
 
 from applications import views as application_views
+from finance.public_views import public_finance
 from observer.api_views import observer_summary
 from worlds import views as world_views
 from worlds.routing import world_scoped_view
@@ -18,6 +19,7 @@ urlpatterns = [
     path("register/", world_scoped_view(application_views.register_page), name="register-page"),
     path("workspace/", include("workspace.urls")),
     path("feedback/", include("feedback.urls")),
+    path("finance/", public_finance, name="public-finance"),
     path("api/v0.1/observer/summary", observer_summary, name="world-observer-summary"),
     path("api/v0.1/", include("live_os.api.urls")),
     path("", include("observer.urls")),
