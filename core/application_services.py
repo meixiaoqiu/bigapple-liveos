@@ -122,8 +122,17 @@ def generate_partner_application_id() -> str:
     raise DomainError("无法生成合作方报名 ID，请重试。")
 
 
+def _application_role_gap_label(application: MemberApplication) -> str:
+    """Return the public-facing role-gap label, preferring snapshot metadata."""
+    metadata = application.metadata or {}
+    return (
+        str(metadata.get("role_gap_label") or "").strip()
+        or ROLE_GAP_LABELS.get(application.role_gap, application.role_gap or "")
+    )
+
+
 def member_application_payload(application: MemberApplication) -> dict[str, Any]:
-    role_label = ROLE_GAP_LABELS.get(application.role_gap, application.role_gap)
+    role_label = _application_role_gap_label(application)
     applicant_label = public_member_label(application.applicant_name)
     return {
         "schema": PUBLIC_LEDGER_SCHEMA,
@@ -303,13 +312,33 @@ def submit_member_application(
         ).exists()
         if active_application_exists:
             raise DomainError("当前账号已有未结束的成员报名，不能重复提交。")
+    # Validate and snapshot the recruitment option.
+    from core.credential_services import ensure_builtin_credential_templates, recruitment_option_for_code
+
+    ensure_builtin_credential_templates()
+    role_gap_code = str(role_gap or "").strip()
+    recruitment_opt = recruitment_option_for_code(role_gap_code)
+    if recruitment_opt is None:
+        raise DomainError("申请方向无效或暂未开放。")
+    if not recruitment_opt["is_open"]:
+        raise DomainError("该申请方向当前缺口已满，暂不能提交。")
+
+    gap_snapshot = {
+        "role_gap_label": recruitment_opt["label"],
+        "role_gap_description": recruitment_opt.get("description", ""),
+        "role_gap_required_count": recruitment_opt["required_count"],
+        "role_gap_current_count": recruitment_opt["current_count"],
+        "role_gap_missing_count": recruitment_opt["missing_count"],
+        "role_gap_credential_template_code": role_gap_code,
+    }
+
     application = MemberApplication.objects.create(
         application_id=generate_member_application_id(),
         applicant_name=_nonblank(applicant_name, "报名人名称"),
         contact=_nonblank(contact, "联系方式"),
         motivation=_nonblank(motivation, "报名动机"),
         availability_hours_per_week=availability_hours_per_week,
-        role_gap=str(role_gap or "").strip(),
+        role_gap=role_gap_code,
         availability_slots=_list_payload(availability_slots),
         capability_scores=dict(capability_scores or {}),
         can_issue_responsibility_documents=can_issue_responsibility_documents,
@@ -319,7 +348,7 @@ def submit_member_application(
         account_user=account_user,
         submitted_at=now,
         frozen_at=now,
-        metadata=dict(metadata or {}),
+        metadata=dict(metadata or {}, **gap_snapshot),
     )
     if existing_member is None:
         if not cleaned_requested_member_no:
@@ -379,7 +408,7 @@ def submit_member_application(
                 application.linked_member.member_no if application.linked_member_id else "",
             ),
             "role_gap": application.role_gap,
-            "role_gap_label": ROLE_GAP_LABELS.get(application.role_gap, application.role_gap or ""),
+            "role_gap_label": _application_role_gap_label(application),
         },
         occurred_at=now,
     )
@@ -566,7 +595,7 @@ def admit_member_application_from_proposal(
             "proposal_no": proposal.proposal_no,
             "public_member_label": public_member_label(application.applicant_name, member.member_no),
             "role_gap": application.role_gap,
-            "role_gap_label": ROLE_GAP_LABELS.get(application.role_gap, application.role_gap or ""),
+            "role_gap_label": _application_role_gap_label(application),
         },
         occurred_at=now,
     )
@@ -634,6 +663,8 @@ def reject_member_application_from_failed_proposal(
                 application.applicant_name,
                 application.linked_member.member_no if application.linked_member_id else "",
             ),
+            "role_gap": application.role_gap,
+            "role_gap_label": _application_role_gap_label(application),
             "reason": sanitized_reason,
         },
         occurred_at=now,

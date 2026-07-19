@@ -37,7 +37,7 @@ def member_application_post_data(
     contact: str,
     motivation: str,
     password: str = "test-password-123",
-    role_gap: str = "developer_ai_engineer",
+    role_gap: str = "ai_engineer",
     availability_slots: list[str] | None = None,
     motivation_reasons: list[str] | None = None,
     capabilities_text: str | None = None,
@@ -63,7 +63,7 @@ def _apply_post_data(applicant_name: str, contact: str, motivation: str, **overr
     return {
         "applicant_name": applicant_name,
         "contact": contact,
-        "role_gap": overrides.get("role_gap", "developer_ai_engineer"),
+        "role_gap": overrides.get("role_gap", "ai_engineer"),
         "availability_slots": overrides.get("availability_slots", ["off_hours", "weekend"]),
         "motivation_reasons": overrides.get("motivation_reasons", ["other"]),
         "motivation_other_text": motivation,
@@ -226,7 +226,7 @@ class PublicApplicationPageTests(TestCase):
         response = self.client.post("/workspace/apply/", {
             "applicant_name": "时段冲突",
             "contact": "slot@example.test",
-            "role_gap": "developer_ai_engineer",
+            "role_gap": "ai_engineer",
             "availability_slots": ["any_time", "weekend"],
             "motivation_reasons": ["other"],
             "motivation_other_text": "验证。",
@@ -270,7 +270,7 @@ class PublicApplicationPageTests(TestCase):
         self.client.force_login(first.account_user)
         response = self.client.post("/workspace/apply/", _apply_post_data(
             "再次申请者", "reapply-ws@example.test", "第二次。",
-            role_gap="service_resident",
+            role_gap="life_service",
             availability_slots=["weekend"],
         ), follow=True)
         self.assertEqual(response.status_code, 200)
@@ -328,7 +328,7 @@ class PublicApplicationPageTests(TestCase):
                 contact="applicant-a@example.test",
                 motivation="想参加。",
                 availability_hours_per_week=12,
-                role_gap="developer_ai_engineer",
+                role_gap="ai_engineer",
                 availability_slots=["off_hours"],
                 capability_scores={"整理": 70},
                 requested_member_no="different-member-no",
@@ -345,7 +345,7 @@ class PublicApplicationPageTests(TestCase):
                 contact="b@example.test",
                 motivation="x",
                 availability_hours_per_week=12,
-                role_gap="developer_ai_engineer",
+                role_gap="ai_engineer",
                 availability_slots=["weekend"],
                 capability_scores={"整理": 70},
             )
@@ -563,7 +563,7 @@ class ApplyFormalMemberRoleTests(TestCase):
                 contact="dup@example.test",
                 motivation="应该被拒绝。",
                 availability_hours_per_week=8,
-                role_gap="developer_ai_engineer",
+                role_gap="ai_engineer",
                 availability_slots=["weekend"],
                 capability_scores={"文档": 70},
                 requested_member_no=member.member_no,

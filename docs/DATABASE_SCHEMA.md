@@ -71,7 +71,7 @@ MemberApplication stores public member applications. Member applications are sub
 | `contact` | string | 是 | 联系方式。 |
 | `motivation` | text | 是 | 报名动机。 |
 | `availability_hours_per_week` | integer | 是 | 历史兼容字段；当前表单用可参与时段表达投入时间。 |
-| `role_gap` | string | 否 | 报名人选择的当前角色缺口，例如 `settled_resident`、`service_resident`、`developer_ai_engineer`。 |
+| `role_gap` | string | 否 | 报名时选择的申请方向 `CredentialTemplate.code`。新提交只能选择 `CredentialTemplate.metadata.recruitment.show_on_application=true` 的模板 code，例如 `company_legal_representative`、`finance_responsible_person`、`ai_engineer`、`life_service`。`MemberApplication.metadata` 保存申请时快照：`role_gap_label`、`role_gap_description`、`role_gap_required_count`、`role_gap_current_count`、`role_gap_missing_count`、`role_gap_credential_template_code`。申请通过后不会自动发放所选方向 Credential，也不会自动授予对应 Role。 |
 | `availability_slots` | json | 是 | 可参与时段数组，例如 `any_time`、`off_hours`、`weekend`；`any_time` 与其它时段互斥。 |
 | `capability_scores` | json | 是 | 历史兼容和仿真字段；当前个人报名页不再展示能力自述输入。 |
 | `can_issue_responsibility_documents` | boolean | 是 | 历史兼容字段；当前个人报名页固定为否，责任文件能力由合作方/机构报名承担。 |
@@ -1044,9 +1044,27 @@ SystemEvent(event_type=resource_adjusted) v2 `public_facts` 公开：`name`、`r
 | `visibility` | enum string | 是 | `public` / `internal`。公开凭证可在 Observer 展示。 |
 | `icon_url` | url | 否 | 图标 URL。 |
 | `display_order` | integer | 是 | 展示排序，越小越靠前。 |
-| `metadata` | json | 否 | 扩展数据。 |
+| `metadata` | json | 否 | 扩展数据。`recruitment` 子字段用于成员报名方向控制，约定如下。 |
 | `created_at` | datetime | 是 | 创建时间。 |
 | `updated_at` | datetime | 是 | 更新时间。 |
+
+`metadata.recruitment` 约定：
+
+```json
+{
+  "show_on_application": true,
+  "required_count": 2,
+  "public_label": "公司法人方向",
+  "public_description": "需要愿意承担主体责任、参与公司治理的人",
+  "sort_order": 10
+}
+```
+
+- `required_count` 是当前招募需求，不是凭证库存。
+- `current_count` 由 active `CredentialGrant` 实时统计。
+- `missing_count = max(required_count - current_count, 0)`。
+- `required_count=0` 表示不限量招募。
+- Credential 仍不是权限来源。
 
 ## core_credentialgrant
 

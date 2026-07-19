@@ -153,7 +153,7 @@ class PublicEventsBrowserTests(TestCase):
                 "application_id": "member-application-abc123",
                 "proposal_no": "0007",
                 "public_applicant_label": "w**y",
-                "role_gap": "developer_ai_engineer",
+                "role_gap": "ai_engineer",
                 "role_gap_label": "系统开发与 AI 工程",
             },
         )
@@ -925,7 +925,7 @@ class PublicEventsBrowserTests(TestCase):
             applicant_name="Integration Test Applicant",
             contact="int-test@example.com",
             motivation="Integration test.",
-            role_gap="cooking",
+            role_gap="life_service",
             account_username="inttestuser",
             account_password="TestPass123!",
         )

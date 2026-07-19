@@ -21,7 +21,7 @@ def _submit_application(member_no: str = "review-applicant", **overrides) -> Mem
         "applicant_name": "审核测试报名者",
         "contact": "review-applicant@example.test",
         "motivation": "希望加入社区贡献力量。",
-        "role_gap": "developer_ai_engineer",
+        "role_gap": "ai_engineer",
         "availability_slots": ["weekend"],
         "requested_member_no": member_no,
     }
@@ -266,13 +266,13 @@ class WorkspaceApplicationsReviewTests(TestCase):
     def test_applicant_workspace_shows_chinese_role_gap(self) -> None:
         application = _submit_application(
             member_no="role-gap-test",
-            role_gap="community_contributor",
+            role_gap="content_recorder",
         )
         login_as_member(self.client, application.linked_member)
         response = self.client.get("/workspace/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "社区贡献者")
-        self.assertNotContains(response, "community_contributor")
+        self.assertContains(response, "内容记录方向")
+        self.assertNotContains(response, "content_recorder")
 
     # --- 报名列表按准入流程筛选 ----------------------------------------------------
 

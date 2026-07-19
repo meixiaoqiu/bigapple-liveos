@@ -35,50 +35,6 @@ def _capability_scores(value: str) -> dict[str, int]:
     return scores
 
 
-# --- Member application role/availability metadata -------------------------------------
-# These constants back the role_gap ChoiceField and let the template render cards
-# (label / description / remote_mode / open) without duplicating the data.
-
-ROLE_GAP_CHOICES = (
-    ("settled_resident", "安居成员"),
-    ("service_resident", "生活服务成员"),
-    ("developer_ai_engineer", "系统开发与 AI 工程"),
-    ("community_contributor", "社区贡献者"),
-)
-
-ROLE_GAP_METADATA = {
-    "settled_resident": {
-        "label": "安居成员",
-        "description": "常驻现场，参与日常起居与社区运转，需要线下稳定在场。",
-        "remote_mode": "onsite_required",
-        "open": True,
-    },
-    "service_resident": {
-        "label": "生活服务成员",
-        "description": "承担餐饮、维护、清洁等生活服务，需要线下在场。",
-        "remote_mode": "onsite_required",
-        "open": True,
-    },
-    "developer_ai_engineer": {
-        "label": "系统开发与 AI 工程",
-        "description": "负责 Live OS 系统开发与 AI 工程任务，可远程协作。",
-        "remote_mode": "remote_possible",
-        "open": True,
-    },
-    "community_contributor": {
-        "label": "社区贡献者",
-        "description": "以混合方式贡献内容、活动或外部协作，线上线下均可。",
-        "remote_mode": "hybrid",
-        "open": True,
-    },
-}
-
-REMOTE_MODE_LABELS = {
-    "onsite_required": "需到场",
-    "remote_possible": "可远程",
-    "hybrid": "混合",
-}
-
 AVAILABILITY_SLOT_CHOICES = (
     ("any_time", "全天可用"),
     ("off_hours", "工作之余"),
@@ -141,7 +97,7 @@ class MemberApplicationForm(forms.Form):
     contact = forms.CharField(label="联系方式（建议留微信或电话）", max_length=255)
     role_gap = forms.ChoiceField(
         label="意向角色",
-        choices=ROLE_GAP_CHOICES,
+        choices=[],  # populated dynamically in __init__
         widget=forms.RadioSelect,
     )
     availability_slots = forms.MultipleChoiceField(
@@ -181,8 +137,12 @@ class MemberApplicationForm(forms.Form):
         self.existing_user = existing_user
         self.existing_member = existing_member
         super().__init__(*args, **kwargs)
+        # Dynamically populate role_gap choices from credential recruitment templates.
+        from core.credential_services import ensure_builtin_credential_templates, recruitment_credential_options
+        ensure_builtin_credential_templates()
+        recruitment_opts = recruitment_credential_options()
+        self.fields["role_gap"].choices = [(opt["code"], opt["label"]) for opt in recruitment_opts]
         if existing_user is not None:
-            # Authenticated users already have an account — hide account fields completely.
             self.fields.pop("username", None)
             self.fields.pop("password1", None)
             self.fields.pop("password2", None)
@@ -227,21 +187,20 @@ class MemberApplicationForm(forms.Form):
         return cleaned_data
 
     def role_gap_cards(self) -> list[dict]:
-        """Return renderable card metadata for each role_gap choice."""
+        """Return renderable card metadata for each role_gap choice from credential recruitment."""
+        from core.credential_services import ensure_builtin_credential_templates, recruitment_credential_options
+        ensure_builtin_credential_templates()
         cards: list[dict] = []
-        for value, _label in ROLE_GAP_CHOICES:
-            meta = ROLE_GAP_METADATA.get(value, {})
-            remote_mode = meta.get("remote_mode", "")
-            cards.append(
-                {
-                    "value": value,
-                    "label": meta.get("label", _label),
-                    "description": meta.get("description", ""),
-                    "remote_mode": remote_mode,
-                    "remote_mode_label": REMOTE_MODE_LABELS.get(remote_mode, remote_mode),
-                    "open": bool(meta.get("open", True)),
-                }
-            )
+        for opt in recruitment_credential_options():
+            cards.append({
+                "value": opt["code"],
+                "label": opt["label"],
+                "description": opt["description"],
+                "required_count": opt["required_count"],
+                "current_count": opt["current_count"],
+                "missing_count": opt["missing_count"],
+                "open": opt["is_open"],
+            })
         return cards
 
     def capability_scores(self) -> dict[str, int]:

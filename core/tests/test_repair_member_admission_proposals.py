@@ -96,7 +96,7 @@ class RepairMemberAdmissionProposalsTests(TestCase):
             applicant_name="已有提案者",
             contact="has-proposal@example.test",
             motivation="已有提案。",
-            role_gap="service_resident",
+            role_gap="life_service",
             availability_slots=["weekend"],
             requested_member_no="has-proposal",
         )

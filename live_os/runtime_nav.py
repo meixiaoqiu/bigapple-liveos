@@ -26,7 +26,7 @@ def build_runtime_nav(request: HttpRequest) -> dict[str, Any]:
         items.append({"label": "财务", "url": "/finance/", "method": "get"})
         if member is not None:
             items.append({"label": "我的主页", "url": f"/u/{member.member_no}/", "method": "get"})
-        items.append({"label": "Workspace", "url": "/workspace/", "method": "get"})
+        items.append({"label": "工作台", "url": "/workspace/", "method": "get"})
         items.append({"label": "退出", "url": "/logout/", "method": "post"})
     else:
         items.append({"label": "首页", "url": "/", "method": "get"})
@@ -34,7 +34,7 @@ def build_runtime_nav(request: HttpRequest) -> dict[str, Any]:
         items.append({"label": "财务", "url": "/finance/", "method": "get"})
         items.append({"label": "注册", "url": "/register/", "method": "get"})
         items.append({"label": "登录", "url": "/login/?next=/workspace/", "method": "get"})
-        items.append({"label": "Workspace", "url": "/workspace/", "method": "get"})
+        items.append({"label": "工作台", "url": "/workspace/", "method": "get"})
 
     return {
         "brand_label": brand_label,

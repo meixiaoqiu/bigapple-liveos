@@ -185,7 +185,7 @@ class WorkspacePageTests(TestCase):
             applicant_name="待审核申请者",
             contact="pending@example.test",
             motivation="等待审核。",
-            role_gap="developer_ai_engineer",
+            role_gap="ai_engineer",
             availability_slots=["weekend"],
             capability_scores={"文档": 70},
             requested_member_no=applicant.member_no,

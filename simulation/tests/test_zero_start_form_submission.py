@@ -67,7 +67,7 @@ class ZeroStartFormSubmissionTests(TestCase):
         self.assertEqual(availability_slots_for_spec(self._member_spec(availability_hours_per_week=10)), ["off_hours", "weekend"])
 
     def test_role_gap_for_spec_developer(self):
-        self.assertEqual(role_gap_for_spec(self._member_spec(capability_scores={"文档": 70})), "developer_ai_engineer")
+        self.assertEqual(role_gap_for_spec(self._member_spec(capability_scores={"文档": 70})), "ai_engineer")
 
     def test_motivation_reasons_for_spec_default(self):
         spec = self._member_spec(capability_scores={"兴趣": 50})

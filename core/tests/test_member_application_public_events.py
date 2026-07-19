@@ -20,7 +20,7 @@ def _submit(governance_member, **overrides):
         "applicant_name": "测试公开事件报名者",
         "contact": "pub-event@example.test",
         "motivation": "希望加入社区。",
-        "role_gap": "community_contributor",
+        "role_gap": "content_recorder",
         "availability_slots": ["weekend"],
         "requested_member_no": "pub-event-member",
         "account_username": "",

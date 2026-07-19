@@ -13,6 +13,7 @@ from django.db.models import Count, F, Q, Sum
 from django.shortcuts import get_object_or_404
 
 from core.access import is_governance_principal
+from core.application_services import _application_role_gap_label
 from core.member_roles import ROLE_FORMAL_MEMBER, member_has_role
 from core.models import (
     CapacityAssessment,
@@ -26,7 +27,7 @@ from core.models import (
     Resource,
     Task,
 )
-from core.models.applications import ROLE_GAP_LABELS
+
 from core.proposals.voting import proposal_result
 
 
@@ -86,7 +87,7 @@ def applicant_workspace_context(member_no: str) -> dict[str, Any]:
     can_apply = latest_application is None or can_reapply
     role_gap_label = ""
     if latest_application:
-        role_gap_label = ROLE_GAP_LABELS.get(latest_application.role_gap, latest_application.role_gap or "未记录")
+        role_gap_label = _application_role_gap_label(latest_application)
     return {
         "member": member,
         "application": latest_application,
@@ -219,7 +220,7 @@ def _application_summary(application: MemberApplication) -> dict[str, Any]:
         "application_id": application.application_id,
         "applicant_name": application.applicant_name,
         "role_gap": application.role_gap,
-        "role_gap_label": ROLE_GAP_LABELS.get(application.role_gap, application.role_gap or "未记录"),
+        "role_gap_label": _application_role_gap_label(application),
         "status": application.status,
         "status_label": application.get_status_display(),
         "submitted_at": application.submitted_at,
@@ -347,7 +348,7 @@ def application_review_detail_context(*, member: Member, application: MemberAppl
         "member": member,
         "is_governance": is_governance_principal(member),
         "application": application,
-        "role_gap_label": ROLE_GAP_LABELS.get(application.role_gap, application.role_gap or "未记录"),
+        "role_gap_label": _application_role_gap_label(application),
         "availability_slots": list(application.availability_slots or []),
         "dynamic_answers": role_motivation_answers,
         "linked_member": application.linked_member,

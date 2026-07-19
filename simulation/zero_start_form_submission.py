@@ -24,10 +24,10 @@ def availability_slots_for_spec(spec: ApplicantSpec) -> list[str]:
 def role_gap_for_spec(spec: ApplicantSpec) -> str:
     capability_names = " ".join(spec.capability_scores.keys())
     if any(kw in capability_names for kw in ("文档", "表格", "光伏", "结构")):
-        return "developer_ai_engineer"
+        return "ai_engineer"
     if any(kw in capability_names for kw in ("搬运", "现场", "安全", "采购")):
-        return "service_resident"
-    return "community_contributor"
+        return "life_service"
+    return "content_recorder"
 
 
 def motivation_reasons_for_spec(spec: ApplicantSpec) -> list[str]:

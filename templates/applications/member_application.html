@@ -32,7 +32,8 @@
     </ul>
 
     <fieldset class="fieldset rounded-box border border-base-300 bg-base-100 p-4 shadow-sm" data-step-panel="0">
-      <legend class="fieldset-legend">意向角色</legend>
+      <legend class="fieldset-legend">申请方向</legend>
+      <p class="text-sm text-base-content/60 mb-3">选择你希望加入的社区方向。当前缺口表示社区还需要多少人填补该方向。</p>
       <div class="grid gap-3 sm:grid-cols-2">
         {% for card in form.role_gap_cards %}
           <label class="cursor-pointer rounded-lg border border-base-300 p-4 transition hover:border-primary has-[:checked]:border-primary has-[:checked]:bg-primary/5 {% if not card.open %}opacity-50 pointer-events-none{% endif %}">
@@ -44,14 +45,23 @@
               <div class="flex-1">
                 <div class="flex flex-wrap items-center gap-2">
                   <span class="font-medium">{{ card.label }}</span>
-                  <span class="badge badge-sm badge-outline">{{ card.remote_mode_label }}</span>
                   {% if not card.open %}<span class="badge badge-sm badge-ghost">已满</span>{% endif %}
                 </div>
                 <p class="mt-1 text-sm text-base-content/70">{{ card.description }}</p>
+                <div class="mt-2 flex flex-wrap gap-2 text-xs text-base-content/50">
+                  <span>需要 {{ card.required_count }} 人</span>
+                  <span>·</span>
+                  <span>已有 {{ card.current_count }} 人</span>
+                  <span>·</span>
+                  <span class="{% if card.missing_count > 0 %}text-warning font-semibold{% endif %}">缺 {{ card.missing_count }} 人</span>
+                </div>
               </div>
             </div>
           </label>
         {% endfor %}
+      </div>
+      <div class="alert alert-info text-sm mt-3">
+        <span>申请通过只代表成为正式成员；具体资格/职责后续通过治理授权或凭证发放处理，不会自动授予所选方向凭证或角色。</span>
       </div>
       {% for error in form.role_gap.errors %}
         <div class="label"><span class="label-text-alt text-error">{{ error }}</span></div>

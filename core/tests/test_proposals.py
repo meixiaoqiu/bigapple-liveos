@@ -272,7 +272,7 @@ class ProposalTests(TestCase):
             applicant_name="准入申请者",
             contact="applicant@example.test",
             motivation="想加入社区。",
-            role_gap="developer_ai_engineer",
+            role_gap="ai_engineer",
             availability_slots=["weekend"],
             capability_scores={"开发": 80},
             requested_member_no="admission-applicant",
@@ -356,7 +356,7 @@ class ProposalTests(TestCase):
             applicant_name=applicant_name,
             contact=f"{username}@test.com",
             motivation="测试。",
-            role_gap="cooking",
+            role_gap="life_service",
             account_username=username,
             account_password="TestPass123!",
         )
@@ -432,7 +432,7 @@ class ProposalTests(TestCase):
             applicant_name="Order Test",
             contact="order@test.com",
             motivation="Test order.",
-            role_gap="cooking",
+            role_gap="life_service",
             account_username="ordertest2",
             account_password="TestPass123!",
         )
