@@ -1,7 +1,7 @@
 """Single-world runtime URL configuration shared by bigreal.local and bigsim.local.
 
 ``observer`` is the internal app / module name.  The public entrypoints are at
-the site root (``/``, ``/events/``, ``/members/``, etc.).
+the site root (``/``, ``/events/``, ``/u/<member_no>/``, etc.).
 """
 
 from django.urls import include, path
@@ -21,3 +21,8 @@ urlpatterns = [
     path("api/v0.1/", include("live_os.api.urls")),
     path("", include("observer.urls")),
 ]
+
+handler400 = "live_os.error_handlers.bad_request"
+handler403 = "live_os.error_handlers.permission_denied"
+handler404 = "live_os.error_handlers.page_not_found"
+handler500 = "live_os.error_handlers.server_error"

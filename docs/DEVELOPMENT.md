@@ -135,6 +135,21 @@ python manage.py tailwind install
 python manage.py tailwind build
 ```
 
+## Runtime 错误页
+
+固定 world runtime 的普通网页入口使用统一友好错误页：
+
+- `live_os.error_handlers` 提供 400 / 403 / 404 / 500 handler 和 405 渲染函数。
+- `live_os.middleware.FriendlyErrorPageMiddleware` 将普通网页中的 403 / 404 / 405 响应替换为 `templates/errors/runtime_error.html`。
+- `/api/` 和 `/admin/` 被 middleware 跳过，避免把 API 或后台错误响应改成普通网页。
+- `/logout/` 必须保持 POST-only；GET `/logout/` 返回 405 友好页，不执行退出。
+
+修改错误页模板中的 Tailwind / daisyUI class 后，需要运行：
+
+```bash
+python manage.py tailwind build
+```
+
 开发时也可以使用 watch：
 
 ```bash

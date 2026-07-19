@@ -126,6 +126,7 @@ MIDDLEWARE = [
     "worlds.middleware.WorldContextMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "live_os.middleware.FriendlyErrorPageMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
