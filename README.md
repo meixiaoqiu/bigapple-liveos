@@ -105,7 +105,7 @@ http://127.0.0.1:20102/observer/
 
 `bigadmin.local` / `127.0.0.1:20100` 是唯一 Django Admin / control plane：负责技术后台、底层数据管理、仿真实验后台、世界注册表、仿真归档和兜底维护。`bigreal.local` / `127.0.0.1:20101` 是真实世界 runtime。`bigsim.local` / `127.0.0.1:20102` 是仿真世界 runtime。真实和仿真 runtime 不暴露 `/admin/`，也不再暴露 `/live-admin/`；世界站点只保留 `/workspace/`、`/observer/`、报名入口和 API。
 
-Admin 当前的模型用途和保护规则见 [docs/ADMIN.md](docs/ADMIN.md)。
+Admin 当前的模型用途和保护规则见 `../bigapple-docs/docs/product/admin.md`。
 
 成员工作台最小页面可以访问：
 
@@ -136,7 +136,7 @@ http://127.0.0.1:20101/observer/
 python manage.py tailwind build
 ```
 
-自动模拟仍保留原 POST 动作：系统会基于 `bigapple001据点执行计划` 创建一次模拟运行，按主线节点推进，直到预算、人力、技能、资源、依赖或人员状态触发失败，并生成待审核的计划修订建议以及结构化计划数据 patch。详细说明见 [docs/SIMULATION.md](docs/SIMULATION.md) 和 [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md)。
+自动模拟仍保留原 POST 动作：系统会基于 `bigapple001据点执行计划` 创建一次模拟运行，按主线节点推进，直到预算、人力、技能、资源、依赖或人员状态触发失败，并生成待审核的计划修订建议以及结构化计划数据 patch。详细说明见 `../bigapple-docs/docs/product/simulation.md` 和 `../bigapple-docs/docs/product/project-plan.md`。
 
 要登录 Django Admin，需要先创建超级用户：
 
@@ -169,17 +169,17 @@ start.bat
 
 ## 文档
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- [docs/PRODUCT_PLANNING.md](docs/PRODUCT_PLANNING.md)
-- [docs/ROADMAP.md](docs/ROADMAP.md)
-- [docs/ADMIN.md](docs/ADMIN.md)
+- 已迁移到 `../bigapple-docs/docs/architecture/overview.md`
+- 已迁移到 `../bigapple-docs/docs/project/product-planning.md`
+- 已迁移到 `../bigapple-docs/docs/project/roadmap.md`
+- 已迁移到 `../bigapple-docs/docs/product/admin.md`
 - [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md)
 - [docs/API.md](docs/API.md)
-- [docs/OBSERVER.md](docs/OBSERVER.md)
-- [docs/SIMULATION.md](docs/SIMULATION.md)
-- [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md)
-- [docs/MEMBER_WORKSPACE.md](docs/MEMBER_WORKSPACE.md)
-- [docs/OPERATIONS.md](docs/OPERATIONS.md)
+- 已迁移到 `../bigapple-docs/docs/product/observer.md`
+- 已迁移到 `../bigapple-docs/docs/product/simulation.md`
+- 已迁移到 `../bigapple-docs/docs/product/project-plan.md`
+- 已迁移到 `../bigapple-docs/docs/product/member-workspace.md`
+- 已迁移到 `../bigapple-docs/docs/operations/runtime-boundary.md`
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
 - [docs/MYSQL_MIGRATION.md](docs/MYSQL_MIGRATION.md)
 - [docs/AI_DEVELOPMENT_GUIDE.md](docs/AI_DEVELOPMENT_GUIDE.md)

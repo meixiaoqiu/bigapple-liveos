@@ -56,6 +56,8 @@
 
 模型、流程、权限、Admin、仿真、Observer、API 或 AI 边界变化后，按 `docs/AI_DEVELOPMENT_GUIDE.md` 中的“必须同步更新的文档”表更新对应文档。
 
+公开项目文档、架构说明、产品规划、路线图、运行入口边界和产品功能说明已迁移到 sibling 仓库 `../bigapple-docs/`。修改这些公开文档时进入 `../bigapple-docs/`，不要在本仓库重新创建 `docs/ARCHITECTURE.md`、`docs/PRODUCT_PLANNING.md`、`docs/ROADMAP.md`、`docs/OPERATIONS.md`、`docs/ADMIN.md`、`docs/MEMBER_WORKSPACE.md`、`docs/OBSERVER.md`、`docs/PROJECT_PLAN.md` 或 `docs/SIMULATION.md`。
+
 ## 验证提醒
 
 - 修改后优先运行最小相关检查或测试。

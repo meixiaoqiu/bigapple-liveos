@@ -419,13 +419,13 @@ docker compose -f docker-compose.dev.yml exec big-apple-admin python manage.py t
 任何行为变化都应在同一个变更中更新文档：
 
 - 模型或表结构变化：更新 `docs/DATABASE_SCHEMA.md`
-- 项目执行计划或主线节点规则变化：更新 `docs/PROJECT_PLAN.md`
+- 项目执行计划或主线节点规则变化：更新 `../bigapple-docs/docs/product/project-plan.md`
 - API 变化：先更新 contracts，再更新 `docs/API.md`
-- 架构边界变化：更新 `docs/ARCHITECTURE.md`
+- 架构边界变化：更新 `../bigapple-docs/docs/architecture/overview.md`
 - 新开发流程：更新 `docs/DEVELOPMENT.md`
 - AI 协作规则变化：更新 `docs/AI_DEVELOPMENT_GUIDE.md`
-- 仿真推进规则或页面入口变化：更新 `docs/SIMULATION.md`
-- 观察台前端布局、HTMX partial 或 Tailwind/daisyUI 构建方式变化：更新 `docs/OBSERVER.md` 和本文件
+- 仿真推进规则或页面入口变化：更新 `../bigapple-docs/docs/product/simulation.md`
+- 观察台前端布局、HTMX partial 或 Tailwind/daisyUI 构建方式变化：更新 `../bigapple-docs/docs/product/observer.md` 和本文件
 
 ## 契约变更规则
 
