@@ -1,4 +1,23 @@
 services:
+  admin:
+    image: big-apple-live-os-dev:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: big-apple-live-os-dev-admin
+    env_file:
+      - .env.dev
+    environment:
+      DJANGO_SETTINGS_MODULE: live_os.settings_admin
+    working_dir: /app
+    command: python manage.py runserver 0.0.0.0:20100
+    volumes:
+      - .:/app
+    ports:
+      - "127.0.0.1:20100:20100"
+    networks:
+      - big-apple-live-os-dev-net
+
   web:
     image: big-apple-live-os-dev:latest
     build:
@@ -7,12 +26,14 @@ services:
     container_name: big-apple-live-os-dev-web
     env_file:
       - .env.dev
+    environment:
+      DJANGO_SETTINGS_MODULE: live_os.settings_real
     working_dir: /app
-    command: python manage.py runserver 0.0.0.0:20100
+    command: python manage.py runserver 0.0.0.0:20101
     volumes:
       - .:/app
     ports:
-      - "127.0.0.1:20100:20100"
+      - "127.0.0.1:20101:20101"
     networks:
       - big-apple-live-os-dev-net
 

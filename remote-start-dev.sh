@@ -25,7 +25,8 @@ docker compose -f "$COMPOSE_FILE" ps
 
 echo
 echo "Local URL:"
-echo "  http://127.0.0.1:20101/observer/"
+echo "  admin: http://127.0.0.1:20100/admin/"
+echo "  real:  http://127.0.0.1:20101/"
 if [ -n "${REMOTE_DEV_PUBLIC_URL:-}" ]; then
   echo
   echo "Remote URL:"
