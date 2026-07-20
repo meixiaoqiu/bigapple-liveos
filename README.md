@@ -173,16 +173,18 @@ start.bat
 - 已迁移到 `../bigapple-docs/docs/project/product-planning.md`
 - 已迁移到 `../bigapple-docs/docs/project/roadmap.md`
 - 已迁移到 `../bigapple-docs/docs/product/admin.md`
-- [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md)
-- [docs/API.md](docs/API.md)
+- 已迁移到 `../bigapple-docs/docs/architecture/database-schema.md`
+- 已迁移到 `../bigapple-docs/docs/reference/api.md`
 - 已迁移到 `../bigapple-docs/docs/product/observer.md`
 - 已迁移到 `../bigapple-docs/docs/product/simulation.md`
 - 已迁移到 `../bigapple-docs/docs/product/project-plan.md`
 - 已迁移到 `../bigapple-docs/docs/product/member-workspace.md`
 - 已迁移到 `../bigapple-docs/docs/operations/runtime-boundary.md`
-- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
-- [docs/MYSQL_MIGRATION.md](docs/MYSQL_MIGRATION.md)
-- [docs/AI_DEVELOPMENT_GUIDE.md](docs/AI_DEVELOPMENT_GUIDE.md)
+- 已迁移到 `../bigapple-docs/docs/development/setup.md`
+- 已迁移到 `../bigapple-docs/docs/operations/mysql-migration.md`
+- 已迁移到 `../bigapple-docs/docs/development/ai-guide.md`
+- 已迁移到 `../bigapple-docs/docs/development/theme-system.md`
+- 已迁移到 `../bigapple-docs/docs/development/remote-dev.md`
 
 ## 参与和治理
 

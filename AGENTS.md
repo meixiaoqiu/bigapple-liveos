@@ -8,10 +8,10 @@
 
 ## 开始前阅读
 
-- Live OS 编码任务先读 `docs/AI_DEVELOPMENT_GUIDE.md`，再读本次任务直接相关的文档和代码。
+- Live OS 编码任务先读 `../bigapple-docs/docs/development/ai-guide.md`，再读本次任务直接相关的文档和代码。
 - API、schema 或 payload 变更必须先检查 `../big-apple-contracts/` 中对应 contract，再修改 Live OS 实现。
-- 视觉主题任务只读取相关设计文档；非主题任务不要加载大型设计资料或导出目录。
-- 远程开发环境、Docker、启动脚本、服务器预览问题才需要读取 `docs/development/remote-dev.md`。
+- 视觉主题任务只读取 `../bigapple-docs/docs/development/theme-system.md` 和相关设计文档；非主题任务不要加载大型设计资料或导出目录。
+- 远程开发环境、Docker、启动脚本、服务器预览问题才需要读取 `../bigapple-docs/docs/development/remote-dev.md`。
 
 ## 安全边界
 
@@ -54,14 +54,14 @@
 
 ## 文档同步
 
-模型、流程、权限、Admin、仿真、Observer、API 或 AI 边界变化后，按 `docs/AI_DEVELOPMENT_GUIDE.md` 中的“必须同步更新的文档”表更新对应文档。
+模型、流程、权限、Admin、仿真、Observer、API 或 AI 边界变化后，按 `../bigapple-docs/docs/development/ai-guide.md` 中的“必须同步更新的文档”表更新对应文档。
 
-公开项目文档、架构说明、产品规划、路线图、运行入口边界和产品功能说明已迁移到 sibling 仓库 `../bigapple-docs/`。修改这些公开文档时进入 `../bigapple-docs/`，不要在本仓库重新创建 `docs/ARCHITECTURE.md`、`docs/PRODUCT_PLANNING.md`、`docs/ROADMAP.md`、`docs/OPERATIONS.md`、`docs/ADMIN.md`、`docs/MEMBER_WORKSPACE.md`、`docs/OBSERVER.md`、`docs/PROJECT_PLAN.md` 或 `docs/SIMULATION.md`。
+公开项目文档、架构说明、产品规划、路线图、运行入口边界、产品功能说明、API 文档、数据库表结构、治理交互边界和开发文档已迁移到 sibling 仓库 `../bigapple-docs/`。修改这些公开文档时进入 `../bigapple-docs/`，不要在本仓库重新创建 `docs/` 下的 Markdown 文档。
 
 ## 验证提醒
 
 - 修改后优先运行最小相关检查或测试。
-- Live OS 行为变更按 `docs/AI_DEVELOPMENT_GUIDE.md` 中的测试建议验证。
+- Live OS 行为变更按 `../bigapple-docs/docs/development/ai-guide.md` 中的测试建议验证。
 - 常用完整本地回归：
 
 ```powershell
