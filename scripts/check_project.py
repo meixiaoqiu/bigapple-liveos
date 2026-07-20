@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CONTRACTS_ROOT = (ROOT / "../big-apple-contracts").resolve()
+DEFAULT_CONTRACTS_ROOT = (ROOT / "../bigapple-docs/technical-contracts").resolve()
 CONTRACTS_ROOT = Path(os.environ.get("BIG_APPLE_CONTRACTS_ROOT", str(DEFAULT_CONTRACTS_ROOT))).resolve()
 
 REQUIRED_CONTRACT_FILES = [
@@ -23,16 +23,6 @@ REQUIRED_CONTRACT_FILES = [
     "schemas/capacity-assessment.schema.json",
     "openapi/live-os.v0.1.openapi.json",
 ]
-
-REQUIRED_DOCS = [
-    "docs/ARCHITECTURE.md",
-    "docs/DATABASE_SCHEMA.md",
-    "docs/API.md",
-    "docs/OPERATIONS.md",
-    "docs/DEVELOPMENT.md",
-    "docs/AI_DEVELOPMENT_GUIDE.md",
-]
-
 
 def check_python_syntax() -> list[str]:
     errors: list[str] = []
@@ -68,20 +58,12 @@ def check_contract_files() -> list[str]:
     return errors
 
 
-def check_docs_exist() -> list[str]:
-    return [
-        f"Missing documentation file: {ROOT / relative}"
-        for relative in REQUIRED_DOCS
-        if not (ROOT / relative).exists()
-    ]
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run lightweight Big Apple Live OS repository checks.")
     parser.add_argument(
         "--check-contracts",
         action="store_true",
-        help="also verify the adjacent big-apple-contracts files; set BIG_APPLE_CONTRACTS_ROOT to override the path",
+        help="also verify technical contracts; set BIG_APPLE_CONTRACTS_ROOT to override the path",
     )
     return parser.parse_args()
 
@@ -92,7 +74,6 @@ def main() -> int:
     errors.extend(check_python_syntax())
     if args.check_contracts:
         errors.extend(check_contract_files())
-    errors.extend(check_docs_exist())
 
     if errors:
         print("Project check failed:")

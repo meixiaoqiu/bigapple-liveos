@@ -2,7 +2,7 @@
 
 `big-apple-live-os` 是“大苹果”v0.1 的权威生活系统。
 
-它实现相邻仓库 `big-apple-contracts` 中定义的契约。Simulation Engine 必须像真实成员一样通过 Live OS API 使用系统，不能直接写入 Live OS 的业务数据表。
+它实现相邻 `bigapple-docs` 仓库中 `technical-contracts/` 定义的契约。Simulation Engine 必须像真实成员一样通过 Live OS API 使用系统，不能直接写入 Live OS 的业务数据表。
 
 ## 当前阶段
 
@@ -31,11 +31,12 @@
 
 ```text
 big-apple/
-├── big-apple-contracts/
+├── bigapple-docs/
+│   └── technical-contracts/
 └── big-apple-live-os/
 ```
 
-这两个目录都是独立 Git 仓库。
+`bigapple-docs` 和 `big-apple-live-os` 是独立 Git 仓库。
 
 ## 数据库
 
@@ -78,7 +79,7 @@ docker compose -f docker-compose.dev.yml exec big-apple-admin python manage.py s
 docker compose -f docker-compose.dev.yml down
 ```
 
-当前仓库已经提供不依赖第三方包的检查脚本。默认只检查 Live OS 仓库自身，不要求相邻 `big-apple-contracts` 仓库存在：
+当前仓库已经提供不依赖第三方包的检查脚本。默认只检查 Live OS 仓库自身，不要求相邻 `bigapple-docs` 仓库存在：
 
 ```bash
 python scripts/check_project.py
@@ -201,7 +202,7 @@ start.bat
 
 ## 契约规则
 
-API 和数据结构变更必须先进入 `big-apple-contracts`。Live OS 再实现这些契约，并通过测试证明 API 响应符合 schema。
+API 和数据结构变更必须先进入 `../bigapple-docs/technical-contracts/`。Live OS 再实现这些契约，并通过测试证明 API 响应符合 schema。
 
 ## 测试
 

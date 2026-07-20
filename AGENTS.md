@@ -4,18 +4,18 @@
 
 本文件规则适用于 `big-apple-live-os/` 仓库。
 
-`big-apple-live-os/` 是 Big Apple 的 Django 权威系统。不要把上级工作区目录当成单一 Git 仓库处理；本仓库和 `../big-apple-contracts/` 是相互独立的仓库。
+`big-apple-live-os/` 是 Big Apple 的 Django 权威系统。不要把上级工作区目录当成单一 Git 仓库处理；本仓库和 `../bigapple-docs/` 是相互独立的仓库，技术契约位于 `../bigapple-docs/technical-contracts/`。
 
 ## 开始前阅读
 
 - Live OS 编码任务先读 `../bigapple-docs/docs/development/ai-guide.md`，再读本次任务直接相关的文档和代码。
-- API、schema 或 payload 变更必须先检查 `../big-apple-contracts/` 中对应 contract，再修改 Live OS 实现。
+- API、schema 或 payload 变更必须先检查 `../bigapple-docs/technical-contracts/` 中对应 contract，再修改 Live OS 实现。
 - 视觉主题任务只读取 `../bigapple-docs/docs/development/theme-system.md` 和相关设计文档；非主题任务不要加载大型设计资料或导出目录。
 - 远程开发环境、Docker、启动脚本、服务器预览问题才需要读取 `../bigapple-docs/docs/development/remote-dev.md`。
 
 ## 安全边界
 
-- 默认只在当前仓库内工作；只有 API、schema 或 payload 任务需要读取 `../big-apple-contracts/`。
+- 默认只在当前仓库内工作；只有 API、schema 或 payload 任务需要读取 `../bigapple-docs/technical-contracts/`。
 - 不要输出密钥、token、密码、API key、cookie 或私密环境变量。
 - 不要使用 `sudo`。
 - 未经明确允许，不要执行破坏性命令，例如 `rm -rf`、`docker volume rm`、`drop database` 或批量删除命令。

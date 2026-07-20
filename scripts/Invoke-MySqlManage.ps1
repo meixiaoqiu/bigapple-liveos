@@ -29,7 +29,7 @@ if ($databaseUrl.Contains("CHANGE_ME")) {
 $env:DATABASE_URL = $databaseUrl
 $env:DJANGO_DEBUG = "true"
 if (-not $env:BIG_APPLE_CONTRACTS_ROOT) {
-    $env:BIG_APPLE_CONTRACTS_ROOT = Join-Path $repoRoot "..\big-apple-contracts"
+    $env:BIG_APPLE_CONTRACTS_ROOT = Join-Path $repoRoot "..\bigapple-docs\technical-contracts"
 }
 
 if (-not $ManageArgs -or $ManageArgs.Count -eq 0) {

@@ -18,6 +18,7 @@ staticfiles/
 media/
 output/
 var/
+/docs/**/*.md
 .DS_Store
 .idea/
 .vscode/

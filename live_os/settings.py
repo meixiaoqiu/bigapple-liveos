@@ -383,7 +383,7 @@ THEME_CONFIGS = {
 }
 
 BIG_APPLE_CONTRACTS_ROOT = Path(
-    os.environ.get("BIG_APPLE_CONTRACTS_ROOT", "../big-apple-contracts")
+    os.environ.get("BIG_APPLE_CONTRACTS_ROOT", "../bigapple-docs/technical-contracts")
 )
 if not BIG_APPLE_CONTRACTS_ROOT.is_absolute():
     BIG_APPLE_CONTRACTS_ROOT = (BASE_DIR / BIG_APPLE_CONTRACTS_ROOT).resolve()
