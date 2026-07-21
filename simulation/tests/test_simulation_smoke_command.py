@@ -246,10 +246,11 @@ class SimulationSmokeCommandTests(TestCase):
         self.assertIn("required_document_signers", failure.metadata)
         self.assertIn("meal_support", {row["code"] for row in failure.metadata["missing_capabilities"]})
         self.assertIn("structural_safety_document", {row["code"] for row in failure.metadata["missing_document_signers"]})
-        self.assertTrue(PlanRevisionProposal.objects.filter(run=run, title__contains="自媒体").exists())
-        change_set = PlanChangeSet.objects.get(run=run, title__contains="启动门槛")
+        self.assertTrue(PlanRevisionProposal.objects.filter(run=run).exists())
+        self.assertTrue(PlanChangeSet.objects.filter(run=run).exists())
+        change_set = PlanChangeSet.objects.get(run=run)
         operations = PlanChangeOperation.objects.filter(change_set=change_set)
-        self.assertEqual(operations.filter(operation_type=PlanChangeOperation.OperationType.ADD_NODE).count(), 1)
+        self.assertEqual(operations.filter(operation_type=PlanChangeOperation.OperationType.ADD_NODE).count(), 0)
         self.assertEqual(operations.filter(operation_type=PlanChangeOperation.OperationType.ADD_REQUIREMENT).count(), 11)
         self.assertTrue(operations.filter(metadata__requirement_kind="capability").exists())
         self.assertTrue(operations.filter(metadata__requirement_kind="document").exists())
@@ -360,7 +361,7 @@ class SimulationSmokeCommandTests(TestCase):
             metadata={"template": "zero_start", "applied_change_set_id": "changeset-test"},
         )
         PlanNode.objects.create(
-            node_id="node-zero-start-z0",
+            node_id="node-zero-start-z0-test-gate",
             revision=latest_revision,
             sequence=0,
             code="Z0",
@@ -374,9 +375,16 @@ class SimulationSmokeCommandTests(TestCase):
 
         run = SimulationRun.objects.get()
         self.assertEqual(run.plan_revision, latest_revision)
-        self.assertEqual(PlanRevisionProposal.objects.filter(run=run).count(), 0)
-        self.assertEqual(PlanChangeSet.objects.filter(run=run).count(), 0)
-        self.assertEqual(run.metadata["change_set_id"], "")
+        self.assertTrue(PlanRevisionProposal.objects.filter(run=run).exists())
+        self.assertTrue(PlanChangeSet.objects.filter(run=run).exists())
+        proposal = PlanRevisionProposal.objects.get(run=run)
+        self.assertEqual(proposal.proposal_type, PlanRevisionProposal.ProposalType.ADD_REQUIREMENT)
+        self.assertIsNotNone(proposal.plan_node)
+        change_set = PlanChangeSet.objects.get(run=run)
+        operations = PlanChangeOperation.objects.filter(change_set=change_set)
+        self.assertEqual(operations.filter(operation_type=PlanChangeOperation.OperationType.ADD_NODE).count(), 0)
+        self.assertEqual(operations.filter(operation_type=PlanChangeOperation.OperationType.ADD_REQUIREMENT).count(), 11)
+        self.assertNotEqual(run.metadata["change_set_id"], "")
 
     def test_run_zero_start_simulation_continues_unfinished_recruitment_run(self) -> None:
         call_command("run_zero_start_simulation", "--world-id", "simulation0001", "--hours", "24", stdout=StringIO())

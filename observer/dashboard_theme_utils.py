@@ -43,20 +43,3 @@ def _event_level(tone: str) -> str:
 def _event_status(tone: str) -> str:
     return "done" if tone == "resolved" else "watching" if tone in {"notice", "medium"} else "new"
 
-def _mission_status(status: str) -> str:
-    return {
-        "planned": "todo",
-        "in_progress": "doing",
-        "blocked": "locked",
-        "completed": "done",
-        "cancelled": "expired",
-    }.get(str(status).lower(), "todo")
-
-def _mission_progress(status: str) -> tuple[int, int]:
-    normalized = _mission_status(status)
-    if normalized == "done":
-        return 1, 1
-    if normalized == "doing":
-        return 1, 2
-    return 0, 1
-

@@ -51,24 +51,84 @@
           {% endfor %}
         </section>
 
-        <section class="grid gap-6 lg:grid-cols-3">
-          <div class="card bg-base-100 shadow lg:col-span-2">
-            <div class="card-body">
-              <div class="flex flex-wrap items-center justify-between gap-3">
-                <h2 class="card-title">任务与提案线索</h2>
-                <span class="badge badge-outline">{{ dashboard.missions|length }} 项</span>
-              </div>
-              <div id="dashboard-missions" hx-get="{% world_url 'dashboard-missions-partial' %}" hx-trigger="every 30s" hx-swap="innerHTML">
-                {% include "themes/default_game/partials/mission_list.html" %}
-              </div>
+        <section class="card bg-base-100 shadow">
+          <div class="card-body gap-6">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <h2 class="card-title">当前主线</h2>
+              <a class="btn btn-sm btn-outline" href="{% world_url 'dashboard-mainline' %}">查看完整主线</a>
             </div>
-          </div>
 
-          <div class="card bg-base-100 shadow">
-            <div class="card-body">
-              <h2 class="card-title">容量评估</h2>
-              {% include "themes/default_game/partials/capacity_panel.html" %}
-            </div>
+            {% if dashboard.mainline.empty %}
+              <div class="alert alert-info text-sm">暂无执行计划数据，请先在管理后台创建计划与节点。</div>
+            {% else %}
+              {% if dashboard.mainline.primary_task %}
+                <div class="rounded-lg border border-primary/30 bg-primary/5 p-5">
+                  <span class="text-xs font-semibold text-primary uppercase tracking-wide">当前任务</span>
+                  <div class="mt-2 flex flex-wrap items-center gap-2">
+                    <span class="badge badge-primary">{{ dashboard.mainline.primary_task.code }}</span>
+                    <h3 class="text-lg font-bold">{{ dashboard.mainline.primary_task.title }}</h3>
+                  </div>
+                  {% if dashboard.mainline.primary_task.description %}
+                    <p class="mt-2 text-sm text-base-content/70">{{ dashboard.mainline.primary_task.description|truncatewords:40 }}</p>
+                  {% endif %}
+                  {% if dashboard.mainline.primary_task.completion_criteria %}
+                    <ul class="mt-2 text-xs text-base-content/60 list-disc list-inside">
+                      {% for crit in dashboard.mainline.primary_task.completion_criteria|slice:":3" %}<li>{{ crit }}</li>{% endfor %}
+                    </ul>
+                  {% endif %}
+                </div>
+              {% endif %}
+
+              <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {% if dashboard.mainline.stage %}
+                  <div class="rounded-lg border border-base-300 p-4">
+                    <span class="text-xs font-semibold text-base-content/50 uppercase tracking-wide">当前阶段</span>
+                    <p class="mt-1 font-bold">{{ dashboard.mainline.stage.title }}</p>
+                  </div>
+                {% endif %}
+
+                {% if dashboard.mainline.next_action %}
+                  <div class="rounded-lg border border-dashed border-base-300 p-4">
+                    <span class="text-xs font-semibold text-base-content/50 uppercase tracking-wide">下一步</span>
+                    <div class="mt-1 flex items-center gap-1.5">
+                      <span class="badge badge-sm badge-ghost">{{ dashboard.mainline.next_action.code }}</span>
+                      <span class="font-semibold text-sm">{{ dashboard.mainline.next_action.title }}</span>
+                    </div>
+                  </div>
+                {% else %}
+                  <div class="rounded-lg border border-dashed border-base-300 p-4">
+                    <span class="text-xs font-semibold text-base-content/50 uppercase tracking-wide">下一步</span>
+                    <p class="mt-1 text-sm text-base-content/50">暂无下一步节点</p>
+                  </div>
+                {% endif %}
+
+                <div class="rounded-lg border border-base-300 p-4">
+                  <span class="text-xs font-semibold text-base-content/50 uppercase tracking-wide">进度</span>
+                  <div class="mt-1 flex items-end gap-2">
+                    <span class="text-2xl font-bold text-primary">{{ dashboard.mainline.progress.percent }}%</span>
+                    <span class="text-xs text-base-content/60 mb-0.5">{{ dashboard.mainline.progress.completed }}/{{ dashboard.mainline.progress.total }}</span>
+                  </div>
+                  <progress class="progress progress-primary w-full mt-1" value="{{ dashboard.mainline.progress.percent }}" max="100"></progress>
+                </div>
+              </div>
+
+              {% if dashboard.mainline.blockers %}
+                <div>
+                  <h3 class="text-sm font-semibold text-base-content/50 uppercase tracking-wide mb-2">阻塞项</h3>
+                  <div class="grid gap-2">
+                    {% for blocker in dashboard.mainline.blockers|slice:":3" %}
+                      <div class="flex items-start gap-2 rounded-lg border border-error/30 bg-error/5 p-3">
+                        <span class="mt-0.5 shrink-0 text-error text-xs">⚠</span>
+                        <div class="min-w-0">
+                          <p class="text-sm font-semibold">{{ blocker.title }}</p>
+                          {% if blocker.node %}<p class="text-xs text-base-content/50 mt-0.5">节点：{{ blocker.node }}</p>{% endif %}
+                        </div>
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+              {% endif %}
+            {% endif %}
           </div>
         </section>
 

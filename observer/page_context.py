@@ -22,6 +22,7 @@ from core.models import (
     Resource,
     SimulationFailure,
     SimulationRun,
+    SimulationTurn,
     Task,
 )
 
@@ -29,7 +30,7 @@ from .dashboard_context import observer_command_dashboard_context
 from .presentation import BOTTLENECK_LABELS, RISK_LABELS, task_completion_rate
 
 
-def observer_context() -> dict[str, Any]:
+def observer_context(*, full_plan_nodes: bool = False) -> dict[str, Any]:
     latest = CapacityAssessment.objects.order_by("-simulation_day", "-created_at").first()
     resources = list(Resource.objects.all().order_by("resource_type", "resource_id"))
     resource_warnings = [resource for resource in resources if resource.current_stock <= resource.warning_threshold]
@@ -85,7 +86,7 @@ def observer_context() -> dict[str, Any]:
             active_revision = active_plan.revisions.order_by("-created_at", "revision_code").first()
         if active_revision:
             node_queryset = active_revision.nodes.select_related("parent").order_by("sequence", "node_id")
-            plan_nodes = list(node_queryset[:60])
+            plan_nodes = list(node_queryset) if full_plan_nodes else list(node_queryset[:60])
             current_plan_nodes = list(
                 node_queryset.filter(status__in=[PlanNode.Status.IN_PROGRESS, PlanNode.Status.BLOCKED])[:6]
             )
@@ -110,6 +111,7 @@ def observer_context() -> dict[str, Any]:
     latest_run_failures: list[SimulationFailure] = []
     latest_run_proposals: list[PlanRevisionProposal] = []
     latest_run_change_sets: list[PlanChangeSet] = []
+    latest_run_turn = None
     if latest_simulation_run:
         latest_run_node_states = list(
             latest_simulation_run.node_states.select_related("plan_node")
@@ -126,6 +128,11 @@ def observer_context() -> dict[str, Any]:
             latest_simulation_run.plan_change_sets.prefetch_related("operations")
             .select_related("proposal", "plan_revision")
             .order_by("-created_at", "change_set_id")[:6]
+        )
+        latest_run_turn = (
+            SimulationTurn.objects.filter(run=latest_simulation_run)
+            .order_by("-turn_number", "-occurred_at")
+            .first()
         )
 
     return {
@@ -147,6 +154,7 @@ def observer_context() -> dict[str, Any]:
         "latest_run_failures": latest_run_failures,
         "latest_run_proposals": latest_run_proposals,
         "latest_run_change_sets": latest_run_change_sets,
+        "latest_run_turn": latest_run_turn,
         "resources": resources,
         "resource_warnings": resource_warnings,
         "events": events,

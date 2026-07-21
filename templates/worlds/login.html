@@ -1,55 +1,43 @@
-{% load tailwind_tags %}
-<!doctype html>
-<html lang="zh-Hans" data-theme="corporate">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>登录 · Big Apple Live OS</title>
-  {% tailwind_css %}
-</head>
-<body class="min-h-screen bg-base-200 text-base-content">
-  <main class="grid min-h-screen place-items-center p-4">
-    <section class="card w-full max-w-md border border-base-300 bg-base-100 shadow-xl">
-      <div class="card-body gap-4">
-        <div>
-          <h1 class="card-title text-2xl font-bold tracking-normal">登录</h1>
-          <p class="mt-2 text-sm leading-6 text-base-content/70">
-            选择世界后，账号会在该世界数据库中认证。普通成员进入成员工作台，拥有治理权限的成员进入世界运营后台。
-          </p>
-        </div>
+{% extends "applications/base.html" %}
 
-        <form class="grid gap-4" method="post">
-          {% csrf_token %}
-          {% if form.non_field_errors %}
-            <div class="alert alert-error text-sm">{{ form.non_field_errors }}</div>
-          {% endif %}
+{% block title %}登录账号 · 大苹果{% endblock %}
+{% block heading %}登录账号{% endblock %}
+{% block subtitle %}选择世界后，账号会在该世界数据库中认证。普通成员进入成员工作台，拥有治理权限的成员进入世界运营后台。{% endblock %}
 
-          {% if form.world_id.is_hidden %}
-            {{ form.world_id }}
-          {% else %}
-            <label class="grid w-full gap-1.5" for="{{ form.world_id.id_for_label }}">
-              <span class="text-sm font-medium text-base-content/70">世界</span>
-              {{ form.world_id }}
-              {{ form.world_id.errors }}
-            </label>
-          {% endif %}
+{% block content %}
+  <form class="mx-auto grid w-full max-w-md gap-4" method="post">
+    {% csrf_token %}
+    {% for error in form.non_field_errors %}
+      <div class="alert alert-error text-sm">{{ error }}</div>
+    {% endfor %}
 
-          <label class="grid w-full gap-1.5" for="{{ form.username.id_for_label }}">
-            <span class="text-sm font-medium text-base-content/70">账号</span>
-            {{ form.username }}
-            {{ form.username.errors }}
-          </label>
+    {% if form.world_id.is_hidden %}
+      {{ form.world_id }}
+    {% else %}
+      <label class="fieldset">
+        <span class="fieldset-label">世界</span>
+        {{ form.world_id }}
+        {% for error in form.world_id.errors %}<span class="label-text-alt text-error">{{ error }}</span>{% endfor %}
+      </label>
+    {% endif %}
 
-          <label class="grid w-full gap-1.5" for="{{ form.password.id_for_label }}">
-            <span class="text-sm font-medium text-base-content/70">密码</span>
-            {{ form.password }}
-            {{ form.password.errors }}
-          </label>
+    <label class="fieldset">
+      <span class="fieldset-label">账号</span>
+      {{ form.username }}
+      {% for error in form.username.errors %}<span class="label-text-alt text-error">{{ error }}</span>{% endfor %}
+    </label>
 
-          <button class="btn btn-primary w-full" type="submit">登录</button>
-        </form>
-      </div>
-    </section>
-  </main>
-</body>
-</html>
+    <label class="fieldset">
+      <span class="fieldset-label">密码</span>
+      {{ form.password }}
+      {% for error in form.password.errors %}<span class="label-text-alt text-error">{{ error }}</span>{% endfor %}
+    </label>
+
+    <button class="btn btn-primary w-full" type="submit">登录</button>
+  </form>
+
+  <div class="mt-6 text-center text-sm text-base-content/70">
+    还没有账号？
+    <a class="link link-primary" href="/register/">立即注册</a>
+  </div>
+{% endblock %}

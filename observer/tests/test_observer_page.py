@@ -253,6 +253,13 @@ class ObserverPageTests(TestCase):
         self.assertContains(response, "午餐任务验收通过")
         self.assertContains(response, "高负载角色")
         self.assertContains(response, "仿真档案馆")
+        self.assertContains(response, "当前主线")
+        self.assertContains(response, "建立临时公共食堂")
+        self.assertNotContains(response, "任务与提案线索")
+        self.assertContains(response, "当前任务")
+        self.assertContains(response, "下一步")
+        self.assertContains(response, "查看完整主线")
+        self.assertContains(response, "/dashboard/mainline/")
 
     def test_public_simulation_archive_lists_reports_without_login(self) -> None:
         snapshot = self.create_public_simulation_snapshot()
@@ -323,7 +330,6 @@ class ObserverPageTests(TestCase):
         self.client.post(self.observer_url("themes/switch/"), {"theme": "dark", "next": self.observer_url()})
 
         expectations = {
-            self.observer_url("dashboard/partials/missions/"): "建立临时公共食堂",
             self.observer_url("dashboard/partials/events/"): "午餐任务验收通过",
             self.observer_url("dashboard/partials/map-points/"): "核心区",
             self.observer_url("dashboard/partials/risk/"): "高风险",
@@ -334,6 +340,87 @@ class ObserverPageTests(TestCase):
                 response = self.client.get(path)
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, expected_text)
+
+    def test_old_missions_partial_returns_404(self) -> None:
+        response = self.client.get(self.observer_url("dashboard/partials/missions/"))
+        self.assertEqual(response.status_code, 404)
+
+    def test_mainline_detail_page_renders(self) -> None:
+        response = self.client.get(self.observer_url("dashboard/mainline/"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "完整主线")
+        self.assertContains(response, "建立临时公共食堂")
+        self.assertContains(response, "未分组节点")
+        self.assertContains(response, "当前任务")
+        self.assertNotContains(response, "任务与提案线索")
+
+    def test_mainline_detail_page_renders_deep_child_and_orphan(self) -> None:
+        child_node = PlanNode.objects.create(
+            node_id="node-bigapple001-b1-child",
+            revision=self.revision,
+            parent=self.plan_node,
+            sequence=15,
+            code="B1-sub",
+            title="深层子任务",
+            node_type=PlanNode.NodeType.RECRUITMENT,
+            status=PlanNode.Status.IN_PROGRESS,
+            created_at=timezone.now(),
+            metadata={},
+        )
+        orphan_node = PlanNode.objects.create(
+            node_id="node-bigapple001-orphan",
+            revision=self.revision,
+            parent=None,
+            sequence=50,
+            code="OW",
+            title="游离孤儿节点",
+            node_type=PlanNode.NodeType.RECRUITMENT,
+            status=PlanNode.Status.PLANNED,
+            created_at=timezone.now(),
+            metadata={},
+        )
+        response = self.client.get(self.observer_url("dashboard/mainline/"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "深层子任务")
+        self.assertContains(response, "游离孤儿节点")
+        self.assertContains(response, "未分组节点")
+
+    def test_mainline_detail_page_shows_node_beyond_60(self) -> None:
+        for i in range(1, 66):
+            PlanNode.objects.create(
+                node_id=f"node-bigapple001-full-{i:03d}",
+                revision=self.revision,
+                sequence=i,
+                code=f"FN{i:03d}",
+                title=f"第 {i} 个主线节点",
+                node_type=PlanNode.NodeType.RECRUITMENT,
+                status=PlanNode.Status.PLANNED,
+                created_at=timezone.now(),
+                metadata={},
+            )
+
+        response = self.client.get(self.observer_url("dashboard/mainline/"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "第 65 个主线节点")
+
+    def test_homepage_still_truncates_plan_nodes(self) -> None:
+        for i in range(1, 66):
+            PlanNode.objects.create(
+                node_id=f"node-bigapple001-trunc-{i:03d}",
+                revision=self.revision,
+                sequence=i,
+                code=f"TR{i:03d}",
+                title=f"截断节点 {i}",
+                node_type=PlanNode.NodeType.RECRUITMENT,
+                status=PlanNode.Status.PLANNED,
+                created_at=timezone.now(),
+                metadata={},
+            )
+
+        response = self.client.get(self.observer_url())
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "当前主线")
 
     def test_public_observer_event_feed_uses_safe_human_operator_summary(self) -> None:
         Event.objects.create(

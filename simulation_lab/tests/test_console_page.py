@@ -242,7 +242,7 @@ class ObserverSimulationConsoleTests(TestCase):
         self.assertContains(response, "大苹果社区动态")
         self.assertContains(response, "事件时间线")
         self.assertContains(response, "数据日志")
-        self.assertContains(response, "任务与提案线索")
+        self.assertContains(response, "当前主线")
         self.assertNotContains(response, "仿真控制台")
         self.assertNotContains(response, "推进一回合")
         self.assertNotContains(response, "自动跑到失败")

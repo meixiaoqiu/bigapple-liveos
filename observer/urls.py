@@ -11,7 +11,7 @@ urlpatterns = [
         page_views.simulation_report_detail_page,
         name="observer-simulation-report-detail",
     ),
-    path("dashboard/partials/missions/", page_views.dashboard_missions_partial, name="dashboard-missions-partial"),
+    path("dashboard/mainline/", page_views.dashboard_mainline, name="dashboard-mainline"),
     path("dashboard/partials/events/", page_views.dashboard_events_partial, name="dashboard-events-partial"),
     path(
         "dashboard/partials/map-points/",

@@ -166,6 +166,49 @@ def plan_revision_has_zero_start_gate(revision: PlanRevision) -> bool:
     return PlanNode.objects.filter(revision=revision, code="Z0").exists()
 
 
+def zero_start_requirement_coverage(gate_node: PlanNode) -> dict[str, object]:
+    """Check which startup capability/document requirements already exist on Z0.
+
+    Returns:
+        {
+            "missing_capabilities": [...],
+            "missing_documents": [...],
+            "covered_capabilities": [...],
+            "covered_documents": [...],
+            "is_complete": bool,
+        }
+    """
+    existing = PlanRequirement.objects.filter(node=gate_node)
+    covered_caps: set[str] = set()
+    covered_docs: set[str] = set()
+    for req in existing:
+        meta = req.metadata or {}
+        kind = meta.get("requirement_kind", "")
+        if kind == "capability":
+            code = meta.get("capability_code", "")
+            if code:
+                covered_caps.add(code)
+        elif kind == "document":
+            code = meta.get("document_code", "")
+            if code:
+                covered_docs.add(code)
+
+    all_cap_codes = {str(c["code"]) for c in STARTUP_CAPABILITY_REQUIREMENTS}
+    all_doc_codes = {str(d["code"]) for d in STARTUP_DOCUMENT_SIGNER_REQUIREMENTS}
+
+    missing_caps = [c for c in STARTUP_CAPABILITY_REQUIREMENTS if str(c["code"]) not in covered_caps]
+    missing_docs = [d for d in STARTUP_DOCUMENT_SIGNER_REQUIREMENTS if str(d["code"]) not in covered_docs]
+    is_complete = (len(missing_caps) == 0 and len(missing_docs) == 0)
+
+    return {
+        "missing_capabilities": missing_caps,
+        "missing_documents": missing_docs,
+        "covered_capabilities": [c for c in STARTUP_CAPABILITY_REQUIREMENTS if str(c["code"]) in covered_caps],
+        "covered_documents": [d for d in STARTUP_DOCUMENT_SIGNER_REQUIREMENTS if str(d["code"]) in covered_docs],
+        "is_complete": is_complete,
+    }
+
+
 def get_or_create_zero_start_feedback(
     *,
     run: SimulationRun,
@@ -176,6 +219,10 @@ def get_or_create_zero_start_feedback(
     If a DRAFT ``PlanChangeSet`` with the ``zero_start`` scenario and
     "启动门槛" title already exists for *run*, it is reused so
     consecutive observation windows do not generate duplicate feedback.
+
+    When Z0 already exists in the plan revision the feedback still
+    creates capability / document-signer requirements but does **not**
+    add a duplicate ``ADD_NODE`` operation.
     """
     existing_change_set = (
         PlanChangeSet.objects.select_related("proposal")
@@ -190,39 +237,76 @@ def get_or_create_zero_start_feedback(
     )
     if existing_change_set is not None:
         return existing_change_set.proposal, existing_change_set
-    if plan_revision_has_zero_start_gate(run.plan_revision):
-        return None, None
-    return create_zero_start_feedback(run=run, failure=failure)
+
+    has_z0 = plan_revision_has_zero_start_gate(run.plan_revision)
+    gate_node: PlanNode | None = None
+    if has_z0:
+        gate_node = PlanNode.objects.filter(
+            revision=run.plan_revision, code="Z0",
+        ).first()
+
+        if gate_node is not None:
+            coverage = zero_start_requirement_coverage(gate_node)
+            if coverage["is_complete"]:
+                return None, None
+            missing_caps = coverage["missing_capabilities"]
+            missing_docs = coverage["missing_documents"]
+            if not missing_caps and not missing_docs:
+                return None, None
+            return create_zero_start_feedback(
+                run=run,
+                failure=failure,
+                gate_node=gate_node,
+                include_gate_node=False,
+                capability_requirements=missing_caps,
+                document_signer_requirements=missing_docs,
+            )
+
+    return create_zero_start_feedback(
+        run=run,
+        failure=failure,
+        gate_node=gate_node,
+        include_gate_node=not has_z0,
+    )
 
 
 def create_zero_start_feedback(
     *,
     run: SimulationRun,
     failure: SimulationFailure,
+    gate_node: PlanNode | None = None,
+    include_gate_node: bool = True,
+    capability_requirements: list[dict[str, object]] | None = None,
+    document_signer_requirements: list[dict[str, object]] | None = None,
 ) -> tuple[PlanRevisionProposal, PlanChangeSet]:
     """Create the full feedback chain for a zero-start gate failure.
 
     Writes one ``PlanRevisionProposal``, one ``PlanChangeSet``, and
-    all the capability + document-signer ``PlanChangeOperation`` rows.
+    the capability + document-signer ``PlanChangeOperation`` rows.
+
+    When *include_gate_node* is ``False`` the proposal type is set to
+    ``ADD_REQUIREMENT`` (not ``ADD_NODE``), the proposal's
+    ``plan_node`` references the existing Z0, and no ``ADD_NODE``
+    operation is created.
+
+    *capability_requirements* / *document_signer_requirements* can be
+    passed to generate only the missing subset of requirements when Z0
+    already has partial coverage.
     """
     now = timezone.now()
     revision = run.plan_revision
-    caps = list(STARTUP_CAPABILITY_REQUIREMENTS)
-    docs = list(STARTUP_DOCUMENT_SIGNER_REQUIREMENTS)
-    proposal = PlanRevisionProposal.objects.create(
-        proposal_id=generate_plan_revision_proposal_id(),
-        run=run,
-        source_failure=failure,
-        plan_revision=revision,
-        plan_node=None,
-        proposal_type=PlanRevisionProposal.ProposalType.ADD_NODE,
-        status=PlanRevisionProposal.Status.DRAFT,
-        title="增加自媒体报名筛选与启动门槛矩阵",
-        rationale=(
+    caps = list(STARTUP_CAPABILITY_REQUIREMENTS) if capability_requirements is None else list(capability_requirements)
+    docs = list(STARTUP_DOCUMENT_SIGNER_REQUIREMENTS) if document_signer_requirements is None else list(document_signer_requirements)
+
+    if include_gate_node:
+        proposal_type = PlanRevisionProposal.ProposalType.ADD_NODE
+        proposal_plan_node = None
+        proposal_title = "增加自媒体报名筛选与启动门槛矩阵"
+        proposal_rationale = (
             "从零起点推演发现：主动报名不等于项目可以启动。"
             "后续计划必须先确认前 N 名成员能力矩阵，以及需要书面文件的合作伙伴和签署方矩阵。"
-        ),
-        suggested_changes={
+        )
+        suggested_changes: dict[str, object] = {
             "add_stage": "Z0 自媒体报名筛选与启动门槛确认",
             "application_state_machine": [
                 APPLICATION_STATUS_REGISTERED,
@@ -246,7 +330,36 @@ def create_zero_start_feedback(
                 "capability": "需要人或合作方具备实际能力，不要求签字盖章文件。",
                 "document": "需要可归档、可追责、可作为决策依据的书面文件和签署方。",
             },
-        },
+        }
+    else:
+        proposal_type = PlanRevisionProposal.ProposalType.ADD_REQUIREMENT
+        proposal_plan_node = gate_node
+        proposal_title = "补充启动门槛能力与文件签署方要求"
+        proposal_rationale = (
+            "Z0 启动门槛筹备节点已存在，但当前修订缺少完整的能力要求"
+            "和文件签署方要求。仿真推演发现成员能力矩阵与文件签署方缺口，"
+            "需要将缺失项补充到 Z0 的需求列表中。"
+        )
+        suggested_changes = {
+            "startup_capability_requirements": caps,
+            "startup_document_signer_requirements": docs,
+            "requirement_semantics": {
+                "capability": "需要人或合作方具备实际能力，不要求签字盖章文件。",
+                "document": "需要可归档、可追责、可作为决策依据的书面文件和签署方。",
+            },
+        }
+
+    proposal = PlanRevisionProposal.objects.create(
+        proposal_id=generate_plan_revision_proposal_id(),
+        run=run,
+        source_failure=failure,
+        plan_revision=revision,
+        plan_node=proposal_plan_node,
+        proposal_type=proposal_type,
+        status=PlanRevisionProposal.Status.DRAFT,
+        title=proposal_title,
+        rationale=proposal_rationale,
+        suggested_changes=suggested_changes,
         created_at=now,
         metadata={"scenario": "zero_start"},
     )
@@ -257,12 +370,13 @@ def create_zero_start_feedback(
         plan_revision=revision,
         status=PlanChangeSet.Status.DRAFT,
         title="零起点启动门槛结构化变更",
-        summary="新增 Z0 前置阶段，先形成报名状态机、成员能力矩阵和文件签署方矩阵，再进入成员抵达、食宿或工程计划。",
+        summary="新增能力要求和文件签署方要求，确保启动门槛矩阵完整。",
         created_at=now,
         metadata={"scenario": "zero_start"},
     )
-    operations: list[dict[str, object]] = [
-        {
+    operations: list[dict[str, object]] = []
+    if include_gate_node:
+        operations.append({
             "operation_type": PlanChangeOperation.OperationType.ADD_NODE,
             "target_model": "PlanNode",
             "target_id": "",
@@ -293,8 +407,7 @@ def create_zero_start_feedback(
                     "application_source": "self_media",
                 },
             },
-        },
-    ]
+        })
     for requirement in caps:
         operations.append({
             "operation_type": PlanChangeOperation.OperationType.ADD_REQUIREMENT,

@@ -1,0 +1,159 @@
+{% extends "themes/default_game/base.html" %}
+{% load world_urls %}
+
+{% block title %}完整主线 · 大苹果{% endblock %}
+
+{% block body %}
+  {% with dashboard=dashboard_context %}
+    {% with ml=dashboard.mainline %}
+      <div class="min-h-screen">
+        {% include "partials/runtime_header.html" %}
+
+        <main class="mx-auto grid max-w-7xl gap-6 p-4 lg:p-6">
+          <section class="card bg-base-100 shadow">
+            <div class="card-body">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h1 class="text-xl font-bold tracking-normal">完整主线</h1>
+                  <p class="text-sm text-base-content/70 mt-1">
+                    {{ ml.plan_title }} · {{ ml.revision_title }}
+                  </p>
+                </div>
+                <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-page' %}">返回首页</a>
+              </div>
+
+              {% if ml.empty %}
+                <div class="alert alert-info text-sm mt-4">暂无执行计划数据。</div>
+              {% else %}
+                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mt-4">
+                  {% if ml.stage %}
+                    <div class="rounded-lg border border-base-300 p-3">
+                      <span class="text-xs font-semibold text-base-content/50 uppercase">当前阶段</span>
+                      <p class="mt-1 font-bold text-sm">{{ ml.stage.title }}</p>
+                    </div>
+                  {% endif %}
+
+                  {% if ml.primary_task %}
+                    <div class="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                      <span class="text-xs font-semibold text-primary uppercase">当前任务</span>
+                      <p class="mt-1 font-bold text-sm">{{ ml.primary_task.code }} {{ ml.primary_task.title }}</p>
+                    </div>
+                  {% endif %}
+
+                  {% if ml.next_action %}
+                    <div class="rounded-lg border border-dashed border-base-300 p-3">
+                      <span class="text-xs font-semibold text-base-content/50 uppercase">下一步</span>
+                      <p class="mt-1 font-semibold text-sm">{{ ml.next_action.code }} {{ ml.next_action.title }}</p>
+                    </div>
+                  {% endif %}
+
+                  <div class="rounded-lg border border-base-300 p-3">
+                    <span class="text-xs font-semibold text-base-content/50 uppercase">进度</span>
+                    <div class="mt-1">
+                      <span class="font-bold text-xl text-primary">{{ ml.progress.percent }}%</span>
+                      <span class="text-xs text-base-content/60 ml-1">{{ ml.progress.completed }}/{{ ml.progress.total }}</span>
+                    </div>
+                    <progress class="progress progress-primary w-full mt-1" value="{{ ml.progress.percent }}" max="100"></progress>
+                  </div>
+                </div>
+
+                {% if ml.blockers %}
+                  <div class="mt-4">
+                    <h3 class="text-sm font-semibold text-base-content/50 uppercase mb-2">阻塞项</h3>
+                    <div class="grid gap-2">
+                      {% for blocker in ml.blockers|slice:":3" %}
+                        <div class="flex items-start gap-2 rounded-lg border border-error/30 bg-error/5 p-3">
+                          <span class="mt-0.5 shrink-0 text-error text-xs">⚠</span>
+                          <div>
+                            <p class="text-sm font-semibold">{{ blocker.title }}</p>
+                            {% if blocker.node %}<p class="text-xs text-base-content/50 mt-0.5">节点：{{ blocker.node }}</p>{% endif %}
+                          </div>
+                        </div>
+                      {% endfor %}
+                    </div>
+                  </div>
+                {% endif %}
+              {% endif %}
+            </div>
+          </section>
+
+          {% if not ml.empty %}
+            {% for stage in ml.stages %}
+              <section class="card bg-base-100 shadow{% if stage.is_current %} border-2 border-primary{% endif %}">
+                <div class="card-body gap-4">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <h2 class="card-title">
+                      {% if stage.code %}{{ stage.code }} {% endif %}{{ stage.title }}
+                    </h2>
+                    {% if stage.is_current %}
+                      <span class="badge badge-primary">当前阶段</span>
+                    {% endif %}
+                    {% if stage.status %}
+                      <span class="badge badge-sm {% if stage.status == 'in_progress' %}badge-info{% elif stage.status == 'blocked' %}badge-error{% elif stage.status == 'completed' %}badge-success{% else %}badge-ghost{% endif %}">{{ stage.status }}</span>
+                    {% endif %}
+                  </div>
+
+                  {% if stage.description %}
+                    <p class="text-sm text-base-content/70">{{ stage.description }}</p>
+                  {% endif %}
+
+                  {% if stage.children %}
+                    <div class="grid gap-3">
+                      {% for node in stage.children %}
+                        <div class="rounded-lg border border-base-300 p-4{% if node.depth > 1 %} ml-3 border-l-4{% endif %}{% if node.status == 'blocked' %} border-error/30 bg-error/5{% endif %}">
+                          <div class="flex flex-wrap items-center gap-2 mb-2">
+                            <span class="badge badge-sm {% if node.status == 'in_progress' %}badge-info{% elif node.status == 'blocked' %}badge-error{% elif node.status == 'completed' %}badge-success{% else %}badge-ghost{% endif %}">{{ node.code }}</span>
+                            <h4 class="font-bold">{{ node.title }}</h4>
+                            {% if node.depth > 1 %}<span class="badge badge-xs badge-outline">子层级 {{ node.depth }}</span>{% endif %}
+                            <span class="badge badge-xs {% if node.status == 'in_progress' %}badge-info{% elif node.status == 'blocked' %}badge-error{% elif node.status == 'completed' %}badge-success{% else %}badge-ghost{% endif %}">{{ node.status }}</span>
+                          </div>
+                          {% if node.description %}<p class="text-sm text-base-content/70 mt-1">{{ node.description }}</p>{% endif %}
+                          <div class="flex flex-wrap gap-3 mt-2 text-xs text-base-content/50">
+                            <span>工期 {{ node.planned_duration_days }} 天</span>
+                            <span>需 {{ node.required_people_min }}-{{ node.required_people_max }} 人</span>
+                          </div>
+                          {% if node.completion_criteria %}
+                            <div class="mt-2">
+                              <span class="text-xs font-semibold text-base-content/50">完成标准</span>
+                              <ul class="text-xs text-base-content/60 list-disc list-inside mt-0.5">
+                                {% for crit in node.completion_criteria|slice:":4" %}<li>{{ crit }}</li>{% endfor %}
+                              </ul>
+                            </div>
+                          {% endif %}
+                          {% if node.risk_notes %}
+                            <p class="mt-2 text-xs text-error/80">⚠ {{ node.risk_notes }}</p>
+                          {% endif %}
+                        </div>
+                      {% endfor %}
+                    </div>
+                  {% else %}
+                    <p class="text-sm text-base-content/50">此阶段下暂无子节点。</p>
+                  {% endif %}
+                </div>
+              </section>
+            {% endfor %}
+
+            {% if ml.all_nodes and not ml.stages %}
+              <section class="card bg-base-100 shadow">
+                <div class="card-body gap-3">
+                  <h2 class="card-title">全部主线节点</h2>
+                  <div class="grid gap-3">
+                    {% for node in ml.all_nodes %}
+                      <div class="rounded-lg border border-base-300 p-4">
+                        <div class="flex flex-wrap items-center gap-2 mb-1">
+                          <span class="badge badge-sm {% if node.status == 'in_progress' %}badge-info{% elif node.status == 'blocked' %}badge-error{% else %}badge-ghost{% endif %}">{{ node.code }}</span>
+                          <h4 class="font-bold text-sm">{{ node.title }}</h4>
+                        </div>
+                        {% if node.description %}<p class="text-sm text-base-content/70">{{ node.description|truncatewords:30 }}</p>{% endif %}
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+              </section>
+            {% endif %}
+          {% endif %}
+        </main>
+      </div>
+    {% endwith %}
+  {% endwith %}
+{% endblock %}

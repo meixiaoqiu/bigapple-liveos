@@ -149,10 +149,13 @@ class WorldRouteTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["form"]["world_id"].value(), "simulation0001")
-        self.assertContains(response, 'data-theme="corporate"')
+        self.assertContains(response, 'data-theme="bumblebee"')
         self.assertContains(response, 'type="hidden" name="world_id" value="simulation0001"')
         self.assertContains(response, "input input-bordered w-full")
         self.assertContains(response, "btn btn-primary w-full")
+        self.assertContains(response, 'class="navbar bg-base-100 shadow-sm"')
+        self.assertContains(response, 'href="/register/"')
+        self.assertContains(response, 'href="/login/?next=/workspace/"')
 
     def test_world_logout_returns_to_login_root(self) -> None:
         user = get_user_model().objects.create_user(username="mem-0001", password="test-password")

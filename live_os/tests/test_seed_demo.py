@@ -144,3 +144,49 @@ class SeedDemoTests(TestCase):
 
         self.assertIsNone(get_current_world())
         self.assertIn("world_id=simulation0001", output.getvalue())
+
+    def test_zero_start_seed_creates_full_lifecycle_mainline(self) -> None:
+        from live_os.demo_seed.zero_start import seed_zero_start
+
+        result = seed_zero_start(founder_member_no="M-ZT-001", founder_display_name="测试发起人")
+        revision = result["revision"]
+        nodes = PlanNode.objects.filter(revision=revision).order_by("sequence")
+        self.assertGreaterEqual(nodes.count(), 25)
+
+        # Z nodes — Z0 is the only IN_PROGRESS node
+        z0 = nodes.get(code="Z0")
+        self.assertEqual(z0.status, PlanNode.Status.IN_PROGRESS)
+        self.assertEqual(z0.node_type, PlanNode.NodeType.MILESTONE)
+
+        for code in ("Z1", "Z2", "Z3"):
+            node = nodes.get(code=code)
+            self.assertEqual(node.status, PlanNode.Status.PLANNED)
+            self.assertEqual(node.parent, z0)
+
+        # Stage nodes — all PLANNED
+        for code in ("A0", "B0", "C0", "D0"):
+            stage = nodes.get(code=code)
+            self.assertEqual(stage.status, PlanNode.Status.PLANNED)
+            self.assertIn(stage.node_type, (PlanNode.NodeType.STAGE, PlanNode.NodeType.MILESTONE))
+
+        # Children belong to correct stage
+        for child_code, stage_code in (
+            ("B1", "B0"),
+            ("C3", "C0"),
+            ("D4", "D0"),
+        ):
+            child = nodes.get(code=child_code)
+            stage = nodes.get(code=stage_code)
+            self.assertEqual(child.parent, stage)
+            self.assertEqual(child.status, PlanNode.Status.PLANNED)
+
+    def test_zero_start_seed_is_idempotent(self) -> None:
+        from live_os.demo_seed.zero_start import seed_zero_start
+
+        result = seed_zero_start(founder_member_no="M-ZT-002", founder_display_name="幂等测试")
+        first_count = PlanNode.objects.filter(revision=result["revision"]).count()
+        seed_zero_start(founder_member_no="M-ZT-002", founder_display_name="幂等测试")
+        self.assertEqual(
+            PlanNode.objects.filter(revision=result["revision"]).count(),
+            first_count,
+        )

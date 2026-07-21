@@ -70,8 +70,17 @@ def dashboard_theme_context(request: HttpRequest) -> dict[str, Any]:
 
 
 @require_GET
-def dashboard_missions_partial(request: HttpRequest, **_kwargs):
-    return render(request, get_theme_partial_path(request, "mission_list.html"), dashboard_theme_context(request))
+def dashboard_mainline(request: HttpRequest, **_kwargs):
+    """Full mainline detail page showing all plan nodes grouped by stage."""
+    apply_theme_query_override(request)
+    raw = observer_context(full_plan_nodes=True)
+    context = {
+        **raw,
+        "selected_task_id": request.GET.get("quest_task") or request.GET.get("task_id") or "",
+        "quest_status": request.GET.get("quest_status") or "",
+        "dashboard_context": build_dashboard_theme_context(request, raw),
+    }
+    return render(request, get_theme_template_path(request, "mainline.html"), context)
 
 
 @require_GET

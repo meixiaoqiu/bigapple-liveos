@@ -14,11 +14,10 @@ from .dashboard_theme_utils import (
     _event_level,
     _event_status,
     _first_location,
-    _mission_progress,
-    _mission_status,
     _parse_percent,
     _safe_int,
 )
+from .mainline_context import build_mainline_context
 
 
 def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -61,25 +60,7 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
     if stats:
         context["stats"] = stats
 
-    missions = []
-    plan_nodes = list(raw.get("current_plan_nodes") or []) + list(raw.get("next_plan_nodes") or [])
-    for node in plan_nodes[:6]:
-        status_value = str(getattr(node, "status", "planned"))
-        progress_current, progress_total = _mission_progress(status_value)
-        missions.append(
-            {
-                "id": str(getattr(node, "node_id", "")),
-                "title": str(getattr(node, "title", "") or "未命名任务"),
-                "summary": f"预计 {getattr(node, 'planned_duration_days', 0) or 0} 天 · {getattr(node, 'required_people_min', 0) or 0}-{getattr(node, 'required_people_max', 0) or 0} 人",
-                "status": _mission_status(status_value),
-                "progress_current": progress_current,
-                "progress_total": progress_total,
-                "reward": "计划推进",
-                "icon": str(getattr(node, "node_type", "") or "mission"),
-            }
-        )
-    if missions:
-        context["missions"] = missions
+    context["mainline"] = build_mainline_context(raw)
 
     events = []
     for index, event in enumerate(command_dashboard.get("timeline_events") or []):
@@ -124,17 +105,18 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
             "score": None,
         }
     ]
-    for index, mission in enumerate(context["missions"][:3]):
+    mainline = context.get("mainline", {}) or {}
+    for index, node in enumerate((mainline.get("current_nodes") or [])[:3]):
         map_points.append(
             {
-                "id": f"mission-point-{mission['id'] or index}",
-                "title": mission["title"],
-                "type": "mission",
-                "status": "active" if mission["status"] == "doing" else "normal",
+                "id": f"mainline-point-{node.get('node_id') or index}",
+                "title": node.get("title", ""),
+                "type": "mainline",
+                "status": "active" if node.get("status") == "in_progress" else "normal",
                 "x": 24 + index * 22,
                 "y": 28 + index * 12,
-                "icon": mission["icon"],
-                "label": mission["title"],
+                "icon": node.get("node_type", ""),
+                "label": node.get("code", ""),
                 "score": None,
             }
         )
@@ -245,8 +227,8 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
         "badges_count": unlocked_count,
     }
     context["navigation"][0]["href"] = "/"
-    context["navigation"][3]["href"] = "/api/v0.1/resources"
-    context["navigation"][5]["href"] = "/api/v0.1/observer/summary"
+    context["navigation"][2]["href"] = "/api/v0.1/resources"
+    context["navigation"][4]["href"] = "/api/v0.1/observer/summary"
 
     # Recent community feedback
     from core.models import CommunityFeedback

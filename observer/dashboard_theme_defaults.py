@@ -14,7 +14,18 @@ def _default_dashboard_context() -> dict[str, Any]:
             "status_level": "watch",
         },
         "stats": [],
-        "missions": [],
+        "mainline": {
+            "plan_title": "",
+            "revision_title": "",
+            "stage": None,
+            "current_nodes": [],
+            "next_nodes": [],
+            "blockers": [],
+            "progress": {"completed": 0, "total": 0, "percent": 0},
+            "latest_run": None,
+            "proposal_summary": None,
+            "empty": True,
+        },
         "events": [],
         "map_points": [
             {
@@ -38,7 +49,6 @@ def _default_dashboard_context() -> dict[str, Any]:
         "user_progress": {"level": 1, "xp": 0, "xp_next": 100, "points": 0, "badges_count": 0},
         "navigation": [
             {"key": "overview", "label": "总览", "href": "/"},
-            {"key": "missions", "label": "全部任务", "href": "#missions"},
             {"key": "events", "label": "事件", "href": "#events"},
             {"key": "resources", "label": "全部资源", "href": "/api/v0.1/resources"},
             {"key": "members", "label": "成员动态", "href": "#events"},
