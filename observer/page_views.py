@@ -12,7 +12,7 @@ from django.views.decorators.http import require_GET
 
 from core.models import Event, SimulationSnapshot, SystemEvent
 
-from .page_context import observer_context
+from .page_context import _resource_public_rows, observer_context
 from .dashboard_theme import build_dashboard_theme_context
 from .simulation_reports import public_simulation_report, public_simulation_reports
 from .theme import get_theme_partial_path, get_theme_template_path
@@ -237,4 +237,22 @@ def observer_event_ledger_detail(request: HttpRequest, seq: int, **_kwargs):
         request,
         get_theme_template_path(request, "event_ledger_detail.html"),
         {"event": detail},
+    )
+
+
+@require_GET
+def observer_resources_page(request: HttpRequest, **_kwargs):
+    """Public read-only resource inventory list page (no login required)."""
+    apply_theme_query_override(request)
+    from .page_context import _sort_resources_by_stock_ratio
+    from core.models import Resource
+
+    all_resources = list(Resource.objects.all())
+    sorted_resources = _sort_resources_by_stock_ratio(all_resources)
+    rows = _resource_public_rows(sorted_resources)
+
+    return render(
+        request,
+        get_theme_template_path(request, "resources.html"),
+        {"resource_rows": rows},
     )

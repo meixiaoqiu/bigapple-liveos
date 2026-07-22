@@ -24,6 +24,7 @@ def build_runtime_nav(request: HttpRequest) -> dict[str, Any]:
         items.append({"label": "首页", "url": "/", "method": "get"})
         items.append({"label": "事件流", "url": "/events/", "method": "get"})
         items.append({"label": "财务", "url": "/finance/", "method": "get"})
+        items.append({"label": "资源库存", "url": "/resources/", "method": "get"})
         if member is not None:
             items.append({"label": "我的主页", "url": f"/u/{member.member_no}/", "method": "get"})
         items.append({"label": "工作台", "url": "/workspace/", "method": "get"})
@@ -32,6 +33,7 @@ def build_runtime_nav(request: HttpRequest) -> dict[str, Any]:
         items.append({"label": "首页", "url": "/", "method": "get"})
         items.append({"label": "事件流", "url": "/events/", "method": "get"})
         items.append({"label": "财务", "url": "/finance/", "method": "get"})
+        items.append({"label": "资源库存", "url": "/resources/", "method": "get"})
         items.append({"label": "注册", "url": "/register/", "method": "get"})
         items.append({"label": "登录", "url": "/login/?next=/workspace/", "method": "get"})
         items.append({"label": "工作台", "url": "/workspace/", "method": "get"})

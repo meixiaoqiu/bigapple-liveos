@@ -1,0 +1,72 @@
+{% load tailwind_tags %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>全部资源库存</title>
+  {% tailwind_css %}
+</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+  {% include "partials/runtime_header.html" %}
+
+  <main class="mx-auto grid max-w-7xl gap-6 p-4 lg:p-6">
+    <section class="card bg-base-100 shadow">
+      <div class="card-body">
+        <a class="btn btn-sm btn-ghost mb-2 self-start" href="/">返回首页</a>
+        <h1 class="text-2xl font-bold tracking-normal">全部资源库存</h1>
+        <p class="text-sm text-base-content/70 mt-1">
+          共 {{ resource_rows|length }} 个资源，按库存/预警线百分比从低到高排列。
+        </p>
+      </div>
+    </section>
+
+    <section class="card bg-base-100 shadow">
+      <div class="card-body">
+        <div class="overflow-x-auto">
+          <table class="table table-zebra w-full text-sm">
+            <thead>
+              <tr>
+                <th>资源 ID</th>
+                <th>名称</th>
+                <th>类型</th>
+                <th>当前库存</th>
+                <th>单位</th>
+                <th>预警线</th>
+                <th>库存%</th>
+                <th>状态</th>
+                <th>位置</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in resource_rows %}
+                <tr>
+                  <td class="font-mono text-xs">{{ r.resource_id }}</td>
+                  <td class="font-medium">{{ r.name }}</td>
+                  <td><span class="badge badge-sm badge-ghost">{{ r.type_label }}</span></td>
+                  <td class="font-mono {% if r.is_low_stock %}text-warning font-semibold{% endif %}">{{ r.current_stock }}</td>
+                  <td>{{ r.unit_label }}</td>
+                  <td class="font-mono">{{ r.warning_threshold }}</td>
+                  <td>
+                    {% if r.stock_percent is not None %}
+                      <span class="{% if r.is_low_stock %}text-warning font-semibold{% endif %}">{{ r.stock_percent }}%</span>
+                    {% else %}
+                      <span class="text-base-content/40">-</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <span class="badge badge-xs {% if r.status == 'active' %}badge-success{% elif r.status == 'inactive' %}badge-ghost{% elif r.status == 'maintenance' %}badge-warning{% else %}badge-error{% endif %}">{{ r.status_label }}</span>
+                  </td>
+                  <td class="text-xs text-base-content/60">{{ r.location|default:"-" }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="9" class="text-center text-base-content/50">暂无资源记录</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

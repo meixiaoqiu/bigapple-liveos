@@ -133,9 +133,15 @@
 
         <section class="card bg-base-100 shadow">
           <div class="card-body">
-            <h2 class="card-title">资源库存</h2>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <h2 class="card-title">资源库存</h2>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="badge badge-outline">{{ dashboard.resources|length }} 个</span>
+                <a class="btn btn-xs btn-ghost" href="/resources/">查看全部</a>
+              </div>
+            </div>
             <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {% for r in dashboard.resources|slice:":6" %}
+              {% for r in dashboard.resources %}
                 <div class="rounded-lg border {% if r.is_low_stock %}border-warning/50 bg-warning/5{% else %}border-base-300{% endif %} p-3">
                   <div class="flex flex-wrap items-center gap-2 mb-1">
                     <span class="badge badge-sm badge-ghost">{{ r.type_label }}</span>
@@ -146,6 +152,12 @@
                     <span class="text-lg font-mono font-semibold {% if r.is_low_stock %}text-warning{% endif %}">{{ r.current_stock }}</span>
                     <span class="text-xs text-base-content/50">{{ r.unit_label }} · 预警线 {{ r.warning_threshold }}</span>
                   </div>
+                  {% if r.stock_percent is not None %}
+                    <div class="mt-1">
+                      <progress class="progress {% if r.is_low_stock %}progress-warning{% else %}progress-primary{% endif %} w-full h-1.5" value="{{ r.stock_percent }}" max="100"></progress>
+                      <span class="text-xs {% if r.is_low_stock %}text-warning{% else %}text-base-content/50{% endif %}">{{ r.stock_percent }}%</span>
+                    </div>
+                  {% endif %}
                 </div>
               {% empty %}
                 <div class="text-sm text-base-content/50 col-span-full">暂无资源记录，具备权限的成员可在工作台新增资源。</div>

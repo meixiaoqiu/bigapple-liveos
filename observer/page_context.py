@@ -30,10 +30,67 @@ from .dashboard_context import observer_command_dashboard_context
 from .presentation import BOTTLENECK_LABELS, RISK_LABELS, task_completion_rate
 
 
+def _resource_public_rows(resources: list[Resource]) -> list[dict[str, Any]]:
+    """Build observer-safe public resource rows with stock ratio."""
+    rows: list[dict[str, Any]] = []
+    for r in resources:
+        stock_ratio = None
+        if r.warning_threshold > 0:
+            stock_ratio = float(r.current_stock) / float(r.warning_threshold)
+        rows.append({
+            "resource_id": r.resource_id,
+            "name": r.name or r.resource_id,
+            "resource_type": r.resource_type,
+            "type_label": r.get_resource_type_display(),
+            "status": r.status,
+            "status_label": r.get_status_display(),
+            "unit": r.unit,
+            "unit_label": r.get_unit_display(),
+            "current_stock": float(r.current_stock),
+            "warning_threshold": float(r.warning_threshold),
+            "daily_consumption_estimate": float(r.daily_consumption_estimate),
+            "loss_rate": float(r.loss_rate),
+            "replenishment_method": r.replenishment_method,
+            "replenishment_label": r.get_replenishment_method_display(),
+            "location": r.location or "",
+            "is_low_stock": r.current_stock <= r.warning_threshold,
+            "stock_ratio": stock_ratio,
+            "stock_percent": int(stock_ratio * 100) if stock_ratio is not None else None,
+            "rule_version": r.rule_version,
+            "updated_at": r.updated_at,
+        })
+    return rows
+
+
+def _sort_resources_by_stock_ratio(
+    resources: list[Resource],
+) -> list[Resource]:
+    """Sort resources by current_stock / warning_threshold ascending.
+
+    Resources with valid ratio (warning_threshold > 0) come first;
+    resources with warning_threshold <= 0 are placed at the end.
+    """
+    with_ratio = []
+    without_ratio = []
+    for r in resources:
+        if r.warning_threshold > 0:
+            with_ratio.append(r)
+        else:
+            without_ratio.append(r)
+    with_ratio.sort(key=lambda r: r.current_stock / r.warning_threshold)
+    return with_ratio + without_ratio
+
+
+_DASHBOARD_RESOURCE_LIMIT = 6
+
+
 def observer_context(*, full_plan_nodes: bool = False) -> dict[str, Any]:
     latest = CapacityAssessment.objects.order_by("-simulation_day", "-created_at").first()
-    resources = list(Resource.objects.all().order_by("resource_type", "resource_id"))
-    resource_warnings = [resource for resource in resources if resource.current_stock <= resource.warning_threshold]
+    all_resources = list(Resource.objects.all())
+    sorted_resources = _sort_resources_by_stock_ratio(all_resources)
+    dashboard_resources = sorted_resources[:_DASHBOARD_RESOURCE_LIMIT]
+    resource_all = _resource_public_rows(sorted_resources)
+    resource_warnings = [resource for resource in all_resources if resource.current_stock <= resource.warning_threshold]
     events = list(Event.objects.filter(visibility=Event.Visibility.PUBLIC).order_by("-occurred_at")[:12])
     simulation_events = list(
         Event.objects.filter(visibility=Event.Visibility.PUBLIC)
@@ -155,7 +212,8 @@ def observer_context(*, full_plan_nodes: bool = False) -> dict[str, Any]:
         "latest_run_proposals": latest_run_proposals,
         "latest_run_change_sets": latest_run_change_sets,
         "latest_run_turn": latest_run_turn,
-        "resources": resources,
+        "resources": dashboard_resources,
+        "resource_all": resource_all,
         "resource_warnings": resource_warnings,
         "events": events,
         "simulation_events": simulation_events,

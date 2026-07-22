@@ -66,15 +66,24 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
     resources_display = []
     for resource in raw.get("resources") or []:
         res = resource
+        current = float(getattr(res, "current_stock", 0) or 0)
+        threshold = float(getattr(res, "warning_threshold", 0) or 0)
+        stock_ratio = None
+        stock_percent = None
+        if threshold > 0:
+            stock_ratio = current / threshold
+            stock_percent = int(stock_ratio * 100)
         resources_display.append({
             "resource_id": str(getattr(res, "resource_id", "")),
             "name": str(getattr(res, "name", "") or getattr(res, "resource_id", "")),
             "type_label": str(getattr(res, "get_resource_type_display", lambda: "")()),
             "unit_label": str(getattr(res, "get_unit_display", lambda: "")()),
-            "current_stock": float(getattr(res, "current_stock", 0) or 0),
-            "warning_threshold": float(getattr(res, "warning_threshold", 0) or 0),
-            "is_low_stock": (float(getattr(res, "current_stock", 0) or 0)) <= (float(getattr(res, "warning_threshold", 0) or 0)),
+            "current_stock": current,
+            "warning_threshold": threshold,
+            "is_low_stock": current <= threshold,
             "status": str(getattr(res, "status", "")),
+            "stock_ratio": stock_ratio,
+            "stock_percent": stock_percent,
         })
     context["resources"] = resources_display
 
@@ -243,7 +252,7 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
         "badges_count": unlocked_count,
     }
     context["navigation"][0]["href"] = "/"
-    context["navigation"][2]["href"] = "/api/v0.1/resources"
+    context["navigation"][2]["href"] = "/resources/"
     context["navigation"][4]["label"] = "审计账本"
     context["navigation"][4]["href"] = "/event-ledger/"
 

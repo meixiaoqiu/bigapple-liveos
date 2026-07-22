@@ -16,6 +16,7 @@ from core.models import (
     PlanRevision,
     ProjectPlan,
     Resource,
+    ResourceTransaction,
     SimulationFailure,
     SimulationRun,
     SimulationSnapshot,
@@ -553,4 +554,177 @@ class ObserverPageTests(TestCase):
         self.assertContains(response, 'method="post" action="/logout/"', html=False)
         self.assertNotContains(response, 'href="/logout/"')
         self.assertNotContains(response, "/u/")
+
+
+class ObserverResourcesPageTests(TestCase):
+    """公共资源库存页及首页资源排序测试。"""
+
+    def setUp(self) -> None:
+        now = timezone.now()
+        # Create resources to test sorting: lower stock_ratio should appear first.
+        Resource.objects.create(
+            resource_id="res-grain",
+            resource_type=Resource.ResourceType.GRAIN,
+            unit=Resource.Unit.KG,
+            current_stock=Decimal("100"),
+            warning_threshold=Decimal("500"),
+            daily_consumption_estimate=Decimal("0"),
+            loss_rate=Decimal("0"),
+            replenishment_method=Resource.ReplenishmentMethod.PURCHASE,
+            updated_at=now,
+            rule_version="v1",
+        )
+        Resource.objects.create(
+            resource_id="res-water",
+            resource_type=Resource.ResourceType.WATER,
+            unit=Resource.Unit.LITER,
+            current_stock=Decimal("200"),
+            warning_threshold=Decimal("400"),
+            daily_consumption_estimate=Decimal("0"),
+            loss_rate=Decimal("0"),
+            replenishment_method=Resource.ReplenishmentMethod.PURCHASE,
+            updated_at=now,
+            rule_version="v1",
+        )
+        Resource.objects.create(
+            resource_id="res-medicine",
+            resource_type=Resource.ResourceType.MEDICINE,
+            unit=Resource.Unit.COUNT,
+            current_stock=Decimal("5"),
+            warning_threshold=Decimal("10"),
+            daily_consumption_estimate=Decimal("0"),
+            loss_rate=Decimal("0"),
+            replenishment_method=Resource.ReplenishmentMethod.PURCHASE,
+            updated_at=now,
+            rule_version="v1",
+        )
+        Resource.objects.create(
+            resource_id="res-warehouse",
+            resource_type=Resource.ResourceType.WAREHOUSE_CAPACITY,
+            unit=Resource.Unit.CUBIC_METER,
+            current_stock=Decimal("0"),
+            warning_threshold=Decimal("0"),
+            daily_consumption_estimate=Decimal("0"),
+            loss_rate=Decimal("0"),
+            replenishment_method=Resource.ReplenishmentMethod.MANUAL_ADJUSTMENT,
+            updated_at=now,
+            rule_version="v1",
+        )
+        # Minimal plan for observer page rendering
+        plan = ProjectPlan.objects.create(
+            plan_id="plan-observer-res",
+            name="observer资源测试计划",
+            status=ProjectPlan.Status.ACTIVE,
+            target_location="resource-test-site",
+            owner={"actor_id": "test"},
+            created_at=now,
+            updated_at=now,
+        )
+        PlanRevision.objects.create(
+            revision_id="plan-observer-res-rev",
+            plan=plan,
+            revision_code="v1",
+            status=PlanRevision.Status.PUBLISHED,
+            title="资源测试修订",
+            created_at=now,
+            published_at=now,
+        )
+
+    def test_dashboard_shows_max_6_resources(self):
+        """首页资源模块最多展示 6 个资源卡。"""
+        # Add more resources to exceed limit
+        for i in range(10):
+            Resource.objects.create(
+                resource_id=f"res-extra-{i}",
+                resource_type=Resource.ResourceType.MATERIAL,
+                unit=Resource.Unit.COUNT,
+                current_stock=Decimal("100"),
+                warning_threshold=Decimal("50"),
+                daily_consumption_estimate=Decimal("0"),
+                loss_rate=Decimal("0"),
+                replenishment_method=Resource.ReplenishmentMethod.PURCHASE,
+                updated_at=timezone.now(),
+                rule_version="v1",
+            )
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        # Count resource badges; each card shows a type badge
+        self.assertEqual(content.count('badge-sm badge-ghost'), 6)
+
+    def test_dashboard_shows_view_all_link(self):
+        """首页资源模块包含'查看全部'链接。"""
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "查看全部")
+        self.assertContains(response, "/resources/")
+
+    def test_dashboard_resources_sorted_by_stock_ratio(self):
+        """首页资源卡按 stock_ratio 升序排列。"""
+        # res-medicine: 5/10=0.5, res-grain: 100/500=0.2, res-water: 200/400=0.5
+        # res-warehouse: threshold=0, last
+        # So order should be: res-grain (0.2), res-medicine (0.5), res-water (0.5), res-warehouse (unranked)
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        grain_pos = content.index("res-grain")
+        water_pos = content.index("res-water")
+        medicine_pos = content.index("res-medicine")
+        warehouse_pos = content.index("res-warehouse")
+        # res-grain (lowest ratio) should appear before res-medicine and res-water
+        self.assertLess(grain_pos, medicine_pos)
+        self.assertLess(grain_pos, water_pos)
+        # res-warehouse (threshold=0) should be last
+        self.assertGreater(warehouse_pos, grain_pos)
+        self.assertGreater(warehouse_pos, water_pos)
+        self.assertGreater(warehouse_pos, medicine_pos)
+
+    def test_dashboard_handles_zero_threshold_without_error(self):
+        """warning_threshold=0 的资源不出错，排在可计算资源之后。"""
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "res-warehouse")
+
+    def test_public_resources_page_returns_200(self):
+        """公开资源库存页返回 200。"""
+        response = self.client.get("/resources/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "全部资源库存")
+
+    def test_public_resources_page_shows_all_resources(self):
+        """公开页面展示全部资源。"""
+        response = self.client.get("/resources/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn("res-grain", content)
+        self.assertIn("res-water", content)
+        self.assertIn("res-medicine", content)
+        self.assertIn("res-warehouse", content)
+
+    def test_public_resources_page_has_no_metadata_or_operator(self):
+        """公开资源页不暴露 metadata 或 operator。"""
+        response = self.client.get("/resources/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertNotIn("metadata", content)
+        self.assertNotIn("operator", content)
+
+    def test_public_resources_page_no_workspace_buttons(self):
+        """公开资源页没有新增/编辑/调整按钮。"""
+        response = self.client.get("/resources/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertNotIn("/workspace/inventory/new/", content)
+        self.assertNotIn("/workspace/inventory/", content)
+
+    def test_public_resources_page_not_logged_in(self):
+        """未登录也能访问公开资源页。"""
+        response = self.client.get("/resources/")
+        self.assertEqual(response.status_code, 200)
+
+    def test_workspace_inventory_still_governance_only(self):
+        """workspace 的 /workspace/inventory/ 不需要登录但需要 governance 权限。"""
+        # Without login, /workspace/inventory/ should return 403 (login required) or 302 (redirect)
+        response = self.client.get("/workspace/inventory/")
+        self.assertIn(response.status_code, {302, 403})
 

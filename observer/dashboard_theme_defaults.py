@@ -51,7 +51,7 @@ def _default_dashboard_context() -> dict[str, Any]:
         "navigation": [
             {"key": "overview", "label": "总览", "href": "/"},
             {"key": "events", "label": "事件", "href": "#events"},
-            {"key": "resources", "label": "全部资源", "href": "/api/v0.1/resources"},
+            {"key": "resources", "label": "全部资源", "href": "/resources/"},
             {"key": "members", "label": "成员动态", "href": "#events"},
             {"key": "data", "label": "审计账本", "href": "/event-ledger/"},
         ],
