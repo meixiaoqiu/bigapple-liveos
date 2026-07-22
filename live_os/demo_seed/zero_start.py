@@ -1,11 +1,11 @@
 """Zero-start simulation seed data.
 
 This template intentionally starts before a mature operation exists: one
-founder, no candidate pool, no tasks, no resources, no candidate venues, no
+founder, no candidate pool, no tasks, no candidate venues, no
 SimulationRun/Turn — but it seeds a full-lifecycle ``PlanNode`` skeleton
-(Z/A/B/C/D stages) so that ``/dashboard/mainline/`` shows the complete
-roadmap after reset.  Only Z0 is ``IN_PROGRESS``; every other node is
-``PLANNED``.
+(Z/A/B/C/D stages) and a base ``Resource`` catalog (all stock = 0) so that
+``/dashboard/mainline/`` and ``/workspace/inventory/`` are immediately usable
+after reset.  Only Z0 is ``IN_PROGRESS``; every other node is ``PLANNED``.
 """
 
 from __future__ import annotations
@@ -19,9 +19,10 @@ from core.member_roles import (
     ensure_member_role,
     ensure_role_assignment,
 )
-from core.models import Member, PlanNode, PlanRevision, ProjectPlan
+from core.models import Member, PlanNode, PlanRevision, ProjectPlan, Resource
 
 from .helpers import actor, upsert
+from .resource_specs import zero_start_resource_specs
 
 
 ZERO_START_PLAN_ID = "plan-zero-start"
@@ -30,13 +31,14 @@ ZERO_START_FOUNDER_MEMBER_NO = "founder-0001"
 
 
 def seed_zero_start(*, founder_member_no: str = "", founder_display_name: str = "", now=None) -> dict[str, object]:
-    """Seed the zero-start baseline with a full-lifecycle PlanNode skeleton.
+    """Seed the zero-start baseline with a full-lifecycle PlanNode skeleton
+    and a base Resource catalog (all stock = 0).
 
     The world still has only one founder — no candidate pool, tasks,
-    resources, venues, SimulationRuns, or Turns.  But it now includes
-    25+ PlanNodes across Z / A / B / C / D stages so the mainline
-    detail page renders the complete roadmap immediately after reset.
-    Only Z0 is IN_PROGRESS; all other nodes are PLANNED.
+    venues, SimulationRuns, or Turns.  But it now includes:
+    * 25+ PlanNodes across Z / A / B / C / D stages (only Z0 IN_PROGRESS)
+    * 13 Resource catalog entries (all current_stock = 0)
+    so the mainline detail page and inventory workspace are usable immediately.
     """
 
     now = now or timezone.now()
@@ -92,7 +94,7 @@ def seed_zero_start(*, founder_member_no: str = "", founder_display_name: str = 
             "revision_code": "v0.0.1-zero-start",
             "status": PlanRevision.Status.PUBLISHED,
             "title": "零起点仿真基线",
-            "change_summary": "零起点基线：只有一个发起人，没有成员池/任务/资源/场地/SimulationRun。预置 Z/A/B/C/D 完整生命周期 PlanNode 骨架，当前仅激活 Z0。",
+            "change_summary": "零起点基线：只有一个发起人，没有成员池/任务/场地/SimulationRun；预置基础资源台账且库存均为 0。预置 Z/A/B/C/D 完整生命周期 PlanNode 骨架，当前仅激活 Z0。",
             "created_at": now,
             "created_by": founder_actor,
             "published_at": now,
@@ -108,7 +110,7 @@ def seed_zero_start(*, founder_member_no: str = "", founder_display_name: str = 
             "plan": plan,
             "revision_code": "v0.0.1-zero-start",
             "title": "零起点仿真基线",
-            "change_summary": "零起点基线：只有一个发起人，没有成员池/任务/资源/场地/SimulationRun。预置 Z/A/B/C/D 完整生命周期 PlanNode 骨架，当前仅激活 Z0。",
+            "change_summary": "零起点基线：只有一个发起人，没有成员池/任务/场地/SimulationRun；预置基础资源台账且库存均为 0。预置 Z/A/B/C/D 完整生命周期 PlanNode 骨架，当前仅激活 Z0。",
             "created_by": founder_actor,
             "metadata": {"seed": True, "template": "zero_start"},
         }
@@ -580,5 +582,17 @@ def seed_zero_start(*, founder_member_no: str = "", founder_display_name: str = 
                 for field, value in changed.items():
                     setattr(node, field, value)
                 node.save(update_fields=sorted(changed.keys()))
+
+    # ── Base resource catalog (all stock = 0, no inventory transaction) ──
+    for spec in zero_start_resource_specs():
+        spec.setdefault("metadata", {})
+        spec["metadata"].setdefault("seed", True)
+        spec["metadata"].setdefault("template", "zero_start")
+        spec["rule_version"] = spec.get("rule_version", "v1")
+        spec["updated_at"] = now
+
+        defaults = {**spec, "updated_at": now}
+        lookup = {"resource_id": spec["resource_id"]}
+        Resource.objects.get_or_create(**lookup, defaults=defaults)
 
     return {"founder": founder, "plan": plan, "revision": revision}

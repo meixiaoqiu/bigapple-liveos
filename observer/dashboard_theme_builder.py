@@ -62,6 +62,22 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
 
     context["mainline"] = build_mainline_context(raw)
 
+    # ── public resources (Observer-safe: no metadata/operator/private payload) ──
+    resources_display = []
+    for resource in raw.get("resources") or []:
+        res = resource
+        resources_display.append({
+            "resource_id": str(getattr(res, "resource_id", "")),
+            "name": str(getattr(res, "name", "") or getattr(res, "resource_id", "")),
+            "type_label": str(getattr(res, "get_resource_type_display", lambda: "")()),
+            "unit_label": str(getattr(res, "get_unit_display", lambda: "")()),
+            "current_stock": float(getattr(res, "current_stock", 0) or 0),
+            "warning_threshold": float(getattr(res, "warning_threshold", 0) or 0),
+            "is_low_stock": (float(getattr(res, "current_stock", 0) or 0)) <= (float(getattr(res, "warning_threshold", 0) or 0)),
+            "status": str(getattr(res, "status", "")),
+        })
+    context["resources"] = resources_display
+
     events = []
     for index, event in enumerate(command_dashboard.get("timeline_events") or []):
         tags = [str(tag) for tag in event.get("tags", [])]

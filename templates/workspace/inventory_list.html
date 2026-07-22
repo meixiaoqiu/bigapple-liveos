@@ -1,0 +1,106 @@
+{% load tailwind_tags world_urls %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="bumblebee">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>资源库存维护 · {{ member.member_no }}</title>
+  {% tailwind_css %}
+</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+  {% include "partials/runtime_header.html" %}
+  <main class="mx-auto grid w-full max-w-7xl gap-6 p-4 lg:p-8">
+
+    <header class="card bg-base-100 shadow">
+      <div class="card-body flex flex-row flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-bold tracking-normal">资源库存维护</h1>
+          <p class="text-sm text-base-content/70 mt-1">
+            {% if resources|length > 0 %}{{ resources|length }} 个资源，{{ low_stock|length }} 个低于预警线{% else %}当前没有资源记录，请先新增资源。{% endif %}
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <a class="btn btn-sm btn-primary" href="{% world_url 'workspace-inventory-new' %}">新增资源</a>
+          <a class="btn btn-sm btn-outline" href="{% world_url 'workspace-page' %}">返回工作台</a>
+        </div>
+      </div>
+    </header>
+
+    {% if messages %}
+      <section class="grid gap-2">
+        {% for message in messages %}
+          <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-error{% else %}alert-info{% endif %}"><span>{{ message }}</span></div>
+        {% endfor %}
+      </section>
+    {% endif %}
+
+    {% if low_stock %}
+      <section class="card bg-warning/10 border border-warning/30 shadow">
+        <div class="card-body">
+          <h2 class="card-title text-warning">低库存预警</h2>
+          <div class="grid gap-3 mt-2">
+            {% for r in low_stock %}
+              <div class="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-base-300 bg-base-100 p-3">
+                <div>
+                  <span class="badge badge-warning badge-sm mr-2">{{ r.get_resource_type_display }}</span>
+                  <span class="font-bold">{{ r.name|default:r.resource_id }}</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-4 text-sm">
+                  <span class="text-warning font-semibold">{{ r.current_stock }} / {{ r.warning_threshold }} {{ r.get_unit_display }}</span>
+                  <a class="btn btn-xs btn-warning" href="{% world_url 'workspace-inventory-adjust' r.resource_id %}">补货</a>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+    {% endif %}
+
+    <section class="card bg-base-100 shadow">
+      <div class="card-body">
+        <h2 class="card-title mb-4">全部资源</h2>
+        <div class="overflow-x-auto">
+          <table class="table table-zebra w-full text-sm">
+            <thead>
+              <tr>
+                <th>名称</th>
+                <th>类型</th>
+                <th>当前库存</th>
+                <th>单位</th>
+                <th>预警线</th>
+                <th>状态</th>
+                <th>补充方式</th>
+                <th>最近更新</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in resources %}
+                <tr>
+                  <td class="font-medium">{{ r.name|default:r.resource_id }}</td>
+                  <td><span class="badge badge-sm badge-ghost">{{ r.get_resource_type_display }}</span></td>
+                  <td class="font-mono {% if r.current_stock <= r.warning_threshold %}text-warning font-bold{% endif %}">{{ r.current_stock }}</td>
+                  <td>{{ r.get_unit_display }}</td>
+                  <td class="font-mono">{{ r.warning_threshold }}</td>
+                  <td>
+                    <span class="badge badge-xs {% if r.status == 'active' %}badge-success{% elif r.status == 'inactive' %}badge-ghost{% elif r.status == 'maintenance' %}badge-warning{% else %}badge-error{% endif %}">{{ r.get_status_display }}</span>
+                  </td>
+                  <td>{{ r.get_replenishment_method_display }}</td>
+                  <td class="text-xs text-base-content/60">{{ r.updated_at|date:"m-d H:i" }}</td>
+                  <td class="flex gap-1">
+                    <a class="btn btn-xs btn-outline" href="{% world_url 'workspace-inventory-edit' r.resource_id %}">编辑</a>
+                    <a class="btn btn-xs btn-outline" href="{% world_url 'workspace-inventory-adjust' r.resource_id %}">调整</a>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="9" class="text-center text-base-content/50">暂无资源记录</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</body>
+</html>

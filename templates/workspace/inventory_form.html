@@ -1,0 +1,124 @@
+{% load tailwind_tags world_urls %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="bumblebee">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if mode == "edit" %}编辑资源资料{% else %}新增资源{% endif %} · {{ member.member_no }}</title>
+  {% tailwind_css %}
+</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+  {% include "partials/runtime_header.html" %}
+  <main class="mx-auto grid w-full max-w-xl gap-6 p-4 lg:p-8">
+
+    <header class="card bg-base-100 shadow">
+      <div class="card-body">
+        <a class="btn btn-sm btn-ghost mb-2 self-start" href="{% world_url 'workspace-inventory' %}">返回资源列表</a>
+        <h1 class="text-2xl font-bold tracking-normal">{% if mode == "edit" %}编辑资源资料{% else %}新增资源{% endif %}</h1>
+      </div>
+    </header>
+
+    {% if errors %}
+      <section class="alert alert-error grid gap-1">
+        {% for err in errors %}<span>{{ err }}</span>{% endfor %}
+      </section>
+    {% endif %}
+
+    <form class="card bg-base-100 shadow" method="post">
+      <div class="card-body grid gap-4">
+        {% csrf_token %}
+        <label class="fieldset">
+          <span class="fieldset-label">资源 ID</span>
+          {% if mode == "edit" %}
+            <input class="input input-bordered w-full bg-base-200 text-base-content/60 cursor-not-allowed" type="text" value="{{ form_data.resource_id }}" readonly>
+          {% else %}
+            <input class="input input-bordered w-full" type="text" name="resource_id" value="{{ form_data.resource_id|default:'' }}" placeholder="例：grain-rice-001" required>
+          {% endif %}
+        </label>
+        <label class="fieldset">
+          <span class="fieldset-label">资源名称</span>
+          <input class="input input-bordered w-full" type="text" name="name" value="{{ form_data.name|default:'' }}" placeholder="例：大米库存">
+        </label>
+        <div class="grid grid-cols-2 gap-4">
+          <label class="fieldset">
+            <span class="fieldset-label">资源类型</span>
+            <select class="select select-bordered w-full" name="resource_type" required>
+              <option value="" disabled {% if not form_data.resource_type %}selected{% endif %}>请选择</option>
+              {% for val, label in resource_types %}
+                <option value="{{ val }}" {% if form_data.resource_type == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="fieldset">
+            <span class="fieldset-label">状态</span>
+            <select class="select select-bordered w-full" name="status">
+              {% for val, label in statuses %}
+                <option value="{{ val }}" {% if form_data.status == val or not form_data.status and val == 'active' %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <label class="fieldset">
+            <span class="fieldset-label">单位</span>
+            <select class="select select-bordered w-full" name="unit" required>
+              <option value="" disabled {% if not form_data.unit %}selected{% endif %}>请选择</option>
+              {% for val, label in units %}
+                <option value="{{ val }}" {% if form_data.unit == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="fieldset">
+            <span class="fieldset-label">补充方式</span>
+            <select class="select select-bordered w-full" name="replenishment_method" required>
+              <option value="" disabled {% if not form_data.replenishment_method %}selected{% endif %}>请选择</option>
+              {% for val, label in replenishment_methods %}
+                <option value="{{ val }}" {% if form_data.replenishment_method == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <label class="fieldset">
+            <span class="fieldset-label">当前库存</span>
+            {% if mode == "edit" %}
+              <input class="input input-bordered w-full font-mono bg-base-200 text-base-content/60 cursor-not-allowed" type="text" value="{{ form_data.current_stock }}" readonly>
+              <span class="fieldset-label text-warning">库存数量请通过库存调整记录修改</span>
+            {% else %}
+              <input class="input input-bordered w-full font-mono" type="number" step="any" name="current_stock" value="{{ form_data.current_stock|default:'0' }}">
+            {% endif %}
+          </label>
+          <label class="fieldset">
+            <span class="fieldset-label">预警线</span>
+            <input class="input input-bordered w-full font-mono" type="number" step="any" name="warning_threshold" value="{{ form_data.warning_threshold|default:'0' }}">
+          </label>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <label class="fieldset">
+            <span class="fieldset-label">每日消耗预估</span>
+            <input class="input input-bordered w-full font-mono" type="number" step="any" name="daily_consumption_estimate" value="{{ form_data.daily_consumption_estimate|default:'0' }}">
+          </label>
+          <label class="fieldset">
+            <span class="fieldset-label">损耗率</span>
+            <input class="input input-bordered w-full font-mono" type="number" step="any" name="loss_rate" value="{{ form_data.loss_rate|default:'0' }}">
+          </label>
+        </div>
+        <label class="fieldset">
+          <span class="fieldset-label">存放位置</span>
+          <input class="input input-bordered w-full" type="text" name="location" value="{{ form_data.location|default:'' }}" placeholder="例：仓储一区">
+        </label>
+        <label class="fieldset">
+          <span class="fieldset-label">描述</span>
+          <textarea class="textarea textarea-bordered w-full" name="description" rows="2" placeholder="可选描述">{{ form_data.description|default:'' }}</textarea>
+        </label>
+        <label class="fieldset">
+          <span class="fieldset-label">规则版本</span>
+          <input class="input input-bordered w-full" type="text" name="rule_version" value="{{ form_data.rule_version|default:'v1' }}" required>
+        </label>
+        <button class="btn btn-primary w-full" type="submit">{% if mode == "edit" %}保存修改{% else %}创建资源{% endif %}</button>
+      </div>
+    </form>
+
+  </main>
+</body>
+</html>

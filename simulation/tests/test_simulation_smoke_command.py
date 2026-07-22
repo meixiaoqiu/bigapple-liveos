@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from io import StringIO
 from unittest.mock import patch
 
@@ -21,6 +22,7 @@ from core.models import (
     PlanNode,
     ProjectPlan,
     Resource,
+    ResourceTransaction,
     SimulationFailure,
     SimulationRun,
     SimulationRunDisposition,
@@ -107,7 +109,13 @@ class SimulationSmokeCommandTests(TestCase):
         )
         self.assertEqual(Member.objects.count(), 1)
         self.assertEqual(Task.objects.count(), 0)
-        self.assertEqual(Resource.objects.count(), 0)
+        self.assertGreaterEqual(Resource.objects.count(), 13)
+        key_resources = {"res-grain", "res-water", "res-medicine", "res-warehouse-capacity"}
+        existing_ids = set(Resource.objects.values_list("resource_id", flat=True))
+        self.assertTrue(key_resources.issubset(existing_ids), f"Missing key resources: {key_resources - existing_ids}")
+        for r in Resource.objects.all():
+            self.assertEqual(r.current_stock, Decimal("0"), f"{r.resource_id} stock not zero")
+        self.assertEqual(ResourceTransaction.objects.count(), 0)
         self.assertIn("template=zero_start", output.getvalue())
 
     def test_seed_world_zero_start_uses_bootstrap_admin_as_only_initial_member(self) -> None:

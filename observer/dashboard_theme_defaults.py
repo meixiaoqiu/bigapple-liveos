@@ -41,6 +41,7 @@ def _default_dashboard_context() -> dict[str, Any]:
             }
         ],
         "photos": [],
+        "resources": [],
         "achievements": [],
         "risk_summary": {"high": 0, "medium": 0, "low": 0, "resolved": 0},
         "role_pressure": [],

@@ -3,7 +3,7 @@
 from django.urls import path
 from worlds.routing import world_scoped_view
 
-from . import views, finance_views
+from . import views, finance_views, inventory_views
 
 
 urlpatterns = [
@@ -92,5 +92,25 @@ urlpatterns = [
         "recruitment/",
         world_scoped_view(views.workspace_recruitment),
         name="workspace-recruitment",
+    ),
+    path(
+        "inventory/",
+        world_scoped_view(inventory_views.inventory_list),
+        name="workspace-inventory",
+    ),
+    path(
+        "inventory/<str:resource_id>/adjust/",
+        world_scoped_view(inventory_views.inventory_adjust),
+        name="workspace-inventory-adjust",
+    ),
+    path(
+        "inventory/new/",
+        world_scoped_view(inventory_views.inventory_new),
+        name="workspace-inventory-new",
+    ),
+    path(
+        "inventory/<str:resource_id>/edit/",
+        world_scoped_view(inventory_views.inventory_edit),
+        name="workspace-inventory-edit",
     ),
 ]

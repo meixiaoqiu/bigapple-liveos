@@ -1,0 +1,59 @@
+{% load tailwind_tags world_urls %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="bumblebee">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>库存调整 · {{ resource.name|default:resource.resource_id }}</title>
+  {% tailwind_css %}
+</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+  {% include "partials/runtime_header.html" %}
+  <main class="mx-auto grid w-full max-w-lg gap-6 p-4 lg:p-8">
+
+    <header class="card bg-base-100 shadow">
+      <div class="card-body">
+        <a class="btn btn-sm btn-ghost mb-2 self-start" href="{% world_url 'workspace-inventory' %}">返回资源列表</a>
+        <h1 class="text-2xl font-bold tracking-normal">库存调整</h1>
+        <div class="mt-2 grid gap-1 text-sm">
+          <div><span class="text-base-content/60">资源：</span>{{ resource.name|default:resource.resource_id }}</div>
+          <div><span class="text-base-content/60">类型：</span>{{ resource.get_resource_type_display }}</div>
+          <div><span class="text-base-content/60">当前库存：</span><span class="font-mono font-semibold">{{ resource.current_stock }} {{ resource.get_unit_display }}</span></div>
+          <div><span class="text-base-content/60">预警线：</span><span class="font-mono">{{ resource.warning_threshold }} {{ resource.get_unit_display }}</span></div>
+        </div>
+      </div>
+    </header>
+
+    {% if errors %}
+      <section class="alert alert-error grid gap-1">
+        {% for err in errors %}<span>{{ err }}</span>{% endfor %}
+      </section>
+    {% endif %}
+
+    <form class="card bg-base-100 shadow" method="post">
+      <div class="card-body grid gap-4">
+        {% csrf_token %}
+        <label class="fieldset">
+          <span class="fieldset-label">调整量（正数入库，负数出库）</span>
+          <input class="input input-bordered w-full font-mono" type="number" step="any" name="delta" value="{{ form_delta|default:'' }}" placeholder="例如 10 或 -5" required>
+        </label>
+        <label class="fieldset">
+          <span class="fieldset-label">补充方式</span>
+          <select class="select select-bordered w-full" name="replenishment_method" required>
+            <option value="" disabled {% if not form_method %}selected{% endif %}>请选择补充方式</option>
+            {% for value, label in replenishment_choices %}
+              <option value="{{ value }}" {% if form_method == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="fieldset">
+          <span class="fieldset-label">调整原因</span>
+          <textarea class="textarea textarea-bordered w-full" name="reason" rows="3" placeholder="填写调整原因，例如：采购到货入库" required>{{ form_reason|default:'' }}</textarea>
+        </label>
+        <button class="btn btn-primary w-full" type="submit">确认调整</button>
+      </div>
+    </form>
+
+  </main>
+</body>
+</html>

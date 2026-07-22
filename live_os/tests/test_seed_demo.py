@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from io import StringIO
 from unittest.mock import patch
 
@@ -43,6 +44,11 @@ class SeedDemoTests(TestCase):
         low_resource = Resource.objects.get(resource_id="res-medicine")
         self.assertLessEqual(low_resource.current_stock, low_resource.warning_threshold)
         self.assertEqual(Resource.objects.get(resource_id="res-cash").resource_type, Resource.ResourceType.CASH)
+        self.assertGreaterEqual(Resource.objects.count(), 13)
+        self.assertEqual(Resource.objects.get(resource_id="res-grain").name, "基础粮食库存")
+        self.assertEqual(Resource.objects.get(resource_id="res-warehouse-capacity").unit, Resource.Unit.CUBIC_METER)
+        self.assertTrue(Resource.objects.filter(resource_type=Resource.ResourceType.VEGETABLES).exists())
+        self.assertTrue(Resource.objects.filter(resource_type=Resource.ResourceType.ELECTRICITY).exists())
 
         self.assertTrue(Dispute.objects.filter(status=Dispute.Status.SUBMITTED).exists())
         self.assertTrue(Dispute.objects.filter(status=Dispute.Status.IN_REVIEW).exists())
@@ -180,13 +186,23 @@ class SeedDemoTests(TestCase):
             self.assertEqual(child.parent, stage)
             self.assertEqual(child.status, PlanNode.Status.PLANNED)
 
+        # Zero-start Resource catalog: all 13 resources exist, all stock = 0
+        self.assertGreaterEqual(Resource.objects.count(), 13)
+        for rid in ("res-grain", "res-water", "res-medicine", "res-warehouse-capacity"):
+            self.assertTrue(Resource.objects.filter(resource_id=rid).exists(), f"Missing {rid}")
+        for resource in Resource.objects.all():
+            self.assertEqual(resource.current_stock, Decimal("0"),
+                             f"{resource.resource_id} stock should be 0")
+
     def test_zero_start_seed_is_idempotent(self) -> None:
         from live_os.demo_seed.zero_start import seed_zero_start
 
         result = seed_zero_start(founder_member_no="M-ZT-002", founder_display_name="幂等测试")
-        first_count = PlanNode.objects.filter(revision=result["revision"]).count()
+        first_plan_count = PlanNode.objects.filter(revision=result["revision"]).count()
+        first_resource_count = Resource.objects.count()
         seed_zero_start(founder_member_no="M-ZT-002", founder_display_name="幂等测试")
         self.assertEqual(
             PlanNode.objects.filter(revision=result["revision"]).count(),
-            first_count,
+            first_plan_count,
         )
+        self.assertEqual(Resource.objects.count(), first_resource_count)
