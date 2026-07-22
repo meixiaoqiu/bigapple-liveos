@@ -10,6 +10,8 @@ from django.test import TestCase, override_settings
 
 from core.models import (
     CapacityAssessment,
+    CredentialGrant,
+    CredentialTemplate,
     Dispute,
     Event,
     LedgerEntry,
@@ -20,6 +22,7 @@ from core.models import (
     PlanRevision,
     ProjectPlan,
     Resource,
+    SupplierQuote,
     SystemEvent,
     Task,
 )
@@ -193,6 +196,18 @@ class SeedDemoTests(TestCase):
         for resource in Resource.objects.all():
             self.assertEqual(resource.current_stock, Decimal("0"),
                              f"{resource.resource_id} stock should be 0")
+
+        # Credential template exists, no grants
+        self.assertTrue(
+            CredentialTemplate.objects.filter(code="provider_delivery_completed").exists()
+        )
+        self.assertEqual(
+            CredentialGrant.objects.filter(
+                template__code="provider_delivery_completed",
+            ).count(),
+            0,
+        )
+        self.assertEqual(SupplierQuote.objects.count(), 0)
 
     def test_zero_start_seed_is_idempotent(self) -> None:
         from live_os.demo_seed.zero_start import seed_zero_start

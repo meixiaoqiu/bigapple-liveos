@@ -34,8 +34,10 @@
                 <th>单位</th>
                 <th>预警线</th>
                 <th>库存%</th>
+                <th>报价</th>
                 <th>状态</th>
                 <th>位置</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -55,12 +57,35 @@
                     {% endif %}
                   </td>
                   <td>
+                    {% if r.offer_count %}
+                      <div class="text-xs">
+                        <span>{{ r.offer_count }} 条报价</span>
+                        <span class="text-success ml-1">{{ r.fulfilled_count }} 履约</span>
+                        {% if r.lowest_quote_price is not None %}
+                          <div class="font-mono text-base-content/70">最低 ¥{{ r.lowest_quote_price|floatformat:2 }}</div>
+                        {% endif %}
+                        {% if r.donation_qty_total %}
+                          <div class="text-accent">{{ r.donation_qty_total }} 捐赠</div>
+                        {% endif %}
+                      </div>
+                    {% else %}
+                      <span class="text-base-content/40 text-xs">暂无报价</span>
+                    {% endif %}
+                  </td>
+                  <td>
                     <span class="badge badge-xs {% if r.status == 'active' %}badge-success{% elif r.status == 'inactive' %}badge-ghost{% elif r.status == 'maintenance' %}badge-warning{% else %}badge-error{% endif %}">{{ r.status_label }}</span>
                   </td>
                   <td class="text-xs text-base-content/60">{{ r.location|default:"-" }}</td>
+                  <td>
+                    {% if r.accepts_offers is not False %}
+                      <a class="btn btn-xs btn-outline" href="/resources/{{ r.resource_id }}/offers/">报价</a>
+                    {% else %}
+                      <span class="text-xs text-base-content/40">关闭</span>
+                    {% endif %}
+                  </td>
                 </tr>
               {% empty %}
-                <tr><td colspan="9" class="text-center text-base-content/50">暂无资源记录</td></tr>
+                <tr><td colspan="11" class="text-center text-base-content/50">暂无资源记录</td></tr>
               {% endfor %}
             </tbody>
           </table>

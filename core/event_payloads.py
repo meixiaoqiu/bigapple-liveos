@@ -10,7 +10,19 @@ from __future__ import annotations
 from typing import Any
 
 from .event_ledger import PUBLIC_LEDGER_SCHEMA
-from .models import Dispute, LedgerEntry, Member, Proposal, ProposalVote, Resource, RoleAssignment, SystemEvent, Task
+from .models import (
+    ApprovalProposal,
+    Dispute,
+    LedgerEntry,
+    Member,
+    Proposal,
+    ProposalVote,
+    Resource,
+    RoleAssignment,
+    SupplierQuote,
+    SystemEvent,
+    Task,
+)
 
 
 def _iso(value) -> str | None:
@@ -505,6 +517,108 @@ def finance_transaction_payload(txn) -> dict[str, Any]:
             "payer_public_name": payer_label,
         },
         private_commitments=[],
+    )
+
+
+# ── procurement event payload builders ─────────────────────────────
+
+
+def supplier_offer_payload(
+    quote: SupplierQuote,
+    *,
+    action: str,
+    actor: Member | None = None,
+) -> dict[str, Any]:
+    """Build a public-safe event payload for a SupplierQuote lifecycle action."""
+    resource = quote.resource
+    resource_name = resource.name or resource.resource_id
+    submitted_by_label = (
+        _public_member_label(quote.submitted_by.display_name or "", quote.submitted_by.member_no)
+        if quote.submitted_by
+        else ""
+    )
+    actor_label = (
+        _public_member_label(actor.display_name or "", actor.member_no)
+        if actor
+        else ""
+    )
+    return _public_event_payload(
+        subject_type="supplier_quote",
+        subject_ref=_public_ref("supplier-quote", quote.quote_id),
+        subject_label=f"报价 {quote.quote_id}",
+        action=action,
+        stage=quote.decision_status,
+        summary=f"报价 {quote.quote_id}（{resource_name}）{action}。",
+        public_facts={
+            "quote_id": quote.quote_id,
+            "resource_id": resource.resource_id,
+            "resource_name": resource_name,
+            "submitted_by_display": submitted_by_label,
+            "actor_display": actor_label,
+            "offer_type": quote.offer_type,
+            "available_quantity": str(quote.available_quantity),
+            "unit_price": str(quote.unit_price),
+            "currency": quote.currency,
+            "decision_status": quote.decision_status,
+            "receipt_status": quote.receipt_status,
+            "payment_status": quote.payment_status,
+            "approval_tier": quote.approval_tier,
+            "estimated_total_amount": str(quote.estimated_total_amount),
+            "credential_id": quote.performance_credential_id or "",
+        },
+        private_commitments=[
+            _private("metadata", present=bool(quote.metadata), reason="元数据"),
+            _private("notes", present=bool(quote.notes), reason="内部备注"),
+            _private("decision_reason", present=bool(quote.decision_reason), reason="决策理由"),
+            _private("receipt_notes", present=bool(quote.receipt_notes), reason="验收备注"),
+        ],
+    )
+
+
+def approval_proposal_payload(
+    proposal: ApprovalProposal,
+    *,
+    action: str,
+    actor: Member | None = None,
+) -> dict[str, Any]:
+    """Build a public-safe event payload for an ApprovalProposal action."""
+    from .proposal_services import (
+        proposal_approved_roles,
+        proposal_missing_roles,
+        proposal_required_roles,
+    )
+    actor_label = _public_member_label(
+        actor.display_name or "", actor.member_no,
+    ) if actor else ""
+    submitted_label = _public_member_label(
+        proposal.submitted_by.display_name or "",
+        proposal.submitted_by.member_no,
+    )
+    return _public_event_payload(
+        subject_type="approval_proposal",
+        subject_ref=_public_ref("approval-proposal", proposal.proposal_id),
+        subject_label=proposal.title,
+        action=action,
+        stage=proposal.status,
+        summary=f"提案 {proposal.proposal_id}（{proposal.title}）{action}。",
+        public_facts={
+            "approval_proposal_id": proposal.proposal_id,
+            "ap_type": proposal.proposal_type,
+            "ap_title": proposal.title,
+            "ap_summary": proposal.summary,
+            "ap_status": proposal.status,
+            "ap_approval_tier": proposal.approval_tier,
+            "ap_target_type": proposal.target_type,
+            "ap_target_id": proposal.target_id,
+            "ap_submitted_by_display": submitted_label,
+            "ap_actor_display": actor_label,
+            "ap_required_roles": proposal_required_roles(proposal),
+            "ap_approved_roles": proposal_approved_roles(proposal),
+            "ap_missing_roles": proposal_missing_roles(proposal),
+        },
+        private_commitments=[
+            _private("metadata", present=bool(proposal.metadata), reason="元数据"),
+        ],
     )
 
 

@@ -70,6 +70,7 @@
                 <th>预警线</th>
                 <th>状态</th>
                 <th>补充方式</th>
+                <th>报价</th>
                 <th>最近更新</th>
                 <th>操作</th>
               </tr>
@@ -86,6 +87,13 @@
                     <span class="badge badge-xs {% if r.status == 'active' %}badge-success{% elif r.status == 'inactive' %}badge-ghost{% elif r.status == 'maintenance' %}badge-warning{% else %}badge-error{% endif %}">{{ r.get_status_display }}</span>
                   </td>
                   <td>{{ r.get_replenishment_method_display }}</td>
+                  <td>
+                    {% if r.accepts_offers == False %}
+                      <span class="badge badge-xs badge-ghost">关闭</span>
+                    {% else %}
+                      <span class="badge badge-xs badge-success">接受</span>
+                    {% endif %}
+                  </td>
                   <td class="text-xs text-base-content/60">{{ r.updated_at|date:"m-d H:i" }}</td>
                   <td class="flex gap-1">
                     <a class="btn btn-xs btn-outline" href="{% world_url 'workspace-inventory-edit' r.resource_id %}">编辑</a>

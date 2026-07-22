@@ -70,6 +70,7 @@ def _resource_form_initial(resource: Resource | None = None) -> dict:
         "location": resource.location,
         "description": resource.description,
         "rule_version": resource.rule_version,
+        "accepts_offers": getattr(resource, "accepts_offers", True),
     }
 
 
@@ -365,6 +366,7 @@ def _handle_new_post(request: HttpRequest, choices: dict) -> HttpResponse:
         location=data["location"] or "",
         description=data["description"] or "",
         rule_version=data["rule_version"],
+        accepts_offers=request.POST.get("accepts_offers", "") == "1",
         updated_at=timezone.now(),
     )
 
@@ -420,6 +422,7 @@ def inventory_edit(request: HttpRequest, resource_id: str) -> HttpResponse:
         resource.location = data["location"] or ""
         resource.description = data["description"] or ""
         resource.rule_version = data["rule_version"]
+        resource.accepts_offers = request.POST.get("accepts_offers", "") == "1"
         resource.updated_at = timezone.now()
         resource.save()
 

@@ -3,7 +3,7 @@
 from django.urls import path
 from worlds.routing import world_scoped_view
 
-from . import views, finance_views, inventory_views
+from . import views, finance_views, inventory_views, procurement_views, proposal_views
 
 
 urlpatterns = [
@@ -112,5 +112,45 @@ urlpatterns = [
         "inventory/<str:resource_id>/edit/",
         world_scoped_view(inventory_views.inventory_edit),
         name="workspace-inventory-edit",
+    ),
+    path(
+        "proposals/",
+        world_scoped_view(proposal_views.proposal_list),
+        name="workspace-approval-proposals",
+    ),
+    path(
+        "approval-proposals/<str:proposal_id>/approve/",
+        world_scoped_view(proposal_views.approval_proposal_approve),
+        name="workspace-approval-proposal-approve",
+    ),
+    path(
+        "approval-proposals/<str:proposal_id>/reject/",
+        world_scoped_view(proposal_views.approval_proposal_reject),
+        name="workspace-approval-proposal-reject",
+    ),
+    path(
+        "approval-proposals/<str:proposal_id>/execute/",
+        world_scoped_view(proposal_views.approval_proposal_execute),
+        name="workspace-approval-proposal-execute",
+    ),
+    path(
+        "procurement/",
+        world_scoped_view(procurement_views.procurement_list),
+        name="workspace-procurement",
+    ),
+    path(
+        "procurement/<str:quote_id>/create-proposal/",
+        world_scoped_view(procurement_views.procurement_create_proposal),
+        name="workspace-procurement-create-proposal",
+    ),
+    path(
+        "procurement/<str:quote_id>/receipt/",
+        world_scoped_view(procurement_views.procurement_receipt),
+        name="workspace-procurement-receipt",
+    ),
+    path(
+        "procurement/<str:quote_id>/complete/",
+        world_scoped_view(procurement_views.procurement_complete),
+        name="workspace-procurement-complete",
     ),
 ]

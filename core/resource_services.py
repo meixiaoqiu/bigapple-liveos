@@ -23,8 +23,11 @@ def record_resource_adjustment(
     reason: str,
     replenishment_method: str,
     simulation_day: int,
-) -> tuple[Resource, Event]:
-    """Record an operator resource adjustment and append a resource event."""
+) -> tuple[Resource, Event, ResourceTransaction]:
+    """Record an operator resource adjustment and append a resource event.
+
+    Returns ``(resource, event, transaction)``.
+    """
 
     cleaned_reason = reason.strip()
     valid_methods = {value for value, _label in Resource.ReplenishmentMethod.choices}
@@ -122,7 +125,7 @@ def record_resource_adjustment(
     )
     transaction.system_event = system_event
     transaction.save(update_fields=["system_event"])
-    return resource, event
+    return resource, event, transaction
 
 
 def _transaction_type_for_delta(delta: Decimal) -> str:

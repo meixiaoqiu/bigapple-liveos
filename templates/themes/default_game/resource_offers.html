@@ -1,0 +1,146 @@
+{% load tailwind_tags %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>报价列表 · {{ resource.name }}</title>
+  {% tailwind_css %}
+</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+  {% include "partials/runtime_header.html" %}
+
+  <main class="mx-auto grid max-w-7xl gap-6 p-4 lg:p-6">
+    {% if messages %}
+      <section class="grid gap-2" aria-label="操作结果">
+        {% for message in messages %}
+          <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-error{% else %}alert-info{% endif %}">
+            <span>{{ message }}</span>
+          </div>
+        {% endfor %}
+      </section>
+    {% endif %}
+
+    <section class="card bg-base-100 shadow">
+      <div class="card-body">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <a class="btn btn-sm btn-ghost mb-2" href="/resources/">返回资源库存</a>
+            <h1 class="text-2xl font-bold tracking-normal">{{ resource.name }}</h1>
+            <p class="text-sm text-base-content/70 mt-1">{{ resource.type_label }} · {{ resource.unit_label }}</p>
+          </div>
+          {% if accepts_offers is not False %}
+            <a class="btn btn-primary btn-sm" href="/resources/{{ resource.resource_id }}/offers/new/">我要供给</a>
+          {% else %}
+            <span class="text-sm text-base-content/60">当前不接受公开报价</span>
+          {% endif %}
+        </div>
+        <div class="stats stats-vertical shadow mt-3 bg-base-200 lg:stats-horizontal">
+          <div class="stat">
+            <div class="stat-title">当前库存</div>
+            <div class="stat-value text-lg {% if resource.is_low_stock %}text-warning{% endif %}">{{ resource.current_stock }}</div>
+            <div class="stat-desc">预警线 {{ resource.warning_threshold }} · {{ resource.stock_percent }}%</div>
+          </div>
+          <div class="stat">
+            <div class="stat-title">待决策报价</div>
+            <div class="stat-value text-lg text-info">{{ summary.submitted }}</div>
+            <div class="stat-desc">最低 <span class="font-mono">{{ summary.lowest_quote_price|default:"-" }}</span> {{ resource.unit_label }}</div>
+          </div>
+          <div class="stat">
+            <div class="stat-title">已采纳</div>
+            <div class="stat-value text-lg">{{ summary.accepted }}</div>
+          </div>
+          <div class="stat">
+            <div class="stat-title">已履约</div>
+            <div class="stat-value text-lg text-success">{{ summary.fulfilled }}</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card bg-base-100 shadow">
+      <div class="card-body">
+        <h2 class="card-title">报价列表</h2>
+        <p class="text-sm text-base-content/70">共 {{ offer_rows|length }} 条报价 / 捐赠记录</p>
+
+        {% if offer_rows %}
+          <div class="overflow-x-auto mt-3">
+            <table class="table table-zebra w-full text-sm">
+              <thead>
+                <tr>
+                    <th>类型</th>
+                    <th>单价</th>
+                    <th>数量</th>
+                    <th>金额</th>
+                    <th>层级</th>
+                    <th>交付(天)</th>
+                    <th>决策</th>
+                    <th>验收</th>
+                    <th>付款</th>
+                    <th>提交人</th>
+                  </tr>
+              </thead>
+              <tbody>
+                {% for o in offer_rows %}
+                  <tr>
+                    <td>
+                      {% if o.offer_type == 'donation' %}
+                        <span class="badge badge-xs badge-accent">捐赠</span>
+                      {% else %}
+                        <span class="badge badge-xs badge-ghost">报价</span>
+                      {% endif %}
+                    </td>
+                    <td class="font-mono">
+                      {% if o.offer_type == 'donation' %}0{% else %}{{ o.unit_price }}{% endif %}
+                      <span class="text-xs text-base-content/50">{{ o.currency }}</span>
+                    </td>
+                    <td class="font-mono">{{ o.available_quantity }}</td>
+                    <td class="font-mono text-xs">{{ o.estimated_total_amount }} {{ o.currency }}</td>
+                    <td>
+                      <span class="badge badge-xs {% if o.approval_tier == 'small' %}badge-ghost{% elif o.approval_tier == 'standard' %}badge-info{% else %}badge-warning{% endif %}">
+                        {{ o.approval_tier_label }}
+                      </span>
+                    </td>
+                    <td>{{ o.lead_time_days }}</td>
+                    <td>
+                      {% if o.decision_status == 'accepted' and o.approval_tier != 'small' and o.receipt_status == 'pending' %}
+                        <span class="text-xs text-base-content/60">
+                          {% if o.approval_tier == 'standard' %}待财务确认{% elif o.approval_tier == 'major' %}待财务+治理确认{% endif %}
+                        </span>
+                      {% endif %}
+                      <span class="badge badge-xs {% if o.decision_status == 'submitted' %}badge-ghost{% elif o.decision_status == 'accepted' %}badge-info{% elif o.decision_status == 'fulfilled' %}badge-success{% elif o.decision_status == 'rejected' %}badge-error{% else %}badge-ghost{% endif %}">
+                        {{ o.decision_status_label }}
+                      </span>
+                      {% if o.proposal_status %}
+                        <span class="badge badge-xs {% if o.proposal_status == 'submitted' %}badge-warning{% elif o.proposal_status == 'approved' %}badge-info{% elif o.proposal_status == 'executed' %}badge-success{% elif o.proposal_status == 'rejected' %}badge-error{% endif %} ml-1">{{ o.proposal_status_label }}</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <span class="badge badge-xs {% if o.receipt_status == 'accepted' %}badge-success{% elif o.receipt_status == 'rejected' %}badge-error{% else %}badge-ghost{% endif %}">
+                        {{ o.receipt_status_label }}
+                      </span>
+                    </td>
+                    <td>
+                      <span class="badge badge-xs {% if o.payment_status == 'paid' %}badge-success{% elif o.payment_status == 'not_required' %}badge-accent{% else %}badge-ghost{% endif %}">
+                        {{ o.payment_status_label }}
+                      </span>
+                    </td>
+                    <td class="font-mono text-xs">
+                      {{ o.submitted_by_display }}
+                      {% if o.has_performance_credential %}
+                        <span class="badge badge-xs badge-success ml-1">有履约记录</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="alert mt-3">暂无报价记录</div>
+        {% endif %}
+      </div>
+    </section>
+  </main>
+</body>
+</html>

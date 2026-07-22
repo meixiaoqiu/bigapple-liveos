@@ -33,6 +33,10 @@
             {% if is_governance %}
               <a class="btn btn-sm" href="{% world_url 'workspace-inventory' %}">资源库存</a>
             {% endif %}
+            {% if is_governance or is_finance %}
+              <a class="btn btn-sm" href="{% world_url 'workspace-procurement' %}">采购管理</a>
+              <a class="btn btn-sm btn-accent" href="{% world_url 'workspace-approval-proposals' %}">待处理提案</a>
+            {% endif %}
             <a class="btn btn-sm" href="{% world_url 'workspace-public-profile' %}">公开资料</a>
           </nav>
         </div>

@@ -12,7 +12,7 @@ from typing import Any
 from django.db.models import Count, F, Q, Sum
 from django.shortcuts import get_object_or_404
 
-from core.access import is_governance_principal
+from core.access import is_finance_reviewer, is_governance_principal
 from core.application_services import _application_role_gap_label
 from core.member_roles import ROLE_FORMAL_MEMBER, member_has_role
 from core.models import (
@@ -182,6 +182,7 @@ def workspace_context(member_no: str) -> dict[str, Any]:
         "simulation_day": latest.simulation_day if latest else 1,
         "member": member,
         "is_governance": is_governance_principal(member),
+        "is_finance": is_finance_reviewer(member),
         "credit_balance": credit_balance,
         "available_tasks": available_tasks,
         "active_tasks": active_tasks,
@@ -266,6 +267,7 @@ def applications_review_list_context(*, member: Member, status_filter: str) -> d
     return {
         "member": member,
         "is_governance": is_governance_principal(member),
+        "is_finance": is_finance_reviewer(member),
         "status_filter": status_filter,
         "applications": applications,
         "counts": counts,
@@ -347,6 +349,7 @@ def application_review_detail_context(*, member: Member, application: MemberAppl
     return {
         "member": member,
         "is_governance": is_governance_principal(member),
+        "is_finance": is_finance_reviewer(member),
         "application": application,
         "role_gap_label": _application_role_gap_label(application),
         "availability_slots": list(application.availability_slots or []),

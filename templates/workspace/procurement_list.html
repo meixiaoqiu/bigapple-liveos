@@ -1,0 +1,138 @@
+{% load tailwind_tags world_urls %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="bumblebee">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>采购管理 · {{ member.member_no }}</title>
+  {% tailwind_css %}
+</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+  {% include "partials/runtime_header.html" %}
+  <main class="mx-auto grid w-full max-w-7xl gap-6 p-4 lg:p-8">
+
+    <header class="card bg-primary text-primary-content shadow-xl">
+      <div class="card-body">
+        <a class="btn btn-sm btn-ghost text-primary-content mb-2 self-start" href="{% world_url 'workspace-page' %}">返回工作台</a>
+        <h1 class="text-2xl font-bold tracking-normal">采购与供给管理</h1>
+      </div>
+    </header>
+
+    {% if messages %}
+      <section class="grid gap-2" aria-label="操作结果">
+        {% for message in messages %}
+          <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-error{% else %}alert-info{% endif %}">
+            <span>{{ message }}</span>
+          </div>
+        {% endfor %}
+      </section>
+    {% endif %}
+
+    <section class="card bg-base-100 shadow">
+      <div class="card-body">
+        <div class="tabs tabs-boxed">
+          {% for val, label in statuses %}
+            <a class="tab {% if status_filter == val %}tab-active{% endif %}" href="?status={{ val }}">{{ label }}</a>
+          {% endfor %}
+        </div>
+
+        {% if filtered %}
+          <div class="overflow-x-auto mt-3">
+            <table class="table table-zebra text-sm">
+              <thead>
+                <tr>
+                  <th>报价ID</th>
+                  <th>资源</th>
+                  <th>提交人</th>
+                  <th>类型</th>
+                  <th>金额/层级</th>
+                  <th>提案状态</th>
+                  <th>验收</th>
+                  <th>付款</th>
+                  <th>时间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for q in filtered %}
+                  <tr>
+                    <td class="font-mono text-xs">{{ q.quote_id }}</td>
+                    <td>{{ q.resource.name|default:q.resource_id }}</td>
+                    <td class="font-mono text-xs">{{ q.submitted_by.member_no|default:"-" }}</td>
+                    <td>
+                      {% if q.offer_type == 'donation' %}
+                        <span class="badge badge-xs badge-accent">捐赠</span>
+                      {% else %}
+                        <span class="badge badge-xs badge-ghost">报价</span>
+                      {% endif %}
+                    </td>
+                    <td class="font-mono text-xs">{{ q.estimated_total_amount }} {{ q.currency }} <span class="badge badge-xs {% if q.approval_tier == 'small' %}badge-ghost{% elif q.approval_tier == 'standard' %}badge-info{% else %}badge-warning{% endif %}">{{ q.get_approval_tier_display }}</span></td>
+                    <td class="text-xs">
+                      {% if q.proposal %}
+                        <span class="badge badge-xs {% if q.proposal.status == 'approved' %}badge-info{% elif q.proposal.status == 'executed' %}badge-success{% elif q.proposal.status == 'rejected' %}badge-error{% else %}badge-ghost{% endif %}">{{ q.proposal.get_status_display }}</span>
+                      {% elif q.decision_status == 'fulfilled' %}
+                        <span class="badge badge-xs badge-success">已完成</span>
+                      {% elif q.decision_status == 'rejected' %}
+                        <span class="badge badge-xs badge-error">已拒绝</span>
+                      {% else %}
+                        <span class="badge badge-xs badge-ghost">待提案</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      <span class="badge badge-xs {% if q.receipt_status == 'accepted' %}badge-success{% elif q.receipt_status == 'rejected' %}badge-error{% else %}badge-ghost{% endif %}">
+                        {{ q.get_receipt_status_display }}
+                      </span>
+                    </td>
+                    <td>
+                      <span class="badge badge-xs {% if q.payment_status == 'paid' %}badge-success{% elif q.payment_status == 'not_required' %}badge-accent{% else %}badge-ghost{% endif %}">
+                        {{ q.get_payment_status_display }}
+                      </span>
+                    </td>
+                    <td class="text-xs">{{ q.created_at|date:"m-d H:i" }}</td>
+                    <td>
+                      <div class="flex flex-wrap gap-1">
+                        {% if q.decision_status == 'submitted' %}
+                          {% if q.proposal %}
+                            <a class="btn btn-xs btn-ghost" href="{% world_url 'workspace-approval-proposals' %}">查看提案</a>
+                          {% else %}
+                            <form method="post" action="{% world_url 'workspace-procurement-create-proposal' q.quote_id %}" class="inline">
+                              {% csrf_token %}<button class="btn btn-xs btn-ghost" type="submit">补建提案</button>
+                            </form>
+                          {% endif %}
+                        {% elif q.decision_status == 'accepted' %}
+                          {% if q.receipt_pending and q.ready_for_receipt %}
+                            <form method="post" action="{% world_url 'workspace-procurement-receipt' q.quote_id %}" class="inline-flex gap-1">
+                              {% csrf_token %}
+                              <input type="hidden" name="receipt_status" value="accepted">
+                              <button class="btn btn-xs btn-info" type="submit">验收通过</button>
+                            </form>
+                            <form method="post" action="{% world_url 'workspace-procurement-receipt' q.quote_id %}" class="inline">
+                              {% csrf_token %}
+                              <input type="hidden" name="receipt_status" value="rejected">
+                              <button class="btn btn-xs btn-error" type="submit">验收失败</button>
+                            </form>
+                          {% endif %}
+                          {% if q.receipt_status == 'accepted' and q.payment_status == 'pending' %}
+                            <form method="post" action="{% world_url 'workspace-procurement-complete' q.quote_id %}" class="inline">
+                              {% csrf_token %}
+                              <button class="btn btn-xs btn-warning" type="submit">
+                                {% if q.offer_type == 'donation' %}完成捐赠{% else %}标记已付款{% endif %}
+                              </button>
+                            </form>
+                          {% endif %}
+                        {% endif %}
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="alert mt-3">暂无{{ status_filter }}状态的报价</div>
+        {% endif %}
+      </div>
+    </section>
+  </main>
+</body>
+</html>

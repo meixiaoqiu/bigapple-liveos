@@ -1,0 +1,128 @@
+{% load tailwind_tags world_urls %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="bumblebee">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>待处理提案 · {{ member.member_no }}</title>
+  {% tailwind_css %}
+</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+  {% include "partials/runtime_header.html" %}
+  <main class="mx-auto grid w-full max-w-7xl gap-6 p-4 lg:p-8">
+
+    <header class="card bg-primary text-primary-content shadow-xl">
+      <div class="card-body">
+        <a class="btn btn-sm btn-ghost text-primary-content mb-2 self-start" href="{% world_url 'workspace-page' %}">返回工作台</a>
+        <h1 class="text-2xl font-bold tracking-normal">待处理提案</h1>
+        <div class="flex gap-4 mt-2">
+          <span class="badge badge-lg">{{ pending_count }} 待处理</span>
+          <span class="badge badge-lg">{{ execute_count }} 待执行</span>
+        </div>
+      </div>
+    </header>
+
+    {% if messages %}
+      <section class="grid gap-2">
+        {% for message in messages %}
+          <div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-error{% else %}alert-info{% endif %}">{{ message }}</div>
+        {% endfor %}
+      </section>
+    {% endif %}
+
+    {% if dispatched %}
+      <section class="card bg-base-100 shadow">
+        <div class="card-body">
+          <h2 class="card-title text-warning">待我处理</h2>
+          <div class="overflow-x-auto mt-2">
+            <table class="table table-zebra text-sm">
+              <thead><tr><th>ID</th><th>类型</th><th>标题</th><th>层级</th><th>状态</th><th>已审批</th><th>缺失</th><th>提交人</th><th>操作</th></tr></thead>
+              <tbody>
+                {% for p in dispatched %}
+                  <tr>
+                    <td class="font-mono text-xs">{{ p.proposal_id }}</td>
+                    <td>{{ p.proposal_type_label }}</td>
+                    <td class="max-w-[200px] truncate">{{ p.title }}</td>
+                    <td><span class="badge badge-xs {% if p.approval_tier == 'single' %}badge-ghost{% elif p.approval_tier == 'standard' %}badge-info{% else %}badge-warning{% endif %}">{{ p.approval_tier_label }}</span></td>
+                    <td>{{ p.status_label }}</td>
+                    <td class="text-success text-xs">{{ p.approved_roles|join:", "|default:"-" }}</td>
+                    <td class="text-error text-xs">{{ p.missing_roles|join:", " }}</td>
+                    <td class="font-mono text-xs">{{ p.submitted_by_display }}</td>
+                    <td>
+                      <div class="flex flex-wrap gap-1">
+                        <form method="post" action="{% world_url 'workspace-approval-proposal-approve' p.proposal_id %}" class="inline">
+                          {% csrf_token %}<button class="btn btn-xs btn-success" type="submit">同意</button>
+                        </form>
+                        <form method="post" action="{% world_url 'workspace-approval-proposal-reject' p.proposal_id %}" class="inline">
+                          {% csrf_token %}<button class="btn btn-xs btn-error" type="submit">拒绝</button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    {% endif %}
+
+    {% if executable %}
+      <section class="card bg-base-100 shadow">
+        <div class="card-body">
+          <h2 class="card-title text-success">待执行</h2>
+          <div class="overflow-x-auto mt-2">
+            <table class="table table-zebra text-sm">
+              <thead><tr><th>ID</th><th>类型</th><th>标题</th><th>层级</th><th>已审批</th><th>目标</th><th>操作</th></tr></thead>
+              <tbody>
+                {% for p in executable %}
+                  <tr>
+                    <td class="font-mono text-xs">{{ p.proposal_id }}</td>
+                    <td>{{ p.proposal_type_label }}</td>
+                    <td class="max-w-[200px] truncate">{{ p.title }}</td>
+                    <td>{{ p.approval_tier_label }}</td>
+                    <td class="text-success text-xs">{{ p.approved_roles|join:", " }}</td>
+                    <td>{% if p.target_url %}<a class="link link-xs" href="{{ p.target_url }}">{{ p.target_url }}</a>{% else %}-{% endif %}</td>
+                    <td>
+                      <form method="post" action="{% world_url 'workspace-approval-proposal-execute' p.proposal_id %}" class="inline">
+                        {% csrf_token %}<button class="btn btn-xs btn-info" type="submit">执行</button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    {% endif %}
+
+    <section class="card bg-base-100 shadow">
+      <div class="card-body">
+        <h2 class="card-title">最近提案</h2>
+        <div class="overflow-x-auto mt-2">
+          <table class="table table-zebra text-sm">
+            <thead><tr><th>ID</th><th>类型</th><th>标题</th><th>层级</th><th>状态</th><th>已审批</th><th>缺失</th><th>时间</th></tr></thead>
+            <tbody>
+              {% for p in recent %}
+                <tr>
+                  <td class="font-mono text-xs">{{ p.proposal_id }}</td>
+                  <td>{{ p.proposal_type_label }}</td>
+                  <td class="max-w-[200px] truncate">{{ p.title }}</td>
+                  <td><span class="badge badge-xs {% if p.approval_tier == 'single' %}badge-ghost{% elif p.approval_tier == 'standard' %}badge-info{% else %}badge-warning{% endif %}">{{ p.approval_tier_label }}</span></td>
+                  <td><span class="badge badge-xs {% if p.status == 'approved' %}badge-info{% elif p.status == 'executed' %}badge-success{% elif p.status == 'rejected' %}badge-error{% else %}badge-ghost{% endif %}">{{ p.status_label }}</span></td>
+                  <td class="text-success text-xs">{{ p.approved_roles|join:", "|default:"-" }}</td>
+                  <td class="text-error text-xs">{{ p.missing_roles|join:", "|default:"-" }}</td>
+                  <td class="text-xs">{{ p.submitted_at|date:"m-d H:i" }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="8" class="text-center text-base-content/50">暂无提案</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

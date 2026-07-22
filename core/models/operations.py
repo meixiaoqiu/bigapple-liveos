@@ -1,5 +1,7 @@
 """Operational task, credit ledger, and resource models."""
 
+from decimal import Decimal
+
 from django.db import models
 from django.utils import timezone
 
@@ -263,6 +265,7 @@ class Resource(models.Model):
     shortage_impact = models.JSONField("短缺影响", default=dict, blank=True)
     updated_at = models.DateTimeField("更新时间")
     rule_version = models.CharField("规则版本", max_length=32)
+    accepts_offers = models.BooleanField("接受公开报价", default=True)
     metadata = models.JSONField("扩展数据", default=dict, blank=True)
 
     class Meta:
@@ -279,7 +282,20 @@ class Resource(models.Model):
 
 
 class SupplierQuote(models.Model):
-    """A partner quote for supplying a concrete resource."""
+    """A quote to supply a concrete resource — direct member offer or partner quote."""
+
+    class OfferType(models.TextChoices):
+        QUOTE = "quote", "报价"
+        DONATION = "donation", "捐赠"
+
+    class DecisionStatus(models.TextChoices):
+        SUBMITTED = "submitted", "已提交"
+        UNDER_REVIEW = "under_review", "审核中"
+        ACCEPTED = "accepted", "已采纳"
+        REJECTED = "rejected", "已拒绝"
+        WITHDRAWN = "withdrawn", "已撤回"
+        FULFILLED = "fulfilled", "已履约"
+        CANCELLED = "cancelled", "已取消"
 
     class Status(models.TextChoices):
         DRAFT = "draft", "草稿"
@@ -294,13 +310,27 @@ class SupplierQuote(models.Model):
         HIGH_QUALITY = "high_quality", "高质量"
         RISKY = "risky", "高风险"
 
+    class ReceiptStatus(models.TextChoices):
+        PENDING = "pending", "待验收"
+        ACCEPTED = "accepted", "验收通过"
+        REJECTED = "rejected", "验收未通过"
+        PARTIAL = "partial", "部分验收"
+
+    class PaymentStatus(models.TextChoices):
+        NOT_REQUIRED = "not_required", "无需付款"
+        PENDING = "pending", "待付款"
+        PAID = "paid", "已付款"
+        DISPUTED = "disputed", "付款争议"
+
     quote_id = models.CharField("报价ID", max_length=96, primary_key=True)
     partner_application = models.ForeignKey(
         PartnerApplication,
         on_delete=models.PROTECT,
+        null=True,
+        blank=True,
         related_name="supplier_quotes",
         verbose_name="合作方报名",
-        help_text="报价来源。第一版直接引用合作方报名，后续可沉淀为供应商档案。",
+        help_text="报价来源。可为空（直接由成员提交）。",
     )
     resource = models.ForeignKey(
         Resource,
@@ -308,7 +338,7 @@ class SupplierQuote(models.Model):
         related_name="supplier_quotes",
         verbose_name="资源",
     )
-    unit_price = models.DecimalField("单价", max_digits=14, decimal_places=2)
+    unit_price = models.DecimalField("单价", max_digits=14, decimal_places=2, default=Decimal("0"))
     currency = models.CharField("币种", max_length=16, default="CNY")
     available_quantity = models.DecimalField("可供数量", max_digits=14, decimal_places=3, default=0)
     minimum_order_quantity = models.DecimalField("最小起订量", max_digits=14, decimal_places=3, default=0)
@@ -322,6 +352,80 @@ class SupplierQuote(models.Model):
     created_at = models.DateTimeField("创建时间", default=timezone.now)
     updated_at = models.DateTimeField("更新时间", null=True, blank=True)
     metadata = models.JSONField("扩展数据", default=dict, blank=True)
+
+    # ── procurement workflow fields ──
+    offer_type = models.CharField(
+        "供给类型", max_length=16, choices=OfferType.choices, default=OfferType.QUOTE,
+    )
+    decision_status = models.CharField(
+        "决策状态", max_length=16, choices=DecisionStatus.choices, default=DecisionStatus.SUBMITTED,
+    )
+    submitted_by = models.ForeignKey(
+        Member,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="submitted_offers",
+        verbose_name="提交人",
+        help_text="登录成员主体，提出报价/捐赠。",
+    )
+    accepted_by = models.ForeignKey(
+        Member,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="accepted_offers",
+        verbose_name="采纳人",
+    )
+    accepted_at = models.DateTimeField("采纳时间", null=True, blank=True)
+    rejected_by = models.ForeignKey(
+        Member,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="rejected_offers",
+        verbose_name="拒绝人",
+    )
+    rejected_at = models.DateTimeField("拒绝时间", null=True, blank=True)
+    decision_reason = models.TextField("决策理由", blank=True)
+    delivered_at = models.DateTimeField("交付时间", null=True, blank=True)
+    received_by = models.ForeignKey(
+        Member,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="received_offers",
+        verbose_name="验收人",
+    )
+    receipt_status = models.CharField(
+        "验收状态", max_length=16, choices=ReceiptStatus.choices, default=ReceiptStatus.PENDING,
+    )
+    receipt_notes = models.TextField("验收备注", blank=True)
+    paid_at = models.DateTimeField("付款时间", null=True, blank=True)
+    payment_status = models.CharField(
+        "付款状态", max_length=16, choices=PaymentStatus.choices, default=PaymentStatus.PENDING,
+    )
+    performance_credential = models.ForeignKey(
+        "CredentialGrant",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="supplier_quotes",
+        verbose_name="履约凭证",
+    )
+
+    # ── informational tier fields (authority is ApprovalProposal) ──
+    class ApprovalTier(models.TextChoices):
+        SMALL = "small", "小额"
+        STANDARD = "standard", "标准"
+        MAJOR = "major", "大额"
+
+    estimated_total_amount = models.DecimalField(
+        "预估总金额", max_digits=14, decimal_places=2, default=Decimal("0"),
+    )
+    approval_tier = models.CharField(
+        "审批层级", max_length=16, choices=ApprovalTier.choices, default=ApprovalTier.SMALL,
+    )
 
     class Meta:
         db_table = "core_supplier_quote"

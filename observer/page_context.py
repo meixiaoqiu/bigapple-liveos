@@ -58,6 +58,7 @@ def _resource_public_rows(resources: list[Resource]) -> list[dict[str, Any]]:
             "stock_percent": int(stock_ratio * 100) if stock_ratio is not None else None,
             "rule_version": r.rule_version,
             "updated_at": r.updated_at,
+            "accepts_offers": getattr(r, "accepts_offers", True),
         })
     return rows
 

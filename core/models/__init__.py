@@ -5,6 +5,7 @@ from .applications import MemberApplication, PartnerApplication, ROLE_GAP_LABELS
 from .credentials import CredentialGrant, CredentialTemplate
 from .identity import Member, MemberPublicProfile, Organization, Permission, Role, RoleAssignment, RolePermission
 from .proposals import Proposal, ProposalExecution, ProposalVote
+from .approval_workflow import ApprovalProposal, ApprovalDecision
 from .planning import (
     PlanCapacityImpact,
     PlanDependency,
@@ -44,6 +45,8 @@ __all__ = [
     "Proposal",
     "ProposalExecution",
     "ProposalVote",
+    "ApprovalProposal",
+    "ApprovalDecision",
     "Ruleset",
     "ProjectPlan",
     "PlanRevision",

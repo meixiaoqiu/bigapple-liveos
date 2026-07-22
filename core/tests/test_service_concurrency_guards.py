@@ -125,7 +125,7 @@ class ServiceConcurrencyGuardTests(TestCase):
         stale_resource = Resource.objects.get(resource_id=resource.resource_id)
         Resource.objects.filter(resource_id=resource.resource_id).update(current_stock=Decimal("5"))
 
-        adjusted_resource, event = record_resource_adjustment(
+        adjusted_resource, event, _txn = record_resource_adjustment(
             resource=stale_resource,
             delta=Decimal("3"),
             operator=actor_ref(self.reviewer),

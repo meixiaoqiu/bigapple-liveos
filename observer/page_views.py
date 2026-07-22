@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any
 
-from django.db.models import Q
-from django.http import Http404, HttpRequest
-from django.shortcuts import render
+from django.contrib import messages
+from django.db.models import Q, Sum
+from django.http import Http404, HttpRequest, HttpResponse, HttpResponseRedirect
+from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_http_methods
 
-from core.models import Event, SimulationSnapshot, SystemEvent
+from core.models import Event, Resource, SimulationSnapshot, SupplierQuote, SystemEvent
+from core.procurement_services import submit_resource_offer
 
 from .page_context import _resource_public_rows, observer_context
 from .dashboard_theme import build_dashboard_theme_context
@@ -251,8 +254,280 @@ def observer_resources_page(request: HttpRequest, **_kwargs):
     sorted_resources = _sort_resources_by_stock_ratio(all_resources)
     rows = _resource_public_rows(sorted_resources)
 
+    # Attach offer summaries to each resource row
+    for row in rows:
+        quotes = SupplierQuote.objects.filter(resource_id=row["resource_id"])
+        row["offer_count"] = quotes.count()
+        row["submitted_count"] = quotes.filter(
+            decision_status=SupplierQuote.DecisionStatus.SUBMITTED
+        ).count()
+        row["accepted_count"] = quotes.filter(
+            decision_status=SupplierQuote.DecisionStatus.ACCEPTED
+        ).count()
+        row["fulfilled_count"] = quotes.filter(
+            decision_status=SupplierQuote.DecisionStatus.FULFILLED
+        ).count()
+        _quote_rows = list(
+            quotes.filter(
+                decision_status=SupplierQuote.DecisionStatus.SUBMITTED,
+                offer_type=SupplierQuote.OfferType.QUOTE,
+            ).order_by("unit_price")
+        )
+        row["lowest_quote_price"] = float(_quote_rows[0].unit_price) if _quote_rows else None
+        _donations = quotes.filter(
+            decision_status__in=[
+                SupplierQuote.DecisionStatus.SUBMITTED,
+                SupplierQuote.DecisionStatus.ACCEPTED,
+            ],
+            offer_type=SupplierQuote.OfferType.DONATION,
+        ).aggregate(total=Sum("available_quantity"))
+        row["donation_qty_total"] = float(_donations["total"] or 0)
+
     return render(
         request,
         get_theme_template_path(request, "resources.html"),
         {"resource_rows": rows},
     )
+
+
+# ── public procurement offer pages ────────────────────────────────────
+
+
+def _offer_summary(resource_id: str) -> dict:
+    """Return counts + lowest price summary for a resource."""
+    quotes = SupplierQuote.objects.filter(resource_id=resource_id)
+    submitted = quotes.filter(decision_status=SupplierQuote.DecisionStatus.SUBMITTED)
+    quote_rows = list(
+        submitted.filter(offer_type=SupplierQuote.OfferType.QUOTE).order_by("unit_price")
+    )
+    return {
+        "total": quotes.count(),
+        "submitted": submitted.count(),
+        "accepted": quotes.filter(decision_status=SupplierQuote.DecisionStatus.ACCEPTED).count(),
+        "fulfilled": quotes.filter(decision_status=SupplierQuote.DecisionStatus.FULFILLED).count(),
+        "lowest_quote_price": float(quote_rows[0].unit_price) if quote_rows else None,
+    }
+
+
+def _public_offer_row(quote: SupplierQuote) -> dict:
+    """Build a public-safe dict for one SupplierQuote."""
+    return {
+        "quote_id": quote.quote_id,
+        "offer_type": quote.offer_type,
+        "offer_type_label": quote.get_offer_type_display(),
+        "unit_price": float(quote.unit_price),
+        "currency": quote.currency,
+        "available_quantity": float(quote.available_quantity),
+        "minimum_order_quantity": float(quote.minimum_order_quantity),
+        "lead_time_days": quote.lead_time_days,
+        "quality_summary": quote.quality_summary or "",
+        "estimated_total_amount": float(quote.estimated_total_amount),
+        "approval_tier": quote.approval_tier,
+        "approval_tier_label": quote.get_approval_tier_display(),
+        "decision_status": quote.decision_status,
+        "decision_status_label": quote.get_decision_status_display(),
+        "receipt_status": quote.receipt_status,
+        "receipt_status_label": quote.get_receipt_status_display(),
+        "payment_status": quote.payment_status,
+        "payment_status_label": quote.get_payment_status_display(),
+        "submitted_by_display": (
+            quote.submitted_by.member_no
+            if quote.submitted_by
+            else (quote.partner_application.member_id if quote.partner_application else "")
+        ),
+        "has_performance_credential": quote.performance_credential_id is not None,
+        "created_at": quote.created_at,
+    }
+
+
+_OFFER_SORT_ORDER = {
+    SupplierQuote.DecisionStatus.SUBMITTED: 0,
+    SupplierQuote.DecisionStatus.ACCEPTED: 1,
+    SupplierQuote.DecisionStatus.FULFILLED: 3,
+    SupplierQuote.DecisionStatus.REJECTED: 4,
+    SupplierQuote.DecisionStatus.CANCELLED: 5,
+}
+
+
+@require_GET
+def observer_resource_offers(request: HttpRequest, resource_id: str, **_kwargs):
+    """Public read-only list of offers for a resource."""
+    apply_theme_query_override(request)
+    resource = get_object_or_404(Resource, resource_id=resource_id)
+    resource_row = _resource_public_rows([resource])[0]
+    summary = _offer_summary(resource_id)
+
+    quotes = list(SupplierQuote.objects.filter(resource_id=resource_id))
+    # Sort: decision_status priority → donation near top → quote by price
+    quotes.sort(key=lambda q: (
+        _OFFER_SORT_ORDER.get(q.decision_status, 9),
+        0 if q.offer_type == SupplierQuote.OfferType.DONATION else 1,
+        float(q.unit_price),
+        q.lead_time_days,
+    ))
+    offer_rows = [_public_offer_row(q) for q in quotes]
+
+    # Attach proposal status to each offer row
+    from core.models import ApprovalProposal
+    offer_ids = [q.quote_id for q in quotes]
+    proposals = {
+        p.target_id: p
+        for p in ApprovalProposal.objects.filter(
+            target_type="supplier_quote",
+            target_id__in=offer_ids,
+            proposal_type=ApprovalProposal.ProposalType.PROCUREMENT_ACCEPTANCE,
+        )
+    }
+    for row in offer_rows:
+        prop = proposals.get(row["quote_id"])
+        row["proposal_status"] = prop.status if prop else ""
+        row["proposal_status_label"] = prop.get_status_display() if prop else ""
+
+    return render(
+        request,
+        get_theme_template_path(request, "resource_offers.html"),
+        {
+            "resource": resource_row,
+            "summary": summary,
+            "offer_rows": offer_rows,
+            "accepts_offers": resource.accepts_offers,
+        },
+    )
+
+
+@require_http_methods(["GET", "POST"])
+def observer_resource_offer_new(request: HttpRequest, resource_id: str, **_kwargs):
+    """Submit a quote or donation for a resource (login required)."""
+    apply_theme_query_override(request)
+    resource = get_object_or_404(Resource, resource_id=resource_id)
+    resource_row = _resource_public_rows([resource])[0]
+
+    # Login required
+    from live_os.access import is_authenticated as live_os_authenticated, member_for_request
+    if not live_os_authenticated(request):
+        return HttpResponseRedirect(f"/login/?next=/resources/{resource_id}/offers/new/")
+
+    member = member_for_request(request)
+    if member is None:
+        return HttpResponseRedirect(f"/login/?next=/resources/{resource_id}/offers/new/")
+
+    # Check accepts_offers
+    if not resource.accepts_offers:
+        return render(
+            request,
+            get_theme_template_path(request, "resource_offer_new.html"),
+            {
+                "resource": resource_row,
+                "member": member,
+                "errors": ["该资源当前不接受公开报价。"],
+                "form_data": {},
+            },
+            status=403,
+        )
+
+    if request.method == "GET":
+        return render(
+            request,
+            get_theme_template_path(request, "resource_offer_new.html"),
+            {
+                "resource": resource_row,
+                "member": member,
+                "errors": [],
+                "form_data": {},
+            },
+        )
+
+    # POST
+    errors = []
+    offer_type = request.POST.get("offer_type", "").strip()
+    quantity_str = request.POST.get("available_quantity", "").strip()
+    price_str = request.POST.get("unit_price", "").strip()
+    currency = request.POST.get("currency", "CNY").strip() or "CNY"
+    moq_str = request.POST.get("minimum_order_quantity", "").strip()
+    lead_str = request.POST.get("lead_time_days", "").strip()
+    quality = request.POST.get("quality_summary", "").strip()
+    notes = request.POST.get("notes", "").strip()
+
+    if offer_type not in {"quote", "donation"}:
+        errors.append("供给类型无效。")
+    try:
+        quantity = Decimal(quantity_str) if quantity_str else None
+        if quantity is None:
+            errors.append("可供数量不能为空。")
+    except Exception:
+        errors.append("可供数量必须是数字。")
+        quantity = None
+    try:
+        unit_price = Decimal(price_str) if price_str else Decimal("0")
+    except Exception:
+        errors.append("单价必须是数字。")
+        unit_price = None
+    try:
+        moq = Decimal(moq_str) if moq_str else Decimal("0")
+    except Exception:
+        moq = Decimal("0")
+    try:
+        lead = int(lead_str) if lead_str else 0
+    except Exception:
+        lead = 0
+
+    if errors:
+        return render(
+            request,
+            get_theme_template_path(request, "resource_offer_new.html"),
+            {
+                "resource": resource_row,
+                "member": member,
+                "errors": errors,
+                "form_data": {
+                    "offer_type": offer_type,
+                    "available_quantity": quantity_str,
+                    "unit_price": price_str,
+                    "currency": currency,
+                    "minimum_order_quantity": moq_str,
+                    "lead_time_days": lead_str,
+                    "quality_summary": quality,
+                    "notes": notes,
+                },
+            },
+            status=400,
+        )
+
+    try:
+        quote = submit_resource_offer(
+            resource=resource,
+            submitted_by=member,
+            offer_type=offer_type,
+            available_quantity=quantity,
+            unit_price=unit_price,
+            currency=currency,
+            minimum_order_quantity=moq,
+            lead_time_days=lead,
+            quality_summary=quality,
+            notes=notes,
+        )
+    except Exception as exc:
+        errors.append(str(exc))
+        return render(
+            request,
+            get_theme_template_path(request, "resource_offer_new.html"),
+            {
+                "resource": resource_row,
+                "member": member,
+                "errors": errors,
+                "form_data": {
+                    "offer_type": offer_type,
+                    "available_quantity": quantity_str,
+                    "unit_price": price_str,
+                    "currency": currency,
+                    "minimum_order_quantity": moq_str,
+                    "lead_time_days": lead_str,
+                    "quality_summary": quality,
+                    "notes": notes,
+                },
+            },
+            status=400,
+        )
+
+    messages.success(request, "报价已提交。")
+    return HttpResponseRedirect(f"/resources/{resource_id}/offers/")

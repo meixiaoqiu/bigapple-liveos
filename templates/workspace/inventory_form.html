@@ -115,6 +115,12 @@
           <span class="fieldset-label">规则版本</span>
           <input class="input input-bordered w-full" type="text" name="rule_version" value="{{ form_data.rule_version|default:'v1' }}" required>
         </label>
+        <label class="fieldset cursor-pointer">
+          <div class="flex items-center gap-3">
+            <input type="checkbox" name="accepts_offers" value="1" {% if form_data.accepts_offers|default:"1" == "1" or form_data.accepts_offers == True or form_data.accepts_offers is not False %}checked{% endif %} class="checkbox">
+            <span class="fieldset-label">接受公开报价</span>
+          </div>
+        </label>
         <button class="btn btn-primary w-full" type="submit">{% if mode == "edit" %}保存修改{% else %}创建资源{% endif %}</button>
       </div>
     </form>

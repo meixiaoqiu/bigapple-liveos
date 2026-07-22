@@ -174,6 +174,7 @@ class MemberProfileTests(TestCase):
         _issue_credential_unlocked(
             template=badge_template,
             member=member,
+            dedupe_key="test_badge:1",
             serial_no=1,
         )
         creds = credentials_for_member(member)

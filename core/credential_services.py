@@ -182,6 +182,22 @@ def ensure_builtin_credential_templates():
                 },
             },
         },
+        # ── procurement / delivery credentials ──
+        {
+            "template_id": "credential-template-provider-delivery-completed",
+            "code": "provider_delivery_completed",
+            "name": "供给履约完成凭证",
+            "credential_type": CredentialTemplate.CredentialType.CERTIFICATE,
+            "visibility": CredentialTemplate.Visibility.PUBLIC,
+            "display_order": 200,
+            "description": "完成一次被采纳的报价/捐赠、完成交付、通过验收，并已完成付款或捐赠结案。",
+            "metadata": {
+                "category": "procurement",
+                "public_label": "供给履约完成",
+                "public_description": "完成一次公开供给或捐赠履约",
+                "nft_ready": True,
+            },
+        },
     ]
     created = 0
     for spec in builtins:
@@ -210,6 +226,7 @@ def _issue_credential_unlocked(
     *,
     template: CredentialTemplate,
     member: Member,
+    dedupe_key: str,
     source_type: str = CredentialGrant.SourceType.SYSTEM,
     issued_by: Member | None = None,
     source_proposal=None,
@@ -222,12 +239,17 @@ def _issue_credential_unlocked(
 
     Caller must already be inside a suitable atomic block (e.g. a
     ``select_for_update`` lock transaction).
+
+    *dedupe_key* is required; empty string raises ``DomainError``.
     """
+    if not dedupe_key:
+        raise DomainError("dedupe_key 不能为空。")
     display_no = _next_display_no(serial_no) if serial_no is not None else ""
     try:
         grant = CredentialGrant.objects.create(
             template=template,
             member=member,
+            dedupe_key=dedupe_key,
             serial_no=serial_no,
             display_no=display_no,
             title=title or template.name,
@@ -244,6 +266,7 @@ def _issue_credential_unlocked(
         existing = CredentialGrant.objects.filter(
             template=template,
             member=member,
+            dedupe_key=dedupe_key,
         ).first()
         if existing is not None:
             return existing
@@ -267,6 +290,7 @@ def issue_credential(
     *,
     template: CredentialTemplate,
     member: Member,
+    dedupe_key: str,
     source_type: str = CredentialGrant.SourceType.SYSTEM,
     issued_by: Member | None = None,
     source_proposal=None,
@@ -275,10 +299,14 @@ def issue_credential(
     title: str = "",
     metadata: dict[str, Any] | None = None,
 ) -> CredentialGrant:
-    """Issue one credential to *member* under *template*."""
+    """Issue one credential to *member* under *template*.
+
+    *dedupe_key* is required and must be unique per (template, member).
+    """
     return _issue_credential_unlocked(
         template=template,
         member=member,
+        dedupe_key=dedupe_key,
         source_type=source_type,
         issued_by=issued_by,
         source_proposal=source_proposal,
@@ -334,6 +362,7 @@ def issue_formal_member_number(
     return _issue_credential_unlocked(
         template=template,
         member=member,
+        dedupe_key=f"formal_number:{member.member_no}",
         source_type=CredentialGrant.SourceType.PROPOSAL_EXECUTION
         if source_proposal
         else CredentialGrant.SourceType.SYSTEM,

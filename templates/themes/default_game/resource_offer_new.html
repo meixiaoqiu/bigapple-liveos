@@ -1,0 +1,77 @@
+{% load tailwind_tags %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>提交报价 · {{ resource.name }}</title>
+  {% tailwind_css %}
+</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+  {% include "partials/runtime_header.html" %}
+
+  <main class="mx-auto grid w-full max-w-xl gap-6 p-4 lg:p-6">
+    <section class="card bg-base-100 shadow">
+      <div class="card-body">
+        <a class="btn btn-sm btn-ghost mb-2 self-start" href="/resources/{{ resource.resource_id }}/offers/">返回报价列表</a>
+        <h1 class="text-2xl font-bold tracking-normal">提交报价或捐赠</h1>
+        <p class="text-sm text-base-content/70 mt-1">
+          资源：{{ resource.name }} · {{ resource.type_label }} · 当前库存 {{ resource.current_stock }} {{ resource.unit_label }}
+        </p>
+      </div>
+    </section>
+
+    {% if errors %}
+      <section class="alert alert-error grid gap-1">
+        {% for err in errors %}<span>{{ err }}</span>{% endfor %}
+      </section>
+    {% endif %}
+
+    <form class="card bg-base-100 shadow" method="post">
+      <div class="card-body grid gap-4">
+        {% csrf_token %}
+        <label class="fieldset">
+          <span class="fieldset-label">供给类型</span>
+          <select class="select select-bordered w-full" name="offer_type" required>
+            <option value="quote" {% if form_data.offer_type == 'quote' or not form_data.offer_type %}selected{% endif %}>报价</option>
+            <option value="donation" {% if form_data.offer_type == 'donation' %}selected{% endif %}>捐赠</option>
+          </select>
+        </label>
+        <div class="grid grid-cols-2 gap-4">
+          <label class="fieldset">
+            <span class="fieldset-label">可供数量</span>
+            <input class="input input-bordered w-full font-mono" type="number" step="any" name="available_quantity" value="{{ form_data.available_quantity|default:'' }}" placeholder="例：100" required>
+          </label>
+          <label class="fieldset">
+            <span class="fieldset-label">单价（捐赠填 0）</span>
+            <input class="input input-bordered w-full font-mono" type="number" step="any" name="unit_price" value="{{ form_data.unit_price|default:'0' }}">
+          </label>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <label class="fieldset">
+            <span class="fieldset-label">币种</span>
+            <input class="input input-bordered w-full" type="text" name="currency" value="{{ form_data.currency|default:'CNY' }}">
+          </label>
+          <label class="fieldset">
+            <span class="fieldset-label">最小起订量</span>
+            <input class="input input-bordered w-full font-mono" type="number" step="any" name="minimum_order_quantity" value="{{ form_data.minimum_order_quantity|default:'0' }}">
+          </label>
+        </div>
+        <label class="fieldset">
+          <span class="fieldset-label">交付周期（天）</span>
+          <input class="input input-bordered w-full font-mono" type="number" name="lead_time_days" value="{{ form_data.lead_time_days|default:'0' }}">
+        </label>
+        <label class="fieldset">
+          <span class="fieldset-label">质量说明</span>
+          <textarea class="textarea textarea-bordered w-full" name="quality_summary" rows="2" placeholder="可选：质量等级、产地、资质等">{{ form_data.quality_summary|default:'' }}</textarea>
+        </label>
+        <label class="fieldset">
+          <span class="fieldset-label">备注</span>
+          <textarea class="textarea textarea-bordered w-full" name="notes" rows="2" placeholder="可选备注">{{ form_data.notes|default:'' }}</textarea>
+        </label>
+        <button class="btn btn-primary w-full" type="submit">提交报价</button>
+      </div>
+    </form>
+  </main>
+</body>
+</html>

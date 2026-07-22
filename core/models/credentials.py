@@ -156,6 +156,13 @@ class CredentialGrant(models.Model):
         verbose_name="来源提案执行",
     )
     metadata = models.JSONField("扩展数据", default=dict, blank=True)
+    dedupe_key = models.CharField(
+        "去重键",
+        max_length=191,
+        default="",
+        blank=False,
+        help_text="业务去重键。同一 template+member 下唯一。",
+    )
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
     updated_at = models.DateTimeField("更新时间", auto_now=True)
 
@@ -165,14 +172,8 @@ class CredentialGrant(models.Model):
         ordering = ("template", "serial_no")
         constraints = [
             models.UniqueConstraint(
-                fields=("template", "serial_no"),
-                condition=models.Q(serial_no__isnull=False),
-                name="unique_template_serial_no",
-            ),
-            models.UniqueConstraint(
-                fields=("template", "display_no"),
-                condition=~models.Q(display_no=""),
-                name="unique_template_display_no",
+                fields=("template", "member", "dedupe_key"),
+                name="unique_template_member_dedupe_key",
             ),
         ]
 
