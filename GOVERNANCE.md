@@ -1,12 +1,12 @@
 # 项目治理
 
-本文件只适用于 `big-apple-live-os` 仓库。技术契约位于相邻 `bigapple-docs` 仓库的 `technical-contracts/` 目录，契约、schema 和 payload 的治理规则以该仓库后续文件为准。
+本文件只适用于 `big-apple-live-os` 仓库。技术契约位于相邻 `bigapple-docs` 仓库的 `static/technical-contracts/` 目录，契约、schema 和 payload 的治理规则以该仓库后续文件为准。
 
 ## 维护范围
 
 `big-apple-live-os` 负责 Big Apple Live OS 的 runtime 实现、Django 应用、迁移、模板、前端源码、本仓库文档和本地开发脚本。
 
-契约、schema、跨仓库 payload 和对外 API 语义变更必须先在 `../bigapple-docs/technical-contracts` 中完成，再由本仓库实现和验证。
+契约、schema、跨仓库 payload 和对外 API 语义变更必须先在 `../bigapple-docs/static/technical-contracts` 中完成，再由本仓库实现和验证。
 
 ## 角色
 
@@ -30,7 +30,7 @@ PR 合并前应满足：
 - 变更范围清晰，且没有混入无关格式化或缓存文件。
 - 相关测试、检查脚本或手动验证结果已经写入 PR。
 - Runtime 行为变更有对应测试或说明无法自动化验证的原因。
-- 契约变更已在 `../bigapple-docs/technical-contracts` 中处理，或明确说明本 PR 不改变契约。
+- 契约变更已在 `../bigapple-docs/static/technical-contracts` 中处理，或明确说明本 PR 不改变契约。
 - 安全敏感变更已按 [SECURITY.md](SECURITY.md) 私有处理流程审查。
 
 ## 发布口径

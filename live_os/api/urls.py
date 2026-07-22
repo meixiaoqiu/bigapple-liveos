@@ -1,4 +1,4 @@
-"""API routes matching `bigapple-docs/technical-contracts/openapi/live-os.v0.1.openapi.json`."""
+"""API routes matching `bigapple-docs/static/technical-contracts/openapi/live-os.v0.1.openapi.json`."""
 
 from django.urls import path
 

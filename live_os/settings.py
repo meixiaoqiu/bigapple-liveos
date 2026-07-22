@@ -327,6 +327,7 @@ require_mysql_database_url(DATABASE_URL)
 DATABASES = {
     "default": database_from_url(DATABASE_URL),
 }
+CONTROL_DATABASE_ALIAS = "default"
 for database_alias in WORLD_DATABASE_ALIASES:
     if database_alias == "default":
         continue
@@ -383,7 +384,7 @@ THEME_CONFIGS = {
 }
 
 BIG_APPLE_CONTRACTS_ROOT = Path(
-    os.environ.get("BIG_APPLE_CONTRACTS_ROOT", "../bigapple-docs/technical-contracts")
+    os.environ.get("BIG_APPLE_CONTRACTS_ROOT", "../bigapple-docs/static/technical-contracts")
 )
 if not BIG_APPLE_CONTRACTS_ROOT.is_absolute():
     BIG_APPLE_CONTRACTS_ROOT = (BASE_DIR / BIG_APPLE_CONTRACTS_ROOT).resolve()

@@ -35,7 +35,7 @@ from worlds.models import WorldRegistry
 
 SNAPSHOT_SCHEMA_VERSION = 1
 RAW_ARCHIVE_FORMAT_VERSION = 2
-CONTROL_DATABASE_ALIAS = "default"
+CONTROL_DATABASE_ALIAS: str = getattr(settings, "CONTROL_DATABASE_ALIAS", "default")
 EXCLUDED_RAW_MODELS = {
     "core.SimulationSnapshot",
     "core.SimulationSnapshotItem",

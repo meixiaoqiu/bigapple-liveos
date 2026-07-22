@@ -411,17 +411,22 @@ class PublicEventsBrowserTests(TestCase):
         self.assertNotIn("真实张三", flat)
         self.assertIn("真**三", flat)
 
-    # ---- no ledger links on public pages --------------------------------
+    # ---- ledger links on dashboard only ----------------------------------
 
-    def test_homepage_no_ledger_link(self):
+    def test_homepage_no_data_log_or_ledger_link(self):
         response = self.client.get("/")
-        self.assertContains(response, "事件流")
+        self.assertContains(response, "仿真档案馆")
+        self.assertNotContains(response, "数据日志")
+        self.assertNotContains(response, "审计账本")
         self.assertNotContains(response, "/event-ledger/")
+        self.assertNotContains(response, "/api/v0.1/observer/summary")
 
-    def test_events_list_no_ledger_link(self):
+    def test_events_list_has_audit_ledger_link(self):
         self._create_public_event()
         response = self.client.get(self.events_list_url())
-        self.assertNotContains(response, "/event-ledger/")
+        self.assertContains(response, "公共事件流")
+        self.assertContains(response, "审计账本")
+        self.assertContains(response, "/event-ledger/")
 
     def test_event_detail_no_ledger_link(self):
         self._create_ledger_event(
@@ -954,7 +959,7 @@ class PublicEventsBrowserTests(TestCase):
         event = self._create_ledger_event()
         response = self.client.get(self.ledger_list_url())
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "事件审计账本")
+        self.assertContains(response, "审计账本")
 
     def test_event_ledger_detail_accessible(self):
         event = self._create_ledger_event()

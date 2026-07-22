@@ -14,7 +14,7 @@ from simulation.run_state import create_simulation_turn_and_event
 from worlds.models import WorldRegistry
 
 
-CONTROL_DATABASE_ALIAS = "default"
+CONTROL_DATABASE_ALIAS: str = getattr(settings, "CONTROL_DATABASE_ALIAS", "default")
 FINISHED_RUN_STATUSES = (
     SimulationRun.Status.FAILED,
     SimulationRun.Status.COMPLETED,

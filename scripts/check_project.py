@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CONTRACTS_ROOT = (ROOT / "../bigapple-docs/technical-contracts").resolve()
+DEFAULT_CONTRACTS_ROOT = (ROOT / "../bigapple-docs/static/technical-contracts").resolve()
 CONTRACTS_ROOT = Path(os.environ.get("BIG_APPLE_CONTRACTS_ROOT", str(DEFAULT_CONTRACTS_ROOT))).resolve()
 
 REQUIRED_CONTRACT_FILES = [

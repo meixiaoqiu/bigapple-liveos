@@ -8,6 +8,10 @@
   {% include "partials/runtime_header.html" %}
 
   <main class="mx-auto grid max-w-3xl gap-4 p-4 lg:p-6">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <h1 class="text-xl font-bold tracking-normal">公共事件流</h1>
+      <a class="btn btn-sm btn-ghost" href="{% world_url 'observer-event-ledger-list' %}">审计账本</a>
+    </div>
     {% for event in events %}
       <a class="card border border-base-300 bg-base-100 shadow-sm transition hover:border-primary hover:bg-base-200" href="{{ event.detail_url }}">
         <div class="card-body gap-3">

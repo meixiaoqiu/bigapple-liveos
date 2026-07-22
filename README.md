@@ -2,11 +2,11 @@
 
 `big-apple-live-os` 是“大苹果”v0.1 的权威生活系统。
 
-它实现相邻 `bigapple-docs` 仓库中 `technical-contracts/` 定义的契约。Simulation Engine 必须像真实成员一样通过 Live OS API 使用系统，不能直接写入 Live OS 的业务数据表。
+它实现相邻 `bigapple-docs` 仓库中 `static/technical-contracts/` 定义的机器可读契约。Simulation Engine 必须像真实成员一样通过 Live OS API 使用系统，不能直接写入 Live OS 的业务数据表。
 
 ## 当前阶段
 
-第一阶段已经建立了一个文档先行的 Django 原型，覆盖：
+当前已经建立了一个文档先行的 Django 原型，覆盖：
 
 - 成员身份
 - 任务系统
@@ -23,7 +23,7 @@
 - 自动模拟跑到失败和计划修订建议
 - 计划修订建议转结构化数据 patch
 
-规划口径按照中远期完全体描述，当前实现刻意保持小而清晰：先把表结构、API 边界、契约映射和开发规则写清楚，再继续扩展功能。
+项目文档、治理文书入口和技术契约已迁移到相邻 `bigapple-docs` 仓库。本仓库只保留 runtime 实现、测试、本地开发脚本和必要的仓库协作说明。
 
 ## 仓库关系
 
@@ -32,11 +32,11 @@
 ```text
 big-apple/
 ├── bigapple-docs/
-│   └── technical-contracts/
-└── big-apple-live-os/
+│   └── static/technical-contracts/
+└── bigapple-liveos/
 ```
 
-`bigapple-docs` 和 `big-apple-live-os` 是独立 Git 仓库。
+`bigapple-docs` 和 `bigapple-liveos` 是独立 Git 仓库。API、schema 或 payload 变更必须先进入 `../bigapple-docs/static/technical-contracts/`，再由本仓库实现和验证。
 
 ## 数据库
 
@@ -168,24 +168,13 @@ docker compose -f docker-compose.dev.yml down
 start.bat
 ```
 
-## 文档
+## 文档与契约
 
-- 已迁移到 `../bigapple-docs/docs/architecture/overview.md`
-- 已迁移到 `../bigapple-docs/docs/project/product-planning.md`
-- 已迁移到 `../bigapple-docs/docs/project/roadmap.md`
-- 已迁移到 `../bigapple-docs/docs/product/admin.md`
-- 已迁移到 `../bigapple-docs/docs/architecture/database-schema.md`
-- 已迁移到 `../bigapple-docs/docs/reference/api.md`
-- 已迁移到 `../bigapple-docs/docs/product/observer.md`
-- 已迁移到 `../bigapple-docs/docs/product/simulation.md`
-- 已迁移到 `../bigapple-docs/docs/product/project-plan.md`
-- 已迁移到 `../bigapple-docs/docs/product/member-workspace.md`
-- 已迁移到 `../bigapple-docs/docs/operations/runtime-boundary.md`
-- 已迁移到 `../bigapple-docs/docs/development/setup.md`
-- 已迁移到 `../bigapple-docs/docs/operations/mysql-migration.md`
-- 已迁移到 `../bigapple-docs/docs/development/ai-guide.md`
-- 已迁移到 `../bigapple-docs/docs/development/theme-system.md`
-- 已迁移到 `../bigapple-docs/docs/development/remote-dev.md`
+公开文档已迁移到 `../bigapple-docs/docs/`，包括项目概览、产品规划、架构说明、数据库结构、API 文档、运行入口、开发说明、AI 协作规则和各产品功能说明。
+
+机器可读契约位于 `../bigapple-docs/static/technical-contracts/`，包括 OpenAPI、JSON Schema、示例 payload 和校验脚本。docs 站点会把这些文件发布到 `/technical-contracts/`，供外部客户端直接查看和下载。
+
+Live OS 行为变化后，应同步更新相邻 docs 仓库中的对应文档；API、schema 或 payload 变化必须先更新 `static/technical-contracts/`。
 
 ## 参与和治理
 
@@ -202,7 +191,7 @@ start.bat
 
 ## 契约规则
 
-API 和数据结构变更必须先进入 `../bigapple-docs/technical-contracts/`。Live OS 再实现这些契约，并通过测试证明 API 响应符合 schema。
+API 和数据结构变更必须先进入 `../bigapple-docs/static/technical-contracts/`。Live OS 再实现这些契约，并通过测试证明 API 响应符合 schema。
 
 ## 测试
 

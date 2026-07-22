@@ -228,7 +228,8 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
     }
     context["navigation"][0]["href"] = "/"
     context["navigation"][2]["href"] = "/api/v0.1/resources"
-    context["navigation"][4]["href"] = "/api/v0.1/observer/summary"
+    context["navigation"][4]["label"] = "审计账本"
+    context["navigation"][4]["href"] = "/event-ledger/"
 
     # Recent community feedback
     from core.models import CommunityFeedback

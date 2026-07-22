@@ -11,9 +11,15 @@ SITE_WORLD_DATABASE_ALIAS = "default"
 
 REALWORLD_DATABASE_URL = world_database_url_for_alias(SITE_WORLD_ID, BASE_DATABASE_URL)
 require_mysql_database_url(REALWORLD_DATABASE_URL)
+CONTROL_DATABASE_URL = get_database_url(
+    "BIG_APPLE_CONTROL_DATABASE_URL",
+    default=database_url_with_name(BASE_DATABASE_URL, CONTROL_DATABASE_NAME),
+)
 DATABASES = {
     "default": database_from_url(REALWORLD_DATABASE_URL),
+    "control": database_from_url(CONTROL_DATABASE_URL),
 }
+CONTROL_DATABASE_ALIAS = "control"
 SITE_WORLD_DATABASE_NAME = str(DATABASES["default"].get("NAME", ""))
 WORLD_DATABASE_ROUTING_ENABLED = False
 WORLD_DATABASE_ALIASES = ("default",)

@@ -4,7 +4,7 @@
 
 ## 仓库边界
 
-- 契约、schema 或 payload 变更必须先进入 `../bigapple-docs/technical-contracts`。
+- 契约、schema 或 payload 变更必须先进入 `../bigapple-docs/static/technical-contracts`。
 - Runtime 行为、Django views、models、migrations、templates 和本仓库文档属于 `big-apple-live-os`。
 - 生成缓存、本地 `.env`、数据库导出、生产日志和 `output/` 产物不得提交。
 
@@ -34,7 +34,7 @@ npm run build
 - 每个 PR 尽量只覆盖一个行为、修复或文档主题。
 - 修改 runtime 行为时必须新增或更新测试。
 - 不要包含凭据、私有数据、本机绝对路径、生成缓存或无关格式化改动。
-- 如果涉及契约变更，请说明对应的 `../bigapple-docs/technical-contracts/` 变更；本仓库不得单方面改变已发布契约。
+- 如果涉及契约变更，请说明对应的 `../bigapple-docs/static/technical-contracts/` 变更；本仓库不得单方面改变已发布契约。
 - 说明实际运行过的验证命令；如果只运行了局部测试，也要明确说明。
 
 ## 贡献授权
