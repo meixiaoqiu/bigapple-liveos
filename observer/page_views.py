@@ -339,12 +339,19 @@ def _public_offer_row(quote: SupplierQuote) -> dict:
         "payment_status": quote.payment_status,
         "payment_status_label": quote.get_payment_status_display(),
         "submitted_by_display": (
-            quote.submitted_by.member_no
+            quote.public_display_name
+            or (
+                quote.submitted_by.member_no
+                if quote.submitted_by and quote.public_visibility != SupplierQuote.PublicVisibility.ANONYMOUS
+                else "匿名"
+            )
             if quote.submitted_by
             else (quote.partner_application.member_id if quote.partner_application else "")
         ),
+        "public_visibility": quote.public_visibility,
         "has_performance_credential": quote.performance_credential_id is not None,
         "created_at": quote.created_at,
+        "challenge_count": getattr(quote, "challenge_count", 0),
     }
 
 
@@ -455,6 +462,8 @@ def observer_resource_offer_new(request: HttpRequest, resource_id: str, **_kwarg
     lead_str = request.POST.get("lead_time_days", "").strip()
     quality = request.POST.get("quality_summary", "").strip()
     notes = request.POST.get("notes", "").strip()
+    public_visibility = request.POST.get("public_visibility", "public").strip()
+    public_display_name = request.POST.get("public_display_name", "").strip()
 
     if offer_type not in {"quote", "donation"}:
         errors.append("供给类型无效。")
@@ -496,6 +505,8 @@ def observer_resource_offer_new(request: HttpRequest, resource_id: str, **_kwarg
                     "lead_time_days": lead_str,
                     "quality_summary": quality,
                     "notes": notes,
+                    "public_visibility": public_visibility,
+                    "public_display_name": public_display_name,
                 },
             },
             status=400,
@@ -513,6 +524,8 @@ def observer_resource_offer_new(request: HttpRequest, resource_id: str, **_kwarg
             lead_time_days=lead,
             quality_summary=quality,
             notes=notes,
+            public_visibility=public_visibility or "public",
+            public_display_name=public_display_name or "",
         )
     except Exception as exc:
         errors.append(str(exc))
@@ -532,6 +545,8 @@ def observer_resource_offer_new(request: HttpRequest, resource_id: str, **_kwarg
                     "lead_time_days": lead_str,
                     "quality_summary": quality,
                     "notes": notes,
+                    "public_visibility": public_visibility,
+                    "public_display_name": public_display_name,
                 },
             },
             status=400,
@@ -628,6 +643,26 @@ def observer_resource_offer_detail(request: HttpRequest, resource_id: str, quote
     if quote.submitted_by:
         reputation = _provider_reputation(quote.submitted_by.member_no)
 
+    from core.models import ProcurementChallenge
+
+    challenges = list(
+        ProcurementChallenge.objects.filter(quote=quote).order_by("-created_at")
+    )
+    challenge_rows = [
+        {
+            "challenge_id": c.challenge_id,
+            "challenge_type": c.challenge_type,
+            "challenge_type_label": c.get_challenge_type_display(),
+            "status": c.status,
+            "status_label": c.get_status_display(),
+            "public_reason": c.public_reason,
+            "proposed_unit_price": float(c.proposed_unit_price) if c.proposed_unit_price else None,
+            "proposed_quantity": float(c.proposed_quantity) if c.proposed_quantity else None,
+            "created_at": c.created_at,
+        }
+        for c in challenges
+    ]
+
     return render(
         request,
         get_theme_template_path(request, "resource_offer_detail.html"),
@@ -636,5 +671,56 @@ def observer_resource_offer_detail(request: HttpRequest, resource_id: str, quote
             "timeline": timeline,
             "reputation": reputation,
             "resource_id": resource_id,
+            "challenges": challenge_rows,
         },
     )
+
+
+@require_http_methods(["GET", "POST"])
+def observer_resource_offer_challenge_new(request: HttpRequest, resource_id: str, quote_id: str, **_kwargs):
+    apply_theme_query_override(request)
+    quote = get_object_or_404(SupplierQuote, quote_id=quote_id, resource_id=resource_id)
+    resource_row = _resource_public_rows([quote.resource])[0]
+    offer_row = _public_offer_row(quote)
+
+    from live_os.access import is_authenticated as live_os_authenticated, member_for_request
+    if not live_os_authenticated(request):
+        return HttpResponseRedirect(f"/login/?next=/resources/{resource_id}/offers/{quote_id}/challenges/new/")
+    member = member_for_request(request)
+    if member is None:
+        return HttpResponseRedirect(f"/login/?next=/resources/{resource_id}/offers/{quote_id}/challenges/new/")
+
+    if request.method == "GET":
+        return render(
+            request,
+            get_theme_template_path(request, "resource_offer_challenge_form.html"),
+            {"offer": offer_row, "resource_id": resource_id, "errors": [], "form_data": {}},
+        )
+
+    from core.procurement_challenge_services import submit_procurement_challenge
+    from core.exceptions import DomainError
+
+    challenge_type = request.POST.get("challenge_type", "").strip()
+    public_reason = request.POST.get("public_reason", "").strip()
+    price_str = request.POST.get("proposed_unit_price", "").strip()
+    qty_str = request.POST.get("proposed_quantity", "").strip()
+
+    try:
+        price = Decimal(price_str) if price_str else None
+        qty = Decimal(qty_str) if qty_str else None
+        submit_procurement_challenge(
+            quote=quote, submitted_by=member,
+            challenge_type=challenge_type, public_reason=public_reason,
+            proposed_unit_price=price, proposed_quantity=qty,
+        )
+        messages.success(request, "质疑已提交。")
+    except DomainError as exc:
+        return render(
+            request,
+            get_theme_template_path(request, "resource_offer_challenge_form.html"),
+            {"offer": offer_row, "resource_id": resource_id, "errors": [str(exc)],
+             "form_data": {"challenge_type": challenge_type, "public_reason": public_reason,
+                           "proposed_unit_price": price_str, "proposed_quantity": qty_str}},
+            status=400,
+        )
+    return HttpResponseRedirect(f"/resources/{resource_id}/offers/{quote_id}/")

@@ -34,16 +34,6 @@ urlpatterns = [
         name="workspace-application-detail",
     ),
     path(
-        "proposals/<str:proposal_id>/vote/",
-        world_scoped_view(views.workspace_proposal_vote),
-        name="workspace-proposal-vote",
-    ),
-    path(
-        "proposals/<str:proposal_id>/execute/",
-        world_scoped_view(views.workspace_proposal_execute),
-        name="workspace-proposal-execute",
-    ),
-    path(
         "apply/",
         world_scoped_view(views.workspace_member_application),
         name="workspace-member-application",
@@ -152,5 +142,15 @@ urlpatterns = [
         "procurement/<str:quote_id>/complete/",
         world_scoped_view(procurement_views.procurement_complete),
         name="workspace-procurement-complete",
+    ),
+    path(
+        "procurement/challenges/",
+        world_scoped_view(procurement_views.procurement_challenge_list),
+        name="workspace-procurement-challenges",
+    ),
+    path(
+        "procurement/challenges/<str:challenge_id>/review/",
+        world_scoped_view(procurement_views.procurement_challenge_review),
+        name="workspace-procurement-challenge-review",
     ),
 ]

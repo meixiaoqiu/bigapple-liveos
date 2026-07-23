@@ -109,6 +109,8 @@ def submit_resource_offer(
     lead_time_days: int = 0,
     quality_summary: str = "",
     notes: str = "",
+    public_visibility: str = "public",
+    public_display_name: str = "",
 ) -> SupplierQuote:
     """Submit a resource offer (quote or donation) by a logged-in member.
 
@@ -148,6 +150,11 @@ def submit_resource_offer(
     if offer_type == SupplierQuote.OfferType.DONATION and unit_price != 0:
         raise DomainError("捐赠单价必须为 0。")
 
+    # visibility validation
+    pd_name = (public_display_name or "").strip()[:128]
+    if offer_type == SupplierQuote.OfferType.QUOTE and public_visibility != SupplierQuote.PublicVisibility.PUBLIC:
+        raise DomainError("采购报价必须公开，不支持匿名。")
+
     estimated_total_amount = available_quantity * unit_price
     approval_tier = compute_procurement_approval_tier(offer_type, estimated_total_amount)
 
@@ -173,6 +180,8 @@ def submit_resource_offer(
         receipt_status=SupplierQuote.ReceiptStatus.PENDING,
         estimated_total_amount=estimated_total_amount,
         approval_tier=approval_tier,
+        public_visibility=public_visibility or SupplierQuote.PublicVisibility.PUBLIC,
+        public_display_name=pd_name,
         created_at=timezone.now(),
         updated_at=timezone.now(),
     )

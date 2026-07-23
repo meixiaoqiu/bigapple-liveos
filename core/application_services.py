@@ -672,6 +672,126 @@ def reject_member_application_from_failed_proposal(
     return application
 
 
+@atomic_for_model(MemberApplication)
+def create_approval_proposal_for_application(
+    *,
+    application: MemberApplication,
+    submitted_by: Member,
+) -> "ApprovalProposal":
+    """Create an ``ApprovalProposal`` for this member application.
+    Idempotent — returns existing if one already exists.
+    """
+    from core.models import ApprovalProposal
+    from core.proposal_services import create_approval_proposal as _create_ap
+
+    target_id = getattr(application, "application_id", str(application.pk))
+    dedupe = f"member_application:{target_id}:approval"
+    existing = ApprovalProposal.objects.filter(
+        proposal_type=ApprovalProposal.ProposalType.MEMBER_APPLICATION,
+        dedupe_key=dedupe,
+    ).first()
+    if existing:
+        return existing
+
+    return _create_ap(
+        proposal_type=ApprovalProposal.ProposalType.MEMBER_APPLICATION,
+        dedupe_key=dedupe,
+        title=f"成员申请审批：{application.applicant_name}",
+        submitted_by=submitted_by,
+        target_type="member_application",
+        target_id=target_id,
+        summary=_application_role_gap_label(application),
+        approval_tier=ApprovalProposal.Tier.SINGLE,
+    )
+
+
+@atomic_for_model(MemberApplication)
+def admit_member_application_from_approval_proposal(
+    *,
+    proposal,
+    actor: Member,
+) -> MemberApplication:
+    """Execute callback for an approved MEMBER_APPLICATION ``ApprovalProposal``."""
+    from core.models import ApprovalProposal as AP, MemberApplication as MA
+
+    application = MemberApplication.objects.get(
+        **{MA._meta.pk.name: proposal.target_id}
+    )
+    if application.status == MA.Status.ADMITTED:
+        return application
+    if application.status == MA.Status.REJECTED:
+        raise DomainError("该报名已被拒绝。")
+
+    member = application.linked_member
+    from core.member_roles import ensure_member_role, ROLE_FORMAL_MEMBER
+    from core.role_assignment_services import create_role_assignment as _create_ra
+
+    formal_role = ensure_member_role(ROLE_FORMAL_MEMBER)
+    _create_ra(
+        member=member,
+        role=formal_role,
+        granted_by=actor,
+        source_type="proposal",
+    )
+    member.status = Member.Status.ADMITTED
+    member.metadata = {**(member.metadata or {}),
+                       "application_status": MA.Status.ADMITTED,
+                       "latest_application_id": application.application_id}
+    member.profile = {**(member.profile or {}),
+                      **_application_member_profile(application),
+                      "admission_status": MA.Status.ADMITTED}
+    member.save(update_fields=["status", "metadata", "profile"])
+    application.status = MA.Status.ADMITTED
+    application.decided_by = actor
+    application.decided_at = timezone.now()
+    application.save(update_fields=["status", "decided_by", "decided_at"])
+    append_event(
+        event_type=SystemEvent.EventType.MEMBER_APPLICATION_REVIEWED,
+        aggregate_type="MemberApplication",
+        aggregate_id=application.application_id,
+        actor_member=actor,
+        payload_json=member_application_payload(application),
+        occurred_at=timezone.now(),
+    )
+    return application
+
+
+@atomic_for_model(MemberApplication)
+def reject_member_application_from_approval_proposal(
+    *,
+    proposal,
+    reason: str = "",
+) -> MemberApplication:
+    """Reject callback for a rejected MEMBER_APPLICATION ``ApprovalProposal``."""
+    from core.models import MemberApplication as MA
+
+    application = MemberApplication.objects.get(
+        **{MA._meta.pk.name: proposal.target_id}
+    )
+    if application.status in (MA.Status.REJECTED, MA.Status.ADMITTED):
+        return application
+
+    application.status = MA.Status.REJECTED
+    application.decided_at = timezone.now()
+    application.metadata = {**(application.metadata or {}),
+                            "decision_note": reason or "审批提案已拒绝。"}
+    application.save(update_fields=["status", "decided_at", "metadata"])
+    if application.linked_member_id:
+        member = application.linked_member
+        member.status = Member.Status.APPLICATION_REJECTED
+        member.metadata = {**(member.metadata or {}),
+                           "application_status": MA.Status.REJECTED}
+        member.save(update_fields=["status", "metadata"])
+    append_event(
+        event_type=SystemEvent.EventType.MEMBER_APPLICATION_REVIEWED,
+        aggregate_type="MemberApplication",
+        aggregate_id=application.application_id,
+        payload_json=member_application_payload(application),
+        occurred_at=timezone.now(),
+    )
+    return application
+
+
 @atomic_for_model(PartnerApplication)
 def review_partner_application(
     *,

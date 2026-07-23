@@ -427,6 +427,17 @@ class SupplierQuote(models.Model):
         "审批层级", max_length=16, choices=ApprovalTier.choices, default=ApprovalTier.SMALL,
     )
 
+    # ── visibility ──
+    class PublicVisibility(models.TextChoices):
+        PUBLIC = "public", "公开"
+        ANONYMOUS = "anonymous", "匿名"
+
+    public_visibility = models.CharField(
+        "公开范围", max_length=16, choices=PublicVisibility.choices,
+        default=PublicVisibility.PUBLIC,
+    )
+    public_display_name = models.CharField("公开署名", max_length=128, blank=True)
+
     class Meta:
         db_table = "core_supplier_quote"
         verbose_name = "供应商报价"

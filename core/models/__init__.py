@@ -6,6 +6,7 @@ from .credentials import CredentialGrant, CredentialTemplate
 from .identity import Member, MemberPublicProfile, Organization, Permission, Role, RoleAssignment, RolePermission
 from .proposals import Proposal, ProposalExecution, ProposalVote
 from .approval_workflow import ApprovalProposal, ApprovalDecision
+from .procurement_challenges import ProcurementChallenge
 from .planning import (
     PlanCapacityImpact,
     PlanDependency,
@@ -47,6 +48,7 @@ __all__ = [
     "ProposalVote",
     "ApprovalProposal",
     "ApprovalDecision",
+    "ProcurementChallenge",
     "Ruleset",
     "ProjectPlan",
     "PlanRevision",

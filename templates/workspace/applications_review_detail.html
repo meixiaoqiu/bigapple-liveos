@@ -180,40 +180,7 @@
           {% endif %}
 
           {% if admission_proposal.status == "voting" and admission_proposal.viewer_is_eligible %}
-            <form method="post" action="{% world_url 'workspace-proposal-vote' admission_proposal.proposal_id %}" class="grid gap-3">
-              {% csrf_token %}
-              <div class="label"><span class="label-text">投票</span></div>
-              <div class="flex flex-wrap gap-4">
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" name="choice" value="yes" class="radio radio-success" required>
-                  <span>赞成</span>
-                </label>
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" name="choice" value="no" class="radio radio-error" data-vote-no>
-                  <span>反对</span>
-                </label>
-              </div>
-              <label class="form-control w-full">
-                <div class="label"><span class="label-text">理由（反对时必填）</span></div>
-                <textarea name="reason" rows="2" class="textarea" data-vote-reason></textarea>
-              </label>
-              <script>
-                (function () {
-                  var noRadio = document.querySelector('input[data-vote-no]');
-                  var reasonTextarea = document.querySelector('textarea[data-vote-reason]');
-                  if (!noRadio || !reasonTextarea) return;
-                  var radios = document.querySelectorAll('input[name="choice"]');
-                  function update() { reasonTextarea.required = noRadio.checked; }
-                  for (var i = 0; i < radios.length; i++) {
-                    radios[i].addEventListener('change', update);
-                  }
-                  update();
-                })();
-              </script>
-              <div class="flex justify-end">
-                <button type="submit" class="btn btn-primary">提交投票</button>
-              </div>
-            </form>
+
           {% elif admission_proposal.status == "voting" and not admission_proposal.viewer_is_eligible %}
             <div class="alert alert-info">
               <span>提案正在表决中，但你不在当前提案的投票资格范围内。</span>
@@ -224,12 +191,7 @@
             <div class="alert alert-success">
               <span>提案已通过，可执行以正式接纳该成员。</span>
             </div>
-            <form method="post" action="{% world_url 'workspace-proposal-execute' admission_proposal.proposal_id %}">
-              {% csrf_token %}
-              <div class="flex justify-end">
-                <button type="submit" class="btn btn-success">执行准入</button>
-              </div>
-            </form>
+
           {% elif admission_proposal.executed_at %}
             <div class="alert alert-info">
               <span>提案已于 {{ admission_proposal.executed_at|date:"Y-m-d H:i" }} 执行，成员已接纳。</span>

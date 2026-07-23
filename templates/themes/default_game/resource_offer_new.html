@@ -69,6 +69,21 @@
           <span class="fieldset-label">备注</span>
           <textarea class="textarea textarea-bordered w-full" name="notes" rows="2" placeholder="可选备注">{{ form_data.notes|default:'' }}</textarea>
         </label>
+        <div class="rounded-lg border bg-base-200 p-3 text-sm">
+          <p class="font-medium mb-2">公开设置</p>
+          <p class="text-xs text-base-content/70 mb-2">采购报价默认公开身份；捐赠可选择匿名。</p>
+          <label class="fieldset">
+            <span class="fieldset-label">提交身份</span>
+            <select class="select select-bordered w-full" name="public_visibility">
+              <option value="public" {% if form_data.public_visibility == 'public' or not form_data.public_visibility %}selected{% endif %}>公开身份</option>
+              <option value="anonymous" {% if form_data.public_visibility == 'anonymous' %}selected{% endif %}>匿名</option>
+            </select>
+          </label>
+          <label class="fieldset mt-2">
+            <span class="fieldset-label">公开署名（可选，匿名时使用）</span>
+            <input class="input input-bordered w-full" type="text" name="public_display_name" value="{{ form_data.public_display_name|default:'' }}" placeholder="例：热心市民张先生">
+          </label>
+        </div>
         <button class="btn btn-primary w-full" type="submit">提交报价</button>
       </div>
     </form>

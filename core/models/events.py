@@ -51,6 +51,8 @@ class SystemEvent(models.Model):
         APPROVAL_PROPOSAL_REJECTED = "approval_proposal_rejected", "审批提案已拒绝"
         APPROVAL_PROPOSAL_EXECUTED = "approval_proposal_executed", "审批提案已执行"
         APPROVAL_PROPOSAL_CANCELLED = "approval_proposal_cancelled", "审批提案已取消"
+        PROCUREMENT_CHALLENGE_SUBMITTED = "procurement_challenge_submitted", "采购质疑已提交"
+        PROCUREMENT_CHALLENGE_REVIEWED = "procurement_challenge_reviewed", "采购质疑已处理"
         CREDIT_EARNED = "credit_earned", "积分获得"
         CREDIT_DEDUCTED = "credit_deducted", "积分扣减"
         CREDIT_ADJUSTED = "credit_adjusted", "积分调整"

@@ -44,6 +44,32 @@
       </div>
     </section>
 
+    <section class="card bg-base-100 shadow">
+      <div class="card-body">
+        <div class="flex items-center justify-between">
+          <h2 class="card-title text-sm">公开质疑 ({{ challenges|length }})</h2>
+          <a class="btn btn-sm btn-outline" href="/resources/{{ resource_id }}/offers/{{ offer.quote_id }}/challenges/new/">提出质疑/更低价</a>
+        </div>
+        {% if challenges %}
+          <div class="grid gap-3 mt-2">
+            {% for c in challenges %}
+              <div class="rounded-lg border p-3 text-sm">
+                <div class="flex gap-2">
+                  <span class="badge badge-xs">{{ c.challenge_type_label }}</span>
+                  <span class="badge badge-xs {% if c.status == 'submitted' %}badge-ghost{% elif c.status == 'accepted' %}badge-success{% else %}badge-error{% endif %}">{{ c.status_label }}</span>
+                </div>
+                <p class="mt-1">{{ c.public_reason }}</p>
+                {% if c.proposed_unit_price %}<span class="text-xs font-mono">建议价: {{ c.proposed_unit_price }}</span>{% endif %}
+                <div class="text-xs text-base-content/50 mt-1">{{ c.created_at|date:"m-d H:i" }}</div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-xs text-base-content/50 mt-2">暂无质疑</p>
+        {% endif %}
+      </div>
+    </section>
+
     {% if reputation.has_credentials %}
       <section class="card bg-base-100 shadow">
         <div class="card-body">

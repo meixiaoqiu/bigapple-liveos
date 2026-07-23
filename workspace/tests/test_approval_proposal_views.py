@@ -58,7 +58,7 @@ class ApprovalProposalViewsTests(TestCase):
 
     def _create_test_proposal(self, tier="single", ptype=None) -> ApprovalProposal:
         self._proposal_counter += 1
-        ptype = ptype or ApprovalProposal.ProposalType.MEMBER_APPLICATION
+        ptype = ptype or ApprovalProposal.ProposalType.INVENTORY_ADJUSTMENT
         return create_approval_proposal(
             proposal_type=ptype,
             dedupe_key=f"test:approval:{self._proposal_counter}",

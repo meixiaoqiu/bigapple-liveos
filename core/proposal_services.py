@@ -366,7 +366,7 @@ def reject_proposal(
     proposal.updated_at = timezone.now()
     proposal.save(update_fields=["status", "resolved_at", "updated_at"])
 
-    # Sync rejection to the target SupplierQuote
+    # Sync rejection to the target
     if (
         proposal.proposal_type == ApprovalProposal.ProposalType.PROCUREMENT_ACCEPTANCE
         and proposal.target_type == "supplier_quote"
@@ -378,6 +378,9 @@ def reject_proposal(
             _reject_quote(quote=quote, rejected_by=rejected_by, decision_reason=reason)
         except SupplierQuote.DoesNotExist:
             pass
+    elif proposal.proposal_type == ApprovalProposal.ProposalType.MEMBER_APPLICATION:
+        from .application_services import reject_member_application_from_approval_proposal
+        reject_member_application_from_approval_proposal(proposal=proposal, reason=reason)
 
     append_event(
         event_type=SystemEvent.EventType.APPROVAL_PROPOSAL_REJECTED,
@@ -408,6 +411,9 @@ def execute_proposal(
     if proposal.proposal_type == ApprovalProposal.ProposalType.PROCUREMENT_ACCEPTANCE:
         from .procurement_services import _execute_procurement_acceptance
         _execute_procurement_acceptance(proposal=proposal, actor=actor)
+    elif proposal.proposal_type == ApprovalProposal.ProposalType.MEMBER_APPLICATION:
+        from .application_services import admit_member_application_from_approval_proposal
+        admit_member_application_from_approval_proposal(proposal=proposal, actor=actor)
 
     proposal.status = ApprovalProposal.Status.EXECUTED
     proposal.executed_at = timezone.now()

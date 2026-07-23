@@ -52,5 +52,10 @@ urlpatterns = [
         page_views.observer_resource_offer_detail,
         name="observer-resource-offer-detail",
     ),
+    path(
+        "resources/<str:resource_id>/offers/<str:quote_id>/challenges/new/",
+        page_views.observer_resource_offer_challenge_new,
+        name="observer-resource-offer-challenge-new",
+    ),
     path("themes/switch/", theme_views.switch_theme, name="switch-theme"),
 ]

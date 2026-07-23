@@ -11,7 +11,7 @@ from worlds.routing import world_redirect
 
 from core.access import is_finance_reviewer, is_governance_principal
 from core.exceptions import DomainError
-from core.models import ApprovalProposal, ApprovalDecision, Member, SupplierQuote
+from core.models import ApprovalProposal, ApprovalDecision, Member, ProcurementChallenge, SupplierQuote
 from core.procurement_services import (
     mark_offer_paid_or_donated,
     quote_is_ready_for_receipt,
@@ -158,3 +158,37 @@ def procurement_complete(request: HttpRequest, quote_id: str) -> HttpResponse:
     except DomainError as exc:
         messages.error(request, str(exc))
     return world_redirect(request, "workspace-procurement")
+
+
+# challenge views
+@require_GET
+def procurement_challenge_list(request):
+    member = _check_member(request)
+    if member is None:
+        return render(request, 'workspace/login_required.html', status=403)
+    if _governance_or_finance_or_forbidden(member):
+        return render(request, 'workspace/login_required.html', status=403)
+    challenges = list(ProcurementChallenge.objects.filter(status=ProcurementChallenge.Status.SUBMITTED).select_related('quote__resource','submitted_by').order_by('-created_at'))
+    from core.access import is_governance_principal
+    return render(request, 'workspace/procurement_challenge_list.html', {'member':member,'challenges':challenges,'is_governance':is_governance_principal(member)})
+
+@require_http_methods(['POST'])
+def procurement_challenge_review(request, challenge_id):
+    member = _check_member(request)
+    if member is None:
+        return render(request, 'workspace/login_required.html', status=403)
+    if _governance_or_finance_or_forbidden(member):
+        return render(request, 'workspace/login_required.html', status=403)
+    from core.procurement_challenge_services import review_procurement_challenge
+    ch = get_object_or_404(ProcurementChallenge, challenge_id=challenge_id)
+    action = request.POST.get('action','').strip()
+    reason = request.POST.get('reason','').strip()
+    if not reason:
+        messages.error(request, '处理理由不能为空。')
+        return world_redirect(request, 'workspace-procurement-challenges')
+    try:
+        review_procurement_challenge(challenge=ch, reviewed_by=member, new_status=action, review_reason=reason)
+        messages.success(request, f'质疑 {challenge_id} 已处理。')
+    except DomainError as exc:
+        messages.error(request, str(exc))
+    return world_redirect(request, 'workspace-procurement-challenges')
