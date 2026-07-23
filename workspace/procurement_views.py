@@ -16,8 +16,8 @@ from core.procurement_services import (
     mark_offer_paid_or_donated,
     quote_is_ready_for_receipt,
     record_offer_receipt,
-    _compute_approval_tier,
 )
+from core.proposal_services import compute_procurement_approval_tier
 from core.proposal_services import (
     create_approval_proposal,
     proposal_approved_roles,
@@ -98,8 +98,10 @@ def procurement_create_proposal(request: HttpRequest, quote_id: str) -> HttpResp
 
     quote = get_object_or_404(SupplierQuote, quote_id=quote_id)
     try:
-        tier_map = {"small": "single", "standard": "standard", "major": "major"}
-        tier = tier_map.get(_compute_approval_tier(quote.offer_type, quote.estimated_total_amount), "single")
+        from core.proposal_services import supplier_quote_tier_to_proposal_tier
+        tier = supplier_quote_tier_to_proposal_tier(
+            compute_procurement_approval_tier(quote.offer_type, quote.estimated_total_amount),
+        )
         proposal = create_approval_proposal(
             proposal_type=ApprovalProposal.ProposalType.PROCUREMENT_ACCEPTANCE,
             dedupe_key=f"supplier_quote:{quote.quote_id}:acceptance",

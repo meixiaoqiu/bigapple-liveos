@@ -3,6 +3,17 @@
 Handles creation, approval, rejection and execution of
 ``ApprovalProposal`` instances.  All mutations emit ``SystemEvent``
 entries.
+
+**Approval tier policy** (centralised here – DO NOT duplicate in
+procurement or other subsystems):
+
+- amount == 0 or donation → ``SINGLE`` (any one of governance / finance)
+- 0 < amount <= 500         → ``SINGLE``
+- 500 < amount <= 5000      → ``STANDARD`` (governance + finance)
+- amount > 5000             → ``MAJOR`` (governance + finance + second_governance)
+
+These thresholds are code-level constants.  They can be promoted to
+database configuration later without changing callers.
 """
 
 from __future__ import annotations
@@ -24,24 +35,44 @@ from .models import (
     SystemEvent,
 )
 
-SMALL_LIMIT = Decimal("500")
-STANDARD_LIMIT = Decimal("5000")
+SMALL_PURCHASE_LIMIT = Decimal("500")
+STANDARD_PURCHASE_LIMIT = Decimal("5000")
+
+# ── reusable tier helpers (public API) ───────────────────────────────
 
 
-# ── helpers ──────────────────────────────────────────────────────────
+def compute_procurement_approval_tier(
+    offer_type: str, estimated_total_amount: Decimal,
+) -> str:
+    """Return the ``SupplierQuote.ApprovalTier`` for a new offer.
+
+    Called from ``procurement_services.submit_resource_offer``` (the
+    **only** call site for setting the quote-tier snapshot).  All
+    other consumers should use the higher-level role-group functions
+    below.
+
+    *offer_type* values: ``"quote"`` or ``"donation"``.
+    """
+    if offer_type == "donation" or estimated_total_amount == 0:
+        return "small"
+    if estimated_total_amount <= SMALL_PURCHASE_LIMIT:
+        return "small"
+    if estimated_total_amount <= STANDARD_PURCHASE_LIMIT:
+        return "standard"
+    return "major"
+
+
+def supplier_quote_tier_to_proposal_tier(quote_tier: str) -> str:
+    """Map SupplierQuote.ApprovalTier → ApprovalProposal.Tier."""
+    tier_map = {"small": "single", "standard": "standard", "major": "major"}
+    return tier_map.get(quote_tier, "single")
+
+
+# ── internal helpers ──────────────────────────────────────────────────
 
 
 def _new_id(prefix: str) -> str:
     return f"{prefix}-{uuid4().hex[:12]}"
-
-
-def _tier_for_amount(amount: Decimal) -> str:
-    amount = amount or Decimal("0")
-    if amount <= SMALL_LIMIT:
-        return ApprovalProposal.Tier.SINGLE
-    if amount <= STANDARD_LIMIT:
-        return ApprovalProposal.Tier.STANDARD
-    return ApprovalProposal.Tier.MAJOR
 
 
 def _valid_approval_roles(proposal: ApprovalProposal) -> set[str]:

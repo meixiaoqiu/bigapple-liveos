@@ -66,8 +66,8 @@
         {% if offer_rows %}
           <div class="overflow-x-auto mt-3">
             <table class="table table-zebra w-full text-sm">
-              <thead>
-                <tr>
+                <thead>
+                  <tr>
                     <th>类型</th>
                     <th>单价</th>
                     <th>数量</th>
@@ -78,8 +78,9 @@
                     <th>验收</th>
                     <th>付款</th>
                     <th>提交人</th>
+                    <th></th>
                   </tr>
-              </thead>
+                </thead>
               <tbody>
                 {% for o in offer_rows %}
                   <tr>
@@ -130,6 +131,9 @@
                       {% if o.has_performance_credential %}
                         <span class="badge badge-xs badge-success ml-1">有履约记录</span>
                       {% endif %}
+                    </td>
+                    <td>
+                      <a class="link link-xs" href="/resources/{{ resource.resource_id }}/offers/{{ o.quote_id }}/">详情</a>
                     </td>
                   </tr>
                 {% endfor %}

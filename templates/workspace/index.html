@@ -53,6 +53,38 @@
       </section>
     {% endif %}
 
+    {% if is_governance or is_finance %}
+      {% if work_items.total_pending %}
+        <section class="card bg-base-100 shadow border-l-4 border-warning">
+          <div class="card-body py-3">
+            <h2 class="card-title text-lg">待处理事项 <span class="badge badge-warning ml-2">{{ work_items.total_pending }}</span></h2>
+            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 mt-2">
+              {% if work_items.approval_pending %}
+                <a class="btn btn-sm btn-outline btn-warning justify-start" href="{% world_url 'workspace-approval-proposals' %}">
+                  待审批 ({{ work_items.approval_pending|length }})
+                </a>
+              {% endif %}
+              {% if work_items.execute_pending %}
+                <a class="btn btn-sm btn-outline btn-info justify-start" href="{% world_url 'workspace-approval-proposals' %}">
+                  待执行 ({{ work_items.execute_pending|length }})
+                </a>
+              {% endif %}
+              {% if work_items.receipt_pending %}
+                <a class="btn btn-sm btn-outline btn-success justify-start" href="{% world_url 'workspace-procurement' %}?status=accepted">
+                  待验收 ({{ work_items.receipt_pending|length }})
+                </a>
+              {% endif %}
+              {% if work_items.payment_pending %}
+                <a class="btn btn-sm btn-outline justify-start" href="{% world_url 'workspace-procurement' %}?status=accepted">
+                  待付款/完成 ({{ work_items.payment_pending|length }})
+                </a>
+              {% endif %}
+            </div>
+          </div>
+        </section>
+      {% endif %}
+    {% endif %}
+
     <section class="stats stats-vertical bg-base-100 shadow md:stats-horizontal" aria-label="成员核心状态">
       <div class="stat">
         <div class="stat-title">成员状态</div>

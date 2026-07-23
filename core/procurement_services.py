@@ -2,13 +2,17 @@
 
 Handles offer submission, acceptance, rejection, receipt and payment
 marking — with automatic credential issuance on fulfilment, event
-ledger entries for every state change, and lightweight tiered approval.
+ledger entries for every state change.
 
 State changes are wrapped in atomic blocks.  Stock mutations flow through
 ``core.resource_services.record_resource_adjustment`` which creates
 ``ResourceTransaction`` and ``SystemEvent`` records.  Procurement
 decision-status updates also emit dedicated ``SystemEvent`` entries
 so that the entire lifecycle is auditable.
+
+**Approval tier / role-group policy** is centralised in
+``core.proposal_services`` — this module does NOT define its own
+thresholds or tier computation.
 """
 
 from __future__ import annotations
@@ -31,23 +35,14 @@ from .models import (
     SupplierQuote,
     SystemEvent,
 )
+from .proposal_services import (
+    compute_procurement_approval_tier,
+    supplier_quote_tier_to_proposal_tier,
+)
 
-
-# ── tier thresholds (service-layer constants) ────────────────────────
-
-SMALL_PURCHASE_LIMIT = Decimal("500")
-STANDARD_PURCHASE_LIMIT = Decimal("5000")
-
-
-def _compute_approval_tier(offer_type: str, estimated_total_amount: Decimal) -> str:
-    """Return the ``SupplierQuote.ApprovalTier`` for a new offer."""
-    if offer_type == SupplierQuote.OfferType.DONATION or estimated_total_amount == 0:
-        return SupplierQuote.ApprovalTier.SMALL
-    if estimated_total_amount <= SMALL_PURCHASE_LIMIT:
-        return SupplierQuote.ApprovalTier.SMALL
-    if estimated_total_amount <= STANDARD_PURCHASE_LIMIT:
-        return SupplierQuote.ApprovalTier.STANDARD
-    return SupplierQuote.ApprovalTier.MAJOR
+# ── anti-spam --------------------------------------------------------
+DAILY_OFFER_LIMIT_PER_RESOURCE = 5
+"""Maximum offers a single member may submit per resource per calendar day."""
 
 
 # ── helpers ──────────────────────────────────────────────────────────
@@ -131,6 +126,16 @@ def submit_resource_offer(
     if not resource.accepts_offers:
         raise DomainError("该资源当前不接受公开报价。")
 
+    # Anti-spam: daily rate limit per member per resource
+    today = timezone.localdate()
+    today_count = SupplierQuote.objects.filter(
+        submitted_by=submitted_by,
+        resource=resource,
+        created_at__date=today,
+    ).count()
+    if today_count >= DAILY_OFFER_LIMIT_PER_RESOURCE:
+        raise DomainError(f"同一资源每天最多提交 {DAILY_OFFER_LIMIT_PER_RESOURCE} 条报价。")
+
     if available_quantity <= 0:
         raise DomainError("可供数量必须大于 0。")
 
@@ -144,7 +149,7 @@ def submit_resource_offer(
         raise DomainError("捐赠单价必须为 0。")
 
     estimated_total_amount = available_quantity * unit_price
-    approval_tier = _compute_approval_tier(offer_type, estimated_total_amount)
+    approval_tier = compute_procurement_approval_tier(offer_type, estimated_total_amount)
 
     quote = SupplierQuote.objects.create(
         quote_id=_new_quote_id(),
@@ -195,7 +200,7 @@ def submit_resource_offer(
         target_id=quote.quote_id,
         summary=f"数量 {available_quantity} {resource.unit}，金额 {estimated_total_amount} {currency}",
         public_reason=quality_summary or "",
-        approval_tier=_tier_to_approval_tier(approval_tier),
+        approval_tier=supplier_quote_tier_to_proposal_tier(approval_tier),
     )
 
     return quote

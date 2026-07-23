@@ -203,7 +203,15 @@ def workspace_context(member_no: str) -> dict[str, Any]:
             {"value": action, "label": NEXT_ACTION_LABELS[action]}
             for action in next_actions
         ],
+        "work_items": _member_work_items(member),
     }
+
+
+def _member_work_items(member):
+    """Lazy import work item builder to avoid circular deps."""
+    from .work_item_context import build_member_work_items
+
+    return build_member_work_items(member)
 
 
 def _application_queryset():

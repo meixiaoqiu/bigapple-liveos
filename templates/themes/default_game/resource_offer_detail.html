@@ -1,0 +1,82 @@
+{% load tailwind_tags %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>报价详情 · {{ offer.quote_id }}</title>
+  {% tailwind_css %}
+</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+  {% include "partials/runtime_header.html" %}
+
+  <main class="mx-auto grid max-w-3xl gap-6 p-4 lg:p-6">
+    <section class="card bg-base-100 shadow">
+      <div class="card-body">
+        <a class="btn btn-sm btn-ghost mb-2 self-start" href="/resources/{{ resource_id }}/offers/">返回报价列表</a>
+        <h1 class="text-2xl font-bold tracking-normal">报价详情</h1>
+        <div class="stats stats-vertical shadow mt-3 lg:stats-horizontal bg-base-200">
+          <div class="stat">
+            <div class="stat-title">报价 ID</div>
+            <div class="stat-value text-sm font-mono">{{ offer.quote_id }}</div>
+          </div>
+          <div class="stat">
+            <div class="stat-title">类型</div>
+            <div class="stat-value text-sm">{{ offer.offer_type_label }}</div>
+          </div>
+          <div class="stat">
+            <div class="stat-title">单价</div>
+            <div class="stat-value text-sm font-mono">{{ offer.unit_price }} {{ offer.currency }}</div>
+          </div>
+          <div class="stat">
+            <div class="stat-title">数量</div>
+            <div class="stat-value text-sm font-mono">{{ offer.available_quantity }}</div>
+          </div>
+        </div>
+        <div class="grid gap-2 sm:grid-cols-2 text-sm mt-2">
+          <span>状态: <span class="badge badge-sm">{{ offer.decision_status_label }}</span></span>
+          <span>验收: <span class="badge badge-sm">{{ offer.receipt_status_label }}</span></span>
+          <span>付款: <span class="badge badge-sm">{{ offer.payment_status_label }}</span></span>
+          <span>层级: <span class="badge badge-sm">{{ offer.approval_tier_label }}</span></span>
+          <span>提交人: <span class="font-mono text-xs">{{ offer.submitted_by_display }}</span></span>
+          <span>交付周期: {{ offer.lead_time_days }} 天</span>
+        </div>
+      </div>
+    </section>
+
+    {% if reputation.has_credentials %}
+      <section class="card bg-base-100 shadow">
+        <div class="card-body">
+          <h2 class="card-title text-sm">供应者信誉</h2>
+          <div class="flex flex-wrap gap-3 text-sm">
+            <span class="badge badge-success">有履约记录</span>
+            <span>完成履约 {{ reputation.completed_delivery_count }} 次</span>
+            <span>已完成订单 {{ reputation.fulfilled_quote_count }} 个</span>
+          </div>
+        </div>
+      </section>
+    {% endif %}
+
+    <section class="card bg-base-100 shadow">
+      <div class="card-body">
+        <h2 class="card-title">事件时间线</h2>
+        {% if timeline %}
+          <ul class="timeline timeline-vertical">
+            {% for t in timeline %}
+              <li>
+                <div class="timeline-start text-xs text-base-content/50">{{ t.occurred_at|slice:":16" }}</div>
+                <div class="timeline-middle">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4 text-primary"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" /></svg>
+                </div>
+                <div class="timeline-end timeline-box text-sm">{{ t.summary }}</div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-sm text-base-content/50">暂无时间线记录</p>
+        {% endif %}
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -131,6 +131,45 @@ goto END
 :MYSQL_READY
 
 echo.
+echo Building Big Apple Django image...
+
+docker compose -f docker-compose.dev.yml build big-apple-admin
+if errorlevel 1 (
+echo Failed to build Big Apple Django image.
+set "EXIT_CODE=1"
+goto END
+)
+
+echo.
+echo Applying database migrations...
+
+echo Migrating admin/control database...
+docker compose -f docker-compose.dev.yml run --rm --no-deps big-apple-admin python manage.py migrate --noinput --settings=live_os.settings_admin
+if errorlevel 1 (
+echo Failed to migrate admin/control database.
+set "EXIT_CODE=1"
+goto END
+)
+
+echo Migrating real world database...
+docker compose -f docker-compose.dev.yml run --rm --no-deps big-apple-real python manage.py migrate --noinput --settings=live_os.settings_real
+if errorlevel 1 (
+echo Failed to migrate real world database.
+set "EXIT_CODE=1"
+goto END
+)
+
+echo Migrating simulation world database...
+docker compose -f docker-compose.dev.yml run --rm --no-deps big-apple-sim python manage.py migrate --noinput --settings=live_os.settings_sim
+if errorlevel 1 (
+echo Failed to migrate simulation world database.
+set "EXIT_CODE=1"
+goto END
+)
+
+echo Database migrations completed.
+
+echo.
 echo Starting Big Apple Django site services...
 
 docker compose -f docker-compose.dev.yml up -d --force-recreate big-apple-admin big-apple-real big-apple-sim

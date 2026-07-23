@@ -12,7 +12,15 @@ from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods
 
-from core.models import Event, Resource, SimulationSnapshot, SupplierQuote, SystemEvent
+from core.models import (
+    ApprovalProposal,
+    CredentialGrant,
+    Event,
+    Resource,
+    SimulationSnapshot,
+    SupplierQuote,
+    SystemEvent,
+)
 from core.procurement_services import submit_resource_offer
 
 from .page_context import _resource_public_rows, observer_context
@@ -531,3 +539,102 @@ def observer_resource_offer_new(request: HttpRequest, resource_id: str, **_kwarg
 
     messages.success(request, "报价已提交。")
     return HttpResponseRedirect(f"/resources/{resource_id}/offers/")
+
+
+# ── public provider reputation ──────────────────────────────────────────
+
+
+def _provider_reputation(member_no: str) -> dict:
+    """Public-safe reputation summary for a supplier member."""
+    from core.models import CredentialGrant
+
+    completed = CredentialGrant.objects.filter(
+        member__member_no=member_no,
+        template__code="provider_delivery_completed",
+    ).count()
+    fulfilled_quotes = SupplierQuote.objects.filter(
+        submitted_by__member_no=member_no,
+        decision_status=SupplierQuote.DecisionStatus.FULFILLED,
+    ).count()
+    rejected_receipts = SupplierQuote.objects.filter(
+        submitted_by__member_no=member_no,
+        receipt_status=SupplierQuote.ReceiptStatus.REJECTED,
+    ).count()
+    return {
+        "completed_delivery_count": completed,
+        "fulfilled_quote_count": fulfilled_quotes,
+        "rejected_receipt_count": rejected_receipts,
+        "has_credentials": completed > 0,
+    }
+
+
+# ── public offer detail / timeline ──────────────────────────────────────
+
+
+def _build_offer_timeline(quote: SupplierQuote) -> list[dict]:
+    """Build public-safe timeline entries for a quote by querying SystemEvent.
+    Falls back to aggregating from model fields if events are incomplete."""
+    events = list(
+        SystemEvent.objects.filter(
+            aggregate_type="SupplierQuote",
+            aggregate_id=quote.quote_id,
+        ).order_by("occurred_at")
+    )
+    # Also include related ApprovalProposal events
+    proposal = ApprovalProposal.objects.filter(
+        target_type="supplier_quote",
+        target_id=quote.quote_id,
+    ).first()
+    if proposal:
+        proposal_events = list(
+            SystemEvent.objects.filter(
+                aggregate_type="ApprovalProposal",
+                aggregate_id=proposal.proposal_id,
+            ).order_by("occurred_at")
+        )
+        events.extend(proposal_events)
+        events.sort(key=lambda e: e.occurred_at)
+
+    timeline: list[dict] = []
+    for evt in events:
+        payload = evt.payload_json or {}
+        public_facts = payload.get("public_facts") or {}
+        timeline.append({
+            "occurred_at": evt.occurred_at.isoformat() if evt.occurred_at else "",
+            "event_type": evt.event_type,
+            "summary": payload.get("summary", evt.event_type),
+            "action": payload.get("action", ""),
+        })
+
+    # Build from model fields as fallback
+    if not timeline:
+        timeline.append({
+            "occurred_at": quote.created_at.isoformat() if quote.created_at else "",
+            "event_type": "quote_created",
+            "summary": f"报价 {quote.quote_id} 已提交",
+            "action": "submitted",
+        })
+    return timeline
+
+
+@require_GET
+def observer_resource_offer_detail(request: HttpRequest, resource_id: str, quote_id: str, **_kwargs):
+    """Public read-only detail page for one offer with timeline."""
+    apply_theme_query_override(request)
+    quote = get_object_or_404(SupplierQuote, quote_id=quote_id, resource_id=resource_id)
+    row = _public_offer_row(quote)
+    timeline = _build_offer_timeline(quote)
+    reputation = {}
+    if quote.submitted_by:
+        reputation = _provider_reputation(quote.submitted_by.member_no)
+
+    return render(
+        request,
+        get_theme_template_path(request, "resource_offer_detail.html"),
+        {
+            "offer": row,
+            "timeline": timeline,
+            "reputation": reputation,
+            "resource_id": resource_id,
+        },
+    )
