@@ -117,50 +117,6 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
     if events:
         context["events"] = events
 
-    map_points = [
-        {
-            "id": "point-community",
-            "title": str(site),
-            "type": "community",
-            "status": "active",
-            "x": 50,
-            "y": 48,
-            "icon": "home",
-            "label": "核心区",
-            "score": None,
-        }
-    ]
-    mainline = context.get("mainline", {}) or {}
-    for index, node in enumerate((mainline.get("current_nodes") or [])[:3]):
-        map_points.append(
-            {
-                "id": f"mainline-point-{node.get('node_id') or index}",
-                "title": node.get("title", ""),
-                "type": "mainline",
-                "status": "active" if node.get("status") == "in_progress" else "normal",
-                "x": 24 + index * 22,
-                "y": 28 + index * 12,
-                "icon": node.get("node_type", ""),
-                "label": node.get("code", ""),
-                "score": None,
-            }
-        )
-    for index, event in enumerate(context["events"][:3]):
-        map_points.append(
-            {
-                "id": f"event-point-{index + 1}",
-                "title": event["title"],
-                "type": "event",
-                "status": "risk" if event["level"] in {"high", "urgent"} else "new",
-                "x": 34 + index * 18,
-                "y": 64 - index * 10,
-                "icon": event["level"],
-                "label": event["location"] or "事件",
-                "score": event["heat"] or None,
-            }
-        )
-    context["map_points"] = map_points
-
     from core.risk_services import build_risk_summary
     risk_summary = build_risk_summary(visibility="public")
     context["risk_summary"] = risk_summary

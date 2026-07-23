@@ -332,7 +332,6 @@ class ObserverPageTests(TestCase):
 
         expectations = {
             self.observer_url("dashboard/partials/events/"): "午餐任务验收通过",
-            self.observer_url("dashboard/partials/map-points/"): "核心区",
             self.observer_url("dashboard/partials/risk/"): "高风险",
             self.observer_url("dashboard/partials/capacity/"): "当前容量",
         }
@@ -341,6 +340,10 @@ class ObserverPageTests(TestCase):
                 response = self.client.get(path)
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, expected_text)
+
+    def test_old_map_points_partial_returns_404(self) -> None:
+        response = self.client.get(self.observer_url("dashboard/partials/map-points/"))
+        self.assertEqual(response.status_code, 404)
 
     def test_old_missions_partial_returns_404(self) -> None:
         response = self.client.get(self.observer_url("dashboard/partials/missions/"))

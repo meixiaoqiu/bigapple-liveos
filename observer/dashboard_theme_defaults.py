@@ -27,19 +27,6 @@ def _default_dashboard_context() -> dict[str, Any]:
             "empty": True,
         },
         "events": [],
-        "map_points": [
-            {
-                "id": "point-community",
-                "title": "未配置据点",
-                "type": "community",
-                "status": "active",
-                "x": 50,
-                "y": 50,
-                "icon": "home",
-                "label": "核心区",
-                "score": None,
-            }
-        ],
         "photos": [],
         "resources": [],
         "achievements": [],

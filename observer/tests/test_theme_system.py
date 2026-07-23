@@ -54,7 +54,6 @@ class ThemeSystemTests(TestCase):
         self.assertEqual(context["stats"], [])
         self.assertTrue(context["mainline"]["empty"])
         self.assertEqual(context["events"], [])
-        self.assertTrue(context["map_points"])
         self.assertIn("risk_summary", context)
         self.assertIn("capacity", context)
         self.assertIn("user_progress", context)

@@ -14,11 +14,6 @@ urlpatterns = [
     path("dashboard/mainline/", page_views.dashboard_mainline, name="dashboard-mainline"),
     path("dashboard/partials/events/", page_views.dashboard_events_partial, name="dashboard-events-partial"),
     path(
-        "dashboard/partials/map-points/",
-        page_views.dashboard_map_points_partial,
-        name="dashboard-map-points-partial",
-    ),
-    path(
         "dashboard/partials/task-detail/",
         page_views.dashboard_task_detail_partial,
         name="dashboard-task-detail-partial",

@@ -190,16 +190,7 @@
           </div>
         </section>
 
-        <section class="grid gap-6 lg:grid-cols-2">
-          <div class="card bg-base-100 shadow">
-            <div class="card-body">
-              <h2 class="card-title">地点与线索</h2>
-              <div id="dashboard-map-points" hx-get="{% world_url 'dashboard-map-points-partial' %}" hx-trigger="every 60s" hx-swap="innerHTML">
-                {% include "themes/default_game/partials/map_points.html" %}
-              </div>
-            </div>
-          </div>
-
+        <section class="grid gap-6">
           <div class="card bg-base-100 shadow">
             <div class="card-body">
               <h2 class="card-title">成员进度</h2>

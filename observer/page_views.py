@@ -101,11 +101,6 @@ def dashboard_events_partial(request: HttpRequest, **_kwargs):
 
 
 @require_GET
-def dashboard_map_points_partial(request: HttpRequest, **_kwargs):
-    return render(request, get_theme_partial_path(request, "map_points.html"), dashboard_theme_context(request))
-
-
-@require_GET
 def dashboard_task_detail_partial(request: HttpRequest, **_kwargs):
     return render(request, get_theme_partial_path(request, "task_detail.html"), dashboard_theme_context(request))
 
