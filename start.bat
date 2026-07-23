@@ -131,13 +131,31 @@ goto END
 :MYSQL_READY
 
 echo.
-echo Building Big Apple Django image...
+echo Checking Big Apple Django image...
 
+set "NEED_DJANGO_IMAGE_BUILD="
+if /I "%BIG_APPLE_FORCE_BUILD%"=="1" (
+echo BIG_APPLE_FORCE_BUILD=1, forcing Django image build.
+set "NEED_DJANGO_IMAGE_BUILD=1"
+)
+
+docker image inspect big-apple-live-os:dev >nul 2>nul
+if errorlevel 1 (
+echo big-apple-live-os:dev image was not found. Building it now...
+set "NEED_DJANGO_IMAGE_BUILD=1"
+) else (
+if not defined NEED_DJANGO_IMAGE_BUILD (
+echo big-apple-live-os:dev image already exists. Skipping build.
+)
+)
+
+if defined NEED_DJANGO_IMAGE_BUILD (
 docker compose -f docker-compose.dev.yml build big-apple-admin
 if errorlevel 1 (
 echo Failed to build Big Apple Django image.
 set "EXIT_CODE=1"
 goto END
+)
 )
 
 echo.

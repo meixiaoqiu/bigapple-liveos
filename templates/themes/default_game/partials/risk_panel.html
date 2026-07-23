@@ -13,10 +13,22 @@
       <div class="stat-value text-info">{{ dashboard_context.risk_summary.low }}</div>
     </div>
     <div class="stat">
-      <div class="stat-title">已处理</div>
+      <div class="stat-title">已解除</div>
       <div class="stat-value text-success">{{ dashboard_context.risk_summary.resolved }}</div>
     </div>
   </div>
+  <a class="btn btn-xs btn-ghost self-end" href="/risks/">查看全部风险</a>
+  {% if dashboard_context.risk_summary.top_active %}
+    <div class="grid gap-2">
+      <h3 class="font-semibold text-sm">活跃风险</h3>
+      {% for r in dashboard_context.risk_summary.top_active %}
+        <div class="flex items-center justify-between rounded-box bg-base-200 px-3 py-2 text-sm">
+          <span class="truncate">{{ r.title }}</span>
+          <span class="badge badge-xs {% if r.severity == 'critical' %}badge-error{% elif r.severity == 'high' %}badge-warning{% else %}badge-ghost{% endif %}">{{ r.severity }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
   {% if dashboard_context.simulation_failures %}
     <div class="grid gap-3">
       <h3 class="font-semibold">仿真失败核心原因</h3>

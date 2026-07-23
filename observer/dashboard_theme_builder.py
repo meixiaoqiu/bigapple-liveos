@@ -161,18 +161,8 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
         )
     context["map_points"] = map_points
 
-    risk_summary = {"high": 0, "medium": 0, "low": 0, "resolved": 0}
-    for item in command_dashboard.get("risk_overview") or []:
-        tone = str(item.get("tone") or "")
-        value = _safe_int(item.get("value"))
-        if tone == "critical":
-            risk_summary["high"] = value
-        elif tone == "medium":
-            risk_summary["medium"] = value
-        elif tone == "resolved":
-            risk_summary["resolved"] = value
-        else:
-            risk_summary["low"] = value
+    from core.risk_services import build_risk_summary
+    risk_summary = build_risk_summary(visibility="public")
     context["risk_summary"] = risk_summary
 
     simulation_failures = []

@@ -1,0 +1,51 @@
+{% load tailwind_tags world_urls %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="bumblebee">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>风险规则 · {{ member.member_no }}</title>{% tailwind_css %}</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+{% include "partials/runtime_header.html" %}
+<main class="mx-auto grid w-full max-w-5xl gap-6 p-4 lg:p-8">
+  <header class="card bg-primary text-primary-content shadow-xl"><div class="card-body">
+    <a class="btn btn-sm btn-ghost text-primary-content mb-2 self-start" href="{% world_url 'workspace-page' %}">返回工作台</a>
+    <h1 class="text-2xl font-bold">风险规则</h1>
+    <p class="text-xs opacity-80">治理可编辑；采购审批金额档位属于审批策略，不在此处维护。</p>
+  </div></header>
+  {% if messages %}<section class="grid gap-2">{% for m in messages %}<div class="alert {% if m.tags == 'success' %}alert-success{% elif m.tags == 'error' %}alert-error{% else %}alert-info{% endif %}">{{ m }}</div>{% endfor %}</section>{% endif %}
+  <section class="card bg-base-100 shadow"><div class="card-body">
+    {% if rules %}
+      <div class="overflow-x-auto">
+        <table class="table table-zebra text-sm">
+          <thead><tr><th>ID</th><th>名称</th><th>领域</th><th>级别</th><th>可见性</th><th>状态</th><th>阈值</th><th>责任</th><th>操作</th></tr></thead>
+          <tbody>
+            {% for r in rules %}
+              <tr>
+                <td class="font-mono text-xs">{{ r.rule_id }}</td>
+                <td>{{ r.name }}</td>
+                <td>{{ r.get_domain_display }}</td>
+                <td><span class="badge badge-xs {% if r.severity == 'critical' %}badge-error{% elif r.severity == 'high' %}badge-warning{% else %}badge-ghost{% endif %}">{{ r.get_severity_display }}</span></td>
+                <td>{{ r.get_visibility_display }}</td>
+                <td>{{ r.get_status_display }}</td>
+                <td class="font-mono text-xs">{% if r.threshold_value %}{{ r.threshold_value }}{% else %}-{% endif %}</td>
+                <td>{{ r.responsible_role }}</td>
+                <td>
+                  {% if is_governance %}
+                    <form method="post" action="{% world_url 'workspace-risk-rule-update' r.rule_id %}" class="inline-flex gap-1">
+                      {% csrf_token %}
+                      <select name="status" class="select select-xs select-bordered">
+                        <option value="active" {% if r.status == 'active' %}selected{% endif %}>启用</option>
+                        <option value="inactive" {% if r.status == 'inactive' %}selected{% endif %}>停用</option>
+                      </select>
+                      <input type="number" step="any" name="threshold_value" value="{{ r.threshold_value|default:'' }}" class="input input-xs input-bordered w-20" placeholder="阈值">
+                      <button class="btn btn-xs btn-info" type="submit">更新</button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}<div class="alert">暂无风险规则</div>{% endif %}
+  </div></section>
+</main></body></html>

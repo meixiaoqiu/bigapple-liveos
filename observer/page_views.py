@@ -13,6 +13,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods
 
 from core.models import (
+    RiskAlert,
     ApprovalProposal,
     CredentialGrant,
     Event,
@@ -724,3 +725,13 @@ def observer_resource_offer_challenge_new(request: HttpRequest, resource_id: str
             status=400,
         )
     return HttpResponseRedirect(f"/resources/{resource_id}/offers/{quote_id}/")
+
+
+@require_GET
+def observer_risks_page(request, **_kwargs):
+    apply_theme_query_override(request)
+    alerts = list(RiskAlert.objects.filter(
+        visibility="public",
+        status__in=["active", "acknowledged", "investigating"],
+    ).order_by("-severity", "-last_seen_at"))
+    return render(request, get_theme_template_path(request, 'risks.html'), {'alerts': alerts})

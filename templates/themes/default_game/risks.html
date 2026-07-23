@@ -1,0 +1,34 @@
+{% load tailwind_tags %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="light">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>风险总览</title>{% tailwind_css %}</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+{% include "partials/runtime_header.html" %}
+<main class="mx-auto grid max-w-5xl gap-6 p-4 lg:p-6">
+  <section class="card bg-base-100 shadow"><div class="card-body">
+    <a class="btn btn-sm btn-ghost mb-2 self-start" href="/">返回首页</a>
+    <h1 class="text-2xl font-bold">当前风险</h1>
+    <p class="text-sm text-base-content/70">{{ alerts|length }} 个活跃风险</p>
+  </div></section>
+  <section class="card bg-base-100 shadow"><div class="card-body">
+    {% if alerts %}
+      <div class="overflow-x-auto">
+        <table class="table table-zebra text-sm">
+          <thead><tr><th>级别</th><th>标题</th><th>领域</th><th>状态</th><th>时间</th></tr></thead>
+          <tbody>
+            {% for a in alerts %}
+              <tr>
+                <td><span class="badge badge-xs {% if a.severity == 'critical' %}badge-error{% elif a.severity == 'high' %}badge-warning{% else %}badge-ghost{% endif %}">{{ a.get_severity_display }}</span></td>
+                <td>{{ a.title }}</td>
+                <td>{{ a.get_domain_display }}</td>
+                <td>{{ a.get_status_display }}</td>
+                <td class="text-xs">{{ a.last_seen_at|date:"m-d H:i" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}<div class="alert">暂无活跃风险</div>{% endif %}
+  </div></section>
+</main></body></html>

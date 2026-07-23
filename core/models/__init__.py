@@ -7,6 +7,7 @@ from .identity import Member, MemberPublicProfile, Organization, Permission, Rol
 from .proposals import Proposal, ProposalExecution, ProposalVote
 from .approval_workflow import ApprovalProposal, ApprovalDecision
 from .procurement_challenges import ProcurementChallenge
+from .risks import RiskRule, RiskAlert
 from .planning import (
     PlanCapacityImpact,
     PlanDependency,

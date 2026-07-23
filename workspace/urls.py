@@ -3,7 +3,7 @@
 from django.urls import path
 from worlds.routing import world_scoped_view
 
-from . import views, finance_views, inventory_views, procurement_views, proposal_views
+from . import views, finance_views, inventory_views, procurement_views, proposal_views, risk_views
 
 
 urlpatterns = [
@@ -153,4 +153,9 @@ urlpatterns = [
         world_scoped_view(procurement_views.procurement_challenge_review),
         name="workspace-procurement-challenge-review",
     ),
+    path("risks/", world_scoped_view(risk_views.risk_list), name="workspace-risks"),
+    path("risks/<str:alert_id>/acknowledge/", world_scoped_view(risk_views.risk_ack), name="workspace-risk-acknowledge"),
+    path("risks/<str:alert_id>/resolve/", world_scoped_view(risk_views.risk_resolve), name="workspace-risk-resolve"),
+    path("risk-rules/", world_scoped_view(risk_views.risk_rules_list), name="workspace-risk-rules"),
+    path("risk-rules/<str:rule_id>/update/", world_scoped_view(risk_views.risk_rule_update), name="workspace-risk-rule-update"),
 ]
