@@ -29,12 +29,10 @@ def _default_dashboard_context() -> dict[str, Any]:
         "events": [],
         "photos": [],
         "resources": [],
-        "achievements": [],
         "risk_summary": {"high": 0, "medium": 0, "low": 0, "resolved": 0},
         "role_pressure": [],
         "pending_disputes": [],
         "capacity": {"current": 0, "total": 0, "percent": 0, "safe_threshold": 85, "remaining": 0},
-        "user_progress": {"level": 1, "xp": 0, "xp_next": 100, "points": 0, "badges_count": 0},
         "navigation": [
             {"key": "overview", "label": "总览", "href": "/"},
             {"key": "events", "label": "事件", "href": "#events"},

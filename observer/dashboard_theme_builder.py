@@ -189,14 +189,6 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
         "remaining": _safe_int(capacity.get("remaining"), max(total - current, 0)),
     }
 
-    unlocked_count = sum(1 for achievement in context["achievements"] if achievement.get("unlocked"))
-    context["user_progress"] = {
-        "level": max(1, unlocked_count + 1),
-        "xp": min(100, context["capacity"]["percent"]),
-        "xp_next": 100,
-        "points": raw.get("ledger_entries", 0) or 0,
-        "badges_count": unlocked_count,
-    }
     context["navigation"][0]["href"] = "/"
     context["navigation"][2]["href"] = "/resources/"
     context["navigation"][4]["label"] = "审计账本"

@@ -233,6 +233,6 @@ def observer_context(*, full_plan_nodes: bool = False) -> dict[str, Any]:
         "total_tasks": Task.objects.count(),
         "task_completion_rate": task_completion_rate(),
         "open_disputes": open_disputes,
-        "ledger_entries": LedgerEntry.objects.count(),
+
         "latest_day": latest.simulation_day if latest else 1,
     }

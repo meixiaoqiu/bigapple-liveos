@@ -56,7 +56,7 @@ class ThemeSystemTests(TestCase):
         self.assertEqual(context["events"], [])
         self.assertIn("risk_summary", context)
         self.assertIn("capacity", context)
-        self.assertIn("user_progress", context)
+        self.assertNotIn("user_progress", context)
         self.assertTrue(context["navigation"])
 
     def test_dashboard_theme_context_includes_default_extension_fields(self) -> None:

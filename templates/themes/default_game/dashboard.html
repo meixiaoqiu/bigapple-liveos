@@ -190,31 +190,6 @@
           </div>
         </section>
 
-        <section class="grid gap-6">
-          <div class="card bg-base-100 shadow">
-            <div class="card-body">
-              <h2 class="card-title">成员进度</h2>
-              <div class="grid gap-3">
-                <progress class="progress progress-primary w-full" value="{{ dashboard.user_progress.xp }}" max="{{ dashboard.user_progress.xp_next }}"></progress>
-                <div class="grid gap-2 sm:grid-cols-3">
-                  <div class="stat bg-base-200">
-                    <div class="stat-title">等级</div>
-                    <div class="stat-value text-primary">Lv.{{ dashboard.user_progress.level }}</div>
-                  </div>
-                  <div class="stat bg-base-200">
-                    <div class="stat-title">积分</div>
-                    <div class="stat-value">{{ dashboard.user_progress.points }}</div>
-                  </div>
-                  <div class="stat bg-base-200">
-                    <div class="stat-title">徽章</div>
-                    <div class="stat-value">{{ dashboard.user_progress.badges_count }}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
         <section class="card bg-base-100 shadow">
           <div class="card-body">
             <div class="flex flex-wrap items-center justify-between gap-3">
