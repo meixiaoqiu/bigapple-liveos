@@ -1109,3 +1109,164 @@ class MerchantSettlementApiTests(TestCase):
         resp = self.client.get(self.api("/merchant-settlements?merchant_id=mch-settle-test"))
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.json()["settlements"]), 0)
+
+
+class CreditTransferPageTest(TestCase):
+    """Workspace credit-transfer page UI tests."""
+
+    def setUp(self):
+        from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account, post_credit_transaction
+        from core.models import CreditAccount, CreditTransaction
+        from core.member_roles import ROLE_FORMAL_MEMBER
+        ensure_system_accounts()
+        self.member_a = create_member("transfer-page-a", role_name=ROLE_FORMAL_MEMBER)
+        self.member_b = create_member("transfer-page-b", role_name=ROLE_FORMAL_MEMBER)
+        acct = get_or_create_member_credit_account(self.member_a)
+        get_or_create_member_credit_account(self.member_b)
+        post_credit_transaction(
+            transaction_type=CreditTransaction.Type.ISSUANCE, amount=200, target_account=acct,
+        )
+        # Basic member without full workspace access
+        self.basic = create_member("transfer-page-basic")
+
+    def test_transfer_page_loads(self):
+        login_as_member(self.client, self.member_a)
+        resp = self.client.get("/workspace/credits/transfer/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "积分转账")
+
+    def test_transfer_page_post_success(self):
+        login_as_member(self.client, self.member_a)
+        resp = self.client.post(
+            "/workspace/credits/transfer/",
+            {"to_member_no": self.member_b.member_no, "amount": "30", "reason": "page test"},
+            follow=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "30")
+
+    def test_transfer_page_self_rejected(self):
+        login_as_member(self.client, self.member_a)
+        resp = self.client.post(
+            "/workspace/credits/transfer/",
+            {"to_member_no": self.member_a.member_no, "amount": "10"},
+            follow=False,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "不能向自己转账")
+
+    def test_transfer_page_unauthorized(self):
+        resp = self.client.get("/workspace/credits/transfer/")
+        self.assertEqual(resp.status_code, 403)
+
+    def test_basic_member_transfer_get_403(self):
+        """Basic member without full workspace access gets 403 on transfer GET."""
+        login_as_member(self.client, self.basic)
+        resp = self.client.get("/workspace/credits/transfer/")
+        self.assertEqual(resp.status_code, 403)
+
+    def test_basic_member_transfer_post_403(self):
+        """Basic member without full workspace access gets 403 on transfer POST."""
+        login_as_member(self.client, self.basic)
+        resp = self.client.post(
+            "/workspace/credits/transfer/",
+            {"to_member_no": self.member_b.member_no, "amount": "10"},
+        )
+        self.assertEqual(resp.status_code, 403)
+
+
+class RedemptionOrderPageTest(TestCase):
+    """Workspace redemption-order page UI tests."""
+
+    def setUp(self):
+        from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account, post_credit_transaction
+        from core.models import CreditAccount, CreditTransaction
+        from core.member_roles import ROLE_FORMAL_MEMBER
+        ensure_system_accounts()
+        self.member = create_member("redemption-page-m", role_name=ROLE_FORMAL_MEMBER)
+        acct = get_or_create_member_credit_account(self.member)
+        post_credit_transaction(
+            transaction_type=CreditTransaction.Type.ISSUANCE, amount=200, target_account=acct,
+        )
+        self.basic = create_member("redemption-page-basic")
+
+    def test_redemption_page_loads(self):
+        login_as_member(self.client, self.member)
+        resp = self.client.get("/workspace/credits/redemption/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "兑换订单")
+
+    def test_create_order_via_page(self):
+        login_as_member(self.client, self.member)
+        resp = self.client.post(
+            "/workspace/credits/redemption/",
+            {"create": "1", "credit_amount": "10", "item_type": "meal", "title": "page order"},
+            follow=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "积分已冻结")
+
+    def test_cancel_order_via_page(self):
+        login_as_member(self.client, self.member)
+        # Create an order first
+        self.client.post(
+            "/workspace/credits/redemption/",
+            {"create": "1", "credit_amount": "5", "item_type": "meal", "title": "cancel me"},
+        )
+        from core.models import RedemptionOrder
+        order = RedemptionOrder.objects.filter(member=self.member, title="cancel me").first()
+        self.assertIsNotNone(order, "Order should exist before cancel test")
+        resp = self.client.post(
+            "/workspace/credits/redemption/",
+            {"cancel": order.order_id},
+            follow=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "已取消")
+        order.refresh_from_db()
+        self.assertEqual(order.status, RedemptionOrder.Status.CANCELLED)
+
+    def test_dispute_order_via_page(self):
+        login_as_member(self.client, self.member)
+        self.client.post(
+            "/workspace/credits/redemption/",
+            {"create": "1", "credit_amount": "5", "item_type": "meal", "title": "dispute me"},
+        )
+        from core.models import RedemptionOrder
+        order = RedemptionOrder.objects.filter(member=self.member, title="dispute me").first()
+        self.assertIsNotNone(order)
+        resp = self.client.post(
+            "/workspace/credits/redemption/",
+            {"dispute": order.order_id, "dispute_reason": "wrong"},
+            follow=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "已提交申诉")
+        order.refresh_from_db()
+        self.assertEqual(order.status, RedemptionOrder.Status.DISPUTED)
+
+    def test_redemption_page_unauthorized(self):
+        resp = self.client.get("/workspace/credits/redemption/")
+        self.assertEqual(resp.status_code, 403)
+
+    def test_basic_member_redemption_get_403(self):
+        login_as_member(self.client, self.basic)
+        resp = self.client.get("/workspace/credits/redemption/")
+        self.assertEqual(resp.status_code, 403)
+
+    def test_basic_member_redemption_post_403(self):
+        login_as_member(self.client, self.basic)
+        resp = self.client.post(
+            "/workspace/credits/redemption/",
+            {"create": "1", "credit_amount": "10", "item_type": "meal"},
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_workspace_page_shows_credit_stats(self):
+        """Workspace index shows current/available/lifetime credit stats for formal member."""
+        login_as_member(self.client, self.member)
+        resp = self.client.get("/workspace/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "当前积分")
+        self.assertContains(resp, "可用积分")
+        self.assertContains(resp, "历史贡献")

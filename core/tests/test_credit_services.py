@@ -947,6 +947,12 @@ class RedemptionOrderTests(TestCase):
         self.assertEqual(order.item_snapshot["meal_name"], "午餐")
         self.assertEqual(order.finance_treatment_ref, "fin-2026-001")
 
+    def test_create_order_rejects_invalid_item_type(self):
+        """服务层拒绝非 ItemType.choices 的 item_type。"""
+        self._give_credits(100)
+        with self.assertRaises(DomainError):
+            create_redemption_order(member=self.member, credit_amount=5, item_type="INVALID", title="bad")
+
 
 class MerchantSettlementTests(TestCase):
     def setUp(self):

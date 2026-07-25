@@ -1,0 +1,101 @@
+{% load tailwind_tags world_urls %}
+<!doctype html><html lang="zh-Hans" data-theme="bumblebee">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>兑换订单</title>{% tailwind_css %}</head>
+<body class="min-h-screen bg-base-200 text-base-content">{% include "partials/runtime_header.html" %}
+<main class="mx-auto grid w-full max-w-2xl gap-6 p-4 lg:p-8">
+<h1 class="text-2xl font-bold">兑换订单</h1>
+
+{% if messages %}<div class="grid gap-2">{% for msg in messages %}<div class="alert alert-{{ msg.tags|default:'info' }}">{{ msg }}</div>{% endfor %}</div>{% endif %}
+
+{# ── create form ─────────────────────────────────────────────── #}
+<form method="post" class="card bg-base-100 shadow">
+  <div class="card-body gap-4">
+    <h2 class="card-title text-base">发起兑换</h2>
+    {% csrf_token %}
+    <input type="hidden" name="create" value="1">
+    <div class="grid grid-cols-2 gap-4">
+      <div class="form-control">
+        <label class="label"><span class="label-text">积分数量</span></label>
+        <input type="number" name="credit_amount" class="input input-bordered" min="1" step="1" placeholder="30" required>
+      </div>
+      <div class="form-control">
+        <label class="label"><span class="label-text">项目类型</span></label>
+        <select name="item_type" class="select select-bordered">
+          <option value="meal">餐食</option>
+          <option value="goods">物资</option>
+          <option value="resource_use">资源使用</option>
+          <option value="service">服务</option>
+          <option value="other">其他</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-control">
+      <label class="label"><span class="label-text">标题</span></label>
+      <input type="text" name="title" class="input input-bordered" maxlength="256" placeholder="兑换用途">
+    </div>
+    <div class="card-actions">
+      <button class="btn btn-primary" type="submit">冻结积分发起兑换</button>
+    </div>
+  </div>
+</form>
+
+{# ── order list ──────────────────────────────────────────────── #}
+<div class="card bg-base-100 shadow">
+  <div class="card-body">
+    <h2 class="card-title text-base">我的兑换订单</h2>
+    {% if orders %}
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead><tr><th>订单ID</th><th>标题</th><th>类型</th><th>积分</th><th>状态</th><th>时间</th><th>操作</th></tr></thead>
+          <tbody>
+          {% for order in orders %}
+            <tr>
+              <td class="text-xs font-mono">{{ order.order_id|truncatechars:18 }}</td>
+              <td>{{ order.title|default:"-" }}</td>
+              <td>{{ order.get_item_type_display }}</td>
+              <td class="font-semibold">{{ order.credit_amount }}</td>
+              <td>
+                {% if order.status == "pending" %}<span class="badge badge-warning">待履约</span>
+                {% elif order.status == "fulfilled" %}<span class="badge badge-success">已履约</span>
+                {% elif order.status == "cancelled" %}<span class="badge badge-ghost">已取消</span>
+                {% elif order.status == "disputed" %}<span class="badge badge-error">争议中</span>
+                {% else %}<span class="badge">{{ order.status }}</span>
+                {% endif %}
+              </td>
+              <td class="text-xs">{{ order.created_at|date:"m-d H:i" }}</td>
+              <td>
+                <div class="flex gap-1">
+                  {% if order.status == "pending" or order.status == "disputed" %}
+                    <form method="post" class="inline" onsubmit="return confirm('确定取消该订单？积分将解冻退回。')">
+                      {% csrf_token %}<input type="hidden" name="cancel" value="{{ order.order_id }}">
+                      <button class="btn btn-xs btn-outline btn-error" type="submit">取消</button>
+                    </form>
+                  {% endif %}
+                  {% if order.status == "pending" %}
+                    <form method="post" class="inline" onsubmit="var r=prompt('申诉原因（可选）：'); if(r!==null){this.dispute_reason.value=r;return true;}return false;">
+                      {% csrf_token %}
+                      <input type="hidden" name="dispute" value="{{ order.order_id }}">
+                      <input type="hidden" name="dispute_reason" value="">
+                      <button class="btn btn-xs btn-outline btn-warning" type="submit">申诉</button>
+                    </form>
+                  {% endif %}
+                  {% if order.status == "fulfilled" or order.status == "cancelled" %}
+                    <span class="text-xs text-base-content/40">—</span>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="alert">暂无兑换订单。</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card-actions justify-center">
+  <a class="btn btn-ghost" href="{% world_url 'workspace-page' %}">返回工作台</a>
+</div>
+</main></body></html>

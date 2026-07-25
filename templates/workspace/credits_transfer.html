@@ -1,0 +1,46 @@
+{% load tailwind_tags world_urls %}
+<!doctype html><html lang="zh-Hans" data-theme="bumblebee">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>积分转账</title>{% tailwind_css %}</head>
+<body class="min-h-screen bg-base-200 text-base-content">{% include "partials/runtime_header.html" %}
+<main class="mx-auto grid w-full max-w-xl gap-6 p-4 lg:p-8">
+<h1 class="text-2xl font-bold">积分转账</h1>
+<div class="stats bg-base-100 shadow">
+  <div class="stat"><div class="stat-title">当前积分</div><div class="stat-value text-primary">{{ credit_balance }}</div></div>
+</div>
+
+{% if messages %}<div class="grid gap-2">{% for msg in messages %}<div class="alert alert-{{ msg.tags|default:'info' }}">{{ msg }}</div>{% endfor %}</div>{% endif %}
+
+<form method="post" class="card bg-base-100 shadow" action="">
+  <div class="card-body gap-4">
+    {% csrf_token %}
+    <div class="form-control">
+      <label class="label"><span class="label-text">收款成员编号</span></label>
+      <input type="text" name="to_member_no" class="input input-bordered" placeholder="mem-0002" required>
+    </div>
+    <div class="form-control">
+      <label class="label"><span class="label-text">积分数量</span></label>
+      <input type="number" name="amount" class="input input-bordered" min="1" step="1" placeholder="10" required>
+    </div>
+    <div class="form-control">
+      <label class="label"><span class="label-text">备注（可选）</span></label>
+      <input type="text" name="reason" class="input input-bordered" maxlength="256" placeholder="可选的备注说明">
+    </div>
+    <div class="card-actions">
+      <button class="btn btn-primary" type="submit">确认转账</button>
+      <a class="btn btn-ghost" href="{% world_url 'workspace-page' %}">返回工作台</a>
+    </div>
+  </div>
+</form>
+
+<div class="card bg-base-100 shadow">
+  <div class="card-body">
+    <h2 class="card-title text-base">转账规则</h2>
+    <ul class="list-disc list-inside text-sm text-base-content/70 space-y-1">
+      <li>只能从自己账户转出，不能代别人转出。</li>
+      <li>当前积分余额必须为正数，且转账后余额不能小于 0。</li>
+      <li>积分转账不改变历史贡献积分。</li>
+      <li>转账不可撤销，请在确认前核对收款成员。</li>
+    </ul>
+  </div>
+</div>
+</main></body></html>

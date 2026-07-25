@@ -778,6 +778,10 @@ def create_redemption_order(
     if credit_amount <= 0:
         raise DomainError("兑换积分数量必须为正数。")
 
+    valid_types = {v for v, _ in RedemptionOrder.ItemType.choices}
+    if item_type not in valid_types:
+        raise DomainError(f"无效的兑换项目类型: {item_type}。")
+
     if merchant is not None:
         if merchant.merchant_type == MerchantProfile.Type.MEMBER_MICRO:
             raise DomainError(

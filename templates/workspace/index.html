@@ -30,6 +30,8 @@
               <a class="btn btn-sm" href="{% world_url 'workspace-recruitment' %}">招募方向</a>
             {% endif %}
             <a class="btn btn-sm" href="{% world_url 'workspace-finance-list' %}">财务 / 报销</a>
+            <a class="btn btn-sm" href="{% world_url 'workspace-credits-transfer' %}">积分转账</a>
+            <a class="btn btn-sm" href="{% world_url 'workspace-credits-redemption' %}">兑换订单</a>
             {% if is_governance %}
               <a class="btn btn-sm" href="{% world_url 'workspace-inventory' %}">资源库存</a>
             {% endif %}
@@ -106,6 +108,16 @@
         <div class="stat-title">当前积分</div>
         <div class="stat-value">{{ credit_balance }}</div>
         <div class="stat-desc">积分下限 {{ member.credit_floor }}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">可用积分</div>
+        <div class="stat-value text-success">{{ available_credit_balance }}</div>
+        <div class="stat-desc">可消费/转账/兑换</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">历史贡献</div>
+        <div class="stat-value text-info">{{ lifetime_contribution }}</div>
+        <div class="stat-desc">累计任务奖励</div>
       </div>
       <div class="stat">
         <div class="stat-title">可领取任务</div>
