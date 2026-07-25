@@ -47,8 +47,17 @@ class BusinessEventLedgerTests(TestCase):
         }
 
     def test_task_lifecycle_actions_append_system_events(self) -> None:
+        from core.credit_services import ensure_system_accounts, issue_credits_to_pool, lock_task_credit_budget
+
         task = create_task_draft(**self.task_defaults())
         self.assertEqual(task.source_type, Task.SourceType.DIRECT)
+
+        # Set up credit budget for publishing
+        ensure_system_accounts()
+        issue_credits_to_pool(
+            amount=200, reason="test", initiated_by=self.worker, reviewed_by=self.worker,
+        )
+        lock_task_credit_budget(task=task, amount=100, reason="test lock")
         publish_task(task=task, publisher=self.operator_ref)
         task.refresh_from_db()
         assign_task(task=task, member=self.worker, operator=self.operator_ref)

@@ -144,6 +144,19 @@ class Command(BaseCommand):
         if submitted["status"] != Task.Status.PENDING_REVIEW:
             raise CommandError(f"提交劳动后状态异常：{submitted['status']}")
 
+        # Issue and lock budget so the task reward can flow
+        task_obj = Task.objects.get(task_id=task_id)
+        from core.credit_services import ensure_system_accounts, issue_credits_to_pool, lock_task_credit_budget
+        ensure_system_accounts()
+        issue_credits_to_pool(
+            amount=200, reason="smoke workflow budget",
+            initiated_by=reviewer, reviewed_by=reviewer,
+        )
+        lock_task_credit_budget(
+            task=task_obj, amount=100,
+            reason="smoke workflow lock",
+        )
+
         client.force_login(reviewer_user)
         reviewed = self.post_json(
             client,

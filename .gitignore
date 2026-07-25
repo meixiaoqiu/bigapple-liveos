@@ -22,3 +22,4 @@ var/
 .DS_Store
 .idea/
 .vscode/
+.scratch/

@@ -2,12 +2,18 @@
 
 from django.urls import path
 
-from . import capacity, disputes, events, ledger, members, resources, tasks
+from . import capacity, disputes, events, ledger, members, merchants, redemption_orders, resources, tasks
 
 
 urlpatterns = [
     path("members/<str:member_no>", members.get_member, name="get-member"),
     path("members/<str:member_no>/workspace", members.get_workspace_summary, name="get-workspace-summary"),
+    path("members/<str:member_no>/credit-transfers", members.post_credit_transfer, name="post-credit-transfer"),
+    path("members/<str:member_no>/redemption-orders", redemption_orders.list_create_redemption_orders, name="list-create-redemption-orders"),
+    path("redemption-orders/<str:order_id>/cancel", redemption_orders.cancel_redemption_order_view, name="cancel-redemption-order"),
+    path("redemption-orders/<str:order_id>/dispute", redemption_orders.dispute_redemption_order_view, name="dispute-redemption-order"),
+    path("redemption-orders/<str:order_id>/fulfill", redemption_orders.fulfill_redemption_order_view, name="fulfill-redemption-order"),
+    path("merchant-settlements", merchants.list_settlements, name="list-merchant-settlements"),
     path("tasks", tasks.list_tasks, name="list-tasks"),
     path("tasks/<str:task_id>/claim", tasks.claim_task_view, name="claim-task"),
     path("tasks/<str:task_id>/submit-labor", tasks.submit_labor_view, name="submit-labor"),

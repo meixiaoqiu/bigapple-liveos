@@ -84,13 +84,32 @@ def create_task_draft(
 
 @atomic_for_model(Task)
 def publish_task(*, task: Task, publisher: dict) -> Task:
-    """Open a draft task so members can claim it."""
+    """Open a draft task so members can claim it.
+
+    When *base_points* > 0, the task must have at least one locked
+    budget entry (via ``lock_task_credit_budget``) before publishing.
+    This prevents publishing reward-bearing tasks with no budget.
+    """
 
     task = Task.objects.select_for_update().get(task_id=task.task_id)
     if task.status != Task.Status.DRAFT:
         raise DomainError("只有草稿任务可以发布。")
     if task.assignee_member_id:
         raise DomainError("已分配成员的任务不能发布为开放领取。")
+
+    # Require locked budget when the task awards points
+    if task.base_points > 0:
+        from decimal import Decimal
+        from core.credit_services import task_locked_credit_balance
+
+        reward = int((Decimal(task.base_points) * task.role_coefficient).to_integral_value())
+        locked = task_locked_credit_balance(task)
+        if locked < reward:
+            raise DomainError(
+                f"该任务需要积分奖励（{reward} 分），但已锁定预算仅 {locked} 分；"
+                "请先为任务锁定足够积分预算后再发布。"
+            )
+
     previous_status = task.status
     now = timezone.now()
     task.status = Task.Status.OPEN

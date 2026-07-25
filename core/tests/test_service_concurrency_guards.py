@@ -6,7 +6,18 @@ from django.test import TestCase
 from django.utils import timezone
 
 from core.member_roles import ROLE_CONTRIBUTOR
-from core.models import Event, LedgerEntry, Member, Resource, ResourceTransaction, SystemEvent, Task
+from core.credit_services import ensure_system_accounts, post_credit_transaction
+from core.models import (
+    CreditAccount,
+    CreditTransaction,
+    Event,
+    LedgerEntry,
+    Member,
+    Resource,
+    ResourceTransaction,
+    SystemEvent,
+    Task,
+)
 from core.exceptions import DomainError
 from core.resource_services import record_resource_adjustment
 from core.service_utils import actor_ref
@@ -48,6 +59,14 @@ class ServiceConcurrencyGuardTests(TestCase):
             credit_floor=-500,
             profile={"display_name": "开荒队治理成员"},
             created_at=now,
+        )
+        # Fund the issuance pool so task rewards can flow through
+        ensure_system_accounts()
+        pool = CreditAccount.objects.get(account_type=CreditAccount.Type.ISSUANCE_POOL)
+        post_credit_transaction(
+            transaction_type=CreditTransaction.Type.ISSUANCE,
+            amount=2000,
+            target_account=pool,
         )
 
     def create_task(self, *, task_id: str, status: str = Task.Status.OPEN, assignee: Member | None = None) -> Task:
@@ -148,6 +167,11 @@ class ServiceConcurrencyGuardTests(TestCase):
             status=Task.Status.PENDING_REVIEW,
             assignee=self.other_member,
         )
+
+        # Lock budget so task rewards can flow through normal path
+        from core.credit_services import lock_task_credit_budget
+        lock_task_credit_budget(task=first_task, amount=200, reason="test budget 1")
+        lock_task_credit_budget(task=second_task, amount=200, reason="test budget 2")
 
         _first_reviewed_task, first_entries = review_task(
             task=first_task,

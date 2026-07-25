@@ -6,6 +6,8 @@ from .credentials import CredentialGrant, CredentialTemplate
 from .identity import Member, MemberPublicProfile, Organization, Permission, Role, RoleAssignment, RolePermission
 from .proposals import Proposal, ProposalExecution, ProposalVote
 from .approval_workflow import ApprovalProposal, ApprovalDecision
+from .credits import CreditAccount, CreditTransaction, RedemptionOrder
+from .merchants import MerchantProfile, MerchantSettlementRecord
 from .procurement_challenges import ProcurementChallenge
 from .risks import RiskRule, RiskAlert
 from .planning import (
@@ -80,4 +82,9 @@ __all__ = [
     "ExpenseClaim",
     "FinanceReview",
     "FinanceTransaction",
+    "CreditAccount",
+    "CreditTransaction",
+    "RedemptionOrder",
+    "MerchantProfile",
+    "MerchantSettlementRecord",
 ]

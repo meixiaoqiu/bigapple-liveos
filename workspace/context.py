@@ -159,12 +159,15 @@ def workspace_context(member_no: str) -> dict[str, Any]:
         row["status"]: row["count"]
         for row in visible_tasks.values("status").annotate(count=Count("task_id")).order_by("status")
     }
-    credit_balance = (
-        LedgerEntry.objects.filter(member=member, status=LedgerEntry.Status.POSTED).aggregate(total=Sum("amount"))[
-            "total"
-        ]
-        or 0
+    from core.credit_services import (
+        member_available_credit_balance,
+        member_credit_balance,
+        member_lifetime_contribution,
     )
+
+    credit_balance = member_credit_balance(member)
+    available_credit_balance = member_available_credit_balance(member)
+    lifetime_contribution = member_lifetime_contribution(member)
 
     recent_events = []
     for event in Event.objects.order_by("-occurred_at", "event_id")[:50]:
@@ -184,6 +187,8 @@ def workspace_context(member_no: str) -> dict[str, Any]:
         "is_governance": is_governance_principal(member),
         "is_finance": is_finance_reviewer(member),
         "credit_balance": credit_balance,
+        "available_credit_balance": available_credit_balance,
+        "lifetime_contribution": lifetime_contribution,
         "available_tasks": available_tasks,
         "active_tasks": active_tasks,
         "task_history": task_history,

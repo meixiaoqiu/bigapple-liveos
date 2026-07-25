@@ -7,6 +7,7 @@ from decimal import Decimal
 from django.test import Client, TestCase
 from django.utils import timezone
 
+from core.credit_services import ensure_system_accounts, issue_credits_to_pool, lock_task_credit_budget
 from core.member_roles import ROLE_CONTRIBUTOR
 from core.models import CapacityAssessment, Dispute, Event, LedgerEntry, Member, Resource, Task
 from core.tests.helpers import create_governance_admin_member, create_member, login_as_member
@@ -67,6 +68,17 @@ class ApiWorkflowTests(TestCase):
             due_at=now + timedelta(hours=4),
             metadata={"simulation_day": 1},
         )
+        # Step 2 budget: issue + lock so review_task can reward
+        ensure_system_accounts()
+        issue_credits_to_pool(
+            amount=200, reason="API workflow test budget",
+            initiated_by=self.reviewer, reviewed_by=self.reviewer,
+        )
+        lock_task_credit_budget(
+            task=self.task, amount=200,
+            reason="API workflow test lock",
+        )
+
         CapacityAssessment.objects.create(
             assessment_id="capacity-0001",
             simulation_day=7,
@@ -496,6 +508,24 @@ class ApiWorkflowTests(TestCase):
             created_by=actor(),
             status=LedgerEntry.Status.POSTED,
         )
+        # Create matching CreditTransaction for the member credit balance query
+        from core.credit_services import (
+            ensure_system_accounts, get_or_create_member_credit_account,
+            issue_credits_to_pool, lock_task_credit_budget,
+            post_task_reward_credit_transaction,
+        )
+        from core.models import LedgerEntry as _LE
+        ensure_system_accounts()
+        get_or_create_member_credit_account(self.member)
+        issue_credits_to_pool(
+            amount=100, reason="test", initiated_by=self.reviewer, reviewed_by=self.reviewer,
+        )
+        lock_task_credit_budget(task=self.task, amount=20, reason="workspace test")
+        le = _LE.objects.get(ledger_entry_id="ledger-0001")
+        post_task_reward_credit_transaction(
+            task=self.task, member=self.member, amount=10, ledger_entry=le,
+            reviewed_by=self.reviewer,
+        )
         Dispute.objects.create(
             dispute_id="dispute-0001",
             dispute_type=Dispute.DisputeType.TASK_REVIEW,
@@ -519,6 +549,8 @@ class ApiWorkflowTests(TestCase):
         self.assertEqual(payload["simulation_day"], 7)
         self.assertEqual(payload["member"]["member_no"], self.member.member_no)
         self.assertEqual(payload["credit_balance"], 10)
+        self.assertEqual(payload["available_credit_balance"], 10)
+        self.assertEqual(payload["lifetime_contribution"], 10)
         self.assertEqual(payload["available_tasks"][0]["task_id"], "task-0002")
         self.assertEqual(payload["active_tasks"][0]["task_id"], self.task.task_id)
         self.assertEqual(payload["task_history"][0]["task_id"], history_task.task_id)
@@ -537,3 +569,543 @@ class ApiWorkflowTests(TestCase):
         self.assertIn("claim_task", payload["next_actions"])
         self.assertIn("review_dispute", payload["next_actions"])
         self.assertIn("check_resource_warning", payload["next_actions"])
+
+
+class CreditTransferApiTests(TestCase):
+    """POST /api/v0.1/members/<no>/credit-transfers"""
+
+    api_base = "/api/v0.1"
+
+    def setUp(self):
+        from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account
+        ensure_system_accounts()
+        self.member_a = create_member("transfer-api-a")
+        self.member_b = create_member("transfer-api-b")
+        get_or_create_member_credit_account(self.member_a)
+        get_or_create_member_credit_account(self.member_b)
+        # Give A some credits
+        from core.credit_services import post_credit_transaction
+        from core.models import CreditAccount, CreditTransaction
+        issuance = CreditAccount.objects.get(account_type=CreditAccount.Type.ISSUANCE_POOL)
+        a_acct = get_or_create_member_credit_account(self.member_a)
+        post_credit_transaction(
+            transaction_type=CreditTransaction.Type.ISSUANCE,
+            amount=200, target_account=a_acct,
+        )
+
+    def post_json(self, path: str, payload: dict) -> tuple[int, dict]:
+        response = self.client.post(
+            path, data=json.dumps(payload), content_type="application/json",
+        )
+        return response.status_code, response.json()
+
+    def api(self, path: str) -> str:
+        return f"{self.api_base}{path}"
+
+    def test_transfer_succeeds(self):
+        login_as_member(self.client, self.member_a)
+        resp = self.client.post(
+            self.api(f"/members/{self.member_a.member_no}/credit-transfers"),
+            {"to_member_no": self.member_b.member_no, "amount": 50, "reason": "test"},
+            content_type="application/json",
+        )
+        self.assertIn(resp.status_code, [200, 201])
+        data = resp.json()
+        self.assertEqual(data["amount"], 50)
+        self.assertEqual(data["from_member_no"], self.member_a.member_no)
+        self.assertEqual(data["to_member_no"], self.member_b.member_no)
+
+    def test_cannot_transfer_as_other_member(self):
+        login_as_member(self.client, self.member_b)
+        resp = self.client.post(
+            self.api(f"/members/{self.member_a.member_no}/credit-transfers"),
+            {"to_member_no": self.member_b.member_no, "amount": 50},
+            content_type="application/json",
+        )
+        self.assertNotEqual(resp.status_code, 201)
+
+    def test_balance_zero_blocks_transfer(self):
+        from core.credit_services import member_credit_balance
+        self.assertEqual(member_credit_balance(self.member_b), 0)
+        login_as_member(self.client, self.member_b)
+        resp = self.client.post(
+            self.api(f"/members/{self.member_b.member_no}/credit-transfers"),
+            {"to_member_no": self.member_a.member_no, "amount": 10},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_insufficient_balance_blocks_transfer(self):
+        login_as_member(self.client, self.member_a)
+        resp = self.client.post(
+            self.api(f"/members/{self.member_a.member_no}/credit-transfers"),
+            {"to_member_no": self.member_b.member_no, "amount": 9999},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_lifetime_not_changed_by_transfer(self):
+        from core.credit_services import member_lifetime_contribution
+        login_as_member(self.client, self.member_a)
+        self.client.post(
+            self.api(f"/members/{self.member_a.member_no}/credit-transfers"),
+            {"to_member_no": self.member_b.member_no, "amount": 30},
+            content_type="application/json",
+        )
+        self.assertEqual(member_lifetime_contribution(self.member_a), 0)
+        self.assertEqual(member_lifetime_contribution(self.member_b), 0)
+
+    def test_reason_can_be_empty(self):
+        login_as_member(self.client, self.member_a)
+        resp = self.client.post(
+            self.api(f"/members/{self.member_a.member_no}/credit-transfers"),
+            {"to_member_no": self.member_b.member_no, "amount": 10},
+            content_type="application/json",
+        )
+        self.assertIn(resp.status_code, [200, 201])
+
+    def test_idempotency_key_duplicate_returns_same_txn(self):
+        login_as_member(self.client, self.member_a)
+        body = {"to_member_no": self.member_b.member_no, "amount": 15, "idempotency_key": "api-idem-1"}
+        r1 = self.client.post(
+            self.api(f"/members/{self.member_a.member_no}/credit-transfers"),
+            body, content_type="application/json",
+        )
+        r2 = self.client.post(
+            self.api(f"/members/{self.member_a.member_no}/credit-transfers"),
+            body, content_type="application/json",
+        )
+        self.assertEqual(r1.json()["transaction_id"], r2.json()["transaction_id"])
+
+    def test_idempotency_key_different_amount_errors(self):
+        login_as_member(self.client, self.member_a)
+        key = "api-diff-amount"
+        self.client.post(
+            self.api(f"/members/{self.member_a.member_no}/credit-transfers"),
+            {"to_member_no": self.member_b.member_no, "amount": 10, "idempotency_key": key},
+            content_type="application/json",
+        )
+        resp = self.client.post(
+            self.api(f"/members/{self.member_a.member_no}/credit-transfers"),
+            {"to_member_no": self.member_b.member_no, "amount": 20, "idempotency_key": key},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_governance_cannot_transfer_as_other_member(self):
+        """治理成员不能通过成员转账 API 代别人转出。"""
+        from core.tests.helpers import create_governance_admin_member
+        gov = create_governance_admin_member("gov-transfer-hack")
+        login_as_member(self.client, gov)
+        bal_before_a = self._balance(self.member_a)
+        bal_before_b = self._balance(self.member_b)
+        resp = self.client.post(
+            self.api(f"/members/{self.member_a.member_no}/credit-transfers"),
+            {"to_member_no": self.member_b.member_no, "amount": 10},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(self._balance(self.member_a), bal_before_a)
+        self.assertEqual(self._balance(self.member_b), bal_before_b)
+
+    def _balance(self, member):
+        from core.credit_services import member_credit_balance
+        return member_credit_balance(member)
+
+    def test_to_member_no_required(self):
+        login_as_member(self.client, self.member_a)
+        resp = self.client.post(
+            self.api(f"/members/{self.member_a.member_no}/credit-transfers"),
+            {"amount": 10},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_body_not_object_returns_400(self):
+        login_as_member(self.client, self.member_a)
+        resp = self.client.post(
+            self.api(f"/members/{self.member_a.member_no}/credit-transfers"),
+            data=json.dumps([1, 2, 3]),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_to_member_no_null_returns_400(self):
+        login_as_member(self.client, self.member_a)
+        resp = self.client.post(
+            self.api(f"/members/{self.member_a.member_no}/credit-transfers"),
+            {"to_member_no": None, "amount": 10},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_amount_float_returns_400(self):
+        login_as_member(self.client, self.member_a)
+        resp = self.client.post(
+            self.api(f"/members/{self.member_a.member_no}/credit-transfers"),
+            {"to_member_no": self.member_b.member_no, "amount": 1.5},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_amount_bool_returns_400(self):
+        login_as_member(self.client, self.member_a)
+        for val in (True, False):
+            resp = self.client.post(
+                self.api(f"/members/{self.member_a.member_no}/credit-transfers"),
+                {"to_member_no": self.member_b.member_no, "amount": val},
+                content_type="application/json",
+            )
+            self.assertEqual(resp.status_code, 400, f"amount={val} should be rejected")
+
+    def test_idempotency_key_int_returns_400(self):
+        login_as_member(self.client, self.member_a)
+        resp = self.client.post(
+            self.api(f"/members/{self.member_a.member_no}/credit-transfers"),
+            {"to_member_no": self.member_b.member_no, "amount": 10, "idempotency_key": 123},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+
+
+class RedemptionOrderApiTests(TestCase):
+    api_base = "/api/v0.1"
+
+    def setUp(self):
+        from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account
+        ensure_system_accounts()
+        self.member = create_member("ro-api-member")
+        self.governor = create_governance_admin_member("gov-ro-api")
+        get_or_create_member_credit_account(self.member)
+        # Give member enough credits
+        from core.models import CreditAccount, CreditTransaction
+        issuance = CreditAccount.objects.get(account_type=CreditAccount.Type.ISSUANCE_POOL)
+        acct = get_or_create_member_credit_account(self.member)
+        from core.credit_services import post_credit_transaction
+        post_credit_transaction(
+            transaction_type=CreditTransaction.Type.ISSUANCE,
+            amount=200, target_account=acct,
+        )
+
+    def api(self, path):
+        return f"{self.api_base}{path}"
+
+    def test_create_order_freezes_credits(self):
+        from core.credit_services import credit_balance
+        from core.models import CreditAccount
+        login_as_member(self.client, self.member)
+        frozen = CreditAccount.objects.get(account_type=CreditAccount.Type.FROZEN)
+        bal_before = credit_balance(frozen)
+        resp = self.client.post(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            {"credit_amount": 30, "item_type": "meal", "title": "lunch"},
+            content_type="application/json",
+        )
+        self.assertIn(resp.status_code, [200, 201])
+        data = resp.json()
+        self.assertEqual(data["status"], "pending")
+        self.assertEqual(data["credit_amount"], 30)
+        self.assertEqual(credit_balance(frozen), bal_before + 30)
+
+    def test_create_order_balance_zero_blocks(self):
+        zero_member = create_member("ro-api-zero")
+        from core.credit_services import get_or_create_member_credit_account
+        get_or_create_member_credit_account(zero_member)
+        login_as_member(self.client, zero_member)
+        resp = self.client.post(
+            self.api(f"/members/{zero_member.member_no}/redemption-orders"),
+            {"credit_amount": 10, "item_type": "meal", "title": "x"},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_create_idempotent(self):
+        login_as_member(self.client, self.member)
+        body = {"credit_amount": 20, "item_type": "meal", "title": "test", "idempotency_key": "ro-api-idem-1"}
+        r1 = self.client.post(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            body, content_type="application/json",
+        )
+        r2 = self.client.post(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            body, content_type="application/json",
+        )
+        self.assertEqual(r1.json()["order_id"], r2.json()["order_id"])
+
+    def test_create_different_item_type_errors(self):
+        login_as_member(self.client, self.member)
+        key = "ro-api-diff-type"
+        self.client.post(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            {"credit_amount": 10, "item_type": "meal", "title": "x", "idempotency_key": key},
+            content_type="application/json",
+        )
+        resp = self.client.post(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            {"credit_amount": 10, "item_type": "goods", "title": "x", "idempotency_key": key},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_cannot_create_as_other_member(self):
+        other = create_member("ro-api-other")
+        login_as_member(self.client, other)
+        resp = self.client.post(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            {"credit_amount": 10, "item_type": "meal", "title": "x"},
+            content_type="application/json",
+        )
+        self.assertNotEqual(resp.status_code, 201)
+
+    def test_cancel_unfreezes_credits(self):
+        from core.credit_services import credit_balance
+        from core.models import CreditAccount
+        login_as_member(self.client, self.member)
+        r = self.client.post(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            {"credit_amount": 30, "item_type": "meal", "title": "cancel test"},
+            content_type="application/json",
+        )
+        order_id = r.json()["order_id"]
+        frozen_acct = CreditAccount.objects.get(account_type=CreditAccount.Type.FROZEN)
+        froz_before = credit_balance(frozen_acct)
+        cancel_resp = self.client.post(
+            self.api(f"/redemption-orders/{order_id}/cancel"),
+            {"reason": "changed mind"}, content_type="application/json",
+        )
+        self.assertIn(cancel_resp.status_code, [200, 201])
+        self.assertEqual(cancel_resp.json()["status"], "cancelled")
+        self.assertEqual(credit_balance(frozen_acct), froz_before - 30)
+
+    def test_cannot_cancel_fulfilled(self):
+        from core.credit_services import fulfill_redemption_order
+        from core.models import RedemptionOrder
+        login_as_member(self.client, self.member)
+        r = self.client.post(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            {"credit_amount": 10, "item_type": "meal", "title": "x"},
+            content_type="application/json",
+        )
+        order_id = r.json()["order_id"]
+        order = RedemptionOrder.objects.get(order_id=order_id)
+        fulfill_redemption_order(order=order, reason="test")
+        resp = self.client.post(
+            self.api(f"/redemption-orders/{order_id}/cancel"), {},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_dispute_does_not_change_balance(self):
+        from core.credit_services import credit_balance
+        from core.models import CreditAccount
+        login_as_member(self.client, self.member)
+        r = self.client.post(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            {"credit_amount": 10, "item_type": "meal", "title": "dispute test"},
+            content_type="application/json",
+        )
+        order_id = r.json()["order_id"]
+        frozen = CreditAccount.objects.get(account_type=CreditAccount.Type.FROZEN)
+        froz_before = credit_balance(frozen)
+        resp = self.client.post(
+            self.api(f"/redemption-orders/{order_id}/dispute"),
+            {"reason": "wrong item"}, content_type="application/json",
+        )
+        self.assertIn(resp.status_code, [200, 201])
+        self.assertEqual(resp.json()["status"], "disputed")
+        self.assertEqual(credit_balance(frozen), froz_before)
+
+    def test_governance_can_fulfill(self):
+        from core.models import RedemptionOrder, CreditAccount
+        from core.credit_services import credit_balance
+        login_as_member(self.client, self.member)
+        r = self.client.post(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            {"credit_amount": 10, "item_type": "meal", "title": "fulfill test"},
+            content_type="application/json",
+        )
+        order_id = r.json()["order_id"]
+        login_as_member(self.client, self.governor)
+        burn_before = credit_balance(CreditAccount.objects.get(account_type=CreditAccount.Type.BURN))
+        resp = self.client.post(
+            self.api(f"/redemption-orders/{order_id}/fulfill"),
+            {"reason": "done"}, content_type="application/json",
+        )
+        self.assertIn(resp.status_code, [200, 201])
+        self.assertEqual(resp.json()["status"], "fulfilled")
+        self.assertGreater(credit_balance(CreditAccount.objects.get(account_type=CreditAccount.Type.BURN)), burn_before)
+
+    def test_non_governance_cannot_fulfill(self):
+        login_as_member(self.client, self.member)
+        r = self.client.post(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            {"credit_amount": 10, "item_type": "meal", "title": "x"},
+            content_type="application/json",
+        )
+        order_id = r.json()["order_id"]
+        resp = self.client.post(
+            self.api(f"/redemption-orders/{order_id}/fulfill"),
+            {"reason": "hack"}, content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_list_returns_my_orders(self):
+        login_as_member(self.client, self.member)
+        self.client.post(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            {"credit_amount": 5, "item_type": "meal", "title": "test"},
+            content_type="application/json",
+        )
+        resp = self.client.get(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertGreater(len(resp.json()["orders"]), 0)
+
+    def test_put_method_not_allowed(self):
+        login_as_member(self.client, self.member)
+        resp = self.client.put(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            {}, content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 405)
+
+    def test_strict_validation_rejects_float_amount(self):
+        login_as_member(self.client, self.member)
+        resp = self.client.post(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            {"credit_amount": 1.5, "item_type": "meal"},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_create_idem_different_resource_id_errors(self):
+        login_as_member(self.client, self.member)
+        key = "ro-api-diff-res"
+        self.client.post(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            {"credit_amount": 5, "item_type": "meal", "resource_id": "res-a", "idempotency_key": key},
+            content_type="application/json",
+        )
+        resp = self.client.post(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            {"credit_amount": 5, "item_type": "meal", "resource_id": "res-b", "idempotency_key": key},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_create_idem_different_snapshot_errors(self):
+        login_as_member(self.client, self.member)
+        key = "ro-api-diff-snap"
+        self.client.post(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            {"credit_amount": 5, "item_type": "meal", "item_snapshot": {"v": 1}, "idempotency_key": key},
+            content_type="application/json",
+        )
+        resp = self.client.post(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            {"credit_amount": 5, "item_type": "meal", "item_snapshot": {"v": 2}, "idempotency_key": key},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_create_idem_different_finance_ref_errors(self):
+        login_as_member(self.client, self.member)
+        key = "ro-api-diff-fref"
+        self.client.post(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            {"credit_amount": 5, "item_type": "meal", "finance_treatment_ref": "F1", "idempotency_key": key},
+            content_type="application/json",
+        )
+        resp = self.client.post(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            {"credit_amount": 5, "item_type": "meal", "finance_treatment_ref": "F2", "idempotency_key": key},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_micro_merchant_redemption_blocked_api(self):
+        """API: member_micro_merchant 的 merchant_id 创建 RedemptionOrder 返回 400。"""
+        from core.models import MerchantProfile
+        MerchantProfile.objects.create(
+            merchant_id="mch-micro-api", display_name="MicroAPITest",
+            merchant_type=MerchantProfile.Type.MEMBER_MICRO,
+            operator_member=create_member("mch-micro-op"),
+        )
+        login_as_member(self.client, self.member)
+        resp = self.client.post(
+            self.api(f"/members/{self.member.member_no}/redemption-orders"),
+            {"credit_amount": 10, "item_type": "meal", "merchant_id": "mch-micro-api"},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 400)
+
+
+from core.models import MerchantProfile
+from core.credit_services import create_redemption_order, fulfill_redemption_order
+
+
+class MerchantSettlementApiTests(TestCase):
+    api_base = "/api/v0.1"
+
+    def setUp(self):
+        from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account
+        ensure_system_accounts()
+        self.governor = create_governance_admin_member("gov-settle-api")
+        self.operator = create_member("settle-op-api")
+        self.unrelated = create_member("settle-unrel-api")
+        acct = get_or_create_member_credit_account(self.operator)
+        from core.credit_services import post_credit_transaction
+        from core.models import CreditAccount, CreditTransaction
+        pool = CreditAccount.objects.get(account_type=CreditAccount.Type.ISSUANCE_POOL)
+        post_credit_transaction(transaction_type=CreditTransaction.Type.ISSUANCE,
+                               amount=500, target_account=pool)
+        post_credit_transaction(transaction_type=CreditTransaction.Type.ISSUANCE,
+                               amount=200, target_account=acct)
+
+        self.merchant = MerchantProfile.objects.create(
+            merchant_id="mch-settle-test", display_name="食堂S",
+            merchant_type=MerchantProfile.Type.CASH_SETTLEMENT,
+            operator_member=self.operator, settlement_rate=0.5,
+        )
+        order, _ = create_redemption_order(
+            member=self.operator, credit_amount=40, merchant=self.merchant,
+        )
+        fulfill_redemption_order(order=order, reviewed_by=self.governor)
+
+    def api(self, path):
+        return f"{self.api_base}{path}"
+
+    def test_governance_sees_all(self):
+        login_as_member(self.client, self.governor)
+        resp = self.client.get(self.api("/merchant-settlements"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertGreater(len(resp.json()["settlements"]), 0)
+
+    def test_operator_sees_own(self):
+        login_as_member(self.client, self.operator)
+        resp = self.client.get(self.api("/merchant-settlements"))
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertGreater(len(data["settlements"]), 0)
+        self.assertEqual(data["settlements"][0]["merchant_id"], "mch-settle-test")
+
+    def test_unrelated_sees_nothing(self):
+        login_as_member(self.client, self.unrelated)
+        resp = self.client.get(self.api("/merchant-settlements"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.json()["settlements"]), 0)
+
+    def test_filter_by_merchant_id(self):
+        login_as_member(self.client, self.governor)
+        resp = self.client.get(self.api("/merchant-settlements?merchant_id=mch-settle-test"))
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertGreater(len(data["settlements"]), 0)
+        self.assertEqual(data["settlements"][0]["merchant_id"], "mch-settle-test")
+
+    def test_governance_does_not_see_unrelated_on_filter(self):
+        login_as_member(self.client, self.unrelated)
+        resp = self.client.get(self.api("/merchant-settlements?merchant_id=mch-settle-test"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.json()["settlements"]), 0)

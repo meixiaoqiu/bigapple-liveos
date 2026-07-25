@@ -15,8 +15,25 @@ from core.models import Event, LedgerEntry, SystemEvent, Task
 
 
 @atomic_for_model(Task)
-def review_task(*, task: Task, reviewer: dict, accepted: bool, reason: str) -> tuple[Task, list[LedgerEntry]]:
-    """Review submitted labor and optionally create an append-only ledger entry."""
+def review_task(
+    *,
+    task: Task,
+    reviewer: dict,
+    accepted: bool,
+    reason: str,
+    allow_unbudgeted_genesis: bool = False,
+) -> tuple[Task, list[LedgerEntry]]:
+    """Review submitted labor and optionally create an append-only ledger entry.
+
+    When *accepted* is ``True`` this also posts an authoritative
+    ``CreditTransaction`` (task_reward) alongside the member-facing
+    ``LedgerEntry`` projection.
+
+    By default the issuance pool must have sufficient balance.  Set
+    ``allow_unbudgeted_genesis=True`` to bypass the check (used only
+    for bootstrap / genesis scenarios where no issuance has occurred
+    yet).  Genesis rewards are tagged in CreditTransaction.metadata.
+    """
 
     task = Task.objects.select_for_update().select_related("assignee_member").get(task_id=task.task_id)
     if task.status != Task.Status.PENDING_REVIEW:
@@ -43,11 +60,12 @@ def review_task(*, task: Task, reviewer: dict, accepted: bool, reason: str) -> t
     task.reviewed_at = now
     task.metadata = {**task.metadata, "review_reason": reason}
     task.save(update_fields=["status", "reviewed_at", "metadata"])
+    reviewer_member = actor_member_from_ref(reviewer)
     append_event(
         event_type=SystemEvent.EventType.TASK_REVIEWED,
         aggregate_type="Task",
         aggregate_id=task.pk,
-        actor_member=actor_member_from_ref(reviewer),
+        actor_member=reviewer_member,
         payload_json=task_event_payload(
             task,
             action="review",
@@ -60,6 +78,12 @@ def review_task(*, task: Task, reviewer: dict, accepted: bool, reason: str) -> t
 
     entries: list[LedgerEntry] = []
     if accepted:
+        from core.credit_services import (
+            ensure_system_accounts,
+            get_or_create_member_credit_account,
+            post_task_reward_credit_transaction,
+        )
+
         amount = int((Decimal(task.base_points) * task.role_coefficient).to_integral_value())
         event = Event.objects.create(
             event_id=event_id,
@@ -90,5 +114,18 @@ def review_task(*, task: Task, reviewer: dict, accepted: bool, reason: str) -> t
             status=LedgerEntry.Status.POSTED,
         )
         entries.append(entry)
+
+        # ── authoritative double-entry record ──
+        ensure_system_accounts()
+        get_or_create_member_credit_account(task.assignee_member)
+        post_task_reward_credit_transaction(
+            task=task,
+            member=task.assignee_member,
+            amount=amount,
+            ledger_entry=entry,
+            reviewed_by=reviewer_member,
+            reason=reason,
+            allow_unbudgeted_genesis=allow_unbudgeted_genesis,
+        )
 
     return task, entries
