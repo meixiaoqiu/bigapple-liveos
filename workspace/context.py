@@ -22,6 +22,7 @@ from core.models import (
     LedgerEntry,
     Member,
     MemberApplication,
+    MerchantProfile,
     Proposal,
     ProposalVote,
     Resource,
@@ -186,6 +187,10 @@ def workspace_context(member_no: str) -> dict[str, Any]:
         "member": member,
         "is_governance": is_governance_principal(member),
         "is_finance": is_finance_reviewer(member),
+        "is_merchant_operator": MerchantProfile.objects.filter(
+            operator_member=member,
+            merchant_type=MerchantProfile.Type.CASH_SETTLEMENT,
+        ).exists(),
         "credit_balance": credit_balance,
         "available_credit_balance": available_credit_balance,
         "lifetime_contribution": lifetime_contribution,

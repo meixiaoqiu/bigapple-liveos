@@ -1,0 +1,87 @@
+{% load tailwind_tags world_urls %}
+<!doctype html><html lang="zh-Hans" data-theme="bumblebee">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>兑换履约</title>{% tailwind_css %}</head>
+<body class="min-h-screen bg-base-200 text-base-content">{% include "partials/runtime_header.html" %}
+<main class="mx-auto grid w-full max-w-4xl gap-6 p-4 lg:p-8">
+<h1 class="text-2xl font-bold">兑换履约（治理）</h1>
+
+{% if messages %}<div class="grid gap-2">{% for msg in messages %}<div class="alert alert-{{ msg.tags|default:'info' }}">{{ msg }}</div>{% endfor %}</div>{% endif %}
+
+{# ── pending/disputed orders ─────────────────────────────────── #}
+<div class="card bg-base-100 shadow">
+  <div class="card-body">
+    <h2 class="card-title text-base">待履约订单</h2>
+    {% if review_orders %}
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead><tr><th>订单ID</th><th>标题</th><th>成员</th><th>类型</th><th>积分</th><th>商户</th><th>状态</th><th>创建</th><th>操作</th></tr></thead>
+          <tbody>
+          {% for order in review_orders %}
+            <tr>
+              <td class="text-xs font-mono">{{ order.order_id|truncatechars:18 }}</td>
+              <td>{{ order.title|default:"-" }}</td>
+              <td>{{ order.member.member_no }}</td>
+              <td>{{ order.get_item_type_display }}</td>
+              <td class="font-semibold">{{ order.credit_amount }}</td>
+              <td>{{ order.merchant.display_name|default:"-" }}</td>
+              <td>
+                {% if order.status == "pending" %}<span class="badge badge-warning">待履约</span>
+                {% elif order.status == "disputed" %}<span class="badge badge-error">争议中</span>
+                {% else %}<span class="badge">{{ order.status }}</span>
+                {% endif %}
+              </td>
+              <td class="text-xs">{{ order.created_at|date:"m-d H:i" }}</td>
+              <td>
+                {% with mch_name=order.merchant.display_name|default:"" %}
+                <form method="post" class="inline" onsubmit="return confirm('确定履约该订单？积分将被销毁。')">
+                  {% csrf_token %}
+                  <input type="hidden" name="fulfill" value="{{ order.order_id }}">
+                  <button class="btn btn-xs btn-primary" type="submit">履约</button>
+                </form>
+                {% endwith %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="alert">当前无待履约订单。</div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── recently fulfilled ──────────────────────────────────────── #}
+<div class="card bg-base-100 shadow">
+  <div class="card-body">
+    <h2 class="card-title text-base">最近已履约订单</h2>
+    {% if fulfilled_orders %}
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead><tr><th>订单ID</th><th>标题</th><th>成员</th><th>类型</th><th>积分</th><th>商户</th><th>状态</th><th>履约时间</th></tr></thead>
+          <tbody>
+          {% for order in fulfilled_orders %}
+            <tr>
+              <td class="text-xs font-mono">{{ order.order_id|truncatechars:18 }}</td>
+              <td>{{ order.title|default:"-" }}</td>
+              <td>{{ order.member.member_no }}</td>
+              <td>{{ order.get_item_type_display }}</td>
+              <td class="font-semibold">{{ order.credit_amount }}</td>
+              <td>{{ order.merchant.display_name|default:"-" }}</td>
+              <td><span class="badge badge-success">已履约</span></td>
+              <td class="text-xs">{{ order.fulfilled_at|date:"m-d H:i" }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="alert">暂无已履约订单。</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card-actions justify-center">
+  <a class="btn btn-ghost" href="{% world_url 'workspace-page' %}">返回工作台</a>
+</div>
+</main></body></html>

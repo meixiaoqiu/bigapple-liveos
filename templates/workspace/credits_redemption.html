@@ -2,7 +2,7 @@
 <!doctype html><html lang="zh-Hans" data-theme="bumblebee">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>兑换订单</title>{% tailwind_css %}</head>
 <body class="min-h-screen bg-base-200 text-base-content">{% include "partials/runtime_header.html" %}
-<main class="mx-auto grid w-full max-w-2xl gap-6 p-4 lg:p-8">
+<main class="mx-auto grid w-full max-w-3xl gap-6 p-4 lg:p-8">
 <h1 class="text-2xl font-bold">兑换订单</h1>
 
 {% if messages %}<div class="grid gap-2">{% for msg in messages %}<div class="alert alert-{{ msg.tags|default:'info' }}">{{ msg }}</div>{% endfor %}</div>{% endif %}
@@ -29,6 +29,17 @@
         </select>
       </div>
     </div>
+    {% if merchants %}
+      <div class="form-control">
+        <label class="label"><span class="label-text">现金结算商户（可选）</span></label>
+        <select name="merchant_id" class="select select-bordered">
+          <option value="">无商户 / 普通社区兑换</option>
+          {% for mch in merchants %}
+            <option value="{{ mch.merchant_id }}">{{ mch.display_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    {% endif %}
     <div class="form-control">
       <label class="label"><span class="label-text">标题</span></label>
       <input type="text" name="title" class="input input-bordered" maxlength="256" placeholder="兑换用途">
@@ -46,7 +57,7 @@
     {% if orders %}
       <div class="overflow-x-auto">
         <table class="table table-sm">
-          <thead><tr><th>订单ID</th><th>标题</th><th>类型</th><th>积分</th><th>状态</th><th>时间</th><th>操作</th></tr></thead>
+          <thead><tr><th>订单ID</th><th>标题</th><th>类型</th><th>积分</th><th>商户</th><th>状态</th><th>创建</th><th>操作</th></tr></thead>
           <tbody>
           {% for order in orders %}
             <tr>
@@ -54,6 +65,7 @@
               <td>{{ order.title|default:"-" }}</td>
               <td>{{ order.get_item_type_display }}</td>
               <td class="font-semibold">{{ order.credit_amount }}</td>
+              <td>{{ order.merchant.display_name|default:"-" }}</td>
               <td>
                 {% if order.status == "pending" %}<span class="badge badge-warning">待履约</span>
                 {% elif order.status == "fulfilled" %}<span class="badge badge-success">已履约</span>

@@ -19,6 +19,16 @@ urlpatterns = [
         name="workspace-credits-redemption",
     ),
     path(
+        "credits/redemption/review/",
+        world_scoped_view(credit_views.redemption_review_page),
+        name="workspace-credits-review",
+    ),
+    path(
+        "credits/merchant-settlements/",
+        world_scoped_view(credit_views.merchant_settlements_page),
+        name="workspace-credits-settlements",
+    ),
+    path(
         "tasks/<str:task_id>/claim/",
         world_scoped_view(views.workspace_claim_task),
         name="workspace-claim-task",

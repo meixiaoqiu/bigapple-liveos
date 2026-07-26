@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+from io import StringIO
 from datetime import timedelta
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.test import Client, TestCase
 from django.utils import timezone
 
@@ -1270,3 +1273,310 @@ class RedemptionOrderPageTest(TestCase):
         self.assertContains(resp, "当前积分")
         self.assertContains(resp, "可用积分")
         self.assertContains(resp, "历史贡献")
+
+    def test_workspace_shows_fulfill_link_for_governance(self):
+        """Governance member sees 兑换履约 and 商户结算 nav entries."""
+        from core.tests.helpers import create_governance_admin_member
+        from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account, post_credit_transaction
+        from core.models import CreditAccount, CreditTransaction
+        ensure_system_accounts()
+        gov = create_governance_admin_member("review-test-gov")
+        acct = get_or_create_member_credit_account(gov)
+        post_credit_transaction(transaction_type=CreditTransaction.Type.ISSUANCE, amount=100, target_account=acct)
+        login_as_member(self.client, gov)
+        resp = self.client.get("/workspace/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "兑换履约")
+        self.assertContains(resp, "商户结算")
+
+    def test_regular_member_does_not_see_review_link(self):
+        """Regular formal member does NOT see 兑换履约 nav entry."""
+        login_as_member(self.client, self.member)
+        resp = self.client.get("/workspace/")
+        self.assertNotContains(resp, "兑换履约")
+
+
+class GovernanceReviewPageTests(TestCase):
+    """Governance fulfillment page tests."""
+
+    def setUp(self):
+        from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account, post_credit_transaction
+        from core.models import CreditAccount, CreditTransaction
+        from core.tests.helpers import create_governance_admin_member
+        from core.member_roles import ROLE_FORMAL_MEMBER
+        ensure_system_accounts()
+        self.gov = create_governance_admin_member("review-gov-page")
+        self.member = create_member("review-normal", role_name=ROLE_FORMAL_MEMBER)
+        acct = get_or_create_member_credit_account(self.member)
+        get_or_create_member_credit_account(self.gov)
+        post_credit_transaction(
+            transaction_type=CreditTransaction.Type.ISSUANCE, amount=200, target_account=acct,
+        )
+        # Create a pending redemption order
+        from core.credit_services import create_redemption_order as _cro
+        self.order, _ = _cro(member=self.member, credit_amount=10, item_type="meal", title="review me")
+
+    def test_governance_can_access_review_page(self):
+        login_as_member(self.client, self.gov)
+        resp = self.client.get("/workspace/credits/redemption/review/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "兑换履约")
+
+    def test_regular_member_review_403(self):
+        login_as_member(self.client, self.member)
+        resp = self.client.get("/workspace/credits/redemption/review/")
+        self.assertEqual(resp.status_code, 403)
+
+    def test_governance_can_fulfill_pending_order(self):
+        from core.models import RedemptionOrder as RO
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/credits/redemption/review/",
+            {"fulfill": self.order.order_id},
+            follow=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "已履约")
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, RO.Status.FULFILLED)
+
+    def test_cannot_fulfill_cancelled_order(self):
+        login_as_member(self.client, self.gov)
+        from core.credit_services import cancel_redemption_order
+        cancel_redemption_order(order=self.order)
+        resp = self.client.post(
+            "/workspace/credits/redemption/review/",
+            {"fulfill": self.order.order_id},
+            follow=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "不能履约")
+
+
+class MerchantSettlementsPageTests(TestCase):
+    """Merchant settlement read-only page tests."""
+
+    def setUp(self):
+        from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account, post_credit_transaction, create_redemption_order as _cro, fulfill_redemption_order
+        from core.models import CreditAccount, CreditTransaction, MerchantProfile
+        from core.tests.helpers import create_governance_admin_member
+        from core.member_roles import ROLE_FORMAL_MEMBER
+        ensure_system_accounts()
+        self.gov = create_governance_admin_member("settle-gov-page")
+        self.operator = create_member("settle-op-page", role_name=ROLE_FORMAL_MEMBER)
+        self.unrelated = create_member("settle-urel-page", role_name=ROLE_FORMAL_MEMBER)
+        op_acct = get_or_create_member_credit_account(self.operator)
+        get_or_create_member_credit_account(self.gov)
+        get_or_create_member_credit_account(self.unrelated)
+        post_credit_transaction(
+            transaction_type=CreditTransaction.Type.ISSUANCE, amount=500, target_account=op_acct,
+        )
+        pool = CreditAccount.objects.get(account_type=CreditAccount.Type.ISSUANCE_POOL)
+        post_credit_transaction(
+            transaction_type=CreditTransaction.Type.ISSUANCE, amount=200, target_account=pool,
+        )
+        self.merchant = MerchantProfile.objects.create(
+            merchant_id="mch-settle-page", display_name="结算测试商户",
+            merchant_type=MerchantProfile.Type.CASH_SETTLEMENT,
+            operator_member=self.operator, settlement_rate=0.5,
+            status=MerchantProfile.Status.ACTIVE,
+        )
+        order, _ = _cro(member=self.operator, credit_amount=40, merchant=self.merchant)
+        fulfill_redemption_order(order=order, reviewed_by=self.gov)
+
+    def test_governance_sees_settlements(self):
+        login_as_member(self.client, self.gov)
+        resp = self.client.get("/workspace/credits/merchant-settlements/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "商户结算")
+        self.assertContains(resp, "结算测试商户")
+
+    def test_operator_sees_own_settlements(self):
+        login_as_member(self.client, self.operator)
+        resp = self.client.get("/workspace/credits/merchant-settlements/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "结算测试商户")
+
+    def test_unrelated_member_403(self):
+        login_as_member(self.client, self.unrelated)
+        resp = self.client.get("/workspace/credits/merchant-settlements/")
+        self.assertEqual(resp.status_code, 403)
+
+    def test_workspace_nav_shows_settlements_for_operator(self):
+        login_as_member(self.client, self.operator)
+        resp = self.client.get("/workspace/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "商户结算")
+        self.assertNotContains(resp, "兑换履约")
+
+    def test_operator_with_no_settlements_gets_200_empty(self):
+        """Operator with a merchant but zero settlement records gets 200 + empty list."""
+        from core.models import MerchantProfile
+        from core.member_roles import ROLE_FORMAL_MEMBER
+        new_op = create_member("settle-empty-op", role_name=ROLE_FORMAL_MEMBER)
+        from core.credit_services import get_or_create_member_credit_account
+        get_or_create_member_credit_account(new_op)
+        MerchantProfile.objects.create(
+            merchant_id="mch-empty-op", display_name="Empty",
+            merchant_type=MerchantProfile.Type.CASH_SETTLEMENT,
+            operator_member=new_op, settlement_rate=0.5,
+            status=MerchantProfile.Status.ACTIVE,
+        )
+        login_as_member(self.client, new_op)
+        resp = self.client.get("/workspace/credits/merchant-settlements/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "暂无结算记录")
+
+    def test_operator_cannot_see_other_merchant_filter(self):
+        """Operator cannot use ?merchant_id= to see another merchant's settlements."""
+        from core.models import MerchantProfile
+        from core.member_roles import ROLE_FORMAL_MEMBER
+        other_op = create_member("settle-other-op", role_name=ROLE_FORMAL_MEMBER)
+        from core.credit_services import get_or_create_member_credit_account
+        get_or_create_member_credit_account(other_op)
+        other_merchant = MerchantProfile.objects.create(
+            merchant_id="mch-other-op", display_name="Other",
+            merchant_type=MerchantProfile.Type.CASH_SETTLEMENT,
+            operator_member=other_op, settlement_rate=0.5,
+            status=MerchantProfile.Status.ACTIVE,
+        )
+        from core.credit_services import create_redemption_order as _cro, fulfill_redemption_order, post_credit_transaction
+        from core.models import CreditTransaction
+        other_acct = get_or_create_member_credit_account(other_op)
+        post_credit_transaction(
+            transaction_type=CreditTransaction.Type.ISSUANCE,
+            amount=100,
+            target_account=other_acct,
+        )
+        other_order, _ = _cro(member=other_op, credit_amount=10, merchant=other_merchant)
+        fulfill_redemption_order(order=other_order, reviewed_by=self.gov)
+
+        login_as_member(self.client, other_op)
+        resp = self.client.get("/workspace/credits/merchant-settlements/?merchant_id=mch-settle-page")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.context.get("settlements", [])), 0)
+
+    def test_regular_member_cannot_access_settlements(self):
+        """Regular formal member (not operator, not governance) gets 403."""
+        from core.member_roles import ROLE_FORMAL_MEMBER
+        reg = create_member("settle-regular", role_name=ROLE_FORMAL_MEMBER)
+        from core.credit_services import get_or_create_member_credit_account
+        get_or_create_member_credit_account(reg)
+        login_as_member(self.client, reg)
+        resp = self.client.get("/workspace/credits/merchant-settlements/")
+        self.assertEqual(resp.status_code, 403)
+
+    def test_regular_member_cannot_access_review_page(self):
+        """Regular member cannot access fulfillment page."""
+        from core.member_roles import ROLE_FORMAL_MEMBER
+        reg = create_member("review-regular", role_name=ROLE_FORMAL_MEMBER)
+        from core.credit_services import get_or_create_member_credit_account
+        get_or_create_member_credit_account(reg)
+        login_as_member(self.client, reg)
+        resp = self.client.get("/workspace/credits/redemption/review/")
+        self.assertEqual(resp.status_code, 403)
+
+
+class RedemptionMerchantUITests(TestCase):
+    """UI tests for merchant dropdown and merchant-id post behavior."""
+
+    def setUp(self):
+        from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account, post_credit_transaction
+        from core.models import CreditAccount, CreditTransaction, MerchantProfile
+        from core.member_roles import ROLE_FORMAL_MEMBER
+        ensure_system_accounts()
+        self.member = create_member("redo-merchant", role_name=ROLE_FORMAL_MEMBER)
+        acct = get_or_create_member_credit_account(self.member)
+        post_credit_transaction(
+            transaction_type=CreditTransaction.Type.ISSUANCE, amount=200, target_account=acct,
+        )
+        self.cash = MerchantProfile.objects.create(
+            merchant_id="redo-cash", display_name="ReDo Cash",
+            merchant_type=MerchantProfile.Type.CASH_SETTLEMENT,
+            operator_member=self.member, settlement_rate=0.5,
+            status=MerchantProfile.Status.ACTIVE,
+        )
+        self.micro = MerchantProfile.objects.create(
+            merchant_id="redo-micro", display_name="ReDo Micro",
+            merchant_type=MerchantProfile.Type.MEMBER_MICRO,
+            operator_member=self.member,
+        )
+        self.suspended = MerchantProfile.objects.create(
+            merchant_id="redo-sus", display_name="ReDo Closed",
+            merchant_type=MerchantProfile.Type.CASH_SETTLEMENT,
+            operator_member=self.member, settlement_rate=0.3,
+            status=MerchantProfile.Status.SUSPENDED,
+        )
+
+    def test_cash_merchant_appears_in_dropdown(self):
+        login_as_member(self.client, self.member)
+        resp = self.client.get("/workspace/credits/redemption/")
+        self.assertContains(resp, self.cash.merchant_id)
+
+    def test_micro_merchant_not_in_dropdown(self):
+        login_as_member(self.client, self.member)
+        resp = self.client.get("/workspace/credits/redemption/")
+        self.assertNotContains(resp, self.micro.merchant_id)
+
+    def test_suspended_merchant_not_in_dropdown(self):
+        login_as_member(self.client, self.member)
+        resp = self.client.get("/workspace/credits/redemption/")
+        self.assertNotContains(resp, self.suspended.merchant_id)
+
+    def test_create_order_with_cash_merchant(self):
+        login_as_member(self.client, self.member)
+        resp = self.client.post(
+            "/workspace/credits/redemption/",
+            {"create": "1", "credit_amount": "15", "item_type": "meal",
+             "merchant_id": self.cash.merchant_id, "title": "merchant order"},
+            follow=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "积分已冻结")
+        from core.models import RedemptionOrder
+        order = RedemptionOrder.objects.filter(member=self.member, merchant=self.cash).first()
+        self.assertIsNotNone(order, "Order should have merchant FK set")
+
+    def test_create_order_with_micro_merchant_rejected(self):
+        login_as_member(self.client, self.member)
+        resp = self.client.post(
+            "/workspace/credits/redemption/",
+            {"create": "1", "credit_amount": "10", "item_type": "meal",
+             "merchant_id": self.micro.merchant_id},
+            follow=False,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "微创业")
+
+class SeedCreditsQaCommandTests(TestCase):
+    """Manual-QA seed command tests."""
+
+    def test_seed_creates_login_users_and_is_idempotent(self):
+        call_command("seed_credits_qa", "--yes", stdout=StringIO())
+
+        user_model = get_user_model()
+        user_a = user_model.objects.get(username="qa-a")
+        user_b = user_model.objects.get(username="qa-b")
+        user_gov = user_model.objects.get(username="qa-gov")
+        self.assertTrue(user_a.check_password("test-password"))
+        self.assertTrue(user_b.check_password("test-password"))
+        self.assertTrue(user_gov.check_password("test-password"))
+
+        member_a = Member.objects.get(member_no="qa-a")
+        self.assertEqual(member_a.user_id, user_a.pk)
+        member_gov = Member.objects.get(member_no="qa-gov")
+        from core.access import is_governance_principal
+        self.assertTrue(is_governance_principal(member_gov))
+
+        from core.credit_services import member_credit_balance
+        self.assertEqual(member_credit_balance(member_a), 500)
+
+        call_command("seed_credits_qa", "--yes", stdout=StringIO())
+        member_a.refresh_from_db()
+        self.assertEqual(member_credit_balance(member_a), 500)
+
+    def test_seed_requires_explicit_confirmation(self):
+        from django.core.management.base import CommandError
+
+        with self.assertRaises(CommandError):
+            call_command("seed_credits_qa", stdout=StringIO())
