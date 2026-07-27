@@ -3,7 +3,7 @@
 from django.urls import path
 from worlds.routing import world_scoped_view
 
-from . import credit_views, views, finance_views, inventory_views, procurement_views, proposal_views, risk_views
+from . import credit_views, task_views, views, finance_views, inventory_views, procurement_views, proposal_views, risk_views
 
 
 urlpatterns = [
@@ -29,6 +29,11 @@ urlpatterns = [
         name="workspace-credits-settlements",
     ),
     path(
+        "credits/budgets/",
+        world_scoped_view(credit_views.budgets_page),
+        name="workspace-credits-budgets",
+    ),
+    path(
         "tasks/<str:task_id>/claim/",
         world_scoped_view(views.workspace_claim_task),
         name="workspace-claim-task",
@@ -37,6 +42,21 @@ urlpatterns = [
         "tasks/<str:task_id>/submit-labor/",
         world_scoped_view(views.workspace_submit_labor),
         name="workspace-submit-labor",
+    ),
+    path(
+        "tasks/new/",
+        world_scoped_view(task_views.task_create_page),
+        name="workspace-tasks-manage",
+    ),
+    path(
+        "tasks/<str:task_id>/publish/",
+        world_scoped_view(task_views.task_publish_page),
+        name="workspace-tasks-publish",
+    ),
+    path(
+        "tasks/review/",
+        world_scoped_view(task_views.task_review_page),
+        name="workspace-tasks-review",
     ),
     path(
         "disputes/",

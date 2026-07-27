@@ -33,7 +33,10 @@
             <a class="btn btn-sm" href="{% world_url 'workspace-credits-transfer' %}">积分转账</a>
             <a class="btn btn-sm" href="{% world_url 'workspace-credits-redemption' %}">兑换订单</a>
             {% if is_governance %}
+              <a class="btn btn-sm btn-accent" href="{% world_url 'workspace-tasks-manage' %}">创建任务</a>
+              <a class="btn btn-sm btn-accent" href="{% world_url 'workspace-tasks-review' %}">任务验收</a>
               <a class="btn btn-sm btn-accent" href="{% world_url 'workspace-credits-review' %}">兑换履约</a>
+              <a class="btn btn-sm btn-accent" href="{% world_url 'workspace-credits-budgets' %}">积分预算</a>
             {% endif %}
             {% if is_governance or is_merchant_operator %}
               <a class="btn btn-sm" href="{% world_url 'workspace-credits-settlements' %}">商户结算</a>

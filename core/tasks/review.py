@@ -78,13 +78,18 @@ def review_task(
 
     entries: list[LedgerEntry] = []
     if accepted:
+        amount = int((Decimal(task.base_points) * task.role_coefficient).to_integral_value())
+
+        # Zero-point tasks: accept without creating any reward records
+        if amount == 0:
+            return task, entries
+
         from core.credit_services import (
             ensure_system_accounts,
             get_or_create_member_credit_account,
             post_task_reward_credit_transaction,
         )
 
-        amount = int((Decimal(task.base_points) * task.role_coefficient).to_integral_value())
         event = Event.objects.create(
             event_id=event_id,
             event_type=Event.EventType.TASK,

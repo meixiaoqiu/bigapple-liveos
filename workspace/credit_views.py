@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from uuid import uuid4
+
 from django.contrib import messages
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
 from django.views.decorators.http import require_GET, require_http_methods
@@ -14,10 +16,19 @@ from core.credit_services import (
     cancel_redemption_order,
     create_redemption_order,
     dispute_redemption_order,
+    ensure_system_accounts,
     fulfill_redemption_order,
     transfer_member_credits,
 )
-from core.models import Member, MerchantProfile, MerchantSettlementRecord, RedemptionOrder
+from core.models import (
+    CreditAccount,
+    CreditTransaction,
+    Member,
+    MerchantProfile,
+    MerchantSettlementRecord,
+    RedemptionOrder,
+    Task,
+)
 from workspace.context import member_has_full_workspace_access, workspace_context
 
 
@@ -291,3 +302,191 @@ def merchant_settlements_page(request: HttpRequest) -> HttpResponse:
             ).order_by("display_name")
         )
     return render_with(request, "workspace/credits_settlements.html", ctx)
+
+
+# ── issuance pool & task budget ───────────────────────────────────────
+
+
+@require_http_methods(["GET", "POST"])
+def budgets_page(request: HttpRequest) -> HttpResponse:
+    """Governance-only：发行池余额 + 任务预算锁定/退回。"""
+    member = _require_full_workspace(request)
+    if isinstance(member, HttpResponseForbidden):
+        return member
+    if not is_governance_principal(member):
+        return page_forbidden("仅治理成员可访问积分预算页面。")
+
+    ensure_system_accounts()
+
+    if request.method == "POST":
+        action = request.POST.get("action", "").strip()
+        if action == "issue":
+            return _handle_issue(member, request)
+        if action == "lock":
+            return _handle_lock(member, request)
+        if action == "unlock":
+            return _handle_unlock(member, request)
+
+    return _budgets_page(member, request)
+
+
+def _parse_int_post(request, field):
+    val = request.POST.get(field, "").strip()
+    try:
+        amount = int(val)
+        if amount <= 0:
+            raise ValueError
+        return amount
+    except (ValueError, TypeError):
+        raise DomainError(f"{field} 必须是正整数。")
+
+
+def _handle_issue(member, request):
+    try:
+        amount = _parse_int_post(request, "amount")
+    except DomainError as e:
+        messages.error(request, str(e))
+        return _budgets_page(member, request)
+
+    reason = request.POST.get("reason", "").strip()[:256]
+    idem_key = request.POST.get("idempotency_key", "").strip()
+    if not idem_key:
+        messages.error(request, "缺少幂等键，请刷新页面后重试。")
+        return _budgets_page(member, request)
+
+    try:
+        from core.credit_services import issue_credits_to_pool
+        issue_credits_to_pool(
+            amount=amount, reason=reason,
+            initiated_by=member, reviewed_by=member,
+            idempotency_key=idem_key,
+        )
+    except DomainError as exc:
+        messages.error(request, str(exc))
+        return _budgets_page(member, request)
+
+    messages.success(request, f"成功发行 {amount} 积分到公共发行池。")
+    return world_redirect(request, "workspace-credits-budgets")
+
+
+def _handle_lock(member, request):
+    try:
+        amount = _parse_int_post(request, "amount")
+    except DomainError as e:
+        messages.error(request, str(e))
+        return _budgets_page(member, request)
+
+    task_id = request.POST.get("task_id", "").strip()
+    if not task_id:
+        messages.error(request, "请输入任务 ID。")
+        return _budgets_page(member, request)
+
+    task = Task.objects.filter(task_id=task_id).first()
+    if task is None:
+        messages.error(request, f"任务 {task_id} 不存在。")
+        return _budgets_page(member, request)
+
+    reason = request.POST.get("reason", "").strip()[:256]
+    idem_key = request.POST.get("idempotency_key", "").strip()
+    if not idem_key:
+        messages.error(request, "缺少幂等键，请刷新页面后重试。")
+        return _budgets_page(member, request)
+
+    try:
+        from core.credit_services import lock_task_credit_budget
+        lock_task_credit_budget(
+            task=task, amount=amount, reason=reason,
+            initiated_by=member, idempotency_key=idem_key,
+        )
+    except DomainError as exc:
+        messages.error(request, str(exc))
+        return _budgets_page(member, request)
+
+    messages.success(request, f"成功为任务 {task_id} 锁定 {amount} 积分预算。")
+    return world_redirect(request, "workspace-credits-budgets")
+
+
+def _handle_unlock(member, request):
+    try:
+        amount = _parse_int_post(request, "amount")
+    except DomainError as e:
+        messages.error(request, str(e))
+        return _budgets_page(member, request)
+
+    task_id = request.POST.get("task_id", "").strip()
+    if not task_id:
+        messages.error(request, "请输入任务 ID。")
+        return _budgets_page(member, request)
+
+    task = Task.objects.filter(task_id=task_id).first()
+    if task is None:
+        messages.error(request, f"任务 {task_id} 不存在。")
+        return _budgets_page(member, request)
+
+    reason = request.POST.get("reason", "").strip()[:256]
+    idem_key = request.POST.get("idempotency_key", "").strip()
+    if not idem_key:
+        messages.error(request, "缺少幂等键，请刷新页面后重试。")
+        return _budgets_page(member, request)
+
+    try:
+        from core.credit_services import unlock_unused_task_credit_budget
+        unlock_unused_task_credit_budget(
+            task=task, amount=amount, reason=reason,
+            initiated_by=member, idempotency_key=idem_key,
+        )
+    except DomainError as exc:
+        messages.error(request, str(exc))
+        return _budgets_page(member, request)
+
+    messages.success(request, f"成功从任务 {task_id} 退回 {amount} 积分到发行池。")
+    return world_redirect(request, "workspace-credits-budgets")
+
+
+def _budgets_page(member, request):
+    from django.shortcuts import render
+    from core.credit_services import credit_balance, task_locked_credit_balance
+
+    pool = CreditAccount.objects.filter(account_type=CreditAccount.Type.ISSUANCE_POOL).first()
+    task_locked = CreditAccount.objects.filter(account_type=CreditAccount.Type.TASK_LOCKED).first()
+
+    ctx = workspace_context(member.member_no)
+    ctx["member"] = member
+    ctx["issue_key"] = f"budget-issue:{uuid4().hex}"
+    ctx["lock_key"] = f"budget-lock:{uuid4().hex}"
+    ctx["unlock_key"] = f"budget-unlock:{uuid4().hex}"
+    ctx["pool_balance"] = credit_balance(pool) if pool else 0
+    ctx["task_locked_balance"] = credit_balance(task_locked) if task_locked else 0
+
+    # Recent records (pool None guard for pre-initialization state)
+    ctx["recent_issuance"] = list(
+        CreditTransaction.objects.filter(
+            transaction_type=CreditTransaction.Type.ISSUANCE,
+            target_account=pool,
+        ).order_by("-created_at")[:10]
+    ) if pool else []
+    ctx["recent_locks"] = list(
+        CreditTransaction.objects.filter(
+            transaction_type=CreditTransaction.Type.LOCK,
+        ).select_related("related_task").order_by("-created_at")[:10]
+    )
+    ctx["recent_unlocks"] = list(
+        CreditTransaction.objects.filter(
+            transaction_type=CreditTransaction.Type.UNLOCK,
+        ).select_related("related_task").order_by("-created_at")[:10]
+    )
+
+    # Tasks with locked budget
+    all_tasks = list(
+        Task.objects.filter(
+            status__in=["open", "claimed", "in_progress", "pending_review"],
+        ).order_by("task_id")[:50]
+    )
+    task_budgets = []
+    for t in all_tasks:
+        locked = task_locked_credit_balance(t)
+        if locked > 0 or t.base_points > 0:
+            task_budgets.append({"task": t, "locked": locked})
+    ctx["task_budgets"] = task_budgets
+
+    return render(request, "workspace/credits_budgets.html", ctx)

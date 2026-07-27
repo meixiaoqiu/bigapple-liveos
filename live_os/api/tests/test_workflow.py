@@ -1580,3 +1580,754 @@ class SeedCreditsQaCommandTests(TestCase):
 
         with self.assertRaises(CommandError):
             call_command("seed_credits_qa", stdout=StringIO())
+
+
+class CreditBudgetsPageTests(TestCase):
+    """Governance credits/budgets page UI tests."""
+
+    def setUp(self):
+        from core.credit_services import ensure_system_accounts, issue_credits_to_pool, get_or_create_member_credit_account, post_credit_transaction
+        from core.models import CreditAccount, CreditTransaction
+        from core.tests.helpers import create_governance_admin_member
+        from core.member_roles import ROLE_FORMAL_MEMBER
+        ensure_system_accounts()
+        self.gov = create_governance_admin_member("budget-gov-page")
+        self.normal = create_member("budget-normal", role_name=ROLE_FORMAL_MEMBER)
+        get_or_create_member_credit_account(self.gov)
+        get_or_create_member_credit_account(self.normal)
+        # Give pool some initial credits for lock/unlock tests
+        pool = CreditAccount.objects.get(account_type=CreditAccount.Type.ISSUANCE_POOL)
+        post_credit_transaction(
+            transaction_type=CreditTransaction.Type.ISSUANCE, amount=500, target_account=pool,
+        )
+        # Create a task to lock budget against
+        from core.models import Task
+        from django.utils import timezone
+        self.task = Task.objects.create(
+            task_id="task-budget-test", title="Budget test task",
+            task_type=Task.TaskType.PUBLIC_CLEANING, status=Task.Status.OPEN,
+            standard_hours=1, base_points=30, rule_version="v1", requires_review=True,
+            created_at=timezone.now(),
+        )
+
+    def test_governance_can_access_budgets_page(self):
+        login_as_member(self.client, self.gov)
+        resp = self.client.get("/workspace/credits/budgets/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "积分预算")
+
+    def test_normal_member_budgets_403(self):
+        login_as_member(self.client, self.normal)
+        resp = self.client.get("/workspace/credits/budgets/")
+        self.assertEqual(resp.status_code, 403)
+
+    def test_issue_credits_increases_pool(self):
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/credits/budgets/",
+            {"action": "issue", "amount": "100", "reason": "test issue", "idempotency_key": "test-issue-key"},
+            follow=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "成功发行 100 积分")
+
+    def test_issue_creates_system_accounts_when_missing(self):
+        from core.models import CreditAccount, CreditTransaction
+        CreditTransaction.objects.all().delete()
+        CreditAccount.objects.all().delete()
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/credits/budgets/",
+            {"action": "issue", "amount": "100", "reason": "first issue", "idempotency_key": "test-issue-first"},
+            follow=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "成功发行 100 积分")
+        self.assertTrue(
+            CreditAccount.objects.filter(account_type=CreditAccount.Type.ISSUANCE_POOL).exists()
+        )
+
+    def test_lock_budget_decreases_pool(self):
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/credits/budgets/",
+            {"action": "lock", "task_id": self.task.task_id, "amount": "50", "reason": "test lock", "idempotency_key": "test-lock-key"},
+            follow=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "锁定 50 积分")
+
+    def test_lock_exceeds_pool_fails(self):
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/credits/budgets/",
+            {"action": "lock", "task_id": self.task.task_id, "amount": "9999", "reason": "too much", "idempotency_key": "test-lock-over"},
+            follow=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "不足")
+
+    def test_unlock_succeeds(self):
+        from core.credit_services import lock_task_credit_budget
+        lock_task_credit_budget(task=self.task, amount=50, reason="pre-lock")
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/credits/budgets/",
+            {"action": "unlock", "task_id": self.task.task_id, "amount": "20", "reason": "unlock test", "idempotency_key": "test-unlock-key"},
+            follow=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "退回 20 积分")
+
+    def test_unlock_exceeds_remaining_fails(self):
+        from core.credit_services import lock_task_credit_budget
+        lock_task_credit_budget(task=self.task, amount=30, reason="pre-lock")
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/credits/budgets/",
+            {"action": "unlock", "task_id": self.task.task_id, "amount": "999", "reason": "too much", "idempotency_key": "test-unlock-over"},
+            follow=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "超过该任务剩余锁定预算")
+
+    def test_invalid_amount_rejected(self):
+        login_as_member(self.client, self.gov)
+        for bad in ["0", "-10", "abc"]:
+            resp = self.client.post(
+                "/workspace/credits/budgets/",
+                {"action": "issue", "amount": bad, "idempotency_key": "test-issue-bad"},
+                follow=True,
+            )
+            self.assertContains(resp, "正整数", msg_prefix=f"amount={bad}")
+
+    def test_nonexistent_task_rejected(self):
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/credits/budgets/",
+            {"action": "lock", "task_id": "task-does-not-exist", "amount": "10", "idempotency_key": "test-lock-missing"},
+            follow=True,
+        )
+        self.assertContains(resp, "不存在")
+
+    def test_workspace_nav_shows_budgets_for_governance(self):
+        login_as_member(self.client, self.gov)
+        resp = self.client.get("/workspace/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "积分预算")
+
+    def test_workspace_nav_hides_budgets_for_normal(self):
+        login_as_member(self.client, self.normal)
+        resp = self.client.get("/workspace/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, "积分预算")
+
+    def test_issue_auto_creates_pool_on_cold_start(self):
+        """After deleting CreditTransaction+CreditAccount, POST issue still works
+        because ensure_system_accounts() re-creates the issuance pool."""
+        from core.models import CreditAccount, CreditTransaction
+        from core.credit_services import credit_balance
+
+        # Delete in FK-safe order: transactions first, then accounts
+        pool = CreditAccount.objects.filter(account_type=CreditAccount.Type.ISSUANCE_POOL).first()
+        if pool:
+            CreditTransaction.objects.filter(source_account=pool).delete()
+            CreditTransaction.objects.filter(target_account=pool).delete()
+            pool.delete()
+
+        # Now no issuance_pool exists — budgets_page() must recreate it
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/credits/budgets/",
+            {"action": "issue", "amount": "50", "reason": "cold start test", "idempotency_key": "test-issue-cold"},
+            follow=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "成功发行 50 积分")
+
+        # Verify pool exists and has balance
+        pool = CreditAccount.objects.filter(account_type=CreditAccount.Type.ISSUANCE_POOL).first()
+        self.assertIsNotNone(pool, "Pool should be re-created by ensure_system_accounts()")
+        self.assertGreaterEqual(credit_balance(pool), 50)
+
+
+class TaskManagePageTests(TestCase):
+    """Governance task creation and publishing UI tests."""
+
+    def setUp(self):
+        from core.credit_services import ensure_system_accounts, issue_credits_to_pool, get_or_create_member_credit_account, post_credit_transaction
+        from core.models import CreditAccount, CreditTransaction
+        from core.tests.helpers import create_governance_admin_member
+        from core.member_roles import ROLE_FORMAL_MEMBER
+        from django.utils import timezone
+        ensure_system_accounts()
+        self.gov = create_governance_admin_member("task-mgmt-gov")
+        self.normal = create_member("task-mgmt-normal", role_name=ROLE_FORMAL_MEMBER)
+        get_or_create_member_credit_account(self.gov)
+        get_or_create_member_credit_account(self.normal)
+        # Give pool some credits for publish-with-budget tests
+        pool = CreditAccount.objects.get(account_type=CreditAccount.Type.ISSUANCE_POOL)
+        post_credit_transaction(
+            transaction_type=CreditTransaction.Type.ISSUANCE, amount=500, target_account=pool,
+        )
+
+    def test_governance_can_access_task_create_page(self):
+        login_as_member(self.client, self.gov)
+        resp = self.client.get("/workspace/tasks/new/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "任务管理")
+
+    def test_normal_member_task_create_403(self):
+        login_as_member(self.client, self.normal)
+        resp = self.client.get("/workspace/tasks/new/")
+        self.assertEqual(resp.status_code, 403)
+
+    def test_create_draft_with_zero_points_succeeds(self):
+        """base_points=0 表示无积分奖励任务，创建应成功。"""
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/tasks/new/",
+            {"title": "Zero point task", "task_type": "public_cleaning",
+             "standard_hours": "1", "base_points": "0"},
+            follow=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "已创建为草稿")
+
+    def test_create_draft_with_points(self):
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/tasks/new/",
+            {"title": "Reward task", "task_type": "cooking",
+             "standard_hours": "2", "base_points": "30"},
+            follow=True,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "已创建为草稿")
+
+    def test_empty_title_rejected(self):
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/tasks/new/",
+            {"title": "", "task_type": "public_cleaning",
+             "standard_hours": "1", "base_points": "0"},
+            follow=True,
+        )
+        self.assertContains(resp, "标题不能为空")
+
+    def test_negative_base_points_rejected(self):
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/tasks/new/",
+            {"title": "Bad task", "task_type": "public_cleaning",
+             "standard_hours": "1", "base_points": "-10"},
+            follow=True,
+        )
+        self.assertContains(resp, "非负整数")
+
+    def test_invalid_standard_hours_rejected(self):
+        login_as_member(self.client, self.gov)
+        for bad in ["0", "-1", "abc"]:
+            resp = self.client.post(
+                "/workspace/tasks/new/",
+                {"title": "Bad hours", "task_type": "public_cleaning",
+                 "standard_hours": bad, "base_points": "0"},
+                follow=True,
+            )
+            self.assertContains(resp, "标准工时", msg_prefix=f"hours={bad}")
+
+    def test_invalid_task_type_rejected(self):
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/tasks/new/",
+            {"title": "Bad type", "task_type": "INVALID_TYPE",
+             "standard_hours": "1", "base_points": "0"},
+            follow=True,
+        )
+        self.assertContains(resp, "无效的任务类型")
+
+    def test_publish_zero_points_task_succeeds_no_budget(self):
+        """base_points=0 的任务发布不需要锁定预算。"""
+        from core.tasks.authoring import create_task_draft
+        from decimal import Decimal
+        task = create_task_draft(
+            title="Pub zero points", task_type="public_cleaning", standard_hours=Decimal("1"),
+            base_points=0, role_coefficient=Decimal("1.0"), failure_consequence="",
+            can_be_delayed=True, requires_review=True, rule_version="ruleset-v0.1.0",
+            created_by={"actor_id": "gov", "display_name": "Gov"},
+        )
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            f"/workspace/tasks/{task.task_id}/publish/", {"reason": ""}, follow=True,
+        )
+        self.assertContains(resp, "已发布")
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.OPEN)
+
+    def test_publish_with_points_no_budget_fails(self):
+        from core.tasks.authoring import create_task_draft
+        from decimal import Decimal
+        task = create_task_draft(
+            title="Pub reward no budget", task_type="public_cleaning", standard_hours=Decimal("1"),
+            base_points=30, role_coefficient=Decimal("1.0"), failure_consequence="",
+            can_be_delayed=True, requires_review=True, rule_version="ruleset-v0.1.0",
+            created_by={"actor_id": "gov", "display_name": "Gov"},
+        )
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            f"/workspace/tasks/{task.task_id}/publish/", {"reason": ""}, follow=True,
+        )
+        self.assertContains(resp, "预算")
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.DRAFT)
+
+    def test_publish_with_points_and_budget_succeeds(self):
+        from core.tasks.authoring import create_task_draft
+        from core.credit_services import lock_task_credit_budget
+        from decimal import Decimal
+        task = create_task_draft(
+            title="Pub reward budget", task_type="public_cleaning", standard_hours=Decimal("1"),
+            base_points=30, role_coefficient=Decimal("1.0"), failure_consequence="",
+            can_be_delayed=True, requires_review=True, rule_version="ruleset-v0.1.0",
+            created_by={"actor_id": "gov", "display_name": "Gov"},
+        )
+        lock_task_credit_budget(task=task, amount=50, reason="test")
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            f"/workspace/tasks/{task.task_id}/publish/", {"reason": ""}, follow=True,
+        )
+        self.assertContains(resp, "已发布")
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.OPEN)
+
+    def test_normal_member_cannot_publish(self):
+        from core.tasks.authoring import create_task_draft
+        from decimal import Decimal
+        task = create_task_draft(
+            title="Normal publish hack", task_type="public_cleaning", standard_hours=Decimal("1"),
+            base_points=1, role_coefficient=Decimal("1.0"), failure_consequence="",
+            can_be_delayed=True, requires_review=True, rule_version="ruleset-v0.1.0",
+            created_by={"actor_id": "gov", "display_name": "Gov"},
+        )
+        login_as_member(self.client, self.normal)
+        resp = self.client.post(
+            f"/workspace/tasks/{task.task_id}/publish/", {"reason": ""}, follow=True,
+        )
+        self.assertNotEqual(resp.status_code, 302)  # not a redirect, must be 403
+
+    def test_workspace_nav_shows_create_task_for_gov(self):
+        login_as_member(self.client, self.gov)
+        resp = self.client.get("/workspace/")
+        self.assertContains(resp, "创建任务")
+
+    def test_workspace_nav_hides_create_task_for_normal(self):
+        login_as_member(self.client, self.normal)
+        resp = self.client.get("/workspace/")
+        self.assertNotContains(resp, "创建任务")
+
+
+class TaskReviewPageTests(TestCase):
+    """Governance task review UI tests."""
+
+    def setUp(self):
+        from core.credit_services import ensure_system_accounts, lock_task_credit_budget, get_or_create_member_credit_account, post_credit_transaction, issue_credits_to_pool
+        from core.models import CreditAccount, CreditTransaction
+        from core.tests.helpers import create_governance_admin_member
+        from core.member_roles import ROLE_FORMAL_MEMBER
+        from core.tasks.member_workflow import claim_task, submit_labor
+        from core.tasks.authoring import create_task_draft, publish_task
+        from decimal import Decimal
+        from django.utils import timezone
+        ensure_system_accounts()
+        self.gov = create_governance_admin_member("task-review-gov")
+        self.worker = create_member("task-review-worker", role_name=ROLE_FORMAL_MEMBER)
+        self.normal = create_member("task-review-normal", role_name=ROLE_FORMAL_MEMBER)
+        get_or_create_member_credit_account(self.gov)
+        get_or_create_member_credit_account(self.worker)
+        get_or_create_member_credit_account(self.normal)
+        pool = CreditAccount.objects.get(account_type=CreditAccount.Type.ISSUANCE_POOL)
+        post_credit_transaction(
+            transaction_type=CreditTransaction.Type.ISSUANCE, amount=500, target_account=pool,
+        )
+
+        # Create and submit a task for review
+        self.reward_task = create_task_draft(
+            title="Review reward test", task_type="public_cleaning", standard_hours=Decimal("1"),
+            base_points=30, role_coefficient=Decimal("1.0"), failure_consequence="",
+            can_be_delayed=True, requires_review=True, rule_version="ruleset-v0.1.0",
+            created_by={"actor_id": "gov", "display_name": "Gov"},
+        )
+        lock_task_credit_budget(task=self.reward_task, amount=50, reason="test budget")
+        publish_task(task=self.reward_task, publisher={"actor_id": "gov", "display_name": "Gov"})
+        claim_task(task=self.reward_task, member=self.worker)
+        self.reward_task.refresh_from_db()
+        submit_labor(task=self.reward_task, member=self.worker, labor_note="QA labor", evidence_refs=["img-01"])
+
+        # Create a no-reward task
+        self.no_reward_task = create_task_draft(
+            title="Review no reward", task_type="public_cleaning", standard_hours=Decimal("1"),
+            base_points=0, role_coefficient=Decimal("1.0"), failure_consequence="",
+            can_be_delayed=True, requires_review=True, rule_version="ruleset-v0.1.0",
+            created_by={"actor_id": "gov", "display_name": "Gov"},
+        )
+        publish_task(task=self.no_reward_task, publisher={"actor_id": "gov", "display_name": "Gov"})
+        claim_task(task=self.no_reward_task, member=self.worker)
+        self.no_reward_task.refresh_from_db()
+        submit_labor(task=self.no_reward_task, member=self.worker, labor_note="No reward labor", evidence_refs=[])
+
+    def test_governance_can_access_review_page(self):
+        login_as_member(self.client, self.gov)
+        resp = self.client.get("/workspace/tasks/review/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "任务验收")
+
+    def test_normal_member_review_403(self):
+        login_as_member(self.client, self.normal)
+        resp = self.client.get("/workspace/tasks/review/")
+        self.assertEqual(resp.status_code, 403)
+
+    def test_page_lists_pending_review_tasks(self):
+        login_as_member(self.client, self.gov)
+        resp = self.client.get("/workspace/tasks/review/")
+        self.assertContains(resp, self.reward_task.task_id)
+        self.assertContains(resp, self.no_reward_task.task_id)
+
+    def test_page_excludes_draft_tasks(self):
+        from core.tasks.authoring import create_task_draft
+        from decimal import Decimal
+        draft = create_task_draft(
+            title="Draft should not show", task_type="public_cleaning", standard_hours=Decimal("1"),
+            base_points=0, role_coefficient=Decimal("1.0"), failure_consequence="",
+            can_be_delayed=True, requires_review=True, rule_version="ruleset-v0.1.0",
+            created_by={"actor_id": "gov", "display_name": "Gov"},
+        )
+        login_as_member(self.client, self.gov)
+        resp = self.client.get("/workspace/tasks/review/")
+        self.assertNotContains(resp, draft.task_id)
+
+    def test_accept_with_budget_succeeds(self):
+        from core.credit_services import member_credit_balance
+        bal_before = member_credit_balance(self.worker)
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/tasks/review/",
+            {"task_id": self.reward_task.task_id, "decision": "accepted", "reason": "good work"},
+            follow=True,
+        )
+        self.assertContains(resp, "验收通过")
+        self.reward_task.refresh_from_db()
+        self.assertEqual(self.reward_task.status, Task.Status.ACCEPTED)
+        # Worker should have received points
+        self.assertGreater(member_credit_balance(self.worker), bal_before)
+
+    def test_accept_without_budget_shows_error(self):
+        """Lock budget→publish→unlock budget→review should fail with budget error."""
+        from core.tasks.authoring import create_task_draft, publish_task
+        from core.tasks.member_workflow import claim_task, submit_labor
+        from core.credit_services import lock_task_credit_budget, unlock_unused_task_credit_budget
+        from decimal import Decimal
+        task = create_task_draft(
+            title="No budget task", task_type="public_cleaning", standard_hours=Decimal("1"),
+            base_points=30, role_coefficient=Decimal("1.0"), failure_consequence="",
+            can_be_delayed=True, requires_review=True, rule_version="ruleset-v0.1.0",
+            created_by={"actor_id": "gov", "display_name": "Gov"},
+        )
+        lock_task_credit_budget(task=task, amount=30, reason="temp budget")
+        publish_task(task=task, publisher={"actor_id": "gov", "display_name": "Gov"})
+        unlock_unused_task_credit_budget(task=task, amount=30, reason="remove budget for test")
+        claim_task(task=task, member=self.worker)
+        task.refresh_from_db()
+        submit_labor(task=task, member=self.worker, labor_note="no budget", evidence_refs=[])
+
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/tasks/review/",
+            {"task_id": task.task_id, "decision": "accepted", "reason": "try"},
+            follow=True,
+        )
+        self.assertContains(resp, "预算")
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.PENDING_REVIEW)
+
+    def test_reject_succeeds_no_points(self):
+        from core.credit_services import member_credit_balance
+        bal_before = member_credit_balance(self.worker)
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/tasks/review/",
+            {"task_id": self.no_reward_task.task_id, "decision": "rejected", "reason": "not good enough"},
+            follow=True,
+        )
+        self.assertContains(resp, "驳回")
+        self.no_reward_task.refresh_from_db()
+        self.assertEqual(self.no_reward_task.status, Task.Status.REJECTED)
+        self.assertEqual(member_credit_balance(self.worker), bal_before)
+
+    def test_invalid_decision_shows_error(self):
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/tasks/review/",
+            {"task_id": self.reward_task.task_id, "decision": "INVALID"},
+            follow=True,
+        )
+        self.assertContains(resp, "accepted 或 rejected")
+
+    def test_nonexistent_task_shows_error(self):
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/tasks/review/",
+            {"task_id": "task-does-not-exist-review", "decision": "accepted"},
+            follow=True,
+        )
+        self.assertContains(resp, "不存在")
+
+    def test_normal_member_cannot_post_review(self):
+        login_as_member(self.client, self.normal)
+        resp = self.client.post(
+            "/workspace/tasks/review/",
+            {"task_id": self.reward_task.task_id, "decision": "accepted"},
+            follow=True,
+        )
+        self.assertNotEqual(resp.status_code, 302)
+
+    def test_double_accept_blocked_by_service(self):
+        """Duplicate accept should be blocked — service rejects non-pending review task."""
+        login_as_member(self.client, self.gov)
+        self.client.post(
+            "/workspace/tasks/review/",
+            {"task_id": self.reward_task.task_id, "decision": "accepted", "reason": "first"},
+            follow=True,
+        )
+        resp = self.client.post(
+            "/workspace/tasks/review/",
+            {"task_id": self.reward_task.task_id, "decision": "accepted", "reason": "second try"},
+            follow=True,
+        )
+        # Service rejects because status is no longer PENDING_REVIEW
+        self.assertContains(resp, "Only tasks pending review")
+
+    def test_workspace_nav_shows_review_url_for_gov(self):
+        login_as_member(self.client, self.gov)
+        resp = self.client.get("/workspace/")
+        self.assertContains(resp, "/tasks/review/")
+
+    def test_workspace_nav_hides_review_url_for_normal(self):
+        from core.member_roles import ROLE_FORMAL_MEMBER
+        reg = create_member("task-review-regular-nav3", role_name=ROLE_FORMAL_MEMBER)
+        login_as_member(self.client, reg)
+        resp = self.client.get("/workspace/")
+        self.assertNotContains(resp, "/tasks/review/")
+
+    def test_accept_zero_point_task_succeeds_no_points(self):
+        """base_points=0 的任务验收通过 → ACCEPTED，成员积分不变。"""
+        from core.credit_services import member_credit_balance
+        bal_before = member_credit_balance(self.worker)
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/tasks/review/",
+            {"task_id": self.no_reward_task.task_id, "decision": "accepted", "reason": "zero point ok"},
+            follow=True,
+        )
+        self.assertContains(resp, "验收通过")
+        self.no_reward_task.refresh_from_db()
+        self.assertEqual(self.no_reward_task.status, Task.Status.ACCEPTED)
+        self.assertEqual(member_credit_balance(self.worker), bal_before,
+                         "0 分验收不应增加成员积分")
+
+    def test_cold_start_review_page_200_for_zero_point(self):
+        """删除 CreditTransaction+CreditAccount 后，0 分任务验收页仍 200。"""
+        from core.models import CreditAccount, CreditTransaction
+        from core.credit_services import ensure_system_accounts
+        # Delete in safe order
+        pool = CreditAccount.objects.filter(account_type=CreditAccount.Type.ISSUANCE_POOL).first()
+        if pool:
+            CreditTransaction.objects.filter(source_account=pool).delete()
+            CreditTransaction.objects.filter(target_account=pool).delete()
+            pool.delete()
+        login_as_member(self.client, self.gov)
+        resp = self.client.get("/workspace/tasks/review/")
+        self.assertEqual(resp.status_code, 200)
+
+    def test_task_manage_page_200_on_cold_start(self):
+        """Cold start: delete all CreditAccount/CreditTransaction, GET tasks/new/ still 200."""
+        from core.models import CreditAccount, CreditTransaction
+        pool = CreditAccount.objects.filter(account_type=CreditAccount.Type.ISSUANCE_POOL).first()
+        if pool:
+            CreditTransaction.objects.filter(source_account=pool).delete()
+            CreditTransaction.objects.filter(target_account=pool).delete()
+            pool.delete()
+        task_locked = CreditAccount.objects.filter(account_type=CreditAccount.Type.TASK_LOCKED).first()
+        if task_locked:
+            CreditTransaction.objects.filter(source_account=task_locked).delete()
+            CreditTransaction.objects.filter(target_account=task_locked).delete()
+            task_locked.delete()
+        login_as_member(self.client, self.gov)
+        resp = self.client.get("/workspace/tasks/new/")
+        self.assertEqual(resp.status_code, 200)
+
+
+class BudgetIdempotencyTests(TestCase):
+    """Budget page per-render idempotency key tests."""
+
+    def setUp(self):
+        from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account, post_credit_transaction
+        from core.models import CreditAccount, CreditTransaction
+        from core.tests.helpers import create_governance_admin_member
+        from django.utils import timezone
+        ensure_system_accounts()
+        self.gov = create_governance_admin_member("budget-idem-gov")
+        get_or_create_member_credit_account(self.gov)
+        pool = CreditAccount.objects.get(account_type=CreditAccount.Type.ISSUANCE_POOL)
+        post_credit_transaction(
+            transaction_type=CreditTransaction.Type.ISSUANCE, amount=500, target_account=pool,
+        )
+        self.task = Task.objects.create(
+            task_id="task-idem-test", title="Idem test task",
+            task_type=Task.TaskType.PUBLIC_CLEANING, status=Task.Status.DRAFT,
+            standard_hours=1, base_points=10, rule_version="ruleset-v0.1.0",
+            requires_review=True, created_at=timezone.now(),
+        )
+
+    def test_issue_same_key_no_duplicate(self):
+        """同 hidden key 重复提交 issue 不重复发行。"""
+        from core.models import CreditTransaction
+        before = CreditTransaction.objects.filter(
+            transaction_type=CreditTransaction.Type.ISSUANCE,
+        ).count()
+        login_as_member(self.client, self.gov)
+        key = "idem-test-issue-same-key"
+        for _ in range(2):
+            self.client.post(
+                "/workspace/credits/budgets/",
+                {"action": "issue", "amount": "100", "reason": "idem test",
+                 "idempotency_key": key},
+            )
+        after = CreditTransaction.objects.filter(
+            transaction_type=CreditTransaction.Type.ISSUANCE,
+        ).count()
+        self.assertEqual(after, before + 1, "同 key 重复提交应只生成一笔 issue")
+
+    def test_issue_new_key_creates_new_txn(self):
+        """刷新页面获得新 key 后再次发行相同 amount，应新增第二笔。"""
+        from core.models import CreditTransaction
+        before = CreditTransaction.objects.filter(
+            transaction_type=CreditTransaction.Type.ISSUANCE,
+        ).count()
+        login_as_member(self.client, self.gov)
+        self.client.post(
+            "/workspace/credits/budgets/",
+            {"action": "issue", "amount": "100", "reason": "first",
+             "idempotency_key": "idem-test-issue-key1"},
+        )
+        self.client.post(
+            "/workspace/credits/budgets/",
+            {"action": "issue", "amount": "100", "reason": "second",
+             "idempotency_key": "idem-test-issue-key2"},
+        )
+        after = CreditTransaction.objects.filter(
+            transaction_type=CreditTransaction.Type.ISSUANCE,
+        ).count()
+        self.assertEqual(after, before + 2, "新 key 应新增第二笔发行")
+
+    def test_lock_same_key_no_duplicate(self):
+        """同 hidden key 重复提交 lock 不重复锁定。"""
+        from core.models import CreditTransaction
+        before = CreditTransaction.objects.filter(
+            transaction_type=CreditTransaction.Type.LOCK,
+        ).count()
+        login_as_member(self.client, self.gov)
+        key = "idem-test-lock-same-key"
+        for _ in range(2):
+            self.client.post(
+                "/workspace/credits/budgets/",
+                {"action": "lock", "task_id": self.task.task_id, "amount": "50",
+                 "reason": "idem lock", "idempotency_key": key},
+            )
+        after = CreditTransaction.objects.filter(
+            transaction_type=CreditTransaction.Type.LOCK,
+        ).count()
+        self.assertEqual(after, before + 1, "同 key 重复提交应只生成一笔 lock")
+
+    def test_lock_new_key_creates_new_lock(self):
+        """新 key 同 task+amount 可再次锁定。"""
+        from core.models import CreditTransaction
+        before = CreditTransaction.objects.filter(
+            transaction_type=CreditTransaction.Type.LOCK,
+        ).count()
+        login_as_member(self.client, self.gov)
+        self.client.post(
+            "/workspace/credits/budgets/",
+            {"action": "lock", "task_id": self.task.task_id, "amount": "50",
+             "reason": "first lock", "idempotency_key": "idem-test-lock-key1"},
+        )
+        self.client.post(
+            "/workspace/credits/budgets/",
+            {"action": "lock", "task_id": self.task.task_id, "amount": "50",
+             "reason": "second lock", "idempotency_key": "idem-test-lock-key2"},
+        )
+        after = CreditTransaction.objects.filter(
+            transaction_type=CreditTransaction.Type.LOCK,
+        ).count()
+        self.assertEqual(after, before + 2, "新 key 应新增第二笔锁定")
+
+    def test_unlock_same_key_no_duplicate(self):
+        """同 hidden key 重复提交 unlock 不重复退回。"""
+        from core.credit_services import lock_task_credit_budget
+        lock_task_credit_budget(task=self.task, amount=80, reason="pre-lock")
+        from core.models import CreditTransaction
+        before = CreditTransaction.objects.filter(
+            transaction_type=CreditTransaction.Type.UNLOCK,
+        ).count()
+        login_as_member(self.client, self.gov)
+        key = "idem-test-unlock-same-key"
+        for _ in range(2):
+            self.client.post(
+                "/workspace/credits/budgets/",
+                {"action": "unlock", "task_id": self.task.task_id, "amount": "30",
+                 "reason": "idem unlock", "idempotency_key": key},
+            )
+        after = CreditTransaction.objects.filter(
+            transaction_type=CreditTransaction.Type.UNLOCK,
+        ).count()
+        self.assertEqual(after, before + 1, "同 key 重复提交应只生成一笔 unlock")
+
+    def test_unlock_new_key_creates_new_unlock(self):
+        """新 key 在有剩余预算时可再次退回。"""
+        from core.credit_services import lock_task_credit_budget
+        lock_task_credit_budget(task=self.task, amount=100, reason="big lock")
+        from core.models import CreditTransaction
+        before = CreditTransaction.objects.filter(
+            transaction_type=CreditTransaction.Type.UNLOCK,
+        ).count()
+        login_as_member(self.client, self.gov)
+        self.client.post(
+            "/workspace/credits/budgets/",
+            {"action": "unlock", "task_id": self.task.task_id, "amount": "20",
+             "reason": "first unlock", "idempotency_key": "idem-test-unlock-key1"},
+        )
+        self.client.post(
+            "/workspace/credits/budgets/",
+            {"action": "unlock", "task_id": self.task.task_id, "amount": "20",
+             "reason": "second unlock", "idempotency_key": "idem-test-unlock-key2"},
+        )
+        after = CreditTransaction.objects.filter(
+            transaction_type=CreditTransaction.Type.UNLOCK,
+        ).count()
+        self.assertEqual(after, before + 2, "新 key 应新增第二笔退回")
+
+    def test_missing_key_returns_error(self):
+        """缺少 idempotency_key 的 POST 返回错误，不创建交易。"""
+        from core.models import CreditTransaction
+        before = CreditTransaction.objects.filter(
+            transaction_type=CreditTransaction.Type.ISSUANCE,
+        ).count()
+        login_as_member(self.client, self.gov)
+        resp = self.client.post(
+            "/workspace/credits/budgets/",
+            {"action": "issue", "amount": "100"},
+        )
+        self.assertContains(resp, "缺少幂等键")
+        after = CreditTransaction.objects.filter(
+            transaction_type=CreditTransaction.Type.ISSUANCE,
+        ).count()
+        self.assertEqual(after, before, "缺少 key 不应创建交易")

@@ -953,6 +953,44 @@ class RedemptionOrderTests(TestCase):
         with self.assertRaises(DomainError):
             create_redemption_order(member=self.member, credit_amount=5, item_type="INVALID", title="bad")
 
+    def test_review_zero_point_task_accepted_no_reward(self):
+        """0 分任务验收通过：状态 ACCEPTED，不产生 task_reward CreditTransaction。"""
+        from decimal import Decimal
+        from core.tasks.review import review_task
+        from core.tasks.authoring import create_task_draft, publish_task
+        from core.tasks.member_workflow import claim_task, submit_labor
+
+        task = create_task_draft(
+            title="Zero point review", task_type="public_cleaning", standard_hours=Decimal("1"),
+            base_points=0, role_coefficient=Decimal("1.0"), failure_consequence="",
+            can_be_delayed=True, requires_review=True, rule_version="ruleset-v0.1.0",
+            created_by={"actor_id": "gov", "display_name": "Gov"},
+        )
+        publish_task(task=task, publisher={"actor_id": "gov", "display_name": "Gov"})
+        task.refresh_from_db()
+        claim_task(task=task, member=self.member)
+        task.refresh_from_db()
+        submit_labor(task=task, member=self.member, labor_note="zero point labor", evidence_refs=[])
+
+        txn_before = CreditTransaction.objects.filter(
+            transaction_type=CreditTransaction.Type.TASK_REWARD,
+        ).count()
+
+        task, entries = review_task(
+            task=task,
+            reviewer={"actor_id": "gov", "display_name": "Gov"},
+            accepted=True, reason="zero point accepted",
+        )
+        self.assertEqual(task.status, Task.Status.ACCEPTED)
+        self.assertEqual(
+            CreditTransaction.objects.filter(
+                transaction_type=CreditTransaction.Type.TASK_REWARD,
+            ).count(),
+            txn_before,
+            "0 分验收不应产生 task_reward CreditTransaction"
+        )
+        self.assertEqual(len(entries), 0, "0 分验收不应产生 LedgerEntry")
+
 
 class MerchantSettlementTests(TestCase):
     def setUp(self):

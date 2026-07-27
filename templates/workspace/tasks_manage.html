@@ -1,0 +1,105 @@
+{% load tailwind_tags world_urls %}
+<!doctype html><html lang="zh-Hans" data-theme="bumblebee">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>任务管理</title>{% tailwind_css %}</head>
+<body class="min-h-screen bg-base-200 text-base-content">{% include "partials/runtime_header.html" %}
+<main class="mx-auto grid w-full max-w-5xl gap-6 p-4 lg:p-8">
+<h1 class="text-2xl font-bold">任务管理（治理）</h1>
+
+{% if messages %}<div class="grid gap-2">{% for msg in messages %}<div class="alert alert-{{ msg.tags|default:'info' }}">{{ msg }}</div>{% endfor %}</div>{% endif %}
+
+<div class="alert text-sm">有积分奖励的任务请先在<a class="link link-primary" href="{% world_url 'workspace-credits-budgets' %}">积分预算</a>页发行并锁定足够预算，再在此页发布。</div>
+
+{# ── create form ─────────────────────────────────────────────── #}
+<form method="post" class="card bg-base-100 shadow">
+  <div class="card-body gap-4">
+    <h2 class="card-title text-base">创建任务草稿</h2>
+    {% csrf_token %}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="form-control">
+        <label class="label"><span class="label-text">任务标题 *</span></label>
+        <input type="text" name="title" class="input input-bordered" maxlength="256" placeholder="公共区域清洁" required>
+      </div>
+      <div class="form-control">
+        <label class="label"><span class="label-text">任务类型 *</span></label>
+        <select name="task_type" class="select select-bordered" required>
+          {% for val in task_types %}
+            <option value="{{ val }}">{{ val }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="form-control">
+        <label class="label"><span class="label-text">标准工时（小时）*</span></label>
+        <input type="number" name="standard_hours" class="input input-bordered" min="0.1" step="0.5" placeholder="1" required>
+      </div>
+      <div class="form-control">
+        <label class="label"><span class="label-text">基础积分</span></label>
+        <input type="number" name="base_points" class="input input-bordered" min="0" step="1" value="0" placeholder="0">
+        <span class="label-text-alt text-base-content/50">0 表示无积分奖励，无需锁定预算</span>
+      </div>
+      <div class="form-control justify-end">
+        <label class="label cursor-pointer gap-2">
+          <span class="label-text">需验收</span>
+          <input type="checkbox" name="requires_review" class="checkbox" checked value="true">
+        </label>
+      </div>
+    </div>
+    <div class="card-actions">
+      <button class="btn btn-primary" type="submit">创建草稿</button>
+    </div>
+  </div>
+</form>
+
+{# ── task list ───────────────────────────────────────────────── #}
+<div class="card bg-base-100 shadow">
+  <div class="card-body">
+    <h2 class="card-title text-base">最近任务</h2>
+    {% if task_rows %}
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead><tr><th>任务ID</th><th>标题</th><th>类型</th><th>工时</th><th>积分</th><th>锁定预算</th><th>状态</th><th>操作</th></tr></thead>
+          <tbody>
+          {% for row in task_rows %}
+            <tr>
+              <td class="text-xs font-mono">{{ row.task.task_id|truncatechars:18 }}</td>
+              <td>{{ row.task.title|default:"-" }}</td>
+              <td>{{ row.task.get_task_type_display }}</td>
+              <td>{{ row.task.standard_hours|floatformat:1 }}h</td>
+              <td class="font-semibold">{{ row.task.base_points }}</td>
+              <td class="font-semibold {% if row.task.base_points > 0 %}{% if row.locked_budget > 0 %}text-success{% else %}text-error{% endif %}{% endif %}">
+                {{ row.locked_budget }}
+              </td>
+              <td>
+                {% if row.task.status == "draft" %}<span class="badge badge-ghost">草稿</span>
+                {% elif row.task.status == "open" %}<span class="badge badge-info">开放领取</span>
+                {% elif row.task.status == "claimed" %}<span class="badge badge-primary">已领取</span>
+                {% elif row.task.status == "in_progress" %}<span class="badge badge-warning">进行中</span>
+                {% elif row.task.status == "pending_review" %}<span class="badge badge-secondary">待验收</span>
+                {% elif row.task.status == "accepted" %}<span class="badge badge-success">已通过</span>
+                {% else %}<span class="badge">{{ row.task.status }}</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if row.task.status == "draft" %}
+                  <form method="post" action="{% world_url 'workspace-tasks-publish' row.task.task_id %}" class="inline" onsubmit="return confirm('确定发布该任务？')">
+                    {% csrf_token %}
+                    <button class="btn btn-xs btn-primary" type="submit">发布</button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="alert">暂无任务。</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card-actions justify-center">
+  <a class="btn btn-ghost" href="{% world_url 'workspace-page' %}">返回工作台</a>
+</div>
+</main></body></html>

@@ -1,0 +1,68 @@
+{% load tailwind_tags world_urls %}
+<!doctype html><html lang="zh-Hans" data-theme="bumblebee">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>任务验收</title>{% tailwind_css %}</head>
+<body class="min-h-screen bg-base-200 text-base-content">{% include "partials/runtime_header.html" %}
+<main class="mx-auto grid w-full max-w-5xl gap-6 p-4 lg:p-8">
+<h1 class="text-2xl font-bold">任务验收（治理）</h1>
+
+{% if messages %}<div class="grid gap-2">{% for msg in messages %}<div class="alert alert-{{ msg.tags|default:'info' }}">{{ msg }}</div>{% endfor %}</div>{% endif %}
+
+<div class="alert alert-info text-sm">有积分奖励的任务验收通过时会从已锁定预算发放积分给验收成员。预算不足时不能通过，请先到<a class="link link-primary" href="{% world_url 'workspace-credits-budgets' %}">积分预算</a>页补锁预算。</div>
+
+{% if task_rows %}
+  {% for row in task_rows %}
+  <div class="card bg-base-100 shadow">
+    <div class="card-body gap-3">
+      <div class="flex flex-wrap items-center gap-2">
+        <h2 class="card-title text-base flex-1">
+          <span class="text-xs font-mono opacity-60">{{ row.task.task_id|truncatechars:18 }}</span>
+          {{ row.task.title|default:"-" }}
+        </h2>
+        <span class="badge badge-secondary text-xs">待验收</span>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+        <div><span class="text-base-content/50">类型</span><br>{{ row.task.get_task_type_display }}</div>
+        <div><span class="text-base-content/50">领取成员</span><br>{{ row.task.assignee_member.member_no|default:"-" }}</div>
+        <div><span class="text-base-content/50">基础积分</span><br>{{ row.task.base_points }}</div>
+        <div><span class="text-base-content/50">系数</span><br>{{ row.task.role_coefficient|floatformat:3 }}</div>
+        <div><span class="text-base-content/50">预计奖励</span><br><span class="font-semibold text-success">{{ row.reward }}</span></div>
+        <div><span class="text-base-content/50">已锁预算</span><br><span class="font-semibold {% if row.locked_budget >= row.reward %}text-success{% else %}text-error{% endif %}">{{ row.locked_budget }}</span></div>
+        <div><span class="text-base-content/50">标准工时</span><br>{{ row.task.standard_hours|floatformat:1 }}h</div>
+        <div><span class="text-base-content/50">提交时间</span><br>{{ row.task.submitted_at|date:"m-d H:i"|default:"-" }}</div>
+      </div>
+
+      {% if row.labor_note %}
+      <div class="bg-base-200 rounded p-3 text-sm">
+        <div class="text-base-content/50 mb-1">劳动说明</div>
+        <div>{{ row.labor_note }}</div>
+        {% if row.evidence_refs %}
+          <div class="text-base-content/50 mt-2 mb-1">证据线索</div>
+          <div class="flex flex-wrap gap-1">
+            {% for ref in row.evidence_refs %}<span class="badge badge-sm badge-outline text-xs">{{ ref }}</span>{% endfor %}
+          </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <form method="post" class="flex items-end gap-3 mt-2">
+        {% csrf_token %}
+        <input type="hidden" name="task_id" value="{{ row.task.task_id }}">
+        <div class="form-control flex-1">
+          <label class="label"><span class="label-text">验收理由（可选）</span></label>
+          <input type="text" name="reason" class="input input-bordered input-sm" maxlength="512" placeholder="验收说明">
+        </div>
+        <button class="btn btn-sm btn-success" type="submit" name="decision" value="accepted">通过</button>
+        <button class="btn btn-sm btn-outline btn-error" type="submit" name="decision" value="rejected">驳回</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="alert">暂无待验收任务。</div>
+{% endif %}
+
+<div class="card-actions justify-center">
+  <a class="btn btn-ghost" href="{% world_url 'workspace-page' %}">返回工作台</a>
+</div>
+</main></body></html>

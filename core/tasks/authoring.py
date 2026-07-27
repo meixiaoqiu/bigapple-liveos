@@ -43,8 +43,8 @@ def create_task_draft(
         raise DomainError("任务类型无效。")
     if standard_hours <= 0:
         raise DomainError("标准工时必须大于 0。")
-    if base_points <= 0:
-        raise DomainError("基础积分必须大于 0。")
+    if base_points < 0:
+        raise DomainError("基础积分必须是非负整数。")
     if role_coefficient <= 0:
         raise DomainError("岗位系数必须大于 0。")
     if failure_consequence and failure_consequence not in valid_consequences:

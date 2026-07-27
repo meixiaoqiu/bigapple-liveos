@@ -1,0 +1,203 @@
+{% load tailwind_tags world_urls %}
+<!doctype html><html lang="zh-Hans" data-theme="bumblebee">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>积分预算</title>{% tailwind_css %}</head>
+<body class="min-h-screen bg-base-200 text-base-content">{% include "partials/runtime_header.html" %}
+<main class="mx-auto grid w-full max-w-5xl gap-6 p-4 lg:p-8">
+<h1 class="text-2xl font-bold">积分预算（治理）</h1>
+
+{% if messages %}<div class="grid gap-2">{% for msg in messages %}<div class="alert alert-{{ msg.tags|default:'info' }}">{{ msg }}</div>{% endfor %}</div>{% endif %}
+
+{# ── pool status ─────────────────────────────────────────────── #}
+<div class="grid grid-cols-2 gap-4">
+  <div class="stats bg-base-100 shadow">
+    <div class="stat">
+      <div class="stat-title">公共发行池</div>
+      <div class="stat-value text-primary">{{ pool_balance }}</div>
+      <div class="stat-desc">治理批准发行的积分总额</div>
+    </div>
+  </div>
+  <div class="stats bg-base-100 shadow">
+    <div class="stat">
+      <div class="stat-title">任务锁定池</div>
+      <div class="stat-value text-secondary">{{ task_locked_balance }}</div>
+      <div class="stat-desc">已锁定任务预算总额</div>
+    </div>
+  </div>
+</div>
+
+{# ── issue form ──────────────────────────────────────────────── #}
+<form method="post" class="card bg-base-100 shadow">
+  <div class="card-body gap-4">
+    <h2 class="card-title text-base">发行积分到公共发行池</h2>
+    <div class="alert alert-info text-sm">创世发分后，请通过"锁定任务预算→验收发放"路径分发给成员。不要在此直接给成员账户加分。</div>
+    {% csrf_token %}<input type="hidden" name="action" value="issue">
+    <input type="hidden" name="idempotency_key" value="{{ issue_key }}">
+    <div class="flex gap-4 items-end">
+      <div class="form-control flex-1">
+        <label class="label"><span class="label-text">积分数量</span></label>
+        <input type="number" name="amount" class="input input-bordered" min="1" step="1" placeholder="100" required>
+      </div>
+      <div class="form-control flex-[2]">
+        <label class="label"><span class="label-text">原因</span></label>
+        <input type="text" name="reason" class="input input-bordered" maxlength="256" placeholder="创世发行 / 季度预算">
+      </div>
+      <button class="btn btn-primary" type="submit">发行</button>
+    </div>
+  </div>
+</form>
+
+{# ── lock form ───────────────────────────────────────────────── #}
+<form method="post" class="card bg-base-100 shadow">
+  <div class="card-body gap-4">
+    <h2 class="card-title text-base">锁定任务预算</h2>
+    {% csrf_token %}<input type="hidden" name="action" value="lock">
+    <input type="hidden" name="idempotency_key" value="{{ lock_key }}">
+    <div class="flex gap-4 items-end">
+      <div class="form-control flex-1">
+        <label class="label"><span class="label-text">任务 ID</span></label>
+        <input type="text" name="task_id" class="input input-bordered" placeholder="task-qa-01" required>
+      </div>
+      <div class="form-control flex-1">
+        <label class="label"><span class="label-text">积分数量</span></label>
+        <input type="number" name="amount" class="input input-bordered" min="1" step="1" placeholder="36" required>
+      </div>
+      <div class="form-control flex-[2]">
+        <label class="label"><span class="label-text">原因</span></label>
+        <input type="text" name="reason" class="input input-bordered" maxlength="256" placeholder="任务预算">
+      </div>
+      <button class="btn btn-secondary" type="submit">锁定</button>
+    </div>
+  </div>
+</form>
+
+{# ── unlock form ─────────────────────────────────────────────── #}
+<form method="post" class="card bg-base-100 shadow">
+  <div class="card-body gap-4">
+    <h2 class="card-title text-base">退回未用任务预算</h2>
+    {% csrf_token %}<input type="hidden" name="action" value="unlock">
+    <input type="hidden" name="idempotency_key" value="{{ unlock_key }}">
+    <div class="flex gap-4 items-end">
+      <div class="form-control flex-1">
+        <label class="label"><span class="label-text">任务 ID</span></label>
+        <input type="text" name="task_id" class="input input-bordered" placeholder="task-qa-01" required>
+      </div>
+      <div class="form-control flex-1">
+        <label class="label"><span class="label-text">退回数量</span></label>
+        <input type="number" name="amount" class="input input-bordered" min="1" step="1" placeholder="10" required>
+      </div>
+      <div class="form-control flex-[2]">
+        <label class="label"><span class="label-text">原因</span></label>
+        <input type="text" name="reason" class="input input-bordered" maxlength="256" placeholder="未使用预算">
+      </div>
+      <button class="btn btn-warning" type="submit">退回</button>
+    </div>
+  </div>
+</form>
+
+{# ── task budget list ────────────────────────────────────────── #}
+<div class="card bg-base-100 shadow">
+  <div class="card-body">
+    <h2 class="card-title text-base">任务预算概览</h2>
+    {% if task_budgets %}
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead><tr><th>任务ID</th><th>标题</th><th>基础分</th><th>状态</th><th>已锁预算</th></tr></thead>
+          <tbody>
+          {% for tb in task_budgets %}
+            <tr>
+              <td class="text-xs font-mono">{{ tb.task.task_id|truncatechars:24 }}</td>
+              <td>{{ tb.task.title|default:"-" }}</td>
+              <td>{{ tb.task.base_points }}</td>
+              <td><span class="badge">{{ tb.task.status }}</span></td>
+              <td class="font-semibold {% if tb.locked > 0 %}text-success{% endif %}">{{ tb.locked }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="alert">暂无有积分预算的任务。</div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── recent issuance ─────────────────────────────────────────── #}
+<div class="card bg-base-100 shadow">
+  <div class="card-body">
+    <h2 class="card-title text-base">最近积分发行</h2>
+    {% if recent_issuance %}
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead><tr><th>交易ID</th><th>数量</th><th>原因</th><th>时间</th></tr></thead>
+          <tbody>
+          {% for txn in recent_issuance %}
+            <tr>
+              <td class="text-xs font-mono">{{ txn.transaction_id|truncatechars:18 }}</td>
+              <td class="font-semibold text-primary">+{{ txn.amount }}</td>
+              <td>{{ txn.reason|default:"-" }}</td>
+              <td class="text-xs">{{ txn.created_at|date:"m-d H:i" }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="alert">暂无发行记录。</div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── recent locks / unlocks ──────────────────────────────────── #}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div class="card bg-base-100 shadow">
+    <div class="card-body">
+      <h2 class="card-title text-base">最近锁定预算</h2>
+      {% if recent_locks %}
+        <div class="overflow-x-auto">
+          <table class="table table-sm">
+            <thead><tr><th>任务</th><th>数量</th><th>时间</th></tr></thead>
+            <tbody>
+            {% for txn in recent_locks %}
+              <tr>
+                <td class="text-xs">{{ txn.related_task.task_id|default:"-"|truncatechars:18 }}</td>
+                <td class="font-semibold text-secondary">+{{ txn.amount }}</td>
+                <td class="text-xs">{{ txn.created_at|date:"m-d H:i" }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="alert text-sm">暂无锁定记录。</div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="card bg-base-100 shadow">
+    <div class="card-body">
+      <h2 class="card-title text-base">最近预算退回</h2>
+      {% if recent_unlocks %}
+        <div class="overflow-x-auto">
+          <table class="table table-sm">
+            <thead><tr><th>任务</th><th>数量</th><th>时间</th></tr></thead>
+            <tbody>
+            {% for txn in recent_unlocks %}
+              <tr>
+                <td class="text-xs">{{ txn.related_task.task_id|default:"-"|truncatechars:18 }}</td>
+                <td class="font-semibold text-warning">-{{ txn.amount }}</td>
+                <td class="text-xs">{{ txn.created_at|date:"m-d H:i" }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="alert text-sm">暂无退回记录。</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card-actions justify-center">
+  <a class="btn btn-ghost" href="{% world_url 'workspace-page' %}">返回工作台</a>
+</div>
+</main></body></html>
