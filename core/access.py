@@ -5,7 +5,7 @@ from __future__ import annotations
 from .governance_setup import GOVERNANCE_VIEW_ADMIN_PERMISSION
 from .finance_setup import FINANCE_PAY_PERMISSION, FINANCE_REVIEW_PERMISSION
 from .models import Member, Resource
-from .permission_services import member_has_permission
+from .authorization_services import AuthorizationService
 
 
 def member_for_user(user) -> Member | None:
@@ -37,7 +37,12 @@ def user_has_governance_permission(
     if not user or not getattr(user, "is_authenticated", False):
         return False
     member = member_for_user(user)
-    if member is not None and member_has_permission(member, permission_code, resource=resource, at_time=at_time):
+    if member is not None and AuthorizationService().member_has_permission(
+        member,
+        permission_code,
+        resource=resource,
+        at_time=at_time,
+    ):
         return True
     return False
 
@@ -47,15 +52,15 @@ def is_governance_principal(
     permission_code: str = GOVERNANCE_VIEW_ADMIN_PERMISSION,
 ) -> bool:
     if isinstance(user_or_member, Member):
-        return member_has_permission(user_or_member, permission_code)
+        return AuthorizationService().member_has_permission(user_or_member, permission_code)
     return user_has_governance_permission(user_or_member, permission_code)
 
 
 def is_finance_reviewer(member: Member) -> bool:
     """Return True when *member* can review expense claims."""
-    return member_has_permission(member, FINANCE_REVIEW_PERMISSION)
+    return AuthorizationService().member_has_permission(member, FINANCE_REVIEW_PERMISSION)
 
 
 def is_finance_payer(member: Member) -> bool:
     """Return True when *member* can record finance payments."""
-    return member_has_permission(member, FINANCE_PAY_PERMISSION)
+    return AuthorizationService().member_has_permission(member, FINANCE_PAY_PERMISSION)

@@ -15,9 +15,8 @@ from core.finance_services import (
     withdraw_expense_claim,
 )
 from core.models import ExpenseClaim, Member
+from core.access import is_finance_payer, is_finance_reviewer
 from live_os.access import is_authenticated, page_forbidden
-
-from core.permission_services import member_has_permission
 
 from .finance_forms import ExpenseClaimForm, FinanceReviewForm
 from .access import require_full_workspace_member
@@ -33,7 +32,11 @@ def _current_member(request: HttpRequest) -> Member | HttpResponse:
 
 
 def _check_permission(member: Member, code: str) -> bool:
-    return member_has_permission(member, code)
+    if code == FINANCE_REVIEW_PERMISSION:
+        return is_finance_reviewer(member)
+    if code == FINANCE_PAY_PERMISSION:
+        return is_finance_payer(member)
+    return False
 
 
 def _is_finance_operator(member: Member) -> bool:

@@ -8,6 +8,7 @@ WorldMaintenanceLog records in the control database.
 from __future__ import annotations
 
 from collections import OrderedDict
+from io import StringIO
 
 from django.conf import settings
 from django.core.management import call_command
@@ -96,8 +97,9 @@ def reset_simulation_world_to_zero_start(
     4. Flushes the target world database without touching the control DB.
     5. Calls seed_world --template zero_start on the target world.
     6. Counts records after re-seed.
-    7. Writes a WorldMaintenanceLog in the control database.
-    8. Returns a result dict with counts and metadata.
+    7. Rebuilds sim OpenFGA tuples when a sim OpenFGA store is configured.
+    8. Writes a WorldMaintenanceLog in the control database.
+    9. Returns a result dict with counts and metadata.
 
     Note: This function does NOT run run_zero_start_simulation. The world
     after reset will have only the zero-start baseline: one founder member,
@@ -200,6 +202,21 @@ def reset_simulation_world_to_zero_start(
     # ---- Count after ----
     counts_after = count_world_rows(world)
 
+    # ---- Rebuild OpenFGA projection for this simulation world ----
+    try:
+        openfga_rebuild_status = _rebuild_sim_openfga_tuples_if_configured(world)
+    except CommandError as exc:
+        _record_maintenance_log(
+            world=world,
+            actor=actor,
+            force=force,
+            counts_before=counts_before,
+            counts_after=counts_after,
+            status=WorldMaintenanceLog.StatusChoices.FAILED,
+            message=f"OpenFGA tuple 重建失败：{exc}",
+        )
+        raise CommandError(f"OpenFGA tuple 重建失败：{exc}") from exc
+
     # ---- Write audit log ----
     _record_maintenance_log(
         world=world,
@@ -216,9 +233,30 @@ def reset_simulation_world_to_zero_start(
         "database_alias": database_alias,
         "seed_template": "zero_start",
         "actor": actor,
+        "openfga_rebuild_status": openfga_rebuild_status,
         "counts_before": counts_before,
         "counts_after": counts_after,
     }
+
+
+def _rebuild_sim_openfga_tuples_if_configured(world: WorldRegistry) -> str:
+    """Rebuild sim OpenFGA tuples after the simulation world authority data changes."""
+    from core.authorization_services import openfga_context_for_world_kind
+
+    context = openfga_context_for_world_kind("sim")
+    if not context.store_id:
+        return "skipped_not_configured"
+
+    output = StringIO()
+    call_command(
+        "openfga_rebuild_tuples",
+        "--world-kind",
+        "sim",
+        "--world-id",
+        world.world_id,
+        stdout=output,
+    )
+    return "rebuilt"
 
 
 def _record_maintenance_log(

@@ -1540,11 +1540,12 @@ class SimulationLabResetWorldTests(TestCase):
             occurred_at=timezone.now(),
         )
 
-        response = self.client.post(
-            "/admin/simulation-lab/reset-world/",
-            self._reset_post_data(world, force=True),
-            follow=True,
-        )
+        with patch.dict("os.environ", {"BIG_APPLE_SIMULATION_BOOTSTRAP_ADMIN_ENABLED": "false"}):
+            response = self.client.post(
+                "/admin/simulation-lab/reset-world/",
+                self._reset_post_data(world, force=True),
+                follow=True,
+            )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "已成功重置到 zero_start 基线")
@@ -1791,4 +1792,73 @@ class SimulationLabResetWorldTests(TestCase):
         self.assertEqual(log.status, WorldMaintenanceLog.StatusChoices.FAILED)
         self.assertIn("flush", log.message)
         self.assertIn("清空目标世界数据库失败", log.message)
+        self.assertEqual(log.world_id, world.world_id)
+
+    @override_settings(
+        OPENFGA_SIM_STORE_ID="sim-store-id",
+        OPENFGA_SIM_AUTHORIZATION_MODEL_ID="sim-model-id",
+    )
+    def test_reset_world_rebuilds_sim_openfga_tuples_when_store_configured(self) -> None:
+        """Configured sim OpenFGA store must be rebuilt after zero_start reseed."""
+        from simulation.world_reset import reset_simulation_world_to_zero_start
+
+        world = self._create_simulation_world()
+
+        with patch("simulation.world_reset.call_command") as mock_call_command:
+            result = reset_simulation_world_to_zero_start(
+                world,
+                actor=self.user.username,
+                force=True,
+            )
+
+        mock_call_command.assert_any_call(
+            "flush",
+            database="default",
+            interactive=False,
+            verbosity=0,
+        )
+        mock_call_command.assert_any_call(
+            "seed_world",
+            world.world_id,
+            "--template",
+            "zero_start",
+        )
+        rebuild_call = mock_call_command.call_args_list[-1]
+        self.assertEqual(rebuild_call.args[:5], (
+            "openfga_rebuild_tuples",
+            "--world-kind",
+            "sim",
+            "--world-id",
+            world.world_id,
+        ))
+        self.assertEqual(result["openfga_rebuild_status"], "rebuilt")
+
+    @override_settings(
+        OPENFGA_SIM_STORE_ID="sim-store-id",
+        OPENFGA_SIM_AUTHORIZATION_MODEL_ID="sim-model-id",
+    )
+    def test_reset_world_openfga_rebuild_failure_writes_failed_maintenance_log(self) -> None:
+        """OpenFGA rebuild failure after reseed must be surfaced and audited as failed."""
+        from django.core.management.base import CommandError as CE
+        from simulation.world_reset import reset_simulation_world_to_zero_start
+        from worlds.models import WorldMaintenanceLog
+
+        world = self._create_simulation_world()
+
+        with patch("simulation.world_reset.call_command") as mock_call_command:
+            mock_call_command.side_effect = [None, None, CE("sim fga unavailable")]
+
+            with self.assertRaises(CE) as ctx:
+                reset_simulation_world_to_zero_start(
+                    world,
+                    actor=self.user.username,
+                    force=True,
+                )
+
+        self.assertIn("OpenFGA tuple 重建失败", str(ctx.exception))
+
+        log = WorldMaintenanceLog.objects.first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.status, WorldMaintenanceLog.StatusChoices.FAILED)
+        self.assertIn("OpenFGA tuple 重建失败", log.message)
         self.assertEqual(log.world_id, world.world_id)

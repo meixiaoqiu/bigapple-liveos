@@ -19,8 +19,9 @@ from .models.events import Event
 
 
 def _member_has_permission(member: Member, code: str) -> bool:
-    from core.permission_services import member_has_permission as _mhp
-    return _mhp(member, code)
+    from core.authorization_services import AuthorizationService
+
+    return AuthorizationService().member_has_permission(member, code)
 
 
 def _event_suffix(value: str) -> str:
