@@ -19,7 +19,7 @@ from worlds.command_context import command_world_context
 
 
 class Command(BaseCommand):
-    help = "Project current active Django role and permission facts into OpenFGA tuples."
+    help = "Delete OpenFGA tuples and rebuild them from the current Django authority projection."
 
     def add_arguments(self, parser):
         parser.add_argument("--world-kind", choices=("real", "sim"), default=None)
@@ -36,33 +36,37 @@ class Command(BaseCommand):
 
             tuples = list(_unique_tuples(_project_authorization_tuples(platform_object=context.platform_object)))
             if options["dry_run"]:
-                self.stdout.write(f"Would write {len(tuples)} OpenFGA tuples.")
+                self.stdout.write(
+                    f"Would delete all existing OpenFGA tuples and rebuild {len(tuples)} projected tuples."
+                )
                 return
             if not store_id:
                 raise CommandError(f"{context.world_kind} OpenFGA store id is required.")
 
             client = OpenFGAClient(options["api_url"] or context.api_url)
             try:
-                existing_tuples = {
-                    (item["key"]["user"], item["key"]["relation"], item["key"]["object"])
-                    for item in client.read_tuples(store_id=store_id)
-                }
-                missing_tuples = [
-                    tuple_key
-                    for tuple_key in tuples
-                    if (tuple_key["user"], tuple_key["relation"], tuple_key["object"]) not in existing_tuples
-                ]
-                for start in range(0, len(missing_tuples), 100):
+                existing_tuple_keys = list(_unique_tuples(_read_tuple_keys(client, store_id=store_id)))
+                authorization_model_id = options["authorization_model_id"] or context.authorization_model_id
+                for start in range(0, len(existing_tuple_keys), 100):
+                    client.delete_tuples(
+                        store_id=store_id,
+                        authorization_model_id=authorization_model_id,
+                        deletes=existing_tuple_keys[start : start + 100],
+                    )
+                for start in range(0, len(tuples), 100):
                     client.write_tuples(
                         store_id=store_id,
-                        authorization_model_id=options["authorization_model_id"] or context.authorization_model_id,
-                        writes=missing_tuples[start : start + 100],
+                        authorization_model_id=authorization_model_id,
+                        writes=tuples[start : start + 100],
                     )
             except OpenFGARequestError as exc:
                 raise CommandError(str(exc)) from exc
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Projected {len(tuples)} OpenFGA tuples; wrote {len(missing_tuples)} missing tuples."
+                    "Projected "
+                    f"{len(tuples)} OpenFGA tuples; "
+                    f"deleted {len(existing_tuple_keys)} existing tuples; "
+                    f"wrote {len(tuples)} rebuilt tuples."
                 )
             )
 
@@ -122,8 +126,21 @@ def _project_authorization_tuples(*, platform_object: str):
 def _unique_tuples(tuples):
     seen: set[tuple[str, str, str]] = set()
     for tuple_key in tuples:
-        key = (tuple_key["user"], tuple_key["relation"], tuple_key["object"])
+        key = _tuple_identity(tuple_key)
         if key in seen:
             continue
         seen.add(key)
         yield tuple_key
+
+
+def _tuple_identity(tuple_key: dict[str, str]) -> tuple[str, str, str]:
+    return (tuple_key["user"], tuple_key["relation"], tuple_key["object"])
+
+
+def _read_tuple_keys(client: OpenFGAClient, *, store_id: str):
+    for item in client.read_tuples(store_id=store_id):
+        yield {
+            "user": item["key"]["user"],
+            "relation": item["key"]["relation"],
+            "object": item["key"]["object"],
+        }

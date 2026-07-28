@@ -86,6 +86,20 @@ class OpenFGAClient:
             body["authorization_model_id"] = authorization_model_id
         return self._request("POST", f"/stores/{store_id}/write", body)
 
+    def delete_tuples(
+        self,
+        *,
+        store_id: str,
+        deletes: list[dict[str, str]],
+        authorization_model_id: str = "",
+    ) -> dict[str, Any]:
+        if not deletes:
+            return {}
+        body: dict[str, Any] = {"deletes": {"tuple_keys": deletes}}
+        if authorization_model_id:
+            body["authorization_model_id"] = authorization_model_id
+        return self._request("POST", f"/stores/{store_id}/write", body)
+
     def read_tuples(self, *, store_id: str) -> list[dict[str, Any]]:
         tuples: list[dict[str, Any]] = []
         continuation_token = ""

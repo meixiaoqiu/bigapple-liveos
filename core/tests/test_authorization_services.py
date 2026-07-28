@@ -89,7 +89,41 @@ class AuthorizationServiceTests(TestCase):
 
         call_command("openfga_rebuild_tuples", "--world-kind", "sim", "--dry-run", stdout=output)
 
-        self.assertIn("Would write", output.getvalue())
+        self.assertIn("Would delete all existing OpenFGA tuples and rebuild", output.getvalue())
+
+    @override_settings(OPENFGA_SIM_STORE_ID="store-id", OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id")
+    def test_openfga_rebuild_tuples_deletes_all_existing_tuples_before_rebuild(self) -> None:
+        create_governance_admin_member("auth-fga-stale")
+
+        with patch("core.management.commands.openfga_rebuild_tuples.OpenFGAClient") as client_class:
+            client = client_class.return_value
+            client.read_tuples.return_value = [
+                {
+                    "key": {
+                        "user": "member:stale",
+                        "relation": "assignee",
+                        "object": "role:stale",
+                    }
+                }
+            ]
+            output = StringIO()
+
+            call_command("openfga_rebuild_tuples", "--world-kind", "sim", stdout=output)
+
+        client.delete_tuples.assert_called_once_with(
+            store_id="store-id",
+            authorization_model_id="model-id",
+            deletes=[
+                {
+                    "user": "member:stale",
+                    "relation": "assignee",
+                    "object": "role:stale",
+                }
+            ],
+        )
+        client.write_tuples.assert_called()
+        self.assertIn("deleted 1 existing tuples", output.getvalue())
+        self.assertIn("rebuilt tuples", output.getvalue())
 
     @override_settings(OPENFGA_SIM_STORE_ID="store-id", OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id")
     def test_openfga_authorization_probe_reports_matching_result(self) -> None:
