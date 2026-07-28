@@ -15,10 +15,10 @@ from core.authorization_services import (
 )
 from core.governance_setup import GOVERNANCE_VIEW_ADMIN_PERMISSION
 from core.member_roles import ROLE_FORMAL_MEMBER
-from core.models import RoleAssignment
+from core.models import Organization, Role, RoleAssignment
 from core.permission_services import member_has_permission
 from core.role_assignment_services import revoke_role_assignment
-from core.tests.helpers import create_governance_admin_member
+from core.tests.helpers import create_governance_admin_member, create_member, ensure_login_user_for_member
 from core.management.commands.openfga_rebuild_tuples import _project_authorization_tuples, _unique_tuples
 
 
@@ -172,3 +172,93 @@ class AuthorizationServiceTests(TestCase):
             client_class.return_value.check.return_value = False
 
             self.assertFalse(member_has_permission(member, GOVERNANCE_VIEW_ADMIN_PERMISSION))
+
+    @override_settings(
+        BIG_APPLE_AUTHORIZATION_BACKEND="openfga",
+        OPENFGA_SIM_STORE_ID="store-id",
+        OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
+        OPENFGA_SIM_PLATFORM_OBJECT="platform:sim",
+    )
+    def test_openfga_backend_allows_permission_only_from_openfga_check(self) -> None:
+        member = create_governance_admin_member("auth-fga-allowed")
+
+        with patch("core.authorization_services.OpenFGAClient") as client_class:
+            client_class.return_value.check.return_value = True
+
+            self.assertTrue(member_has_permission(member, GOVERNANCE_VIEW_ADMIN_PERMISSION))
+
+        client_class.return_value.check.assert_called_once_with(
+            store_id="store-id",
+            authorization_model_id="model-id",
+            user=f"member:{member.pk}",
+            relation="holder",
+            object_=f"guarded_permission:{GOVERNANCE_VIEW_ADMIN_PERMISSION}",
+        )
+
+    @override_settings(
+        BIG_APPLE_AUTHORIZATION_BACKEND="openfga",
+        OPENFGA_SIM_STORE_ID="store-id",
+        OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
+    )
+    def test_openfga_backend_rejects_resource_scoped_permission_until_modelled(self) -> None:
+        member = create_governance_admin_member("auth-fga-resource-denied")
+        resource = type("ResourceStub", (), {"pk": "resource-auth-fga"})()
+
+        with patch("core.authorization_services.OpenFGAClient") as client_class:
+            self.assertFalse(
+                AuthorizationService().member_has_permission(
+                    member,
+                    GOVERNANCE_VIEW_ADMIN_PERMISSION,
+                    resource=resource,
+                )
+            )
+
+        client_class.return_value.check.assert_not_called()
+
+    @override_settings(
+        BIG_APPLE_AUTHORIZATION_BACKEND="openfga",
+        OPENFGA_SIM_STORE_ID="store-id",
+        OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
+        OPENFGA_SIM_PLATFORM_OBJECT="platform:sim",
+    )
+    def test_full_workspace_access_uses_openfga_formal_member_relation(self) -> None:
+        member = create_governance_admin_member("auth-fga-workspace")
+
+        with patch("core.authorization_services.OpenFGAClient") as client_class:
+            client_class.return_value.check.return_value = True
+
+            self.assertTrue(AuthorizationService().member_has_full_workspace_access(member))
+
+        client_class.return_value.check.assert_called_once_with(
+            store_id="store-id",
+            authorization_model_id="model-id",
+            user=f"member:{member.pk}",
+            relation="formal_member",
+            object_="platform:sim",
+        )
+
+    @override_settings(
+        BIG_APPLE_AUTHORIZATION_BACKEND="openfga",
+        OPENFGA_SIM_STORE_ID="store-id",
+        OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
+    )
+    def test_openfga_role_electorate_filters_to_login_capable_members(self) -> None:
+        organization = Organization.objects.create(name="auth-fga-org")
+        role = Role.objects.create(organization=organization, name="auth-fga-voters")
+        eligible = create_member("auth-fga-voter-eligible")
+        no_login = create_member("auth-fga-voter-no-login")
+        other_role_member = create_member("auth-fga-voter-other-role")
+        ensure_login_user_for_member(eligible)
+        ensure_login_user_for_member(other_role_member)
+
+        with patch("core.authorization_services.OpenFGAClient") as client_class:
+            client_class.return_value.read_tuples.return_value = [
+                {"key": {"user": f"member:{eligible.pk}", "relation": "assignee", "object": f"role:{role.pk}"}},
+                {"key": {"user": f"member:{no_login.pk}", "relation": "assignee", "object": f"role:{role.pk}"}},
+                {"key": {"user": f"member:{other_role_member.pk}", "relation": "assignee", "object": "role:999999"}},
+                {"key": {"user": "role:bad", "relation": "role", "object": f"role:{role.pk}"}},
+            ]
+
+            voter_ids = list(AuthorizationService().eligible_voters_for_role(role).values_list("pk", flat=True))
+
+        self.assertEqual(voter_ids, [eligible.pk])

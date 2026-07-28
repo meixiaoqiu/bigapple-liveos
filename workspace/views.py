@@ -19,11 +19,11 @@ from live_os.access import (
 from applications.forms import MemberApplicationForm, apply_daisyui_widgets
 from applications.simulation_metadata import metadata_from_signed_form_post
 from core.access import is_governance_principal
+from core.authorization_services import AuthorizationService
 from core.application_services import submit_member_application
 from core.dispute_services import submit_dispute
 from core.exceptions import DomainError
 from core.identity_services import ensure_basic_member_for_user
-from core.member_roles import ROLE_FORMAL_MEMBER, member_has_role
 from core.models import Member, MemberApplication, Proposal, ProposalVote, Task
 from core.proposals.execution import execute_proposal
 from core.proposals.voting import cast_proposal_vote
@@ -101,9 +101,7 @@ def current_full_member_or_forbidden(request: HttpRequest) -> Member | HttpRespo
 def _member_is_formal_member(member: Member | None) -> bool:
     if member is None:
         return False
-    if member.status in DISABLED_MEMBER_STATUSES:
-        return False
-    return member_has_role(member, ROLE_FORMAL_MEMBER)
+    return AuthorizationService().member_has_full_workspace_access(member)
 
 
 @require_GET

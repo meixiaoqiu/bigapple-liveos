@@ -15,7 +15,7 @@ from core.governance_setup import (
     GOVERNANCE_ADMIN_ROLE_NAME,
     GOVERNANCE_VIEW_ADMIN_PERMISSION,
 )
-from core.member_roles import ROLE_CONTRIBUTOR, ROLE_GOVERNANCE_MEMBER
+from core.member_roles import ROLE_CONTRIBUTOR, ROLE_FORMAL_MEMBER, ROLE_GOVERNANCE_MEMBER
 from core.models import Organization, Permission, Role, RoleAssignment, RolePermission
 from core.role_assignment_services import create_role_assignment
 from core.tests.helpers import create_member
@@ -37,7 +37,7 @@ class GovernanceAccessBridgeTests(TestCase):
                 "category": "governance",
             },
         )
-        member = create_member(user.username, role_name=ROLE_CONTRIBUTOR, user=user, display_name=user.username)
+        member = create_member(user.username, role_name=ROLE_FORMAL_MEMBER, user=user, display_name=user.username)
         assignment = create_role_assignment(member=member, role=role)
         RolePermission.objects.create(role=role, permission=permission, scope="global")
         return member, assignment, permission
@@ -64,6 +64,15 @@ class GovernanceAccessBridgeTests(TestCase):
         self.assertFalse(user_has_governance_permission(user, GOVERNANCE_VIEW_ADMIN_PERMISSION))
         self.assertFalse(is_governance_principal(user))
 
+    def test_superuser_without_governance_permission_is_denied(self):
+        user = self.create_user("superuser-without-governance")
+        user.is_staff = True
+        user.is_superuser = True
+        user.save(update_fields=["is_staff", "is_superuser"])
+
+        self.assertFalse(user_has_governance_permission(user, GOVERNANCE_VIEW_ADMIN_PERMISSION))
+        self.assertFalse(is_governance_principal(user))
+
     def test_role_permission_allows_governance_access_without_governance_member_role(self):
         user = self.create_user("new-governance-user")
         self.create_governance_role_permission(user)
@@ -74,7 +83,7 @@ class GovernanceAccessBridgeTests(TestCase):
     def test_member_principal_can_use_role_permission(self):
         member = create_member(
             "member-with-role-permission",
-            role_name=ROLE_CONTRIBUTOR,
+            role_name=ROLE_FORMAL_MEMBER,
             profile={"display_name": "member-with-role-permission"},
         )
         organization = Organization.objects.create(

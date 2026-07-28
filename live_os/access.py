@@ -8,7 +8,7 @@ from typing import Callable, ParamSpec, TypeVar
 from django.contrib.auth.views import redirect_to_login
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden, JsonResponse
 
-from core.access import is_governance_principal, is_superuser_principal, member_for_user
+from core.access import is_governance_principal, member_for_user
 from core.service_utils import actor_ref
 
 
@@ -31,7 +31,7 @@ def member_for_request(request: HttpRequest):
 
 def can_access_member(request: HttpRequest, member_no: str) -> bool:
     user = request_user(request)
-    if is_superuser_principal(user) or is_governance_principal(user):
+    if is_governance_principal(user):
         return True
     member = member_for_request(request)
     return bool(member and member.member_no == member_no)

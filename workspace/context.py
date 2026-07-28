@@ -13,8 +13,8 @@ from django.db.models import Count, F, Q, Sum
 from django.shortcuts import get_object_or_404
 
 from core.access import is_finance_reviewer, is_governance_principal
+from core.authorization_services import AuthorizationService
 from core.application_services import _application_role_gap_label
-from core.member_roles import ROLE_FORMAL_MEMBER, member_has_role
 from core.models import (
     CapacityAssessment,
     Dispute,
@@ -41,8 +41,6 @@ NEXT_ACTION_LABELS = {
     "no_action": "暂无待处理动作",
 }
 
-DISABLED_MEMBER_STATUSES: frozenset[str] = frozenset({Member.Status.SUSPENDED, Member.Status.EXITED})
-
 # Admission filter groups driven by the linked member_admission proposal lifecycle.
 # There is no standalone "review" status — every application that reaches the
 # governance review list already has an auto-created admission proposal.
@@ -68,9 +66,7 @@ def member_has_full_workspace_access(member: Member) -> bool:
     ``Member.status`` is a lifecycle display field and is NOT the source of
     truth for formal-membership decisions.
     """
-    if member.status in DISABLED_MEMBER_STATUSES:
-        return False
-    return member_has_role(member, ROLE_FORMAL_MEMBER)
+    return AuthorizationService().member_has_full_workspace_access(member)
 
 
 def applicant_workspace_context(member_no: str) -> dict[str, Any]:

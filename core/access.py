@@ -36,11 +36,6 @@ def user_has_governance_permission(
 ) -> bool:
     if not user or not getattr(user, "is_authenticated", False):
         return False
-    # Superuser remains a technical root/rescue account. Ordinary is_staff only
-    # opens Django Admin; business governance permissions still come from Member
-    # role assignments and role permissions.
-    if is_superuser_principal(user):
-        return True
     member = member_for_user(user)
     if member is not None and member_has_permission(member, permission_code, resource=resource, at_time=at_time):
         return True

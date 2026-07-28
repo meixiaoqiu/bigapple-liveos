@@ -1,12 +1,15 @@
-"""Small OpenFGA HTTP client used by local authorization tooling."""
+"""Project boundary over the official OpenFGA Python SDK."""
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+
+from asgiref.sync import async_to_sync
+from openfga_sdk import ClientConfiguration, CreateStoreRequest, ReadRequestTupleKey, WriteAuthorizationModelRequest
+from openfga_sdk.client import OpenFgaClient as OpenFGASDKClient
+from openfga_sdk.client.models import ClientCheckRequest, ClientTuple
+from openfga_sdk.exceptions import ApiException, OpenApiException
 
 
 class OpenFGARequestError(RuntimeError):
@@ -18,38 +21,70 @@ class OpenFGAClient:
     api_url: str
     timeout_seconds: float = 3.0
 
-    def _request(self, method: str, path: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
-        url = f"{self.api_url.rstrip('/')}/{path.lstrip('/')}"
-        payload = None
-        headers = {"Accept": "application/json"}
-        if body is not None:
-            payload = json.dumps(body).encode("utf-8")
-            headers["Content-Type"] = "application/json"
-        request = Request(url, data=payload, headers=headers, method=method)
-        try:
-            with urlopen(request, timeout=self.timeout_seconds) as response:
-                content = response.read()
-        except HTTPError as exc:
-            details = exc.read().decode("utf-8", errors="replace")
-            raise OpenFGARequestError(f"OpenFGA {method} {path} failed: HTTP {exc.code} {details}") from exc
-        except URLError as exc:
-            raise OpenFGARequestError(f"OpenFGA {method} {path} failed: {exc.reason}") from exc
-        except TimeoutError as exc:
-            raise OpenFGARequestError(f"OpenFGA {method} {path} timed out") from exc
+    def _configuration(
+        self,
+        *,
+        store_id: str = "",
+        authorization_model_id: str = "",
+    ) -> ClientConfiguration:
+        return ClientConfiguration(
+            api_url=self.api_url.rstrip("/"),
+            store_id=store_id or None,
+            authorization_model_id=authorization_model_id or None,
+            timeout_millisec=int(self.timeout_seconds * 1000),
+        )
 
-        if not content:
+    def _run(self, operation_name: str, async_operation):
+        try:
+            return async_to_sync(async_operation)()
+        except (ApiException, OpenApiException, TimeoutError, OSError) as exc:
+            raise OpenFGARequestError(f"OpenFGA {operation_name} failed: {exc}") from exc
+
+    @staticmethod
+    def _to_dict(response) -> dict[str, Any]:
+        if response is None:
             return {}
-        return json.loads(content.decode("utf-8"))
+        if hasattr(response, "to_dict"):
+            return response.to_dict()
+        if isinstance(response, dict):
+            return response
+        if not hasattr(response, "__iter__"):
+            return {}
+        return dict(response)
 
     def list_stores(self) -> list[dict[str, Any]]:
-        response = self._request("GET", "/stores")
+        async def operation():
+            client = OpenFGASDKClient(self._configuration())
+            try:
+                response = await client.list_stores()
+                return self._to_dict(response)
+            finally:
+                await client.close()
+
+        response = self._run("list_stores", operation)
         return list(response.get("stores", []))
 
     def create_store(self, name: str) -> dict[str, Any]:
-        return self._request("POST", "/stores", {"name": name})
+        async def operation():
+            client = OpenFGASDKClient(self._configuration())
+            try:
+                response = await client.create_store(CreateStoreRequest(name=name))
+                return self._to_dict(response)
+            finally:
+                await client.close()
+
+        return self._run("create_store", operation)
 
     def write_authorization_model(self, store_id: str, model: dict[str, Any]) -> dict[str, Any]:
-        return self._request("POST", f"/stores/{store_id}/authorization-models", model)
+        async def operation():
+            client = OpenFGASDKClient(self._configuration(store_id=store_id))
+            try:
+                response = await client.write_authorization_model(WriteAuthorizationModelRequest(**model))
+                return self._to_dict(response)
+            finally:
+                await client.close()
+
+        return self._run("write_authorization_model", operation)
 
     def check(
         self,
@@ -60,16 +95,26 @@ class OpenFGAClient:
         object_: str,
         authorization_model_id: str = "",
     ) -> bool:
-        body: dict[str, Any] = {
-            "tuple_key": {
-                "user": user,
-                "relation": relation,
-                "object": object_,
-            },
-        }
-        if authorization_model_id:
-            body["authorization_model_id"] = authorization_model_id
-        response = self._request("POST", f"/stores/{store_id}/check", body)
+        async def operation():
+            client = OpenFGASDKClient(
+                self._configuration(
+                    store_id=store_id,
+                    authorization_model_id=authorization_model_id,
+                )
+            )
+            try:
+                response = await client.check(
+                    ClientCheckRequest(
+                        user=user,
+                        relation=relation,
+                        object=object_,
+                    )
+                )
+                return self._to_dict(response)
+            finally:
+                await client.close()
+
+        response = self._run("check", operation)
         return bool(response.get("allowed"))
 
     def write_tuples(
@@ -81,10 +126,21 @@ class OpenFGAClient:
     ) -> dict[str, Any]:
         if not writes:
             return {}
-        body: dict[str, Any] = {"writes": {"tuple_keys": writes}}
-        if authorization_model_id:
-            body["authorization_model_id"] = authorization_model_id
-        return self._request("POST", f"/stores/{store_id}/write", body)
+
+        async def operation():
+            client = OpenFGASDKClient(
+                self._configuration(
+                    store_id=store_id,
+                    authorization_model_id=authorization_model_id,
+                )
+            )
+            try:
+                response = await client.write_tuples(_client_tuples(writes))
+                return self._to_dict(response)
+            finally:
+                await client.close()
+
+        return self._run("write_tuples", operation)
 
     def delete_tuples(
         self,
@@ -95,20 +151,49 @@ class OpenFGAClient:
     ) -> dict[str, Any]:
         if not deletes:
             return {}
-        body: dict[str, Any] = {"deletes": {"tuple_keys": deletes}}
-        if authorization_model_id:
-            body["authorization_model_id"] = authorization_model_id
-        return self._request("POST", f"/stores/{store_id}/write", body)
+
+        async def operation():
+            client = OpenFGASDKClient(
+                self._configuration(
+                    store_id=store_id,
+                    authorization_model_id=authorization_model_id,
+                )
+            )
+            try:
+                response = await client.delete_tuples(_client_tuples(deletes))
+                return self._to_dict(response)
+            finally:
+                await client.close()
+
+        return self._run("delete_tuples", operation)
 
     def read_tuples(self, *, store_id: str) -> list[dict[str, Any]]:
-        tuples: list[dict[str, Any]] = []
-        continuation_token = ""
-        while True:
-            body: dict[str, Any] = {}
-            if continuation_token:
-                body["continuation_token"] = continuation_token
-            response = self._request("POST", f"/stores/{store_id}/read", body)
-            tuples.extend(response.get("tuples", []))
-            continuation_token = str(response.get("continuation_token", "") or "")
-            if not continuation_token:
-                return tuples
+        async def operation():
+            tuples: list[dict[str, Any]] = []
+            continuation_token = ""
+            client = OpenFGASDKClient(self._configuration(store_id=store_id))
+            try:
+                while True:
+                    options: dict[str, str | int] = {"page_size": 100}
+                    if continuation_token:
+                        options["continuation_token"] = continuation_token
+                    response = self._to_dict(await client.read(ReadRequestTupleKey(), options))
+                    tuples.extend(response.get("tuples", []))
+                    continuation_token = str(response.get("continuation_token", "") or "")
+                    if not continuation_token:
+                        return tuples
+            finally:
+                await client.close()
+
+        return self._run("read_tuples", operation)
+
+
+def _client_tuples(tuple_keys: list[dict[str, str]]) -> list[ClientTuple]:
+    return [
+        ClientTuple(
+            user=tuple_key["user"],
+            relation=tuple_key["relation"],
+            object=tuple_key["object"],
+        )
+        for tuple_key in tuple_keys
+    ]
