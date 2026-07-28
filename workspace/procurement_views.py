@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from django.contrib import messages
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_GET, require_http_methods
 
@@ -24,18 +24,13 @@ from core.proposal_services import (
     proposal_missing_roles,
     proposal_required_roles,
 )
-from live_os.access import member_for_request
+from live_os.access import page_forbidden
 
-from .context import member_has_full_workspace_access
+from .access import require_full_workspace_member
 
 
-def _check_member(request: HttpRequest) -> Member | None:
-    member = member_for_request(request)
-    if member is None:
-        return None
-    if not member_has_full_workspace_access(member):
-        return None
-    return member
+def _check_member(request: HttpRequest) -> Member | HttpResponseForbidden:
+    return require_full_workspace_member(request)
 
 
 def _governance_or_finance_or_forbidden(member: Member) -> bool:
@@ -49,10 +44,10 @@ def _governance_or_finance_or_forbidden(member: Member) -> bool:
 @require_GET
 def procurement_list(request: HttpRequest) -> HttpResponse:
     member = _check_member(request)
-    if member is None:
-        return render(request, "workspace/login_required.html", status=403)
+    if isinstance(member, HttpResponseForbidden):
+        return member
     if _governance_or_finance_or_forbidden(member):
-        return render(request, "workspace/login_required.html", status=403)
+        return page_forbidden("仅治理成员或财务成员可访问。")
 
     quotes = list(
         SupplierQuote.objects.select_related("resource", "submitted_by")
@@ -91,10 +86,10 @@ def procurement_list(request: HttpRequest) -> HttpResponse:
 def procurement_create_proposal(request: HttpRequest, quote_id: str) -> HttpResponse:
     """Create a PROCUREMENT_ACCEPTANCE proposal for a submitted quote."""
     member = _check_member(request)
-    if member is None:
-        return render(request, "workspace/login_required.html", status=403)
+    if isinstance(member, HttpResponseForbidden):
+        return member
     if _governance_or_finance_or_forbidden(member):
-        return render(request, "workspace/login_required.html", status=403)
+        return page_forbidden("仅治理成员或财务成员可访问。")
 
     quote = get_object_or_404(SupplierQuote, quote_id=quote_id)
     try:
@@ -121,10 +116,10 @@ def procurement_create_proposal(request: HttpRequest, quote_id: str) -> HttpResp
 @require_http_methods(["POST"])
 def procurement_receipt(request: HttpRequest, quote_id: str) -> HttpResponse:
     member = _check_member(request)
-    if member is None:
-        return render(request, "workspace/login_required.html", status=403)
+    if isinstance(member, HttpResponseForbidden):
+        return member
     if _governance_or_finance_or_forbidden(member):
-        return render(request, "workspace/login_required.html", status=403)
+        return page_forbidden("仅治理成员或财务成员可访问。")
 
     quote = get_object_or_404(SupplierQuote, quote_id=quote_id)
     receipt_status = request.POST.get("receipt_status", "").strip()
@@ -146,10 +141,10 @@ def procurement_receipt(request: HttpRequest, quote_id: str) -> HttpResponse:
 @require_http_methods(["POST"])
 def procurement_complete(request: HttpRequest, quote_id: str) -> HttpResponse:
     member = _check_member(request)
-    if member is None:
-        return render(request, "workspace/login_required.html", status=403)
+    if isinstance(member, HttpResponseForbidden):
+        return member
     if _governance_or_finance_or_forbidden(member):
-        return render(request, "workspace/login_required.html", status=403)
+        return page_forbidden("仅治理成员或财务成员可访问。")
 
     quote = get_object_or_404(SupplierQuote, quote_id=quote_id)
     try:
@@ -164,10 +159,10 @@ def procurement_complete(request: HttpRequest, quote_id: str) -> HttpResponse:
 @require_GET
 def procurement_challenge_list(request):
     member = _check_member(request)
-    if member is None:
-        return render(request, 'workspace/login_required.html', status=403)
+    if isinstance(member, HttpResponseForbidden):
+        return member
     if _governance_or_finance_or_forbidden(member):
-        return render(request, 'workspace/login_required.html', status=403)
+        return page_forbidden("仅治理成员或财务成员可访问。")
     challenges = list(ProcurementChallenge.objects.filter(status=ProcurementChallenge.Status.SUBMITTED).select_related('quote__resource','submitted_by').order_by('-created_at'))
     from core.access import is_governance_principal
     return render(request, 'workspace/procurement_challenge_list.html', {'member':member,'challenges':challenges,'is_governance':is_governance_principal(member)})
@@ -175,10 +170,10 @@ def procurement_challenge_list(request):
 @require_http_methods(['POST'])
 def procurement_challenge_review(request, challenge_id):
     member = _check_member(request)
-    if member is None:
-        return render(request, 'workspace/login_required.html', status=403)
+    if isinstance(member, HttpResponseForbidden):
+        return member
     if _governance_or_finance_or_forbidden(member):
-        return render(request, 'workspace/login_required.html', status=403)
+        return page_forbidden("仅治理成员或财务成员可访问。")
     from core.procurement_challenge_services import review_procurement_challenge
     ch = get_object_or_404(ProcurementChallenge, challenge_id=challenge_id)
     action = request.POST.get('action','').strip()

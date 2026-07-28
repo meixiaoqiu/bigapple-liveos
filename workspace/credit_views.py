@@ -9,7 +9,7 @@ from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
 from django.views.decorators.http import require_GET, require_http_methods
 
 from worlds.routing import world_redirect
-from live_os.access import is_authenticated, member_for_request, page_forbidden
+from live_os.access import page_forbidden
 from core.access import is_governance_principal
 from core.exceptions import DomainError
 from core.credit_services import (
@@ -29,21 +29,15 @@ from core.models import (
     RedemptionOrder,
     Task,
 )
-from workspace.context import member_has_full_workspace_access, workspace_context
+from workspace.access import require_full_workspace_member
+from workspace.context import workspace_context
 
 
 # ── helpers ──────────────────────────────────────────────────────────
 
 
 def _require_full_workspace(request: HttpRequest) -> Member | HttpResponseForbidden:
-    if not is_authenticated(request):
-        return page_forbidden("需要登录。")
-    member = member_for_request(request)
-    if member is None:
-        return page_forbidden("需要绑定成员身份。")
-    if not member_has_full_workspace_access(member):
-        return page_forbidden("正式成员以上才能访问此功能。")
-    return member
+    return require_full_workspace_member(request)
 
 
 def render_with(request, template, context):

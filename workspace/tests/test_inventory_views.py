@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from core.member_roles import ROLE_FORMAL_MEMBER
 from core.models import Member, Resource, ResourceTransaction
+from core.openfga_client import OpenFGARequestError
 from core.tests.helpers import create_governance_admin_member, create_member, login_as_member
 
 
@@ -53,6 +55,19 @@ class InventoryPermissionTests(TestCase):
     def test_regular_member_cannot_access_inventory_list(self):
         response = self.client.get("/workspace/inventory/")
         self.assertEqual(response.status_code, 403)
+
+    @override_settings(
+        BIG_APPLE_AUTHORIZATION_BACKEND="openfga",
+        OPENFGA_SIM_STORE_ID="store-id",
+        OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
+    )
+    def test_openfga_outage_reports_authorization_service_unavailable(self):
+        with patch("core.authorization_services.OpenFGAClient") as client_class:
+            client_class.return_value.check.side_effect = OpenFGARequestError("OpenFGA check failed")
+            response = self.client.get("/workspace/inventory/")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, "权限服务暂时不可用", status_code=403)
 
 
     def test_regular_member_cannot_post_adjustment(self):

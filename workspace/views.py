@@ -35,7 +35,6 @@ from .context import (
     applicant_workspace_context,
     application_review_detail_context,
     applications_review_list_context,
-    member_has_full_workspace_access,
     workspace_access_decision,
     workspace_context,
 )
