@@ -6,7 +6,7 @@ from django.http import HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_http_methods
 
-from live_os.access import actor_ref_for_request, require_governance_json, require_member_json
+from live_os.access import actor_ref_for_request, require_full_workspace_member_json, require_governance_json
 from core.exceptions import DomainError
 from core.models import Member, Task
 from core.tasks.member_workflow import claim_task, submit_labor
@@ -30,7 +30,7 @@ def claim_task_view(request: HttpRequest, task_id: str, **_kwargs) -> JsonRespon
     payload = read_json(request)
     task = get_object_or_404(Task, task_id=task_id)
     member_no = str(payload.get("member_no") or "").strip()
-    denied = require_member_json(request, member_no)
+    denied = require_full_workspace_member_json(request, member_no)
     if denied:
         return denied
     member = get_object_or_404(Member, member_no=member_no)
@@ -46,7 +46,7 @@ def submit_labor_view(request: HttpRequest, task_id: str, **_kwargs) -> JsonResp
     payload = read_json(request)
     task = get_object_or_404(Task, task_id=task_id)
     member_no = str(payload.get("member_no") or "").strip()
-    denied = require_member_json(request, member_no)
+    denied = require_full_workspace_member_json(request, member_no)
     if denied:
         return denied
     member = get_object_or_404(Member, member_no=member_no)

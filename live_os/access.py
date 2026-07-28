@@ -98,6 +98,43 @@ def require_member_json(request: HttpRequest, member_no: str) -> JsonResponse | 
     return None
 
 
+def _full_workspace_member_denial(member) -> JsonResponse | None:
+    from core.authorization_services import AuthorizationService
+
+    decision = AuthorizationService().full_workspace_access_decision(member)
+    if decision.allowed:
+        return None
+    if decision.reason == "authorization_unavailable":
+        return json_forbidden("Authorization service is unavailable.")
+    return json_forbidden("Full workspace access is required.")
+
+
+def require_current_full_workspace_member_json(request: HttpRequest):
+    if not is_authenticated(request):
+        return json_auth_required()
+    member = member_for_request(request)
+    if member is None:
+        return json_forbidden("Member access is required.")
+    denied = _full_workspace_member_denial(member)
+    if denied:
+        return denied
+    return member
+
+
+def require_full_workspace_member_json(request: HttpRequest, member_no: str) -> JsonResponse | None:
+    denied = require_member_json(request, member_no)
+    if denied:
+        return denied
+
+    from core.models import Member
+
+    member = Member.objects.filter(member_no=member_no).first()
+    if member is None:
+        return json_forbidden("Member access is required.")
+
+    return _full_workspace_member_denial(member)
+
+
 def require_member_page(request: HttpRequest, member_no: str) -> HttpResponseForbidden | None:
     if not is_authenticated(request) or not can_access_member(request, member_no):
         return page_forbidden("需要当前成员或治理成员权限。")

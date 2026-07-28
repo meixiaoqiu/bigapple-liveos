@@ -8,7 +8,7 @@ from django.http import HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
 
-from live_os.access import require_member_json
+from live_os.access import require_full_workspace_member_json, require_member_json
 from core.models import Member
 from workspace.context import workspace_context
 
@@ -33,7 +33,7 @@ def get_member(request: HttpRequest, member_no: str, **_kwargs) -> JsonResponse:
 
 @require_GET
 def get_workspace_summary(request: HttpRequest, member_no: str, **_kwargs) -> JsonResponse:
-    denied = require_member_json(request, member_no)
+    denied = require_full_workspace_member_json(request, member_no)
     if denied:
         return denied
     context = workspace_context(member_no)
@@ -68,7 +68,7 @@ def post_credit_transfer(request: HttpRequest, member_no: str, **_kwargs) -> Jso
     Transfer credits from *member_no* to another member.  Only the
     authenticated member may initiate their own outgoing transfers.
     """
-    denied = require_member_json(request, member_no)
+    denied = require_full_workspace_member_json(request, member_no)
     if denied:
         return denied
 

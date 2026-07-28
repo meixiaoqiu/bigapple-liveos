@@ -5,16 +5,16 @@ from __future__ import annotations
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_GET
 
-from live_os.access import member_for_request as _mfr
 from core.access import is_governance_principal
-from core.models import MerchantProfile, MerchantSettlementRecord
+from core.models import Member, MerchantSettlementRecord
+from live_os.access import require_current_full_workspace_member_json
 
 
 @require_GET
 def list_settlements(request: HttpRequest, **_kwargs) -> JsonResponse:
-    current = _mfr(request)
-    if current is None:
-        return JsonResponse({"error": "需要登录。"}, status=403)
+    current = require_current_full_workspace_member_json(request)
+    if not isinstance(current, Member):
+        return current
 
     merchant_id = request.GET.get("merchant_id", "").strip()
     qs = MerchantSettlementRecord.objects.select_related("merchant").order_by("-created_at")
@@ -23,10 +23,8 @@ def list_settlements(request: HttpRequest, **_kwargs) -> JsonResponse:
         qs = qs.filter(merchant_id=merchant_id)
 
     if is_governance_principal(current):
-        # governance sees all
         pass
     else:
-        # Merchants see only their own; unrelated members see nothing
         qs = qs.filter(merchant__operator_member=current)
 
     results = [

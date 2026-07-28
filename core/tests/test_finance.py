@@ -178,13 +178,19 @@ class FinanceServiceTests(TestCase):
 class FinanceViewTests(TestCase):
 
     def setUp(self):
-        self.author = create_member("fin-view-author", display_name="视图作者")
+        self.author = create_member("fin-view-author", display_name="视图作者", role_name=ROLE_FORMAL_MEMBER)
         login_as_member(self.client, self.author)
 
     def test_claims_page_redirects_unauthenticated(self):
         self.client.logout()
         resp = self.client.get("/workspace/finance/claims/")
         self.assertEqual(resp.status_code, 302)
+
+    def test_basic_member_claims_page_forbidden(self):
+        basic = create_member("fin-view-basic")
+        login_as_member(self.client, basic)
+        resp = self.client.get("/workspace/finance/claims/")
+        self.assertEqual(resp.status_code, 403)
 
     def test_claims_page_shows_own_claim(self):
         submit_expense_claim(claimant_member=self.author, title="我的报销", description="", amount=100, expense_date="2026-01-01")
