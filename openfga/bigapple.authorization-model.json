@@ -153,6 +153,104 @@
           }
         }
       }
+    },
+    {
+      "type": "resource_permission",
+      "relations": {
+        "role": {
+          "this": {}
+        },
+        "holder": {
+          "tupleToUserset": {
+            "tupleset": {
+              "relation": "role"
+            },
+            "computedUserset": {
+              "relation": "assignee"
+            }
+          }
+        }
+      },
+      "metadata": {
+        "relations": {
+          "role": {
+            "directly_related_user_types": [
+              {
+                "type": "role"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "guarded_resource_permission",
+      "relations": {
+        "role": {
+          "this": {}
+        },
+        "platform": {
+          "this": {}
+        },
+        "holder": {
+          "difference": {
+            "base": {
+              "intersection": {
+                "child": [
+                  {
+                    "tupleToUserset": {
+                      "tupleset": {
+                        "relation": "role"
+                      },
+                      "computedUserset": {
+                        "relation": "assignee"
+                      }
+                    }
+                  },
+                  {
+                    "tupleToUserset": {
+                      "tupleset": {
+                        "relation": "platform"
+                      },
+                      "computedUserset": {
+                        "relation": "formal_member"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "subtract": {
+              "tupleToUserset": {
+                "tupleset": {
+                  "relation": "platform"
+                },
+                "computedUserset": {
+                  "relation": "frozen_member"
+                }
+              }
+            }
+          }
+        }
+      },
+      "metadata": {
+        "relations": {
+          "role": {
+            "directly_related_user_types": [
+              {
+                "type": "role"
+              }
+            ]
+          },
+          "platform": {
+            "directly_related_user_types": [
+              {
+                "type": "platform"
+              }
+            ]
+          }
+        }
+      }
     }
   ]
 }

@@ -5,17 +5,20 @@ from unittest.mock import patch
 
 from django.core.management import call_command
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from core.authorization_services import (
     OpenFGACheck,
     AuthorizationService,
+    openfga_global_resource_permission_object,
     openfga_check_for_member_permission,
     openfga_context_for_world_kind,
     openfga_permission_object,
+    openfga_resource_permission_object,
 )
 from core.governance_setup import GOVERNANCE_VIEW_ADMIN_PERMISSION
 from core.member_roles import ROLE_FORMAL_MEMBER
-from core.models import Organization, Role, RoleAssignment
+from core.models import Organization, Permission, Resource, Role, RoleAssignment, RolePermission
 from core.permission_services import member_has_permission
 from core.role_assignment_services import revoke_role_assignment
 from core.tests.helpers import create_governance_admin_member, create_member, ensure_login_user_for_member
@@ -200,12 +203,14 @@ class AuthorizationServiceTests(TestCase):
         OPENFGA_SIM_STORE_ID="store-id",
         OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
     )
-    def test_openfga_backend_rejects_resource_scoped_permission_until_modelled(self) -> None:
+    def test_openfga_backend_checks_resource_scoped_permission_objects(self) -> None:
         member = create_governance_admin_member("auth-fga-resource-denied")
         resource = type("ResourceStub", (), {"pk": "resource-auth-fga"})()
 
         with patch("core.authorization_services.OpenFGAClient") as client_class:
-            self.assertFalse(
+            client_class.return_value.check.side_effect = [False, True]
+
+            self.assertTrue(
                 AuthorizationService().member_has_permission(
                     member,
                     GOVERNANCE_VIEW_ADMIN_PERMISSION,
@@ -213,7 +218,96 @@ class AuthorizationServiceTests(TestCase):
                 )
             )
 
-        client_class.return_value.check.assert_not_called()
+        client_class.return_value.check.assert_any_call(
+            store_id="store-id",
+            authorization_model_id="model-id",
+            user=f"member:{member.pk}",
+            relation="holder",
+            object_=openfga_global_resource_permission_object(GOVERNANCE_VIEW_ADMIN_PERMISSION),
+        )
+        client_class.return_value.check.assert_any_call(
+            store_id="store-id",
+            authorization_model_id="model-id",
+            user=f"member:{member.pk}",
+            relation="holder",
+            object_=openfga_resource_permission_object(GOVERNANCE_VIEW_ADMIN_PERMISSION, resource.pk),
+        )
+
+    def test_openfga_projection_includes_global_resource_permission_object(self) -> None:
+        organization = Organization.objects.create(name="auth-fga-global-resource-org")
+        role = Role.objects.create(organization=organization, name="auth-fga-global-resource-role")
+        permission = Permission.objects.create(code="access.warehouse", name="warehouse", category="access")
+        RolePermission.objects.create(role=role, permission=permission, scope="global")
+
+        tuples = set(
+            (item["user"], item["relation"], item["object"])
+            for item in _unique_tuples(_project_authorization_tuples(platform_object="platform:test"))
+        )
+
+        self.assertIn(
+            (f"role:{role.pk}", "role", openfga_permission_object("access.warehouse")),
+            tuples,
+        )
+        self.assertIn(
+            (f"role:{role.pk}", "role", openfga_global_resource_permission_object("access.warehouse")),
+            tuples,
+        )
+
+    def test_openfga_projection_includes_scoped_resource_permission_object(self) -> None:
+        organization = Organization.objects.create(name="auth-fga-scoped-resource-org")
+        role = Role.objects.create(organization=organization, name="auth-fga-scoped-resource-role")
+        permission = Permission.objects.create(code="access.warehouse", name="warehouse", category="access")
+        resource = Resource.objects.create(
+            resource_id="auth-fga-scoped-resource",
+            resource_type=Resource.ResourceType.ROOM,
+            unit=Resource.Unit.COUNT,
+            current_stock=1,
+            daily_consumption_estimate=0,
+            replenishment_method=Resource.ReplenishmentMethod.MANUAL_ADJUSTMENT,
+            loss_rate=0,
+            warning_threshold=0,
+            updated_at=timezone.now(),
+            rule_version="test",
+        )
+        RolePermission.objects.create(
+            role=role,
+            permission=permission,
+            scope="resource",
+            constraints_json={"resource_id": resource.pk},
+        )
+
+        tuples = set(
+            (item["user"], item["relation"], item["object"])
+            for item in _unique_tuples(_project_authorization_tuples(platform_object="platform:test"))
+        )
+
+        self.assertIn(
+            (f"role:{role.pk}", "role", openfga_permission_object("access.warehouse")),
+            tuples,
+        )
+        self.assertIn(
+            (f"role:{role.pk}", "role", openfga_resource_permission_object("access.warehouse", resource.pk)),
+            tuples,
+        )
+        self.assertNotIn(
+            (f"role:{role.pk}", "role", openfga_global_resource_permission_object("access.warehouse")),
+            tuples,
+        )
+
+    def test_openfga_projection_guards_finance_resource_permissions_with_platform(self) -> None:
+        organization = Organization.objects.create(name="auth-fga-guarded-resource-org")
+        role = Role.objects.create(organization=organization, name="auth-fga-guarded-resource-role")
+        permission = Permission.objects.create(code="finance.review", name="finance review", category="finance")
+        RolePermission.objects.create(role=role, permission=permission, scope="global")
+
+        permission_object = openfga_global_resource_permission_object("finance.review")
+        tuples = set(
+            (item["user"], item["relation"], item["object"])
+            for item in _unique_tuples(_project_authorization_tuples(platform_object="platform:test"))
+        )
+
+        self.assertIn((f"role:{role.pk}", "role", permission_object), tuples)
+        self.assertIn(("platform:test", "platform", permission_object), tuples)
 
     @override_settings(
         BIG_APPLE_AUTHORIZATION_BACKEND="openfga",
