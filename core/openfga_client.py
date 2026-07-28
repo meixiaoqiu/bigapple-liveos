@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -9,6 +10,7 @@ from asgiref.sync import async_to_sync
 from openfga_sdk import ClientConfiguration, CreateStoreRequest, ReadRequestTupleKey, WriteAuthorizationModelRequest
 from openfga_sdk.client import OpenFgaClient as OpenFGASDKClient
 from openfga_sdk.client.models import ClientCheckRequest, ClientTuple
+from openfga_sdk.configuration import RetryParams
 from openfga_sdk.exceptions import ApiException, OpenApiException
 
 
@@ -19,7 +21,7 @@ class OpenFGARequestError(RuntimeError):
 @dataclass(frozen=True)
 class OpenFGAClient:
     api_url: str
-    timeout_seconds: float = 3.0
+    timeout_seconds: float = 1.0
 
     def _configuration(
         self,
@@ -32,12 +34,16 @@ class OpenFGAClient:
             store_id=store_id or None,
             authorization_model_id=authorization_model_id or None,
             timeout_millisec=int(self.timeout_seconds * 1000),
+            retry_params=RetryParams(max_retry=0),
         )
 
     def _run(self, operation_name: str, async_operation):
+        async def operation_with_timeout():
+            return await asyncio.wait_for(async_operation(), timeout=self.timeout_seconds)
+
         try:
-            return async_to_sync(async_operation)()
-        except (ApiException, OpenApiException, TimeoutError, OSError) as exc:
+            return async_to_sync(operation_with_timeout)()
+        except (ApiException, OpenApiException, asyncio.TimeoutError, TimeoutError, OSError) as exc:
             raise OpenFGARequestError(f"OpenFGA {operation_name} failed: {exc}") from exc
 
     @staticmethod
@@ -59,7 +65,7 @@ class OpenFGAClient:
                 response = await client.list_stores()
                 return self._to_dict(response)
             finally:
-                await client.close()
+                await _close_sdk_client(client)
 
         response = self._run("list_stores", operation)
         return list(response.get("stores", []))
@@ -71,7 +77,7 @@ class OpenFGAClient:
                 response = await client.create_store(CreateStoreRequest(name=name))
                 return self._to_dict(response)
             finally:
-                await client.close()
+                await _close_sdk_client(client)
 
         return self._run("create_store", operation)
 
@@ -82,7 +88,7 @@ class OpenFGAClient:
                 response = await client.write_authorization_model(WriteAuthorizationModelRequest(**model))
                 return self._to_dict(response)
             finally:
-                await client.close()
+                await _close_sdk_client(client)
 
         return self._run("write_authorization_model", operation)
 
@@ -112,7 +118,7 @@ class OpenFGAClient:
                 )
                 return self._to_dict(response)
             finally:
-                await client.close()
+                await _close_sdk_client(client)
 
         response = self._run("check", operation)
         return bool(response.get("allowed"))
@@ -138,7 +144,7 @@ class OpenFGAClient:
                 response = await client.write_tuples(_client_tuples(writes))
                 return self._to_dict(response)
             finally:
-                await client.close()
+                await _close_sdk_client(client)
 
         return self._run("write_tuples", operation)
 
@@ -163,7 +169,7 @@ class OpenFGAClient:
                 response = await client.delete_tuples(_client_tuples(deletes))
                 return self._to_dict(response)
             finally:
-                await client.close()
+                await _close_sdk_client(client)
 
         return self._run("delete_tuples", operation)
 
@@ -183,7 +189,7 @@ class OpenFGAClient:
                     if not continuation_token:
                         return tuples
             finally:
-                await client.close()
+                await _close_sdk_client(client)
 
         return self._run("read_tuples", operation)
 
@@ -197,3 +203,10 @@ def _client_tuples(tuple_keys: list[dict[str, str]]) -> list[ClientTuple]:
         )
         for tuple_key in tuple_keys
     ]
+
+
+async def _close_sdk_client(client: OpenFGASDKClient) -> None:
+    try:
+        await asyncio.wait_for(client.close(), timeout=0.1)
+    except (Exception, asyncio.CancelledError):
+        return

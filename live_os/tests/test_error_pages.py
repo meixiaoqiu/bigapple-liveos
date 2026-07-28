@@ -48,7 +48,7 @@ class RuntimeErrorPageTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
         self.assertContains(response, "无权访问", status_code=403)
-        self.assertContains(response, "当前账号没有访问这个页面", status_code=403)
+        self.assertContains(response, "需要登录并绑定成员身份", status_code=403)
 
     def test_server_error_handler_uses_runtime_error_template(self) -> None:
         request = RequestFactory().get("/boom/")

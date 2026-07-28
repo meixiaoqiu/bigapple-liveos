@@ -61,7 +61,9 @@ def json_forbidden(message: str = "Permission denied.") -> JsonResponse:
 
 
 def page_forbidden(message: str = "需要登录并具备相应权限。") -> HttpResponseForbidden:
-    return HttpResponseForbidden(message)
+    response = HttpResponseForbidden(message)
+    response.big_apple_error_message = message
+    return response
 
 
 def world_login_url_for_request(request: HttpRequest) -> str:

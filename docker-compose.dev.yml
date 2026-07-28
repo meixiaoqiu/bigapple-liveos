@@ -17,6 +17,7 @@ services:
   openfga-real:
     image: openfga/openfga:latest
     container_name: big-apple-openfga-real
+    restart: unless-stopped
     depends_on:
       openfga-real-migrate:
         condition: service_completed_successfully
@@ -53,6 +54,7 @@ services:
   openfga-sim:
     image: openfga/openfga:latest
     container_name: big-apple-openfga-sim
+    restart: unless-stopped
     depends_on:
       openfga-sim-migrate:
         condition: service_completed_successfully

@@ -69,7 +69,11 @@ def member_has_full_workspace_access(member: Member) -> bool:
     return AuthorizationService().member_has_full_workspace_access(member)
 
 
-def applicant_workspace_context(member_no: str) -> dict[str, Any]:
+def workspace_access_decision(member: Member):
+    return AuthorizationService().full_workspace_access_decision(member)
+
+
+def applicant_workspace_context(member_no: str, *, access_denial_reason: str = "not_authorized") -> dict[str, Any]:
     member = get_object_or_404(Member, member_no=member_no)
     latest_application = (
         MemberApplication.objects.filter(linked_member=member)
@@ -91,6 +95,7 @@ def applicant_workspace_context(member_no: str) -> dict[str, Any]:
         "can_reapply": can_reapply,
         "can_apply": can_apply,
         "role_gap_label": role_gap_label,
+        "authorization_unavailable": access_denial_reason == "authorization_unavailable",
     }
 
 

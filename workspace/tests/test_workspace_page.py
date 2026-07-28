@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -18,6 +19,7 @@ from core.models import (
     Resource,
     Task,
 )
+from core.openfga_client import OpenFGARequestError
 from core.tests.helpers import create_member, login_as_member
 
 
@@ -403,6 +405,7 @@ class WorkspaceAccessRoleTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "成员工作台")
         self.assertContains(response, "mem-formal-active")
+        self.assertIn("no-store", response.headers["Cache-Control"])
 
     def test_formal_role_pending_review_status_has_full_workspace(self) -> None:
         member = create_member(member_no="mem-formal-pend", role_name=ROLE_FORMAL_MEMBER, status=Member.Status.PENDING_REVIEW)
@@ -412,6 +415,41 @@ class WorkspaceAccessRoleTests(TestCase):
         self.assertContains(response, "成员工作台")
 
     # ── SUSPENDED / EXITED veto ──
+
+    @override_settings(
+        BIG_APPLE_AUTHORIZATION_BACKEND="openfga",
+        OPENFGA_SIM_STORE_ID="store-id",
+        OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
+    )
+    def test_openfga_outage_does_not_crash_workspace(self) -> None:
+        member = self._formal_member("mem-openfga-down")
+        login_as_member(self.client, member)
+
+        with patch("core.authorization_services.OpenFGAClient") as client_class:
+            client_class.return_value.check.side_effect = OpenFGARequestError("OpenFGA check failed")
+            response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "workspace/applicant.html")
+        self.assertContains(response, "权限服务暂时不可用")
+        self.assertNotContains(response, "审核完成前，此账号只能查看自己的报名状态")
+        self.assertIn("no-store", response.headers["Cache-Control"])
+
+    @override_settings(
+        BIG_APPLE_AUTHORIZATION_BACKEND="openfga",
+        OPENFGA_SIM_STORE_ID="store-id",
+        OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
+    )
+    def test_openfga_outage_action_forbidden_message_mentions_authorization_service(self) -> None:
+        member = self._formal_member("mem-openfga-action-down")
+        login_as_member(self.client, member)
+
+        with patch("core.authorization_services.OpenFGAClient") as client_class:
+            client_class.return_value.check.side_effect = OpenFGARequestError("OpenFGA check failed")
+            response = self.client.post("/workspace/tasks/task-0002/claim/")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, "权限服务暂时不可用", status_code=403)
 
     def test_formal_role_suspended_denied_full_workspace(self) -> None:
         member = self._formal_member("mem-formal-susp", status=Member.Status.SUSPENDED)

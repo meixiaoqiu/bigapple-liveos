@@ -37,6 +37,12 @@ class OpenFGAContext:
     platform_object: str
 
 
+@dataclass(frozen=True)
+class WorkspaceAccessDecision:
+    allowed: bool
+    reason: str = ""
+
+
 def openfga_member_user(member: Member) -> str:
     return f"member:{member.pk}"
 
@@ -141,33 +147,38 @@ class AuthorizationService:
         return False
 
     def member_has_full_workspace_access(self, member: Member) -> bool:
+        return self.full_workspace_access_decision(member).allowed
+
+    def full_workspace_access_decision(self, member: Member) -> WorkspaceAccessDecision:
         backend = authorization_backend()
         if backend == "legacy":
             from .member_roles import ROLE_FORMAL_MEMBER, member_has_role
 
-            return member.status in {Member.Status.ACTIVE, Member.Status.ADMITTED} and member_has_role(
+            allowed = member.status in {Member.Status.ACTIVE, Member.Status.ADMITTED} and member_has_role(
                 member,
                 ROLE_FORMAL_MEMBER,
             )
+            return WorkspaceAccessDecision(allowed=allowed, reason="" if allowed else "not_authorized")
         if backend != "openfga":
             logger.error("Unknown authorization backend %s; denying workspace access", backend)
-            return False
+            return WorkspaceAccessDecision(allowed=False, reason="authorization_unavailable")
         context = openfga_context_for_world_kind()
         if not context.store_id:
             logger.warning("%s OpenFGA store id is not configured; workspace access denied", context.world_kind)
-            return False
+            return WorkspaceAccessDecision(allowed=False, reason="authorization_unavailable")
         client = self.client or OpenFGAClient(context.api_url)
         try:
-            return client.check(
+            allowed = client.check(
                 store_id=context.store_id,
                 authorization_model_id=context.authorization_model_id,
                 user=openfga_member_user(member),
                 relation="formal_member",
                 object_=context.platform_object,
             )
-        except OpenFGARequestError:
-            logger.exception("OpenFGA workspace access check failed")
-            return False
+            return WorkspaceAccessDecision(allowed=allowed, reason="" if allowed else "not_authorized")
+        except OpenFGARequestError as exc:
+            logger.warning("OpenFGA workspace access check failed: %s", exc)
+            return WorkspaceAccessDecision(allowed=False, reason="authorization_unavailable")
 
     def eligible_voters_for_role(self, role: Role, *, at_time=None):
         if authorization_backend() == "legacy":
@@ -201,8 +212,8 @@ class AuthorizationService:
                 )
                 if member_id is not None
             }
-        except OpenFGARequestError:
-            logger.exception("OpenFGA formal member electorate read failed")
+        except OpenFGARequestError as exc:
+            logger.warning("OpenFGA formal member electorate read failed: %s", exc)
             member_ids = set()
         return members_from_openfga_member_ids(member_ids)
 
@@ -232,8 +243,8 @@ class AuthorizationService:
                 relation=check.relation,
                 object_=check.object_,
             )
-        except OpenFGARequestError:
-            logger.exception("OpenFGA check failed")
+        except OpenFGARequestError as exc:
+            logger.warning("OpenFGA check failed: %s", exc)
             return None
 
     def _openfga_member_ids_for_role(self, role: Role) -> set[int]:
@@ -256,8 +267,8 @@ class AuthorizationService:
                 )
                 if member_id is not None
             }
-        except OpenFGARequestError:
-            logger.exception("OpenFGA role electorate read failed")
+        except OpenFGARequestError as exc:
+            logger.warning("OpenFGA role electorate read failed: %s", exc)
             return set()
 
 

@@ -46,11 +46,14 @@ def bad_request(request: HttpRequest, exception: Exception) -> HttpResponse:
 
 
 def permission_denied(request: HttpRequest, exception: Exception) -> HttpResponse:
+    message = str(exception or "").strip()
+    if not message or message == "Forbidden":
+        message = "当前账号没有访问这个页面或执行这个操作的权限。"
     return render_runtime_error(
         request,
         status_code=403,
         title="无权访问",
-        message="当前账号没有访问这个页面或执行这个操作的权限。",
+        message=message,
         detail="如果你认为这是误判，请通过治理流程或维护入口处理权限问题。",
     )
 

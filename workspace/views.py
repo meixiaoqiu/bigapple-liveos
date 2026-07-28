@@ -8,6 +8,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Q
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, render
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from live_os.access import (
@@ -35,6 +36,7 @@ from .context import (
     application_review_detail_context,
     applications_review_list_context,
     member_has_full_workspace_access,
+    workspace_access_decision,
     workspace_context,
 )
 
@@ -93,7 +95,10 @@ def current_full_member_or_forbidden(request: HttpRequest) -> Member | HttpRespo
     member = current_member_or_forbidden(request)
     if isinstance(member, HttpResponseForbidden):
         return member
-    if not member_has_full_workspace_access(member):
+    decision = workspace_access_decision(member)
+    if not decision.allowed:
+        if decision.reason == "authorization_unavailable":
+            return page_forbidden("权限服务暂时不可用，无法确认当前成员权限。请稍后重试。")
         return page_forbidden("报名审核完成前不能执行该操作。")
     return member
 
@@ -105,6 +110,7 @@ def _member_is_formal_member(member: Member | None) -> bool:
 
 
 @require_GET
+@never_cache
 def workspace_page(request: HttpRequest):
     # Unauthenticated visitors see the workspace entry gate instead of 403.
     if not is_authenticated(request):
@@ -116,8 +122,13 @@ def workspace_page(request: HttpRequest):
     member = current_member_or_forbidden(request)
     if isinstance(member, HttpResponseForbidden):
         return member
-    if not member_has_full_workspace_access(member):
-        return render(request, "workspace/applicant.html", applicant_workspace_context(member.member_no))
+    decision = workspace_access_decision(member)
+    if not decision.allowed:
+        return render(
+            request,
+            "workspace/applicant.html",
+            applicant_workspace_context(member.member_no, access_denial_reason=decision.reason),
+        )
     return render(request, "workspace/index.html", workspace_context(member.member_no))
 
 

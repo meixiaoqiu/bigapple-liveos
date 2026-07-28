@@ -6,7 +6,7 @@ from typing import Iterator
 from django.conf import settings
 from django.core.management.base import CommandError
 
-from .context import WorldContext, context_from_registry
+from .context import WorldContext, context_from_registry, fixed_world_context_from_settings
 from .lifecycle import get_world_or_error
 from .models import WorldRegistry
 from .state import get_current_world, reset_current_world, set_current_world
@@ -19,6 +19,27 @@ def command_world_context(world_id: str | None, *, command_name: str) -> Iterato
     requested_world_id = str(world_id or "").strip()
     current_world = get_current_world()
     token = None
+
+    fixed_world = fixed_world_context_from_settings() if getattr(settings, "SITE_FIXED_WORLD", False) else None
+    if fixed_world is not None:
+        if requested_world_id and requested_world_id != fixed_world.world_id:
+            raise CommandError(
+                f"{command_name} is fixed to world {fixed_world.world_id}; "
+                f"cannot bind {requested_world_id}."
+            )
+        if current_world is not None and current_world.world_id != fixed_world.world_id:
+            raise CommandError(
+                f"{command_name} is already bound to world {current_world.world_id}; "
+                f"cannot also bind {fixed_world.world_id}."
+            )
+        if current_world is None:
+            token = set_current_world(fixed_world)
+        try:
+            yield current_world or fixed_world
+        finally:
+            if token is not None:
+                reset_current_world(token)
+        return
 
     if requested_world_id:
         world = get_world_or_error(requested_world_id)

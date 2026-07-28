@@ -200,7 +200,7 @@ goto END
 echo.
 echo Starting Big Apple Django site services...
 
-docker compose -f docker-compose.dev.yml up -d --force-recreate big-apple-admin big-apple-real big-apple-sim
+docker compose -f docker-compose.dev.yml up -d --force-recreate openfga-real openfga-sim big-apple-admin big-apple-real big-apple-sim
 if errorlevel 1 (
 echo Failed to start Big Apple Django site services.
 set "EXIT_CODE=1"

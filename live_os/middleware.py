@@ -24,7 +24,8 @@ class FriendlyErrorPageMiddleware:
             return response
 
         if response.status_code == 403:
-            return permission_denied(request, Exception("Forbidden"))
+            message = getattr(response, "big_apple_error_message", "")
+            return permission_denied(request, Exception(message or "Forbidden"))
 
         if response.status_code == 404:
             return page_not_found(request, Exception("Not found"))

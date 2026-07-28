@@ -60,9 +60,15 @@
     <section class="card bg-base-100 shadow">
       <div class="card-body gap-4">
         <h2 class="card-title">当前权限</h2>
-        <div class="alert alert-info">
-          <span>审核完成前，此账号只能查看自己的报名状态。正式接纳后会开放完整成员工作台。</span>
-        </div>
+        {% if authorization_unavailable %}
+          <div class="alert alert-warning">
+            <span>权限服务暂时不可用，系统无法确认当前成员权限。为防止越权，完整成员工作台已暂时关闭，请稍后重试。</span>
+          </div>
+        {% else %}
+          <div class="alert alert-info">
+            <span>审核完成前，此账号只能查看自己的报名状态。正式接纳后会开放完整成员工作台。</span>
+          </div>
+        {% endif %}
         {% if application %}
           <dl class="grid gap-3 text-sm md:grid-cols-2">
             <div>
