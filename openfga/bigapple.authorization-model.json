@@ -1,0 +1,158 @@
+{
+  "schema_version": "1.1",
+  "type_definitions": [
+    {
+      "type": "member",
+      "relations": {},
+      "metadata": {
+        "relations": {}
+      }
+    },
+    {
+      "type": "platform",
+      "relations": {
+        "formal_member": {
+          "this": {}
+        },
+        "frozen_member": {
+          "this": {}
+        }
+      },
+      "metadata": {
+        "relations": {
+          "formal_member": {
+            "directly_related_user_types": [
+              {
+                "type": "member"
+              }
+            ]
+          },
+          "frozen_member": {
+            "directly_related_user_types": [
+              {
+                "type": "member"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "role",
+      "relations": {
+        "assignee": {
+          "this": {}
+        }
+      },
+      "metadata": {
+        "relations": {
+          "assignee": {
+            "directly_related_user_types": [
+              {
+                "type": "member"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "permission",
+      "relations": {
+        "role": {
+          "this": {}
+        },
+        "holder": {
+          "tupleToUserset": {
+            "tupleset": {
+              "relation": "role"
+            },
+            "computedUserset": {
+              "relation": "assignee"
+            }
+          }
+        }
+      },
+      "metadata": {
+        "relations": {
+          "role": {
+            "directly_related_user_types": [
+              {
+                "type": "role"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "guarded_permission",
+      "relations": {
+        "role": {
+          "this": {}
+        },
+        "platform": {
+          "this": {}
+        },
+        "holder": {
+          "difference": {
+            "base": {
+              "intersection": {
+                "child": [
+                  {
+                    "tupleToUserset": {
+                      "tupleset": {
+                        "relation": "role"
+                      },
+                      "computedUserset": {
+                        "relation": "assignee"
+                      }
+                    }
+                  },
+                  {
+                    "tupleToUserset": {
+                      "tupleset": {
+                        "relation": "platform"
+                      },
+                      "computedUserset": {
+                        "relation": "formal_member"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "subtract": {
+              "tupleToUserset": {
+                "tupleset": {
+                  "relation": "platform"
+                },
+                "computedUserset": {
+                  "relation": "frozen_member"
+                }
+              }
+            }
+          }
+        }
+      },
+      "metadata": {
+        "relations": {
+          "role": {
+            "directly_related_user_types": [
+              {
+                "type": "role"
+              }
+            ]
+          },
+          "platform": {
+            "directly_related_user_types": [
+              {
+                "type": "platform"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

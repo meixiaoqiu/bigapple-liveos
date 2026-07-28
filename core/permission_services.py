@@ -1,14 +1,16 @@
-"""Permission checks derived from active member role assignments."""
+"""Permission checks derived from the configured authorization backend."""
 
 from __future__ import annotations
 
 from django.db.models import Q
 from django.utils import timezone
 
+from .member_roles import MEMBER_ROLE_ORGANIZATION_NAME, ROLE_FORMAL_MEMBER, member_role_filter
 from .models import Member, Resource, Role, RoleAssignment, RolePermission
 
 
 MEMBER_PERMISSION_STATUSES = {Member.Status.ACTIVE, Member.Status.ADMITTED}
+GUARDED_PERMISSION_PREFIXES = ("governance.", "finance.")
 
 
 def _time_window_filter(at_time):
@@ -29,16 +31,37 @@ def _role_permission_applies_to_resource(role_permission: RolePermission, resour
     return role_permission.scope in {"", "global", "all"}
 
 
-def member_has_permission(
+def permission_requires_formal_member(permission_code: str) -> bool:
+    return str(permission_code).startswith(GUARDED_PERMISSION_PREFIXES)
+
+
+def _member_has_active_role(member: Member, role_name: str, checked_at) -> bool:
+    return member.role_assignments.filter(
+        status=RoleAssignment.Status.ACTIVE,
+        role__status=Role.Status.ACTIVE,
+        role__organization__name=MEMBER_ROLE_ORGANIZATION_NAME,
+        role__name=role_name,
+        start_at__lte=checked_at,
+        end_at__gte=checked_at,
+    ).exists()
+
+
+def legacy_member_has_permission(
     member: Member,
     permission_code: str,
     resource: Resource | None = None,
     at_time=None,
 ) -> bool:
-    """Check permissions derived from active role assignments."""
+    """Check permissions derived from active Django role assignments."""
 
     checked_at = at_time or timezone.now()
     if member.status not in MEMBER_PERMISSION_STATUSES:
+        return False
+    if permission_requires_formal_member(permission_code) and not _member_has_active_role(
+        member,
+        ROLE_FORMAL_MEMBER,
+        checked_at,
+    ):
         return False
 
     assignments = RoleAssignment.objects.filter(
@@ -57,11 +80,31 @@ def member_has_permission(
     return False
 
 
+def member_has_permission(
+    member: Member,
+    permission_code: str,
+    resource: Resource | None = None,
+    at_time=None,
+) -> bool:
+    """Check whether *member* can use *permission_code* on *resource*."""
+
+    from .authorization_services import AuthorizationService
+
+    return AuthorizationService().member_has_permission(
+        member,
+        permission_code,
+        resource=resource,
+        at_time=at_time,
+    )
+
+
 def members_with_permission(permission_code: str, at_time=None):
     checked_at = at_time or timezone.now()
+    queryset = Member.objects.filter(status__in=MEMBER_PERMISSION_STATUSES)
+    if permission_requires_formal_member(permission_code):
+        queryset = queryset.filter(member_role_filter(ROLE_FORMAL_MEMBER))
     return (
-        Member.objects.filter(
-            status__in=MEMBER_PERMISSION_STATUSES,
+        queryset.filter(
             role_assignments__status=RoleAssignment.Status.ACTIVE,
             role_assignments__role__status=Role.Status.ACTIVE,
             role_assignments__start_at__lte=checked_at,

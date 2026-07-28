@@ -31,6 +31,7 @@ DATABASES = {
 WORLD_DATABASE_ROUTING_ENABLED = False
 DEFAULT_WORLD_DATABASE_ALIAS = "default"
 WORLD_DATABASE_ALIASES = ("realworld", "simulation0001")
+BIG_APPLE_AUTHORIZATION_BACKEND = "legacy"
 
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.MD5PasswordHasher",

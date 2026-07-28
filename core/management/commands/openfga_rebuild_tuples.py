@@ -1,0 +1,129 @@
+"""Rebuild OpenFGA tuples from Django authority data."""
+
+from __future__ import annotations
+
+from django.core.management.base import BaseCommand, CommandError
+from django.utils import timezone
+
+from core.authorization_services import (
+    openfga_context_for_world_kind,
+    openfga_member_user,
+    openfga_permission_object,
+    openfga_role_object,
+)
+from core.member_roles import ROLE_FORMAL_MEMBER, member_role_filter
+from core.models import Member, Role, RoleAssignment, RolePermission
+from core.openfga_client import OpenFGAClient, OpenFGARequestError
+from core.permission_services import MEMBER_PERMISSION_STATUSES, permission_requires_formal_member
+from worlds.command_context import command_world_context
+
+
+class Command(BaseCommand):
+    help = "Project current active Django role and permission facts into OpenFGA tuples."
+
+    def add_arguments(self, parser):
+        parser.add_argument("--world-kind", choices=("real", "sim"), default=None)
+        parser.add_argument("--world-id", default="")
+        parser.add_argument("--store-id", default="")
+        parser.add_argument("--api-url", default="")
+        parser.add_argument("--authorization-model-id", default="")
+        parser.add_argument("--dry-run", action="store_true")
+
+    def handle(self, *args, **options):
+        with command_world_context(options["world_id"], command_name="openfga_rebuild_tuples"):
+            context = openfga_context_for_world_kind(options["world_kind"])
+            store_id = options["store_id"] or context.store_id
+
+            tuples = list(_unique_tuples(_project_authorization_tuples(platform_object=context.platform_object)))
+            if options["dry_run"]:
+                self.stdout.write(f"Would write {len(tuples)} OpenFGA tuples.")
+                return
+            if not store_id:
+                raise CommandError(f"{context.world_kind} OpenFGA store id is required.")
+
+            client = OpenFGAClient(options["api_url"] or context.api_url)
+            try:
+                existing_tuples = {
+                    (item["key"]["user"], item["key"]["relation"], item["key"]["object"])
+                    for item in client.read_tuples(store_id=store_id)
+                }
+                missing_tuples = [
+                    tuple_key
+                    for tuple_key in tuples
+                    if (tuple_key["user"], tuple_key["relation"], tuple_key["object"]) not in existing_tuples
+                ]
+                for start in range(0, len(missing_tuples), 100):
+                    client.write_tuples(
+                        store_id=store_id,
+                        authorization_model_id=options["authorization_model_id"] or context.authorization_model_id,
+                        writes=missing_tuples[start : start + 100],
+                    )
+            except OpenFGARequestError as exc:
+                raise CommandError(str(exc)) from exc
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Projected {len(tuples)} OpenFGA tuples; wrote {len(missing_tuples)} missing tuples."
+                )
+            )
+
+
+def _project_authorization_tuples(*, platform_object: str):
+    checked_at = timezone.now()
+
+    formal_members = Member.objects.filter(
+        status__in=MEMBER_PERMISSION_STATUSES,
+    ).filter(member_role_filter(ROLE_FORMAL_MEMBER))
+    for member in formal_members.distinct():
+        yield {
+            "user": openfga_member_user(member),
+            "relation": "formal_member",
+            "object": platform_object,
+        }
+
+    frozen_members = Member.objects.filter(status__in={Member.Status.SUSPENDED, Member.Status.EXITED})
+    for member in frozen_members:
+        yield {
+            "user": openfga_member_user(member),
+            "relation": "frozen_member",
+            "object": platform_object,
+        }
+
+    active_assignments = RoleAssignment.objects.select_related("member", "role").filter(
+        member__status__in=MEMBER_PERMISSION_STATUSES,
+        status=RoleAssignment.Status.ACTIVE,
+        role__status=Role.Status.ACTIVE,
+        start_at__lte=checked_at,
+        end_at__gte=checked_at,
+    )
+    for assignment in active_assignments:
+        yield {
+            "user": openfga_member_user(assignment.member),
+            "relation": "assignee",
+            "object": openfga_role_object(assignment.role_id),
+        }
+
+    active_role_ids = Role.objects.filter(status=Role.Status.ACTIVE).values("pk")
+    role_permissions = RolePermission.objects.select_related("permission").filter(role_id__in=active_role_ids)
+    for role_permission in role_permissions:
+        permission_object = openfga_permission_object(role_permission.permission.code)
+        yield {
+            "user": openfga_role_object(role_permission.role_id),
+            "relation": "role",
+            "object": permission_object,
+        }
+        if permission_requires_formal_member(role_permission.permission.code):
+            yield {
+                "user": platform_object,
+                "relation": "platform",
+                "object": permission_object,
+            }
+
+
+def _unique_tuples(tuples):
+    seen: set[tuple[str, str, str]] = set()
+    for tuple_key in tuples:
+        key = (tuple_key["user"], tuple_key["relation"], tuple_key["object"])
+        if key in seen:
+            continue
+        seen.add(key)
+        yield tuple_key

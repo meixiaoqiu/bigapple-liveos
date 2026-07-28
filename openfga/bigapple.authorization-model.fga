@@ -1,0 +1,24 @@
+model
+  schema 1.1
+
+type member
+
+type platform
+  relations
+    define formal_member: [member]
+    define frozen_member: [member]
+
+type role
+  relations
+    define assignee: [member]
+
+type permission
+  relations
+    define role: [role]
+    define holder: assignee from role
+
+type guarded_permission
+  relations
+    define role: [role]
+    define platform: [platform]
+    define holder: (assignee from role and formal_member from platform) but not frozen_member from platform

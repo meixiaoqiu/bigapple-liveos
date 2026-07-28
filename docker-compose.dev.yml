@@ -1,6 +1,79 @@
 name: big-apple-live-os
 
 services:
+  openfga-real-migrate:
+    image: openfga/openfga:latest
+    container_name: big-apple-openfga-real-migrate
+    command: migrate
+    user: nonroot
+    environment:
+      - OPENFGA_DATASTORE_ENGINE=sqlite
+      - OPENFGA_DATASTORE_URI=file:/home/nonroot/openfga-real.db
+    volumes:
+      - openfga-real-data:/home/nonroot
+    networks:
+      - dev-net
+
+  openfga-real:
+    image: openfga/openfga:latest
+    container_name: big-apple-openfga-real
+    depends_on:
+      openfga-real-migrate:
+        condition: service_completed_successfully
+    command: run
+    user: nonroot
+    environment:
+      - OPENFGA_DATASTORE_ENGINE=sqlite
+      - OPENFGA_DATASTORE_URI=file:/home/nonroot/openfga-real.db
+      - OPENFGA_LOG_FORMAT=json
+      - OPENFGA_PLAYGROUND_ENABLED=true
+      - OPENFGA_PLAYGROUND_ADDR=0.0.0.0:3000
+    volumes:
+      - openfga-real-data:/home/nonroot
+    ports:
+      - "127.0.0.1:20103:8080"
+      - "127.0.0.1:20104:8081"
+      - "127.0.0.1:20105:3000"
+    networks:
+      - dev-net
+
+  openfga-sim-migrate:
+    image: openfga/openfga:latest
+    container_name: big-apple-openfga-sim-migrate
+    command: migrate
+    user: nonroot
+    environment:
+      - OPENFGA_DATASTORE_ENGINE=sqlite
+      - OPENFGA_DATASTORE_URI=file:/home/nonroot/openfga-sim.db
+    volumes:
+      - openfga-sim-data:/home/nonroot
+    networks:
+      - dev-net
+
+  openfga-sim:
+    image: openfga/openfga:latest
+    container_name: big-apple-openfga-sim
+    depends_on:
+      openfga-sim-migrate:
+        condition: service_completed_successfully
+    command: run
+    user: nonroot
+    environment:
+      - OPENFGA_DATASTORE_ENGINE=sqlite
+      - OPENFGA_DATASTORE_URI=file:/home/nonroot/openfga-sim.db
+      - OPENFGA_LOG_FORMAT=json
+      - OPENFGA_HTTP_ADDR=0.0.0.0:8082
+      - OPENFGA_PLAYGROUND_ENABLED=true
+      - OPENFGA_PLAYGROUND_ADDR=0.0.0.0:3000
+    volumes:
+      - openfga-sim-data:/home/nonroot
+    ports:
+      - "127.0.0.1:20106:8082"
+      - "127.0.0.1:20107:8081"
+      - "127.0.0.1:20108:3000"
+    networks:
+      - dev-net
+
   # Use --noreload so Docker dev services keep one Django process per site.
   # Restart the service after Python code changes.
   big-apple-admin:
@@ -57,3 +130,7 @@ services:
 networks:
   dev-net:
     external: true
+
+volumes:
+  openfga-real-data:
+  openfga-sim-data:

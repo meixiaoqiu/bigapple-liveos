@@ -188,6 +188,16 @@ goto END
 echo Database migrations completed.
 
 echo.
+echo Preparing OpenFGA authorization services...
+
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\Invoke-OpenFgaLocalSetup.ps1
+if errorlevel 1 (
+echo Failed to prepare OpenFGA authorization services.
+set "EXIT_CODE=1"
+goto END
+)
+
+echo.
 echo Starting Big Apple Django site services...
 
 docker compose -f docker-compose.dev.yml up -d --force-recreate big-apple-admin big-apple-real big-apple-sim
@@ -272,6 +282,10 @@ echo http://127.0.0.1:20101/observer/
 echo http://127.0.0.1:20101/workspace/
 echo http://127.0.0.1:20102/observer/
 echo http://127.0.0.1:20102/workspace/
+echo http://127.0.0.1:20103/stores
+echo http://127.0.0.1:20105/playground
+echo http://127.0.0.1:20106/stores
+echo http://127.0.0.1:20108/playground
 echo.
 echo Nginx gateway:
 echo http://bigadmin.local/admin/
@@ -280,10 +294,13 @@ echo http://bigreal.local/observer/
 echo http://bigreal.local/workspace/
 echo http://bigsim.local/observer/
 echo http://bigsim.local/workspace/
+echo http://openfga-real.local/playground
+echo http://openfga-sim.local/playground
 echo.
 echo Useful commands:
 echo docker compose -f docker-compose.dev.yml logs -f
 echo docker compose -f docker-compose.dev.yml ps
+echo powershell -NoProfile -ExecutionPolicy Bypass -File scripts\Invoke-OpenFgaLocalSetup.ps1
 echo docker logs --since 10m nginx
 echo docker logs --since 10m nginx 2^>^&1 ^| findstr /i "emerg alert crit error warn female php85 upstream host"
 echo.
