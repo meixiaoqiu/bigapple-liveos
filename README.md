@@ -54,7 +54,7 @@ DATABASE_URL=mysql://用户名:URL编码后的密码@mysql97:3306/数据库名?c
 
 Docker 开发模式下，Web 容器和 MySQL 容器通过 `dev-net` 通信，所以 `.env` 里的 MySQL host 应写容器名 `mysql97`，不是宿主机的 `127.0.0.1`。真实连接文件已被 `.gitignore` 忽略。
 
-`start.bat` 会检查 Docker Desktop、`dev-net` 网络、已有 `mysql97` 容器和已有 `nginx` 容器；它会启动已存在的容器并把它们接入 `dev-net`，但不会创建数据库容器、nginx 容器或 Docker network。
+`start.bat` 会检查 Docker Desktop、`dev-net` 网络、已有 `mysql97` 容器和已有 `nginx` 容器；缺少 `dev-net` 时会自动创建，并会启动已存在的容器、把它们接入该网络，但不会创建数据库容器或 nginx 容器。
 
 ## 安装
 
@@ -106,7 +106,7 @@ http://127.0.0.1:20102/observer/
 
 `bigadmin.local` / `127.0.0.1:20100` 是唯一 Django Admin / control plane：负责技术后台、底层数据管理、仿真实验后台、世界注册表、仿真归档和兜底维护。`bigreal.local` / `127.0.0.1:20101` 是真实世界 runtime。`bigsim.local` / `127.0.0.1:20102` 是仿真世界 runtime。真实和仿真 runtime 不暴露 `/admin/`，也不再暴露 `/live-admin/`；世界站点只保留 `/workspace/`、`/observer/`、报名入口和 API。
 
-Admin 当前的模型用途和保护规则见 `../bigapple-docs/docs/product/admin.md`。
+Admin 当前的模型用途和保护规则见 [Admin 内部维护后台](https://bigapple-docs.vercel.app/product/admin)。
 
 成员工作台最小页面可以访问：
 
@@ -137,13 +137,9 @@ http://127.0.0.1:20101/observer/
 python manage.py tailwind build
 ```
 
-自动模拟仍保留原 POST 动作：系统会基于 `bigapple001据点执行计划` 创建一次模拟运行，按主线节点推进，直到预算、人力、技能、资源、依赖或人员状态触发失败，并生成待审核的计划修订建议以及结构化计划数据 patch。详细说明见 `../bigapple-docs/docs/product/simulation.md` 和 `../bigapple-docs/docs/product/project-plan.md`。
+自动模拟仍保留原 POST 动作：系统会基于 `bigapple001据点执行计划` 创建一次模拟运行，按主线节点推进，直到预算、人力、技能、资源、依赖或人员状态触发失败，并生成待审核的计划修订建议以及结构化计划数据 patch。详细说明见 [仿真系统](https://bigapple-docs.vercel.app/product/simulation) 和 [项目执行计划](https://bigapple-docs.vercel.app/product/project-plan)。
 
-要登录 Django Admin，需要先创建超级用户：
-
-```bat
-docker compose -f docker-compose.dev.yml exec big-apple-admin python manage.py createsuperuser --settings=live_os.settings_admin
-```
+要登录 Django Admin，需要先创建 control DB 超级用户。按照 [`bigapple-docs/docs/development/setup.md`](https://bigapple-docs.vercel.app/development/setup) 中的“创建 Django Admin 超级用户”步骤操作。
 
 写入演示数据：
 
@@ -170,9 +166,9 @@ start.bat
 
 ## 文档与契约
 
-公开文档已迁移到 `../bigapple-docs/docs/`，包括项目概览、产品规划、架构说明、数据库结构、API 文档、运行入口、开发说明、AI 协作规则和各产品功能说明。
+公开文档已迁移到 [Big Apple Docs](https://bigapple-docs.vercel.app/)，包括项目概览、产品规划、架构说明、数据库结构、API 文档、运行入口、开发说明、AI 协作规则和各产品功能说明。
 
-机器可读契约位于 `../bigapple-docs/static/technical-contracts/`，包括 OpenAPI、JSON Schema、示例 payload 和校验脚本。docs 站点会把这些文件发布到 `/technical-contracts/`，供外部客户端直接查看和下载。
+机器可读契约位于本地 sibling 仓库的 `../bigapple-docs/static/technical-contracts/`，包括 OpenAPI、JSON Schema、示例 payload 和校验脚本；入口和下载方式见 [技术契约](https://bigapple-docs.vercel.app/technical-contracts/overview)。
 
 Live OS 行为变化后，应同步更新相邻 docs 仓库中的对应文档；API、schema 或 payload 变化必须先更新 `static/technical-contracts/`。
 

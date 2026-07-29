@@ -60,9 +60,16 @@ echo Docker Engine is already ready. Skipping Docker Desktop startup.
 docker network inspect dev-net >nul 2>nul
 if errorlevel 1 (
 echo dev-net Docker network was not found.
-echo Please create the shared dev-net network first.
+echo Creating dev-net Docker network...
+docker network create dev-net >nul
+if errorlevel 1 (
+echo Failed to create dev-net Docker network.
 set "EXIT_CODE=1"
 goto END
+)
+echo dev-net Docker network was created.
+) else (
+echo dev-net Docker network already exists. Skipping.
 )
 
 docker container inspect mysql97 >nul 2>nul
