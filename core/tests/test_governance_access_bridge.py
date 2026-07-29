@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from io import StringIO
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
@@ -79,6 +80,30 @@ class GovernanceAccessBridgeTests(TestCase):
 
         self.assertTrue(user_has_governance_permission(user, GOVERNANCE_VIEW_ADMIN_PERMISSION))
         self.assertTrue(is_governance_principal(user))
+
+    @override_settings(
+        BIG_APPLE_AUTHORIZATION_BACKEND="openfga",
+        OPENFGA_SIM_STORE_ID="store-id",
+        OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
+        OPENFGA_SIM_PLATFORM_OBJECT="platform:sim",
+    )
+    def test_governance_access_bridge_denies_when_openfga_denies(self):
+        user = self.create_user("openfga-denied-governance-user")
+        member, _assignment, _permission = self.create_governance_role_permission(user)
+
+        with patch("core.authorization_services.OpenFGAClient") as client_class:
+            client_class.return_value.check.return_value = False
+
+            self.assertFalse(user_has_governance_permission(user, GOVERNANCE_VIEW_ADMIN_PERMISSION))
+            self.assertFalse(is_governance_principal(member))
+
+        client_class.return_value.check.assert_any_call(
+            store_id="store-id",
+            authorization_model_id="model-id",
+            user=f"member:{member.pk}",
+            relation="holder",
+            object_=f"guarded_permission:{GOVERNANCE_VIEW_ADMIN_PERMISSION}",
+        )
 
     def test_member_principal_can_use_role_permission(self):
         member = create_member(

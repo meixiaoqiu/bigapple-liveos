@@ -7,7 +7,7 @@ from django.http import HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_http_methods
 
-from live_os.access import require_member_json
+from live_os.access import require_full_workspace_member_json
 from core.dispute_services import submit_dispute
 from core.exceptions import DomainError
 from core.models import Member, Task
@@ -37,7 +37,7 @@ def create_dispute(request: HttpRequest, **_kwargs) -> JsonResponse:
         )
 
     claimant_member_no = str(payload.get("claimant_member_no") or payload.get("member_no") or "").strip()
-    denied = require_member_json(request, claimant_member_no)
+    denied = require_full_workspace_member_json(request, claimant_member_no)
     if denied:
         return denied
     claimant = get_object_or_404(Member, member_no=claimant_member_no)

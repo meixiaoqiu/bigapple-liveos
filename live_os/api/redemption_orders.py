@@ -8,7 +8,7 @@ from django.http import HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_POST, require_http_methods
 
-from live_os.access import require_member_json, member_for_request as _mfr
+from live_os.access import require_full_workspace_member_json, member_for_request as _mfr
 from core.models import Member, MerchantProfile, RedemptionOrder
 
 
@@ -51,7 +51,7 @@ def list_create_redemption_orders(request: HttpRequest, member_no: str, **_kwarg
 
 
 def _list_orders(request, member_no):
-    denied = require_member_json(request, member_no)
+    denied = require_full_workspace_member_json(request, member_no)
     if denied:
         return denied
     current_member = _mfr(request)
@@ -74,7 +74,7 @@ def _parse_body(request) -> tuple[dict | None, JsonResponse | None]:
 
 
 def _create_order(request, member_no):
-    denied = require_member_json(request, member_no)
+    denied = require_full_workspace_member_json(request, member_no)
     if denied:
         return denied
     current_member = _mfr(request)
@@ -153,7 +153,7 @@ def _create_order(request, member_no):
 @require_POST
 def cancel_redemption_order_view(request: HttpRequest, order_id: str, **_kwargs) -> JsonResponse:
     order = get_object_or_404(RedemptionOrder, order_id=order_id)
-    denied = require_member_json(request, order.member.member_no)
+    denied = require_full_workspace_member_json(request, order.member.member_no)
     if denied:
         return denied
     current_member = _mfr(request)
@@ -179,7 +179,7 @@ def cancel_redemption_order_view(request: HttpRequest, order_id: str, **_kwargs)
 @require_POST
 def dispute_redemption_order_view(request: HttpRequest, order_id: str, **_kwargs) -> JsonResponse:
     order = get_object_or_404(RedemptionOrder, order_id=order_id)
-    denied = require_member_json(request, order.member.member_no)
+    denied = require_full_workspace_member_json(request, order.member.member_no)
     if denied:
         return denied
     current_member = _mfr(request)

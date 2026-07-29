@@ -15,25 +15,28 @@ from core.finance_services import (
     withdraw_expense_claim,
 )
 from core.models import ExpenseClaim, Member
-from live_os.access import is_authenticated, member_for_request
-from live_os.error_handlers import permission_denied as _forbidden
-
-from core.permission_services import member_has_permission
+from core.access import is_finance_payer, is_finance_reviewer
+from live_os.access import is_authenticated, page_forbidden
 
 from .finance_forms import ExpenseClaimForm, FinanceReviewForm
+from .access import require_full_workspace_member
 
 
 def _current_member(request: HttpRequest) -> Member | HttpResponse:
     if not is_authenticated(request):
         return redirect_to_login(request.get_full_path(), login_url="/login/")
-    m = member_for_request(request)
-    if m is None:
-        return _forbidden(request, Exception("no member"))
-    return m
+    member = require_full_workspace_member(request)
+    if isinstance(member, HttpResponse):
+        return member
+    return member
 
 
 def _check_permission(member: Member, code: str) -> bool:
-    return member_has_permission(member, code)
+    if code == FINANCE_REVIEW_PERMISSION:
+        return is_finance_reviewer(member)
+    if code == FINANCE_PAY_PERMISSION:
+        return is_finance_payer(member)
+    return False
 
 
 def _is_finance_operator(member: Member) -> bool:
@@ -97,7 +100,7 @@ def finance_claim_detail(request: HttpRequest, claim_id: str) -> HttpResponse:
         ExpenseClaim.objects.select_related("claimant_member"), claim_id=claim_id,
     )
     if not _can_view_claim(member, claim):
-        return _forbidden(request, Exception("finance claim forbidden"))
+        return page_forbidden("无权查看该报销申请。")
     is_finance = _check_permission(member, FINANCE_REVIEW_PERMISSION)
     is_payer = _check_permission(member, FINANCE_PAY_PERMISSION)
     is_owner = claim.claimant_member_id == member.pk

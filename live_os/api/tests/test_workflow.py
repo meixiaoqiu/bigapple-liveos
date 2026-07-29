@@ -4,6 +4,7 @@ import json
 from io import StringIO
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
@@ -11,7 +12,8 @@ from django.test import Client, TestCase
 from django.utils import timezone
 
 from core.credit_services import ensure_system_accounts, issue_credits_to_pool, lock_task_credit_budget
-from core.member_roles import ROLE_CONTRIBUTOR
+from core.member_roles import ROLE_FORMAL_MEMBER
+from core.openfga_client import OpenFGARequestError
 from core.models import CapacityAssessment, Dispute, Event, LedgerEntry, Member, Resource, Task
 from core.tests.helpers import create_governance_admin_member, create_member, login_as_member
 
@@ -34,7 +36,7 @@ class ApiWorkflowTests(TestCase):
         now = timezone.now()
         self.member = create_member(
             member_no="mem-0001",
-            role_name=ROLE_CONTRIBUTOR,
+            role_name=ROLE_FORMAL_MEMBER,
             status=Member.Status.ADMITTED,
             batch_id="batch-opening",
             joined_simulation_day=1,
@@ -231,6 +233,48 @@ class ApiWorkflowTests(TestCase):
         self.assertEqual(status, 401)
         self.assertEqual(payload["code"], "authentication_required")
 
+    def test_basic_member_cannot_claim_task_through_api(self) -> None:
+        basic = create_member("api-basic-claim")
+        login_as_member(self.client, basic)
+
+        status, payload = self.post_json(
+            self.api(f"/tasks/{self.task.task_id}/claim"),
+            {"member_no": basic.member_no},
+        )
+
+        self.assertEqual(status, 403)
+        self.assertEqual(payload["code"], "permission_denied")
+        self.task.refresh_from_db()
+        self.assertIsNone(self.task.assignee_member_id)
+
+    def test_basic_member_cannot_read_own_ledger_through_api(self) -> None:
+        basic = create_member("api-basic-ledger")
+        login_as_member(self.client, basic)
+
+        response = self.client.get(
+            self.api("/ledger-entries"),
+            {"member_no": basic.member_no},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["code"], "permission_denied")
+
+    def test_full_workspace_api_fails_closed_when_openfga_unavailable(self) -> None:
+        login_as_member(self.client, self.member)
+
+        with self.settings(BIG_APPLE_AUTHORIZATION_BACKEND="openfga", OPENFGA_SIM_STORE_ID="store-test"):
+            with patch("core.authorization_services.OpenFGAClient") as client_class:
+                client_class.return_value.check.side_effect = OpenFGARequestError("OpenFGA check failed")
+                status, payload = self.post_json(
+                    self.api(f"/tasks/{self.task.task_id}/claim"),
+                    {"member_no": self.member.member_no},
+                )
+
+        self.assertEqual(status, 403)
+        self.assertEqual(payload["code"], "permission_denied")
+        self.task.refresh_from_db()
+        self.assertIsNone(self.task.assignee_member_id)
+
     def test_public_task_list_omits_member_and_execution_metadata(self) -> None:
         now = timezone.now()
         self.task.assignee_member = self.member
@@ -372,6 +416,22 @@ class ApiWorkflowTests(TestCase):
         self.assertEqual(payload["claimant_member_no"], self.member.member_no)
         self.assertNotIn("handler", payload)
         self.assertNotIn("reviewer", payload)
+
+    def test_basic_member_cannot_create_dispute_through_api(self) -> None:
+        basic = create_member("api-basic-dispute")
+        login_as_member(self.client, basic)
+
+        status, payload = self.post_json(
+            self.api("/disputes"),
+            {
+                "claimant_member_no": basic.member_no,
+                "dispute_type": Dispute.DisputeType.TASK_REVIEW,
+                "facts": "基础成员不能创建申诉。",
+            },
+        )
+
+        self.assertEqual(status, 403)
+        self.assertEqual(payload["code"], "permission_denied")
 
     def test_events_api_filters_internal_events_by_default(self) -> None:
         now = timezone.now()
@@ -573,6 +633,15 @@ class ApiWorkflowTests(TestCase):
         self.assertIn("review_dispute", payload["next_actions"])
         self.assertIn("check_resource_warning", payload["next_actions"])
 
+    def test_basic_member_cannot_read_full_workspace_summary(self) -> None:
+        basic = create_member("api-basic-summary")
+        login_as_member(self.client, basic)
+
+        response = self.client.get(self.api(f"/members/{basic.member_no}/workspace"))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["code"], "permission_denied")
+
 
 class CreditTransferApiTests(TestCase):
     """POST /api/v0.1/members/<no>/credit-transfers"""
@@ -582,14 +651,13 @@ class CreditTransferApiTests(TestCase):
     def setUp(self):
         from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account
         ensure_system_accounts()
-        self.member_a = create_member("transfer-api-a")
-        self.member_b = create_member("transfer-api-b")
+        self.member_a = create_member("transfer-api-a", role_name=ROLE_FORMAL_MEMBER)
+        self.member_b = create_member("transfer-api-b", role_name=ROLE_FORMAL_MEMBER)
         get_or_create_member_credit_account(self.member_a)
         get_or_create_member_credit_account(self.member_b)
         # Give A some credits
         from core.credit_services import post_credit_transaction
-        from core.models import CreditAccount, CreditTransaction
-        issuance = CreditAccount.objects.get(account_type=CreditAccount.Type.ISSUANCE_POOL)
+        from core.models import CreditTransaction
         a_acct = get_or_create_member_credit_account(self.member_a)
         post_credit_transaction(
             transaction_type=CreditTransaction.Type.ISSUANCE,
@@ -715,6 +783,28 @@ class CreditTransferApiTests(TestCase):
         from core.credit_services import member_credit_balance
         return member_credit_balance(member)
 
+    def test_basic_member_cannot_transfer_through_api(self):
+        from core.credit_services import get_or_create_member_credit_account, post_credit_transaction
+        from core.models import CreditTransaction
+
+        basic = create_member("transfer-api-basic")
+        account = get_or_create_member_credit_account(basic)
+        post_credit_transaction(
+            transaction_type=CreditTransaction.Type.ISSUANCE,
+            amount=50,
+            target_account=account,
+        )
+        login_as_member(self.client, basic)
+
+        resp = self.client.post(
+            self.api(f"/members/{basic.member_no}/credit-transfers"),
+            {"to_member_no": self.member_b.member_no, "amount": 10},
+            content_type="application/json",
+        )
+
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.json()["code"], "permission_denied")
+
     def test_to_member_no_required(self):
         login_as_member(self.client, self.member_a)
         resp = self.client.post(
@@ -777,12 +867,11 @@ class RedemptionOrderApiTests(TestCase):
     def setUp(self):
         from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account
         ensure_system_accounts()
-        self.member = create_member("ro-api-member")
+        self.member = create_member("ro-api-member", role_name=ROLE_FORMAL_MEMBER)
         self.governor = create_governance_admin_member("gov-ro-api")
         get_or_create_member_credit_account(self.member)
         # Give member enough credits
-        from core.models import CreditAccount, CreditTransaction
-        issuance = CreditAccount.objects.get(account_type=CreditAccount.Type.ISSUANCE_POOL)
+        from core.models import CreditTransaction
         acct = get_or_create_member_credit_account(self.member)
         from core.credit_services import post_credit_transaction
         post_credit_transaction(
@@ -811,7 +900,7 @@ class RedemptionOrderApiTests(TestCase):
         self.assertEqual(credit_balance(frozen), bal_before + 30)
 
     def test_create_order_balance_zero_blocks(self):
-        zero_member = create_member("ro-api-zero")
+        zero_member = create_member("ro-api-zero", role_name=ROLE_FORMAL_MEMBER)
         from core.credit_services import get_or_create_member_credit_account
         get_or_create_member_credit_account(zero_member)
         login_as_member(self.client, zero_member)
@@ -821,6 +910,17 @@ class RedemptionOrderApiTests(TestCase):
             content_type="application/json",
         )
         self.assertEqual(resp.status_code, 400)
+
+    def test_basic_member_cannot_create_order_through_api(self):
+        basic = create_member("ro-api-basic")
+        login_as_member(self.client, basic)
+        resp = self.client.post(
+            self.api(f"/members/{basic.member_no}/redemption-orders"),
+            {"credit_amount": 10, "item_type": "meal", "title": "x"},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.json()["code"], "permission_denied")
 
     def test_create_idempotent(self):
         login_as_member(self.client, self.member)
@@ -1055,8 +1155,8 @@ class MerchantSettlementApiTests(TestCase):
         from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account
         ensure_system_accounts()
         self.governor = create_governance_admin_member("gov-settle-api")
-        self.operator = create_member("settle-op-api")
-        self.unrelated = create_member("settle-unrel-api")
+        self.operator = create_member("settle-op-api", role_name=ROLE_FORMAL_MEMBER)
+        self.unrelated = create_member("settle-unrel-api", role_name=ROLE_FORMAL_MEMBER)
         acct = get_or_create_member_credit_account(self.operator)
         from core.credit_services import post_credit_transaction
         from core.models import CreditAccount, CreditTransaction
@@ -1112,6 +1212,13 @@ class MerchantSettlementApiTests(TestCase):
         resp = self.client.get(self.api("/merchant-settlements?merchant_id=mch-settle-test"))
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.json()["settlements"]), 0)
+
+    def test_basic_member_cannot_read_settlements(self):
+        basic = create_member("settle-basic-api")
+        login_as_member(self.client, basic)
+        resp = self.client.get(self.api("/merchant-settlements"))
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.json()["code"], "permission_denied")
 
 
 class CreditTransferPageTest(TestCase):

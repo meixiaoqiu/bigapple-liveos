@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from base64 import urlsafe_b64encode
 from dataclasses import dataclass
 from typing import Iterable
 
@@ -67,8 +68,29 @@ def permission_object_type(permission_code: str) -> str:
     return "permission"
 
 
+def resource_permission_object_type(permission_code: str) -> str:
+    if permission_requires_formal_member(permission_code):
+        return "guarded_resource_permission"
+    return "resource_permission"
+
+
+def openfga_object_id_part(value: object) -> str:
+    return urlsafe_b64encode(str(value).encode("utf-8")).decode("ascii").rstrip("=")
+
+
 def openfga_permission_object(permission_code: str) -> str:
     return f"{permission_object_type(permission_code)}:{permission_code}"
+
+
+def openfga_global_resource_permission_object(permission_code: str) -> str:
+    permission_id = openfga_object_id_part(permission_code)
+    return f"{resource_permission_object_type(permission_code)}:{permission_id}.global"
+
+
+def openfga_resource_permission_object(permission_code: str, resource_id: object) -> str:
+    permission_id = openfga_object_id_part(permission_code)
+    resource_part = openfga_object_id_part(resource_id)
+    return f"{resource_permission_object_type(permission_code)}:{permission_id}.{resource_part}"
 
 
 def openfga_check_for_member_permission(member: Member, permission_code: str) -> OpenFGACheck:
@@ -223,18 +245,43 @@ class AuthorizationService:
         permission_code: str,
         resource: Resource | None = None,
     ) -> bool | None:
-        if resource is not None:
-            logger.warning(
-                "OpenFGA resource-scoped checks are not enabled yet; permission denied",
-                extra={"member_id": member.pk, "permission_code": permission_code, "resource_id": resource.pk},
-            )
-            return False
         context = openfga_context_for_world_kind()
         if not context.store_id:
             logger.warning("%s OpenFGA store id is not configured; OpenFGA check skipped", context.world_kind)
             return None
-        check = openfga_check_for_member_permission(member, permission_code)
+        checks = [openfga_check_for_member_permission(member, permission_code)]
+        if resource is not None:
+            checks = [
+                OpenFGACheck(
+                    user=openfga_member_user(member),
+                    relation="holder",
+                    object_=openfga_global_resource_permission_object(permission_code),
+                ),
+                OpenFGACheck(
+                    user=openfga_member_user(member),
+                    relation="holder",
+                    object_=openfga_resource_permission_object(permission_code, resource.pk),
+                ),
+            ]
         client = self.client or OpenFGAClient(context.api_url)
+        unavailable = False
+        for check in checks:
+            allowed = self._check_openfga_permission(client, context=context, check=check)
+            if allowed is True:
+                return True
+            if allowed is None:
+                unavailable = True
+        if unavailable:
+            return None
+        return False
+
+    def _check_openfga_permission(
+        self,
+        client: OpenFGAClient,
+        *,
+        context: OpenFGAContext,
+        check: OpenFGACheck,
+    ) -> bool | None:
         try:
             return client.check(
                 store_id=context.store_id,

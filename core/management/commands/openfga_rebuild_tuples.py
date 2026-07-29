@@ -6,9 +6,11 @@ from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from core.authorization_services import (
+    openfga_global_resource_permission_object,
     openfga_context_for_world_kind,
     openfga_member_user,
     openfga_permission_object,
+    openfga_resource_permission_object,
     openfga_role_object,
 )
 from core.member_roles import ROLE_FORMAL_MEMBER, member_role_filter
@@ -109,18 +111,41 @@ def _project_authorization_tuples(*, platform_object: str):
     active_role_ids = Role.objects.filter(status=Role.Status.ACTIVE).values("pk")
     role_permissions = RolePermission.objects.select_related("permission").filter(role_id__in=active_role_ids)
     for role_permission in role_permissions:
-        permission_object = openfga_permission_object(role_permission.permission.code)
-        yield {
-            "user": openfga_role_object(role_permission.role_id),
-            "relation": "role",
-            "object": permission_object,
-        }
-        if permission_requires_formal_member(role_permission.permission.code):
+        for permission_object in _permission_objects_for_role_permission(role_permission):
             yield {
-                "user": platform_object,
-                "relation": "platform",
+                "user": openfga_role_object(role_permission.role_id),
+                "relation": "role",
                 "object": permission_object,
             }
+            if permission_requires_formal_member(role_permission.permission.code):
+                yield {
+                    "user": platform_object,
+                    "relation": "platform",
+                    "object": permission_object,
+                }
+
+
+def _permission_objects_for_role_permission(role_permission: RolePermission):
+    permission_code = role_permission.permission.code
+    yield openfga_permission_object(permission_code)
+
+    if str(role_permission.scope or "").strip() in {"", "global", "all"}:
+        yield openfga_global_resource_permission_object(permission_code)
+        return
+
+    for resource_id in _resource_ids_for_role_permission(role_permission):
+        yield openfga_resource_permission_object(permission_code, resource_id)
+
+
+def _resource_ids_for_role_permission(role_permission: RolePermission) -> list[str]:
+    constraints = role_permission.constraints_json or {}
+    resource_ids: list[str] = []
+    constrained_id = constraints.get("resource_id")
+    if constrained_id:
+        resource_ids.append(str(constrained_id))
+    constrained_ids = constraints.get("resource_ids") or []
+    resource_ids.extend(str(item) for item in constrained_ids if item)
+    return resource_ids
 
 
 def _unique_tuples(tuples):
