@@ -301,7 +301,7 @@
                   <div class="card-body gap-3 p-4">
                     <div>
                       <h3 class="font-bold">{{ task.title }}</h3>
-                      <p class="text-sm text-base-content/70">{{ task.get_task_type_display }} · {{ task.base_points }} 分 · {{ task.standard_hours }} 小时</p>
+                      <p class="text-sm text-base-content/70">{{ task.get_task_type_display }} · {{ task.base_points }} 分 · {{ task.standard_minutes }} 分钟</p>
                       <p class="text-sm text-base-content/60">截止：{% if task.due_at %}{{ task.due_at|date:"Y-m-d H:i" }}{% else %}未设置{% endif %}</p>
                     </div>
                     <form method="post" action="{% world_url 'workspace-claim-task' task.task_id %}">

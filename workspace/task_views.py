@@ -56,7 +56,7 @@ def _actor_ref(member):
 def _handle_create(member, request):
     title = request.POST.get("title", "").strip()
     task_type = request.POST.get("task_type", "").strip()
-    standard_hours_str = request.POST.get("standard_hours", "").strip()
+    standard_minutes_str = request.POST.get("standard_minutes", "").strip()
     base_points_str = request.POST.get("base_points", "0").strip()
     requires_review = request.POST.get("requires_review", "true").strip().lower() in ("1", "true", "on", "yes")
 
@@ -71,11 +71,11 @@ def _handle_create(member, request):
         return _task_manage_page(member, request)
 
     try:
-        standard_hours = Decimal(standard_hours_str)
-        if standard_hours <= 0:
+        standard_minutes = int(standard_minutes_str)
+        if standard_minutes <= 0:
             raise ValueError
-    except (ValueError, TypeError, Exception):
-        messages.error(request, "标准工时必须是正数。")
+    except (ValueError, TypeError):
+        messages.error(request, "标准工时必须是正整数分钟。")
         return _task_manage_page(member, request)
 
     try:
@@ -91,7 +91,7 @@ def _handle_create(member, request):
         task = create_task_draft(
             title=title,
             task_type=task_type,
-            standard_hours=standard_hours,
+            standard_minutes=standard_minutes,
             base_points=base_points,
             role_coefficient=Decimal("1.0"),
             failure_consequence="",

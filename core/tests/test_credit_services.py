@@ -55,7 +55,7 @@ def _create_task(*, task_id: str, assignee: Member, base_points: int = 100) -> T
         title=f"Test task {task_id}",
         task_type=Task.TaskType.PUBLIC_CLEANING,
         status=Task.Status.PENDING_REVIEW,
-        standard_hours=1,
+        standard_minutes=60,
         base_points=base_points,
         role_coefficient=1,
         assignee_member=assignee,
@@ -906,7 +906,7 @@ class RedemptionOrderTests(TestCase):
         task = Task.objects.create(
             task_id="task-pub-budget", title="Publish budget test",
             task_type=Task.TaskType.PUBLIC_CLEANING, status=Task.Status.DRAFT,
-            standard_hours=1, base_points=30, role_coefficient=Decimal("1.200"),
+            standard_minutes=60, base_points=30, role_coefficient=Decimal("1.200"),
             rule_version="v1", requires_review=True,
             created_at=timezone.now(),
         )
@@ -961,7 +961,7 @@ class RedemptionOrderTests(TestCase):
         from core.tasks.member_workflow import claim_task, submit_labor
 
         task = create_task_draft(
-            title="Zero point review", task_type="public_cleaning", standard_hours=Decimal("1"),
+            title="Zero point review", task_type="public_cleaning", standard_minutes=60,
             base_points=0, role_coefficient=Decimal("1.0"), failure_consequence="",
             can_be_delayed=True, requires_review=True, rule_version="ruleset-v0.1.0",
             created_by={"actor_id": "gov", "display_name": "Gov"},

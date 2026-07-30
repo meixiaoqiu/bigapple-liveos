@@ -228,13 +228,14 @@ class SimulationSmokeCommandTests(TestCase):
             candidate_members_for_run,
             candidate_summary_for_run,
         )
-        from live_os.demo_seed.zero_start import ZERO_START_FOUNDER_MEMBER_NO
 
+        founder_member_no = run.metadata["founder_member_no"]
         proj_members = candidate_members_for_run(
             run,
-            founder_member_no=ZERO_START_FOUNDER_MEMBER_NO,
+            founder_member_no=founder_member_no,
         )
         self.assertEqual(len(proj_members), 4)  # founder + 3 candidates
+        self.assertEqual(proj_members[0].member_no, founder_member_no)
         proj_summary = candidate_summary_for_run(run, startup_gate_satisfied=False)
         self.assertEqual(proj_summary["registered_applicants"], 6)
         self.assertEqual(proj_summary["candidate_members"], 3)

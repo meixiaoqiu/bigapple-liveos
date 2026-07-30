@@ -60,7 +60,7 @@ class ObserverPageTests(TestCase):
             title="准备今日午餐",
             task_type=Task.TaskType.COOKING,
             status=Task.Status.ACCEPTED,
-            standard_hours=Decimal("3.50"),
+            standard_minutes=210,
             base_points=30,
             role_coefficient=Decimal("1.200"),
             can_be_delayed=False,
@@ -730,4 +730,3 @@ class ObserverResourcesPageTests(TestCase):
         # Without login, /workspace/inventory/ should return 403 (login required) or 302 (redirect)
         response = self.client.get("/workspace/inventory/")
         self.assertIn(response.status_code, {302, 403})
-

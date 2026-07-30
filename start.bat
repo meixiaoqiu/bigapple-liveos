@@ -20,10 +20,15 @@ if not exist "!DOCKER_DESKTOP_EXE!" (
 )
 
 if not exist "!DOCKER_DESKTOP_EXE!" (
+    set "DOCKER_DESKTOP_EXE=%LocalAppData%\Programs\DockerDesktop\Docker Desktop.exe"
+)
+
+if not exist "!DOCKER_DESKTOP_EXE!" (
     echo Docker Desktop executable was not found.
     echo Checked:
     echo C:\Program Files\Docker\Docker\Docker Desktop.exe
     echo %LocalAppData%\Docker\Docker Desktop.exe
+    echo %LocalAppData%\Programs\DockerDesktop\Docker Desktop.exe
     set "EXIT_CODE=1"
     goto END
 )

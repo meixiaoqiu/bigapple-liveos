@@ -2,6 +2,7 @@
 
 from decimal import Decimal
 
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
 
@@ -56,7 +57,11 @@ class Task(models.Model):
     title = models.CharField("标题", max_length=255)
     task_type = models.CharField("任务类型", max_length=32, choices=TaskType.choices)
     status = models.CharField("状态", max_length=32, choices=Status.choices, default=Status.DRAFT)
-    standard_hours = models.DecimalField("标准工时", max_digits=8, decimal_places=2)
+    standard_minutes = models.PositiveIntegerField(
+        "标准工时（分钟）",
+        help_text="完成任务所需的标准整数分钟数。",
+        validators=[MinValueValidator(1)],
+    )
     base_points = models.IntegerField("基础积分")
     role_coefficient = models.DecimalField("岗位系数", max_digits=6, decimal_places=3, default=1)
     physical_load = models.DecimalField("体力要求", max_digits=5, decimal_places=2, null=True, blank=True)
@@ -129,6 +134,12 @@ class Task(models.Model):
             models.Index(fields=["assignee_member"]),
             models.Index(fields=["source_type"]),
             models.Index(fields=["source_proposal"]),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(standard_minutes__gte=1),
+                name="core_task_standard_minutes_gte_1",
+            ),
         ]
 
     def __str__(self) -> str:

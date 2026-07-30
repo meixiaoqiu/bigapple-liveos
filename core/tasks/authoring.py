@@ -19,7 +19,7 @@ def create_task_draft(
     *,
     title: str,
     task_type: str,
-    standard_hours: Decimal,
+    standard_minutes: int,
     base_points: int,
     role_coefficient: Decimal,
     failure_consequence: str,
@@ -41,8 +41,8 @@ def create_task_draft(
         raise DomainError("任务标题不能为空。")
     if task_type not in valid_task_types:
         raise DomainError("任务类型无效。")
-    if standard_hours <= 0:
-        raise DomainError("标准工时必须大于 0。")
+    if not isinstance(standard_minutes, int) or isinstance(standard_minutes, bool) or standard_minutes <= 0:
+        raise DomainError("标准工时必须是正整数分钟。")
     if base_points < 0:
         raise DomainError("基础积分必须是非负整数。")
     if role_coefficient <= 0:
@@ -57,7 +57,7 @@ def create_task_draft(
         title=cleaned_title,
         task_type=task_type,
         status=Task.Status.DRAFT,
-        standard_hours=standard_hours,
+        standard_minutes=standard_minutes,
         base_points=base_points,
         role_coefficient=role_coefficient,
         can_be_delayed=can_be_delayed,

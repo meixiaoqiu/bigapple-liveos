@@ -58,6 +58,8 @@ Docker 开发模式下，Web 容器和 MySQL 容器通过 `dev-net` 通信，所
 
 ## 安装
 
+完整的新电脑部署、OpenFGA 初始化和错误排查步骤见 [开发说明](https://bigapple-docs.vercel.app/development/setup)。
+
 ```bat
 copy .env.example .env
 notepad .env

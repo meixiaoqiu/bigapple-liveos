@@ -7,7 +7,8 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 
-from core.models import LedgerEntry, Member, Task
+from core.member_roles import ROLE_CONTRIBUTOR, ROLE_FORMAL_MEMBER
+from core.models import LedgerEntry, Member, RoleAssignment, Task
 from worlds.state import get_current_world
 
 
@@ -17,6 +18,16 @@ from worlds.state import get_current_world
     WORLD_DATABASE_ALIASES=("default",),
 )
 class SmokeWorkflowCommandTests(TestCase):
+    def assert_smoke_worker_roles(self, worker: Member) -> None:
+        active_role_names = set(
+            RoleAssignment.objects.filter(
+                member=worker,
+                status=RoleAssignment.Status.ACTIVE,
+            ).values_list("role__name", flat=True)
+        )
+        self.assertIn(ROLE_FORMAL_MEMBER, active_role_names)
+        self.assertIn(ROLE_CONTRIBUTOR, active_role_names)
+
     def test_smoke_workflow_does_not_seed_realworld_by_default(self) -> None:
         output = StringIO()
 
@@ -48,8 +59,10 @@ class SmokeWorkflowCommandTests(TestCase):
         )
 
         task = Task.objects.get(task_id="task-smoke-realworld-seeded")
+        worker = Member.objects.get(member_no="mem-0001")
 
         self.assertEqual(task.status, Task.Status.ACCEPTED)
+        self.assert_smoke_worker_roles(worker)
         self.assertIn("Seeding demo data into realworld", output.getvalue())
         self.assertIn("world=realworld", output.getvalue())
 
@@ -70,6 +83,7 @@ class SmokeWorkflowCommandTests(TestCase):
         reviewer = Member.objects.get(member_no="member-admin-0001")
 
         self.assertEqual(task.status, Task.Status.ACCEPTED)
+        self.assert_smoke_worker_roles(worker)
         self.assertEqual(LedgerEntry.objects.filter(related_task=task, member=worker).count(), 1)
         self.assertIsNotNone(worker.user)
         self.assertIsNotNone(reviewer.user)

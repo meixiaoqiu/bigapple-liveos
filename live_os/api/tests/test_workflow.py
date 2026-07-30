@@ -58,7 +58,7 @@ class ApiWorkflowTests(TestCase):
             title="准备今日午餐",
             task_type=Task.TaskType.COOKING,
             status=Task.Status.OPEN,
-            standard_hours=Decimal("3.50"),
+            standard_minutes=210,
             base_points=30,
             role_coefficient=Decimal("1.200"),
             physical_load=Decimal("45"),
@@ -503,7 +503,7 @@ class ApiWorkflowTests(TestCase):
             title="整理临时仓库货架",
             task_type=Task.TaskType.WAREHOUSE,
             status=Task.Status.OPEN,
-            standard_hours=Decimal("2.50"),
+            standard_minutes=150,
             base_points=24,
             role_coefficient=Decimal("1.100"),
             can_be_delayed=True,
@@ -518,7 +518,7 @@ class ApiWorkflowTests(TestCase):
             title="清理公共厨房",
             task_type=Task.TaskType.PUBLIC_CLEANING,
             status=Task.Status.ACCEPTED,
-            standard_hours=Decimal("2.00"),
+            standard_minutes=120,
             base_points=20,
             role_coefficient=Decimal("1.000"),
             can_be_delayed=False,
@@ -1713,7 +1713,7 @@ class CreditBudgetsPageTests(TestCase):
         self.task = Task.objects.create(
             task_id="task-budget-test", title="Budget test task",
             task_type=Task.TaskType.PUBLIC_CLEANING, status=Task.Status.OPEN,
-            standard_hours=1, base_points=30, rule_version="v1", requires_review=True,
+            standard_minutes=60, base_points=30, rule_version="v1", requires_review=True,
             created_at=timezone.now(),
         )
 
@@ -1895,18 +1895,22 @@ class TaskManagePageTests(TestCase):
         resp = self.client.post(
             "/workspace/tasks/new/",
             {"title": "Zero point task", "task_type": "public_cleaning",
-             "standard_hours": "1", "base_points": "0"},
+             "standard_minutes": "60", "base_points": "0"},
             follow=True,
         )
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "已创建为草稿")
+        self.assertEqual(
+            Task.objects.get(title="Zero point task").standard_minutes,
+            60,
+        )
 
     def test_create_draft_with_points(self):
         login_as_member(self.client, self.gov)
         resp = self.client.post(
             "/workspace/tasks/new/",
             {"title": "Reward task", "task_type": "cooking",
-             "standard_hours": "2", "base_points": "30"},
+             "standard_minutes": "120", "base_points": "30"},
             follow=True,
         )
         self.assertEqual(resp.status_code, 200)
@@ -1917,7 +1921,7 @@ class TaskManagePageTests(TestCase):
         resp = self.client.post(
             "/workspace/tasks/new/",
             {"title": "", "task_type": "public_cleaning",
-             "standard_hours": "1", "base_points": "0"},
+             "standard_minutes": "60", "base_points": "0"},
             follow=True,
         )
         self.assertContains(resp, "标题不能为空")
@@ -1927,28 +1931,28 @@ class TaskManagePageTests(TestCase):
         resp = self.client.post(
             "/workspace/tasks/new/",
             {"title": "Bad task", "task_type": "public_cleaning",
-             "standard_hours": "1", "base_points": "-10"},
+             "standard_minutes": "60", "base_points": "-10"},
             follow=True,
         )
         self.assertContains(resp, "非负整数")
 
-    def test_invalid_standard_hours_rejected(self):
+    def test_invalid_standard_minutes_rejected(self):
         login_as_member(self.client, self.gov)
-        for bad in ["0", "-1", "abc"]:
+        for bad in ["0", "-1", "1.5", "abc"]:
             resp = self.client.post(
                 "/workspace/tasks/new/",
                 {"title": "Bad hours", "task_type": "public_cleaning",
-                 "standard_hours": bad, "base_points": "0"},
+                 "standard_minutes": bad, "base_points": "0"},
                 follow=True,
             )
-            self.assertContains(resp, "标准工时", msg_prefix=f"hours={bad}")
+            self.assertContains(resp, "标准工时", msg_prefix=f"minutes={bad}")
 
     def test_invalid_task_type_rejected(self):
         login_as_member(self.client, self.gov)
         resp = self.client.post(
             "/workspace/tasks/new/",
             {"title": "Bad type", "task_type": "INVALID_TYPE",
-             "standard_hours": "1", "base_points": "0"},
+             "standard_minutes": "60", "base_points": "0"},
             follow=True,
         )
         self.assertContains(resp, "无效的任务类型")
@@ -1958,7 +1962,7 @@ class TaskManagePageTests(TestCase):
         from core.tasks.authoring import create_task_draft
         from decimal import Decimal
         task = create_task_draft(
-            title="Pub zero points", task_type="public_cleaning", standard_hours=Decimal("1"),
+            title="Pub zero points", task_type="public_cleaning", standard_minutes=60,
             base_points=0, role_coefficient=Decimal("1.0"), failure_consequence="",
             can_be_delayed=True, requires_review=True, rule_version="ruleset-v0.1.0",
             created_by={"actor_id": "gov", "display_name": "Gov"},
@@ -1975,7 +1979,7 @@ class TaskManagePageTests(TestCase):
         from core.tasks.authoring import create_task_draft
         from decimal import Decimal
         task = create_task_draft(
-            title="Pub reward no budget", task_type="public_cleaning", standard_hours=Decimal("1"),
+            title="Pub reward no budget", task_type="public_cleaning", standard_minutes=60,
             base_points=30, role_coefficient=Decimal("1.0"), failure_consequence="",
             can_be_delayed=True, requires_review=True, rule_version="ruleset-v0.1.0",
             created_by={"actor_id": "gov", "display_name": "Gov"},
@@ -1993,7 +1997,7 @@ class TaskManagePageTests(TestCase):
         from core.credit_services import lock_task_credit_budget
         from decimal import Decimal
         task = create_task_draft(
-            title="Pub reward budget", task_type="public_cleaning", standard_hours=Decimal("1"),
+            title="Pub reward budget", task_type="public_cleaning", standard_minutes=60,
             base_points=30, role_coefficient=Decimal("1.0"), failure_consequence="",
             can_be_delayed=True, requires_review=True, rule_version="ruleset-v0.1.0",
             created_by={"actor_id": "gov", "display_name": "Gov"},
@@ -2011,7 +2015,7 @@ class TaskManagePageTests(TestCase):
         from core.tasks.authoring import create_task_draft
         from decimal import Decimal
         task = create_task_draft(
-            title="Normal publish hack", task_type="public_cleaning", standard_hours=Decimal("1"),
+            title="Normal publish hack", task_type="public_cleaning", standard_minutes=60,
             base_points=1, role_coefficient=Decimal("1.0"), failure_consequence="",
             can_be_delayed=True, requires_review=True, rule_version="ruleset-v0.1.0",
             created_by={"actor_id": "gov", "display_name": "Gov"},
@@ -2059,7 +2063,7 @@ class TaskReviewPageTests(TestCase):
 
         # Create and submit a task for review
         self.reward_task = create_task_draft(
-            title="Review reward test", task_type="public_cleaning", standard_hours=Decimal("1"),
+            title="Review reward test", task_type="public_cleaning", standard_minutes=60,
             base_points=30, role_coefficient=Decimal("1.0"), failure_consequence="",
             can_be_delayed=True, requires_review=True, rule_version="ruleset-v0.1.0",
             created_by={"actor_id": "gov", "display_name": "Gov"},
@@ -2072,7 +2076,7 @@ class TaskReviewPageTests(TestCase):
 
         # Create a no-reward task
         self.no_reward_task = create_task_draft(
-            title="Review no reward", task_type="public_cleaning", standard_hours=Decimal("1"),
+            title="Review no reward", task_type="public_cleaning", standard_minutes=60,
             base_points=0, role_coefficient=Decimal("1.0"), failure_consequence="",
             can_be_delayed=True, requires_review=True, rule_version="ruleset-v0.1.0",
             created_by={"actor_id": "gov", "display_name": "Gov"},
@@ -2103,7 +2107,7 @@ class TaskReviewPageTests(TestCase):
         from core.tasks.authoring import create_task_draft
         from decimal import Decimal
         draft = create_task_draft(
-            title="Draft should not show", task_type="public_cleaning", standard_hours=Decimal("1"),
+            title="Draft should not show", task_type="public_cleaning", standard_minutes=60,
             base_points=0, role_coefficient=Decimal("1.0"), failure_consequence="",
             can_be_delayed=True, requires_review=True, rule_version="ruleset-v0.1.0",
             created_by={"actor_id": "gov", "display_name": "Gov"},
@@ -2134,7 +2138,7 @@ class TaskReviewPageTests(TestCase):
         from core.credit_services import lock_task_credit_budget, unlock_unused_task_credit_budget
         from decimal import Decimal
         task = create_task_draft(
-            title="No budget task", task_type="public_cleaning", standard_hours=Decimal("1"),
+            title="No budget task", task_type="public_cleaning", standard_minutes=60,
             base_points=30, role_coefficient=Decimal("1.0"), failure_consequence="",
             can_be_delayed=True, requires_review=True, rule_version="ruleset-v0.1.0",
             created_by={"actor_id": "gov", "display_name": "Gov"},
@@ -2291,7 +2295,7 @@ class BudgetIdempotencyTests(TestCase):
         self.task = Task.objects.create(
             task_id="task-idem-test", title="Idem test task",
             task_type=Task.TaskType.PUBLIC_CLEANING, status=Task.Status.DRAFT,
-            standard_hours=1, base_points=10, rule_version="ruleset-v0.1.0",
+            standard_minutes=60, base_points=10, rule_version="ruleset-v0.1.0",
             requires_review=True, created_at=timezone.now(),
         )
 

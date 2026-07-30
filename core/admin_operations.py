@@ -45,7 +45,7 @@ class TaskAdmin(StablePrimaryKeyAdminMixin, NoDeleteAdminMixin, admin.ModelAdmin
             "积分和负担",
             {
                 "fields": (
-                    "standard_hours",
+                    "standard_minutes",
                     "base_points",
                     "role_coefficient",
                     "physical_load",

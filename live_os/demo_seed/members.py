@@ -158,8 +158,13 @@ def seed_members(*, now, mark) -> dict[str, Member]:
             skip_validation=True,
         )
 
+    _assign(member_1, ROLE_FORMAL_MEMBER)
+    create_role_assignment(
+        member=member_1,
+        role=ensure_member_role(ROLE_CONTRIBUTOR),
+        source_type="system",
+    )
     for member, role_name in (
-        (member_1, ROLE_CONTRIBUTOR),
         (member_2, ROLE_CONTRIBUTOR),
         (member_3, ROLE_FORMAL_MEMBER),
         (candidate_member, ROLE_CANDIDATE),

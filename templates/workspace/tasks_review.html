@@ -28,7 +28,7 @@
         <div><span class="text-base-content/50">系数</span><br>{{ row.task.role_coefficient|floatformat:3 }}</div>
         <div><span class="text-base-content/50">预计奖励</span><br><span class="font-semibold text-success">{{ row.reward }}</span></div>
         <div><span class="text-base-content/50">已锁预算</span><br><span class="font-semibold {% if row.locked_budget >= row.reward %}text-success{% else %}text-error{% endif %}">{{ row.locked_budget }}</span></div>
-        <div><span class="text-base-content/50">标准工时</span><br>{{ row.task.standard_hours|floatformat:1 }}h</div>
+        <div><span class="text-base-content/50">标准工时</span><br>{{ row.task.standard_minutes }} 分钟</div>
         <div><span class="text-base-content/50">提交时间</span><br>{{ row.task.submitted_at|date:"m-d H:i"|default:"-" }}</div>
       </div>
 

@@ -97,7 +97,7 @@ class Command(BaseCommand):
             title="Smoke 流程验证任务",
             task_type=Task.TaskType.COOKING,
             status=Task.Status.OPEN,
-            standard_hours=Decimal("1.50"),
+            standard_minutes=90,
             base_points=10,
             role_coefficient=Decimal("1.000"),
             physical_load=Decimal("20"),

@@ -65,7 +65,7 @@ class ObserverSimulationConsoleTests(TestCase):
             title="准备晚餐",
             task_type=Task.TaskType.COOKING,
             status=Task.Status.OPEN,
-            standard_hours=2,
+            standard_minutes=120,
             base_points=20,
             role_coefficient=Decimal("1.000"),
             can_be_delayed=True,

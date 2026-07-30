@@ -6,6 +6,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $composeFile = Join-Path $repoRoot "docker-compose.dev.yml"
 $envPath = Join-Path $repoRoot ".env"
+$modelPath = Join-Path $repoRoot "openfga\bigapple.authorization-model.json"
 
 function Convert-EnvValue {
     param(
@@ -73,6 +74,124 @@ function Invoke-Checked {
     }
 }
 
+function Get-OpenFgaResourceError {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ResourceLabel,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Url
+    )
+
+    try {
+        $response = Invoke-WebRequest -UseBasicParsing -Uri $Url -TimeoutSec 5
+        if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300) {
+            return ""
+        }
+    }
+    catch {
+        $statusCode = ""
+        if ($null -ne $_.Exception.Response) {
+            $statusCode = " HTTP $([int]$_.Exception.Response.StatusCode)."
+        }
+        return "$ResourceLabel is not available at $Url.$statusCode"
+    }
+
+    return "$ResourceLabel returned an unexpected response at $Url."
+}
+
+function ConvertTo-CanonicalJsonValue {
+    param(
+        [Parameter(Mandatory = $false)]
+        [AllowNull()]
+        $Value,
+
+        [Parameter(Mandatory = $false)]
+        [string]$PropertyName = ""
+    )
+
+    if ($null -eq $Value) {
+        return $null
+    }
+    if ($Value -is [string] -or $Value -is [ValueType]) {
+        return $Value
+    }
+    # OpenFGA adds empty optional fields when reading a model; they do not change authorization semantics.
+    if ($Value -is [System.Collections.IDictionary]) {
+        $orderedDictionary = [ordered]@{}
+        foreach ($key in @($Value.Keys | Sort-Object)) {
+            if ($null -eq $Value[$key] -or $Value[$key] -eq "") {
+                continue
+            }
+            $orderedDictionary[$key] = ConvertTo-CanonicalJsonValue $Value[$key] "$key"
+        }
+        return [pscustomobject]$orderedDictionary
+    }
+
+    $properties = @($Value.PSObject.Properties | Where-Object {
+        $_.MemberType -in @("NoteProperty", "Property")
+    })
+    if ($properties.Count -gt 0 -and -not ($Value -is [System.Collections.IEnumerable])) {
+        $orderedObject = [ordered]@{}
+        foreach ($property in @($properties | Sort-Object Name)) {
+            if ($null -eq $property.Value -or $property.Value -eq "") {
+                continue
+            }
+            $orderedObject[$property.Name] = ConvertTo-CanonicalJsonValue $property.Value $property.Name
+        }
+        return [pscustomobject]$orderedObject
+    }
+    if ($Value -is [System.Collections.IEnumerable]) {
+        $canonicalItems = @($Value | ForEach-Object {
+            ConvertTo-CanonicalJsonValue $_
+        })
+        if ($PropertyName -in @("type_definitions", "directly_related_user_types")) {
+            $canonicalItems = @($canonicalItems | Sort-Object {
+                ConvertTo-Json $_ -Depth 100 -Compress
+            })
+        }
+        return ,$canonicalItems
+    }
+
+    return $Value
+}
+
+function ConvertTo-CanonicalAuthorizationModelJson {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Model
+    )
+
+    $conditions = [pscustomobject]@{}
+    $conditionsProperty = $Model.PSObject.Properties["conditions"]
+    if ($null -ne $conditionsProperty -and $null -ne $conditionsProperty.Value) {
+        $conditions = $conditionsProperty.Value
+    }
+    $payload = [pscustomobject][ordered]@{
+        schema_version = $Model.schema_version
+        type_definitions = $Model.type_definitions
+        conditions = $conditions
+    }
+    $canonicalPayload = ConvertTo-CanonicalJsonValue $payload
+    return ConvertTo-Json $canonicalPayload -Depth 100 -Compress
+}
+
+function Get-StringSha256 {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Value
+    )
+
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($Value)
+        return ([System.BitConverter]::ToString($sha256.ComputeHash($bytes))).Replace("-", "").ToLowerInvariant()
+    }
+    finally {
+        $sha256.Dispose()
+    }
+}
+
 function Wait-OpenFgaHttp {
     param(
         [Parameter(Mandatory = $true)]
@@ -99,19 +218,80 @@ function Wait-OpenFgaHttp {
     throw "$Name OpenFGA API did not become ready within $OpenFgaTimeoutSeconds seconds: $Url"
 }
 
-function Test-OpenFgaConfigComplete {
+function Get-OpenFgaConfigurationErrors {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$Prefix
+        [ValidateSet("REAL", "SIM")]
+        [string]$Prefix,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
+        [Parameter(Mandatory = $true)]
+        [string]$HostApiUrl,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ExpectedModelJson,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ExpectedModelContentHash
     )
 
     $storeId = Get-LocalEnvValue "OPENFGA_${Prefix}_STORE_ID"
     $modelId = Get-LocalEnvValue "OPENFGA_${Prefix}_AUTHORIZATION_MODEL_ID"
-    return -not [string]::IsNullOrWhiteSpace($storeId) -and -not [string]::IsNullOrWhiteSpace($modelId)
+    $errors = @()
+
+    if ([string]::IsNullOrWhiteSpace($storeId)) {
+        $errors += "OPENFGA_${Prefix}_STORE_ID is missing."
+    }
+    else {
+        $storeError = Get-OpenFgaResourceError `
+            "$Name OpenFGA store '$storeId'" `
+            "$HostApiUrl/stores/$storeId"
+        if (-not [string]::IsNullOrWhiteSpace($storeError)) {
+            $errors += $storeError
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($modelId)) {
+        $errors += "OPENFGA_${Prefix}_AUTHORIZATION_MODEL_ID is missing."
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($storeId)) {
+        $modelUrl = "$HostApiUrl/stores/$storeId/authorization-models/$modelId"
+        try {
+            $modelResponse = Invoke-RestMethod -UseBasicParsing -Uri $modelUrl -TimeoutSec 5
+            if ($null -eq $modelResponse.authorization_model) {
+                $errors += "$Name OpenFGA authorization model '$modelId' returned an invalid response at $modelUrl."
+            }
+            else {
+                $remoteModelJson = ConvertTo-CanonicalAuthorizationModelJson $modelResponse.authorization_model
+                if ($remoteModelJson -ne $ExpectedModelJson) {
+                    $remoteModelContentHash = Get-StringSha256 $remoteModelJson
+                    $errors += (
+                        "$Name OpenFGA authorization model '$modelId' does not match the current model file. " +
+                        "Remote normalized SHA-256: $remoteModelContentHash. " +
+                        "Expected normalized SHA-256: $ExpectedModelContentHash."
+                    )
+                }
+            }
+        }
+        catch {
+            $statusCode = ""
+            if ($null -ne $_.Exception.Response) {
+                $statusCode = " HTTP $([int]$_.Exception.Response.StatusCode)."
+            }
+            $errors += "$Name OpenFGA authorization model '$modelId' is not available at $modelUrl.$statusCode"
+        }
+    }
+
+    return $errors
 }
 
 if (-not (Test-Path -LiteralPath $envPath)) {
     throw "Missing .env. Create it from .env.example before starting OpenFGA."
+}
+if (-not (Test-Path -LiteralPath $modelPath)) {
+    throw "Missing OpenFGA authorization model: $modelPath"
 }
 
 Push-Location $repoRoot
@@ -122,34 +302,55 @@ try {
     Wait-OpenFgaHttp "real" "http://127.0.0.1:20103"
     Wait-OpenFgaHttp "sim" "http://127.0.0.1:20106"
 
-    $realConfigComplete = Test-OpenFgaConfigComplete "REAL"
-    $simConfigComplete = Test-OpenFgaConfigComplete "SIM"
+    $localModel = Get-Content -Raw -Encoding UTF8 -LiteralPath $modelPath | ConvertFrom-Json
+    $expectedModelJson = ConvertTo-CanonicalAuthorizationModelJson $localModel
+    $expectedModelContentHash = Get-StringSha256 $expectedModelJson
+    $modelHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $modelPath).Hash.ToLowerInvariant()
+    $configuredModelHash = Get-LocalEnvValue "OPENFGA_AUTHORIZATION_MODEL_SHA256"
+    $configurationErrors = @()
+    $configurationErrors += @(
+        Get-OpenFgaConfigurationErrors `
+            "REAL" `
+            "realworld" `
+            "http://127.0.0.1:20103" `
+            $expectedModelJson `
+            $expectedModelContentHash
+    )
+    $configurationErrors += @(
+        Get-OpenFgaConfigurationErrors `
+            "SIM" `
+            "simulation0001" `
+            "http://127.0.0.1:20106" `
+            $expectedModelJson `
+            $expectedModelContentHash
+    )
+    if ([string]::IsNullOrWhiteSpace($configuredModelHash)) {
+        $configurationErrors += "OPENFGA_AUTHORIZATION_MODEL_SHA256 is missing."
+    }
+    elseif ($configuredModelHash -ne $modelHash) {
+        $configurationErrors += (
+            "OPENFGA_AUTHORIZATION_MODEL_SHA256 does not match the current model file. " +
+            "Configured: $configuredModelHash. Expected: $modelHash."
+        )
+    }
 
-    if (-not $realConfigComplete -or -not $simConfigComplete) {
+    if ($configurationErrors.Count -gt 0) {
         Write-Host ""
-        Write-Host "OpenFGA store/model IDs are missing from .env."
-        Write-Host "Bootstrap output follows. Add the OPENFGA_* values to .env, then rerun start.bat."
+        Write-Host "OpenFGA configuration validation failed."
+        foreach ($configurationError in $configurationErrors) {
+            Write-Host " - $configurationError"
+        }
         Write-Host ""
-
-        if (-not $realConfigComplete) {
-            Invoke-Checked "docker" @(
-                "compose", "-f", $composeFile, "run", "--rm", "--no-deps", "big-apple-admin",
-                "python", "manage.py", "openfga_bootstrap",
-                "--world-kind", "real",
-                "--api-url", "http://openfga-real:8080"
-            )
-        }
-
-        if (-not $simConfigComplete) {
-            Invoke-Checked "docker" @(
-                "compose", "-f", $composeFile, "run", "--rm", "--no-deps", "big-apple-admin",
-                "python", "manage.py", "openfga_bootstrap",
-                "--world-kind", "sim",
-                "--api-url", "http://openfga-sim:8082"
-            )
-        }
-
-        exit 1
+        Write-Host "The startup script does not modify .env."
+        Write-Host "Create or refresh the required OpenFGA models with:"
+        Write-Host "docker compose -f docker-compose.dev.yml run --rm --no-deps big-apple-admin python manage.py openfga_bootstrap --world-kind real --api-url http://openfga-real:8080"
+        Write-Host "docker compose -f docker-compose.dev.yml run --rm --no-deps big-apple-admin python manage.py openfga_bootstrap --world-kind sim --api-url http://openfga-sim:8082"
+        Write-Host ""
+        Write-Host "Review the command output, update the matching OPENFGA_* values in .env, then rerun start.bat."
+        Write-Host "Deployment and troubleshooting guide:"
+        Write-Host "https://bigapple-docs.vercel.app/development/setup"
+        Write-Host ""
+        throw "OpenFGA configuration is invalid. Update .env manually before restarting."
     }
 
     Write-Host "Rebuilding OpenFGA tuples from Django authority data..."

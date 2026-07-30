@@ -75,7 +75,7 @@ class ServiceConcurrencyGuardTests(TestCase):
             title=f"测试任务 {task_id}",
             task_type=Task.TaskType.PUBLIC_CLEANING,
             status=status,
-            standard_hours=Decimal("2.00"),
+            standard_minutes=120,
             base_points=20,
             role_coefficient=Decimal("1.000"),
             can_be_delayed=True,

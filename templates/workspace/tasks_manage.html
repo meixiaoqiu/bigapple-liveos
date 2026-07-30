@@ -30,8 +30,8 @@
     </div>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div class="form-control">
-        <label class="label"><span class="label-text">标准工时（小时）*</span></label>
-        <input type="number" name="standard_hours" class="input input-bordered" min="0.1" step="0.5" placeholder="1" required>
+        <label class="label"><span class="label-text">标准工时（分钟）*</span></label>
+        <input type="number" name="standard_minutes" class="input input-bordered" min="1" step="1" placeholder="60" required>
       </div>
       <div class="form-control">
         <label class="label"><span class="label-text">基础积分</span></label>
@@ -65,7 +65,7 @@
               <td class="text-xs font-mono">{{ row.task.task_id|truncatechars:18 }}</td>
               <td>{{ row.task.title|default:"-" }}</td>
               <td>{{ row.task.get_task_type_display }}</td>
-              <td>{{ row.task.standard_hours|floatformat:1 }}h</td>
+              <td>{{ row.task.standard_minutes }} 分钟</td>
               <td class="font-semibold">{{ row.task.base_points }}</td>
               <td class="font-semibold {% if row.task.base_points > 0 %}{% if row.locked_budget > 0 %}text-success{% else %}text-error{% endif %}{% endif %}">
                 {{ row.locked_budget }}

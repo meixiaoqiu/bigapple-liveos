@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -48,4 +49,7 @@ class Command(BaseCommand):
         self.stdout.write(f"OPENFGA_{context.world_kind.upper()}_STORE_ID={store['id']}")
         self.stdout.write(
             f"OPENFGA_{context.world_kind.upper()}_AUTHORIZATION_MODEL_ID={model_response.get('authorization_model_id', '')}"
+        )
+        self.stdout.write(
+            f"OPENFGA_AUTHORIZATION_MODEL_SHA256={hashlib.sha256(model_path.read_bytes()).hexdigest()}"
         )
