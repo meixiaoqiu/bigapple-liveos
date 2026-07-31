@@ -10,7 +10,7 @@ from django.views.decorators.http import require_GET, require_http_methods
 
 from worlds.routing import world_redirect
 from live_os.access import page_forbidden
-from core.access import is_governance_principal
+from core.access import member_can_maintain
 from core.exceptions import DomainError
 from core.credit_services import (
     cancel_redemption_order,
@@ -208,8 +208,8 @@ def redemption_review_page(request: HttpRequest) -> HttpResponse:
     member = _require_full_workspace(request)
     if isinstance(member, HttpResponseForbidden):
         return member
-    if not is_governance_principal(member):
-        return page_forbidden("仅治理成员可访问履约页面。")
+    if not member_can_maintain(member):
+        return page_forbidden("仅维护者可访问履约页面。")
 
     if request.method == "POST" and "fulfill" in request.POST:
         order_id = request.POST.get("fulfill", "").strip()
@@ -262,7 +262,7 @@ def merchant_settlements_page(request: HttpRequest) -> HttpResponse:
     qs = MerchantSettlementRecord.objects.select_related(
         "merchant", "redemption_order",
     ).order_by("-created_at")
-    is_gov = is_governance_principal(member)
+    is_gov = member_can_maintain(member)
 
     if is_gov:
         # Governance filter
@@ -303,12 +303,12 @@ def merchant_settlements_page(request: HttpRequest) -> HttpResponse:
 
 @require_http_methods(["GET", "POST"])
 def budgets_page(request: HttpRequest) -> HttpResponse:
-    """Governance-only：发行池余额 + 任务预算锁定/退回。"""
+    """维护者专用：发行池余额与任务预算锁定、退回。"""
     member = _require_full_workspace(request)
     if isinstance(member, HttpResponseForbidden):
         return member
-    if not is_governance_principal(member):
-        return page_forbidden("仅治理成员可访问积分预算页面。")
+    if not member_can_maintain(member):
+        return page_forbidden("仅维护者可访问积分预算页面。")
 
     ensure_system_accounts()
 

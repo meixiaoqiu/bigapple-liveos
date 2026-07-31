@@ -1,3 +1,4 @@
+# 大苹果新角色制度授权模型 v2026-07-30
 model
   schema 1.1
 
@@ -6,7 +7,24 @@ type member
 type platform
   relations
     define formal_member: [member]
+    define deliberator: [member]
+    define maintainer: [member]
     define frozen_member: [member]
+
+type professional_domain
+  relations
+    define qualified_member: [member]
+
+type general_proposal
+  relations
+    define platform: [platform]
+    define can_vote: (formal_member from platform and deliberator from platform) but not frozen_member from platform
+
+type professional_proposal
+  relations
+    define platform: [platform]
+    define professional_domain: [professional_domain]
+    define can_vote: (formal_member from platform and deliberator from platform and qualified_member from professional_domain) but not frozen_member from platform
 
 type role
   relations
@@ -21,4 +39,15 @@ type guarded_permission
   relations
     define role: [role]
     define platform: [platform]
-    define holder: (assignee from role and formal_member from platform) but not frozen_member from platform
+    define holder: (assignee from role and formal_member from platform and maintainer from platform) but not frozen_member from platform
+
+type resource_permission
+  relations
+    define role: [role]
+    define holder: assignee from role
+
+type guarded_resource_permission
+  relations
+    define role: [role]
+    define platform: [platform]
+    define holder: (assignee from role and formal_member from platform and maintainer from platform) but not frozen_member from platform

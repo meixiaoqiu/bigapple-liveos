@@ -34,6 +34,7 @@ class MemberProfileTests(TestCase):
         self.assertContains(response, "王梓尧")
         self.assertContains(response, "https://example.com/a.png")
         self.assertContains(response, "@test-profile-01")
+        self.assertNotContains(response, "观察者")
 
     def test_old_members_path_returns_404(self):
         self._create_member("test-oldpath", "旧路径")
@@ -84,54 +85,26 @@ class MemberProfileTests(TestCase):
         from core.member_roles import ROLE_FORMAL_MEMBER
         member = create_member("badge-test-01", display_name="徽章人", role_name=ROLE_FORMAL_MEMBER)
         response = self.client.get("/u/badge-test-01/")
-        self.assertContains(response, "注册参与者")
         self.assertContains(response, "正式成员")
 
     def test_regular_member_does_not_show_fake_formal_number(self):
         member = self._create_member("reg-only", "普通注册者")
         response = self.client.get("/u/reg-only/")
-        self.assertContains(response, "注册参与者")
-        self.assertNotContains(response, "正式成员")
+        self.assertContains(response, "贡献者")
         self.assertNotContains(response, "正式成员 #")
 
     # governance roles with Chinese labels
 
-    def test_member_profile_shows_chinese_permission_labels(self):
-        from core.models import Organization
-        org = Organization.objects.create(name="治理委员会")
-        role = Role.objects.create(name="Governance Member", organization=org, status=Role.Status.ACTIVE)
-        perm = Permission.objects.create(code="governance.vote", name="投票", category="governance")
-        RolePermission.objects.create(role=role, permission=perm, scope="*")
-        member = self._create_member("test-gov-zh", "治理成员")
-        RoleAssignment.objects.create(
-            member=member, role=role,
-            status=RoleAssignment.Status.ACTIVE,
-            start_at=timezone.now() - timezone.timedelta(days=1),
-            end_at=timezone.now() + timezone.timedelta(days=365),
-            source_type=RoleAssignment.SourceType.INITIALIZATION,
-        )
-        response = self.client.get("/u/test-gov-zh/")
-        self.assertContains(response, "治理委员会")
-        self.assertContains(response, "Governance Member")
-        self.assertContains(response, "参与治理投票")
-        self.assertNotContains(response, "governance.vote")
+    def test_member_profile_shows_catalog_deliberator_label(self):
+        from core.member_roles import ROLE_DELIBERATOR, ROLE_FORMAL_MEMBER, ensure_catalog_role
+        from core.role_assignment_services import create_role_assignment
 
-    def test_unknown_governance_permission_shows_fallback_label(self):
-        from core.models import Organization
-        org = Organization.objects.create(name="TestOrg")
-        role = Role.objects.create(name="TestRole", organization=org, status=Role.Status.ACTIVE)
-        perm = Permission.objects.create(code="governance.custom_thing", name="Custom", category="governance")
-        RolePermission.objects.create(role=role, permission=perm, scope="*")
-        member = self._create_member("test-gov-unk", "未知权限")
-        RoleAssignment.objects.create(
-            member=member, role=role,
-            status=RoleAssignment.Status.ACTIVE,
-            start_at=timezone.now() - timezone.timedelta(days=1),
-            end_at=timezone.now() + timezone.timedelta(days=365),
-            source_type=RoleAssignment.SourceType.INITIALIZATION,
-        )
-        response = self.client.get("/u/test-gov-unk/")
-        self.assertContains(response, "其他治理权限")
+        member = self._create_member("test-deliberator-zh", "议事者")
+        create_role_assignment(member=member, role=ensure_catalog_role(ROLE_FORMAL_MEMBER))
+        create_role_assignment(member=member, role=ensure_catalog_role(ROLE_DELIBERATOR))
+        response = self.client.get("/u/test-deliberator-zh/")
+        self.assertContains(response, "正式成员")
+        self.assertContains(response, "议事者")
 
     # credentials
 
@@ -216,7 +189,7 @@ class MemberProfileTests(TestCase):
             "subject": {"type": "proposal_vote", "ref": "proposal:0001", "label": "准入提案"},
             "action": "vote",
             "stage": "voting",
-            "summary": "治理成员对提案 0001 投了反对票。",
+            "summary": "议事者对提案 0001 投了反对票。",
             "public_facts": {
                 "proposal_no": "0001",
                 "vote_choice_label": "反对",
@@ -293,6 +266,7 @@ class MemberProfileTests(TestCase):
         role = Role.objects.create(name="TestRole", organization=org, status=Role.Status.ACTIVE)
         proposal = Proposal.objects.create(
             title="Test", proposal_type=Proposal.ProposalType.MEMBER_ADMISSION,
+            electorate_policy=Proposal.ElectoratePolicy.GENERAL_DELIBERATION,
             status=Proposal.Status.VOTING, pass_ratio=50,
             start_at=timezone.now(), deadline_at=timezone.now() + timezone.timedelta(days=7),
             eligible_voters_snapshot_json=[str(member.pk)],

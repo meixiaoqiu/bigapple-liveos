@@ -73,17 +73,9 @@ class Member(models.Model):
         return self.member_no
 
     def active_role_names(self) -> list[str]:
-        checked_at = timezone.now()
-        return list(
-            self.role_assignments.filter(
-                status="active",
-                role__status="active",
-                start_at__lte=checked_at,
-                end_at__gte=checked_at,
-            )
-            .select_related("role", "role__organization")
-            .values_list("role__name", flat=True)
-        )
+        from core.member_roles import active_member_role_names
+
+        return list(active_member_role_names(self))
 
     @property
     def active_roles_display(self) -> str:
@@ -151,6 +143,14 @@ class Organization(models.Model):
         ARCHIVED = "archived", "已归档"
 
     name = models.CharField("名称", max_length=255)
+    role_catalog_key = models.CharField(
+        "角色目录标识",
+        max_length=64,
+        null=True,
+        blank=True,
+        unique=True,
+        help_text="仅规范成员资格与职责目录使用的稳定内部标识；其他组织必须留空。",
+    )
     parent = models.ForeignKey(
         "self",
         null=True,
@@ -259,6 +259,7 @@ class RoleAssignment(models.Model):
 
     class SourceType(models.TextChoices):
         DIRECT = "direct", "直接任命"
+        SELF_APPLICATION = "self_application", "本人申请"
         PROPOSAL = "proposal", "提案执行"
         INITIALIZATION = "initialization", "初始化"
         SYSTEM = "system", "系统产生"
@@ -289,7 +290,7 @@ class RoleAssignment(models.Model):
         max_length=32,
         choices=SourceType.choices,
         default=SourceType.DIRECT,
-        help_text="说明这条角色任命由直接任命、提案执行、初始化或系统规则产生。",
+        help_text="说明这条角色任命由直接任命、本人申请、提案执行、初始化或系统规则产生。",
     )
     source_proposal = models.ForeignKey(
         "Proposal",
@@ -336,6 +337,7 @@ class RoleAssignment(models.Model):
                 member_id=self.member_id,
                 role_id=self.role_id,
                 status=self.Status.ACTIVE,
+                end_at__gt=self.start_at,
             )
             if self.pk:
                 duplicate = duplicate.exclude(pk=self.pk)

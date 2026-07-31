@@ -14,7 +14,20 @@ from .admin_support import (
     StablePrimaryKeyAdminMixin,
     model_field_names,
 )
-from .models import CredentialGrant, CredentialTemplate, Member, MemberPublicProfile, Organization, Permission, Role, RoleAssignment, RolePermission
+from .identity_display import member_identity_display
+from .models import (
+    CredentialGrant,
+    CredentialTemplate,
+    Member,
+    MemberProfessionalQualification,
+    MemberPublicProfile,
+    Organization,
+    Permission,
+    ProfessionalDomain,
+    Role,
+    RoleAssignment,
+    RolePermission,
+)
 
 
 class ActiveRoleListFilter(admin.SimpleListFilter):
@@ -154,9 +167,16 @@ class MemberAdmin(StablePrimaryKeyAdminMixin, NoDeleteAdminMixin, admin.ModelAdm
         ("时间", {"fields": ("created_at",)}),
     )
 
-    @admin.display(description="当前角色")
+    @admin.display(description="成员资格与职责")
     def active_roles(self, obj: Member) -> str:
-        return obj.active_roles_display
+        identity = member_identity_display(obj)
+        labels = []
+        if identity["derived_status"]:
+            labels.append(identity["derived_status"]["name"])
+        if identity["membership"]:
+            labels.append(identity["membership"]["name"])
+        labels.extend(duty["name"] for duty in identity["duties"])
+        return "、".join(labels) or "暂无可用身份"
 
 
 @admin.register(Organization)
@@ -242,6 +262,32 @@ class RoleAssignmentAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+
+@admin.register(ProfessionalDomain)
+class ProfessionalDomainAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
+    list_display = ("code", "name", "status", "created_at", "updated_at")
+    list_filter = ("status",)
+    search_fields = ("code", "name", "description")
+    ordering = ("code",)
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(MemberProfessionalQualification)
+class MemberProfessionalQualificationAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
+    list_display = ("member", "domain", "status", "confirmed_by", "valid_from", "valid_until", "revoked_at")
+    list_filter = ("status", "domain")
+    search_fields = (
+        "member__member_no",
+        "member__display_name",
+        "domain__code",
+        "domain__name",
+        "external_confirmation_source",
+    )
+    autocomplete_fields = ("member", "domain", "confirmed_by", "revoked_by")
+    list_select_related = ("member", "domain", "confirmed_by", "revoked_by")
+    ordering = ("domain__code", "member__member_no")
+    readonly_fields = ("created_at", "updated_at")
 
 
 @admin.register(RolePermission)

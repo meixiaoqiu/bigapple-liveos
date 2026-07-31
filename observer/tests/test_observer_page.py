@@ -7,7 +7,6 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from core.member_roles import ROLE_CANDIDATE, ROLE_CONTRIBUTOR
 from core.models import (
     CapacityAssessment,
     Event,
@@ -40,7 +39,6 @@ class ObserverPageTests(TestCase):
         now = timezone.now()
         create_member(
             member_no="mem-0001",
-            role_name=ROLE_CONTRIBUTOR,
             status=Member.Status.ADMITTED,
             joined_simulation_day=1,
             credit_floor=-300,
@@ -49,7 +47,6 @@ class ObserverPageTests(TestCase):
         )
         create_member(
             member_no="candidate-0001",
-            role_name=ROLE_CANDIDATE,
             status=Member.Status.PENDING_REVIEW,
             credit_floor=-100,
             profile={},

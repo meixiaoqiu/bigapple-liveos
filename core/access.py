@@ -1,8 +1,8 @@
-"""Access-control helpers for core governance principals."""
+"""基于具体业务能力的访问控制辅助函数。"""
 
 from __future__ import annotations
 
-from .governance_setup import GOVERNANCE_VIEW_ADMIN_PERMISSION
+from .governance_setup import MAINTENANCE_VIEW_ADMIN_PERMISSION
 from .finance_setup import FINANCE_PAY_PERMISSION, FINANCE_REVIEW_PERMISSION
 from .models import Member, Resource
 from .authorization_services import AuthorizationService
@@ -28,7 +28,7 @@ def is_superuser_principal(user) -> bool:
     return bool(user and getattr(user, "is_authenticated", False) and user.is_superuser)
 
 
-def user_has_governance_permission(
+def user_has_permission(
     user,
     permission_code: str,
     resource: Resource | None = None,
@@ -47,13 +47,28 @@ def user_has_governance_permission(
     return False
 
 
-def is_governance_principal(
-    user_or_member,
-    permission_code: str = GOVERNANCE_VIEW_ADMIN_PERMISSION,
+def member_can_maintain(
+    member: Member,
+    permission_code: str = MAINTENANCE_VIEW_ADMIN_PERMISSION,
 ) -> bool:
-    if isinstance(user_or_member, Member):
-        return AuthorizationService().member_has_permission(user_or_member, permission_code)
-    return user_has_governance_permission(user_or_member, permission_code)
+    """判断成员是否具备一项明确的维护能力。"""
+
+    return AuthorizationService().member_can_maintain(
+        member=member,
+        permission_code=permission_code,
+    )
+
+
+def user_can_maintain(
+    user,
+    permission_code: str = MAINTENANCE_VIEW_ADMIN_PERMISSION,
+) -> bool:
+    """判断已登录用户绑定的成员是否具备一项明确的维护能力。"""
+
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    member = member_for_user(user)
+    return bool(member and member_can_maintain(member, permission_code))
 
 
 def is_finance_reviewer(member: Member) -> bool:

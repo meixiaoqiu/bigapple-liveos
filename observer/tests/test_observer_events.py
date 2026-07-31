@@ -38,7 +38,6 @@ class PublicEventsBrowserTests(TestCase):
     def setUp(self) -> None:
         self.member = create_member(
             member_no="mem-evts-0001",
-            role_name="contributor",
             status=Member.Status.ADMITTED,
             profile={"display_name": "测试人"},
             created_at=timezone.now(),
@@ -848,7 +847,7 @@ class PublicEventsBrowserTests(TestCase):
                      "application_id": "app-legacy-link", "proposal_no": "0007"},
         )
         response = self.client.get("/member-applications/app-legacy-link/")
-        self.assertContains(response, "治理成员已投票")
+        self.assertContains(response, "议事者已投票")
         self.assertContains(response, "wzy")
         self.assertContains(response, "反对")
         self.assertContains(response, "理由测试")
@@ -871,7 +870,7 @@ class PublicEventsBrowserTests(TestCase):
         )
         response = self.client.get("/member-applications/app-dup-1/")
         content = response.content.decode()
-        self.assertEqual(content.count("治理成员已投票"), 1,
+        self.assertEqual(content.count("议事者已投票"), 1,
                          "Vote event must appear exactly once")
 
     def test_event_id_prefix_triggers_proposal_no_linkage(self):
@@ -917,13 +916,14 @@ class PublicEventsBrowserTests(TestCase):
     def test_real_member_admission_flow_shows_timeline_with_proposal_and_vote(self):
         """End-to-end: submit → proposal created → timeline shows core events."""
         from core.application_services import submit_member_application
-        from core.member_roles import ROLE_FORMAL_MEMBER, ROLE_GOVERNANCE_MEMBER, ensure_member_role, ensure_role_assignment
+        from core.member_roles import ROLE_DELIBERATOR, ROLE_FORMAL_MEMBER, ensure_catalog_role
+        from core.role_assignment_services import create_role_assignment
 
-        # Ensure governance voter exists before application (needed for eligible_voter_snapshot)
-        formal_role = ensure_member_role(ROLE_FORMAL_MEMBER)
-        gov_role = ensure_member_role(ROLE_GOVERNANCE_MEMBER)
-        ensure_role_assignment(self.member, formal_role)
-        ensure_role_assignment(self.member, gov_role)
+        # 在创建申请前准备议事者投票人，供投票人快照使用。
+        formal_role = ensure_catalog_role(ROLE_FORMAL_MEMBER)
+        deliberator_role = ensure_catalog_role(ROLE_DELIBERATOR)
+        create_role_assignment(member=self.member, role=formal_role)
+        create_role_assignment(member=self.member, role=deliberator_role)
 
         # Submit real member application
         app = submit_member_application(
@@ -986,7 +986,7 @@ class PublicEventsBrowserTests(TestCase):
         self.assertContains(response, f"上一条 #{e1.seq}")
 
     def test_first_ledger_event_has_no_previous_link(self):
-        first = SystemEvent.objects.order_by("seq").first()
+        first = self._create_ledger_event()
         response = self.client.get(self.ledger_detail_url(first.seq))
         self.assertNotContains(response, f"/event-ledger/{first.seq - 1}/")
 

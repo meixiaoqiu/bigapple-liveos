@@ -20,7 +20,9 @@
             <h1 class="text-3xl font-bold tracking-normal">报名工作台</h1>
             <div class="mt-2 flex flex-wrap gap-2">
               <span class="badge badge-primary-content badge-outline">{{ member.member_no }}</span>
-              <span class="badge badge-primary-content badge-outline">{{ member.get_status_display }}</span>
+              {% if identity_display.derived_status %}
+                <span class="badge badge-primary-content badge-outline">{{ identity_display.derived_status.name }}</span>
+              {% endif %}
             </div>
           </div>
           <nav class="flex flex-wrap justify-end gap-2" aria-label="报名工作台导航">
@@ -44,7 +46,9 @@
       <div class="stat">
         <div class="stat-title">成员状态</div>
         <div class="stat-value text-primary">{{ member.get_status_display }}</div>
-        <div class="stat-desc">{{ member.active_roles_display|default:"暂无角色" }}</div>
+        <div class="stat-desc">
+          {% if identity_display.derived_status %}{{ identity_display.derived_status.name }}{% else %}暂无可用身份{% endif %}
+        </div>
       </div>
       <div class="stat">
         <div class="stat-title">报名状态</div>

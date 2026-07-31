@@ -1,4 +1,4 @@
-"""Role assignment lifecycle services."""
+"""角色任命生命周期服务。"""
 
 from __future__ import annotations
 
@@ -8,57 +8,48 @@ from django.utils import timezone
 
 from .db import atomic_for_model
 from .exceptions import DomainError
-from .governance_setup import default_role_assignment_end_at
+from .governance_setup import default_role_assignment_end_at, ensure_maintainer_role
 from .member_roles import (
-    MEMBER_ROLE_ORGANIZATION_NAME,
-    ROLE_BIG_APPLE_MEMBER,
     ROLE_FORMAL_MEMBER,
-    ROLE_GOVERNANCE_MEMBER,
-    ensure_member_role,
+    ROLE_MAINTAINER,
+    ensure_catalog_role,
     member_has_role,
 )
 from .models import Member, Role, RoleAssignment
+from .role_catalog import catalog_role_definition_for_role, role_definition_for_name
 
 
 def _role_requires_formal_member(role: Role) -> bool:
-    """Return True if granting *role* requires the member to have ROLE_FORMAL_MEMBER."""
-    if role.organization.name == MEMBER_ROLE_ORGANIZATION_NAME:
-        if role.name in {
-            ROLE_FORMAL_MEMBER,
-            ROLE_GOVERNANCE_MEMBER,
-        }:
-            return True
-    for rp in role.role_permissions.select_related("permission"):
-        code = getattr(rp.permission, "code", "")
-        if code and str(code).startswith(("governance.", "finance.")):
-            return True
-    return False
+    """判断角色的明确前置条件是否要求当前正式成员资格。"""
+
+    definition = catalog_role_definition_for_role(role)
+    if definition is not None:
+        return definition.requires_formal_member
+    return any(
+        str(role_permission.permission.code).startswith(("governance.", "finance."))
+        for role_permission in role.role_permissions.select_related("permission")
+    )
 
 
 def validate_role_assignment_prerequisites(member: Member, role: Role) -> None:
-    """Raise DomainError if *member* does not satisfy the prerequisites for *role*."""
+    """校验成员是否可被授予角色，不把派生状态写入任命。"""
+
     if member.status in {Member.Status.SUSPENDED, Member.Status.EXITED}:
         raise DomainError("成员状态已停用，不能授予新角色。")
+    if member.user_id and not member.user.is_active:
+        raise DomainError("登录账号已停用，不能授予新角色。")
 
-    if role.organization.name == MEMBER_ROLE_ORGANIZATION_NAME:
-        if role.name == ROLE_BIG_APPLE_MEMBER:
-            return  # no prerequisite
-        if role.name == ROLE_FORMAL_MEMBER:
-            if not member_has_role(member, ROLE_BIG_APPLE_MEMBER):
-                raise DomainError("授予正式成员角色前必须先拥有基础成员角色。")
-            return
-        if role.name == ROLE_GOVERNANCE_MEMBER:
-            if not member_has_role(member, ROLE_FORMAL_MEMBER):
-                raise DomainError("授予治理成员角色前必须先拥有正式成员角色。")
-            return
-
-    if _role_requires_formal_member(role):
-        if not member_has_role(member, ROLE_FORMAL_MEMBER):
-            raise DomainError("授予该角色前必须先拥有正式成员角色。")
+    definition = catalog_role_definition_for_role(role)
+    if definition is not None:
+        if definition.requires_formal_member and not member_has_role(member, ROLE_FORMAL_MEMBER):
+            raise DomainError(f"授予{definition.display_name}前必须具有当前有效正式成员资格。")
         return
 
-    if not member_has_role(member, ROLE_BIG_APPLE_MEMBER):
-        raise DomainError("授予该角色前必须先拥有基础成员角色。")
+    if role_definition_for_name(role.name) is not None:
+        raise DomainError("内置角色只能从规范成员资格与职责目录授予。")
+
+    if _role_requires_formal_member(role) and not member_has_role(member, ROLE_FORMAL_MEMBER):
+        raise DomainError("授予该角色前必须具有当前有效正式成员资格。")
 
 
 @atomic_for_model(RoleAssignment)
@@ -74,24 +65,44 @@ def create_role_assignment(
     source_proposal_execution=None,
     skip_validation: bool = False,
 ) -> RoleAssignment:
+    """创建或复用当前角色任命；不隐式创建其他职责或资格。"""
+
+    if role_definition_for_name(role.name) is not None and catalog_role_definition_for_role(role) is None:
+        raise DomainError("内置角色只能从规范成员资格与职责目录授予。")
     if not skip_validation:
         validate_role_assignment_prerequisites(member, role)
     starts_at = start_at or timezone.now()
-    assignment, created = RoleAssignment.objects.get_or_create(
+    effective_end_at = end_at or default_role_assignment_end_at(starts_at)
+    RoleAssignment.objects.filter(
         member=member,
         role=role,
         status=RoleAssignment.Status.ACTIVE,
-        defaults={
-            "start_at": starts_at,
-            "end_at": end_at or default_role_assignment_end_at(starts_at),
-            "granted_by": granted_by,
-            "source_type": source_type,
-            "source_proposal": source_proposal,
-            "source_proposal_execution": source_proposal_execution,
-        },
+        end_at__lte=starts_at,
+    ).update(status=RoleAssignment.Status.EXPIRED)
+    assignment = (
+        RoleAssignment.objects.filter(
+            member=member,
+            role=role,
+            status=RoleAssignment.Status.ACTIVE,
+            end_at__gt=starts_at,
+        )
+        .order_by("-start_at", "-pk")
+        .first()
     )
-    # Auto-issue formal member number when ROLE_FORMAL_MEMBER is first granted.
-    if role.organization.name == MEMBER_ROLE_ORGANIZATION_NAME and role.name == ROLE_FORMAL_MEMBER:
+    if assignment is None:
+        assignment = RoleAssignment.objects.create(
+            member=member,
+            role=role,
+            status=RoleAssignment.Status.ACTIVE,
+            start_at=starts_at,
+            end_at=effective_end_at,
+            granted_by=granted_by,
+            source_type=source_type,
+            source_proposal=source_proposal,
+            source_proposal_execution=source_proposal_execution,
+        )
+    definition = catalog_role_definition_for_role(role)
+    if definition is not None and definition.display_name == ROLE_FORMAL_MEMBER:
         from .credential_services import issue_formal_member_number
 
         issue_formal_member_number(
@@ -109,6 +120,8 @@ def revoke_role_assignment(
     revoked_by: Member | None = None,
     end_at=None,
 ) -> RoleAssignment:
+    """撤销一项角色任命而不删除其事实记录。"""
+
     assignment.status = RoleAssignment.Status.REVOKED
     assignment.revoked_by = revoked_by
     assignment.end_at = end_at or timezone.now()
@@ -117,54 +130,24 @@ def revoke_role_assignment(
 
 
 @atomic_for_model(RoleAssignment)
-def bootstrap_first_governance_member(
+def bootstrap_initial_maintainer(
     member: Member,
     *,
     granted_by: Member | None = None,
 ) -> dict[str, Any]:
-    """Grant the full governance chain to the first world administrator.
+    """初始化一个通用维护者，不创建议事者任期或个人专属授权。"""
 
-    Order: ROLE_BIG_APPLE_MEMBER → ROLE_FORMAL_MEMBER →
-    ROLE_GOVERNANCE_MEMBER → governance admin role.
-
-    Each step calls ``create_role_assignment`` without ``skip_validation``
-    so the normal prerequisite checks apply.  The function is wrapped in
-    ``@atomic_for_model(RoleAssignment)`` — if any step fails the entire
-    chain is rolled back.
-
-    Raises DomainError for SUSPENDED / EXITED members.
-    """
     assignments: dict[str, RoleAssignment] = {}
-
-    # Step 1: baseline (no prerequisite)
-    assignments["big_apple"] = create_role_assignment(
+    assignments["formal_member"] = create_role_assignment(
         member=member,
-        role=ensure_member_role(ROLE_BIG_APPLE_MEMBER),
+        role=ensure_catalog_role(ROLE_FORMAL_MEMBER),
+        granted_by=granted_by,
         source_type=RoleAssignment.SourceType.INITIALIZATION,
     )
-
-    # Step 2: formal (prerequisite: big_apple)
-    assignments["formal"] = create_role_assignment(
+    assignments["maintainer"] = create_role_assignment(
         member=member,
-        role=ensure_member_role(ROLE_FORMAL_MEMBER),
+        role=ensure_maintainer_role()["role"],
+        granted_by=granted_by,
         source_type=RoleAssignment.SourceType.INITIALIZATION,
     )
-
-    # Step 3: governance (prerequisite: formal)
-    assignments["governance"] = create_role_assignment(
-        member=member,
-        role=ensure_member_role(ROLE_GOVERNANCE_MEMBER),
-        source_type=RoleAssignment.SourceType.INITIALIZATION,
-    )
-
-    # Step 4: governance admin (prerequisite: formal via _role_requires_formal_member)
-    from .governance_setup import ensure_governance_admin_role
-
-    setup = ensure_governance_admin_role()
-    assignments["admin"] = create_role_assignment(
-        member=member,
-        role=setup["role"],
-        source_type=RoleAssignment.SourceType.INITIALIZATION,
-    )
-
     return assignments

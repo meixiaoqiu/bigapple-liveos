@@ -14,7 +14,7 @@ from core.credential_services import (
     issue_formal_member_number,
 )
 from core.exceptions import DomainError
-from core.member_roles import ROLE_BIG_APPLE_MEMBER, ROLE_FORMAL_MEMBER, ensure_member_role, ensure_role_assignment, member_has_role
+from core.member_roles import ROLE_FORMAL_MEMBER, ensure_catalog_role
 from core.models import CredentialGrant, CredentialTemplate, Member, RoleAssignment, SystemEvent
 from core.role_assignment_services import create_role_assignment
 from core.tests.helpers import create_member
@@ -79,7 +79,7 @@ class CredentialServicesTests(TestCase):
         member = create_member("cred-fml-auto", role_name="")
         create_role_assignment(
             member=member,
-            role=ensure_member_role(ROLE_FORMAL_MEMBER),
+            role=ensure_catalog_role(ROLE_FORMAL_MEMBER),
             source_type="system",
         )
         self.assertTrue(member.credential_grants.filter(
@@ -89,8 +89,8 @@ class CredentialServicesTests(TestCase):
     def test_create_role_assignment_credential_failure_rolls_back_role(self):
         """patch issue_formal_member_number 抛 RuntimeError → CredentialGrant 和
         活跃 ROLE_FORMAL_MEMBER RoleAssignment 都不存在。"""
-        member = create_member("cred-fml-rollback", role_name=ROLE_BIG_APPLE_MEMBER)
-        formal_role = ensure_member_role(ROLE_FORMAL_MEMBER)
+        member = create_member("cred-fml-rollback")
+        formal_role = ensure_catalog_role(ROLE_FORMAL_MEMBER)
         with patch("core.credential_services._issue_credential_unlocked",
                    side_effect=RuntimeError("boom")):
             with self.assertRaises(RuntimeError):
@@ -116,7 +116,7 @@ class CredentialServicesTests(TestCase):
         CredentialGrant.objects.filter(member=member).delete()
         self.assertFalse(member.credential_grants.exists())
         # 再次调用 create_role_assignment（幂等，assignment 已存在还会触发补发逻辑）
-        formal_role = ensure_member_role(ROLE_FORMAL_MEMBER)
+        formal_role = ensure_catalog_role(ROLE_FORMAL_MEMBER)
         create_role_assignment(
             member=member,
             role=formal_role,

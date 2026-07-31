@@ -4,7 +4,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
-from .identity import Member, Organization, Role, RoleAssignment
+from .identity import Member, Organization, RoleAssignment
+from .qualifications import ProfessionalDomain
 
 
 class Proposal(models.Model):
@@ -32,10 +33,11 @@ class Proposal(models.Model):
         CANCELLED = "cancelled", "已取消"
         EXECUTED = "executed", "已执行"
 
-    class VoterScopeType(models.TextChoices):
-        ROLE = "role", "按角色"
-        ORGANIZATION = "organization", "按组织"
-        ALL_MEMBERS = "all_members", "全体成员"
+    class ElectoratePolicy(models.TextChoices):
+        """提案表决资格的服务端政策。"""
+
+        GENERAL_DELIBERATION = "general_deliberation", "普通议事"
+        PROFESSIONAL_DELIBERATION = "professional_deliberation", "专业议事"
 
     proposal_no = models.CharField("提案编号", max_length=32, unique=True, blank=True)
     title = models.CharField("标题", max_length=255)
@@ -66,27 +68,20 @@ class Proposal(models.Model):
         related_name="proposals",
         verbose_name="组织",
     )
-    voter_scope_type = models.CharField(
-        "投票范围类型",
+    electorate_policy = models.CharField(
+        "选民政策",
         max_length=32,
-        choices=VoterScopeType.choices,
-        default=VoterScopeType.ROLE,
+        choices=ElectoratePolicy.choices,
+        help_text="普通议事由有效正式成员和议事者组成；专业议事还需要对应专业资格。",
     )
-    voter_scope_role = models.ForeignKey(
-        Role,
+    professional_domain = models.ForeignKey(
+        ProfessionalDomain,
         null=True,
         blank=True,
         on_delete=models.PROTECT,
-        related_name="voter_scope_proposals",
-        verbose_name="投票范围角色",
-    )
-    voter_scope_organization = models.ForeignKey(
-        Organization,
-        null=True,
-        blank=True,
-        on_delete=models.PROTECT,
-        related_name="voter_scope_proposals",
-        verbose_name="投票范围组织",
+        related_name="proposals",
+        verbose_name="专业领域",
+        help_text="仅专业议事提案可以指定且必须指定一个启用中的专业领域。",
     )
     eligible_voters_snapshot_json = models.JSONField("投票资格快照", default=list, blank=True)
     pass_ratio = models.PositiveSmallIntegerField("通过比例", default=50)
@@ -109,6 +104,7 @@ class Proposal(models.Model):
         verbose_name_plural = "提案"
         indexes = [
             models.Index(fields=["proposal_type", "status"]),
+            models.Index(fields=["electorate_policy", "status"]),
             models.Index(fields=["organization", "status"]),
             models.Index(fields=["deadline_at"]),
             models.Index(fields=["proposer_member"]),
@@ -125,6 +121,16 @@ class Proposal(models.Model):
             raise ValidationError({"quorum_count": "最低参与人数不能为负数。"})
         if self.start_at and self.deadline_at and self.deadline_at <= self.start_at:
             raise ValidationError({"deadline_at": "截止时间必须晚于开始时间。"})
+        if self.electorate_policy == self.ElectoratePolicy.GENERAL_DELIBERATION:
+            if self.professional_domain_id is not None:
+                raise ValidationError({"professional_domain": "普通议事提案不能指定专业领域。"})
+        elif self.electorate_policy == self.ElectoratePolicy.PROFESSIONAL_DELIBERATION:
+            if self.professional_domain_id is None:
+                raise ValidationError({"professional_domain": "专业议事提案必须指定一个专业领域。"})
+            elif self.professional_domain.status != ProfessionalDomain.Status.ACTIVE:
+                raise ValidationError({"professional_domain": "专业议事提案只能使用启用中的专业领域。"})
+        else:
+            raise ValidationError({"electorate_policy": "提案必须使用已定义的选民政策。"})
 
     def save(self, *args, **kwargs):
         if not self.proposal_no:

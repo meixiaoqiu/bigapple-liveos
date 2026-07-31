@@ -3,6 +3,7 @@
 from .base import TimestampedModel
 from .applications import MemberApplication, PartnerApplication, ROLE_GAP_LABELS
 from .credentials import CredentialGrant, CredentialTemplate
+from .qualifications import MemberProfessionalQualification, ProfessionalDomain
 from .identity import Member, MemberPublicProfile, Organization, Permission, Role, RoleAssignment, RolePermission
 from .proposals import Proposal, ProposalExecution, ProposalVote
 from .approval_workflow import ApprovalProposal, ApprovalDecision
@@ -46,6 +47,8 @@ __all__ = [
     "RolePermission",
     "CredentialGrant",
     "CredentialTemplate",
+    "ProfessionalDomain",
+    "MemberProfessionalQualification",
     "Proposal",
     "ProposalExecution",
     "ProposalVote",

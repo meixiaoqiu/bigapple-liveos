@@ -3,18 +3,31 @@
 from __future__ import annotations
 
 from django.core.management.base import BaseCommand, CommandError
+from django.db.models import Q
 from django.utils import timezone
 
 from core.authorization_services import (
+    OPENFGA_AUTHORIZATION_MODEL_VERSION,
     openfga_global_resource_permission_object,
     openfga_context_for_world_kind,
     openfga_member_user,
     openfga_permission_object,
+    openfga_professional_domain_object,
+    openfga_proposal_object,
     openfga_resource_permission_object,
     openfga_role_object,
 )
-from core.member_roles import ROLE_FORMAL_MEMBER, member_role_filter
-from core.models import Member, Role, RoleAssignment, RolePermission
+from core.member_roles import ROLE_DELIBERATOR, ROLE_FORMAL_MEMBER, ROLE_MAINTAINER, member_role_filter
+from core.models import (
+    Member,
+    MemberProfessionalQualification,
+    ProfessionalDomain,
+    Proposal,
+    Role,
+    RoleAssignment,
+    RolePermission,
+)
+from core.role_catalog import ROLE_CATALOG_ORGANIZATION_KEY
 from core.openfga_client import OpenFGAClient, OpenFGARequestError
 from core.permission_services import MEMBER_PERMISSION_STATUSES, permission_requires_formal_member
 from worlds.command_context import command_world_context
@@ -65,7 +78,7 @@ class Command(BaseCommand):
                 raise CommandError(str(exc)) from exc
             self.stdout.write(
                 self.style.SUCCESS(
-                    "Projected "
+                    f"OpenFGA model={OPENFGA_AUTHORIZATION_MODEL_VERSION}; projected "
                     f"{len(tuples)} OpenFGA tuples; "
                     f"deleted {len(existing_tuple_keys)} existing tuples; "
                     f"wrote {len(tuples)} rebuilt tuples."
@@ -76,17 +89,23 @@ class Command(BaseCommand):
 def _project_authorization_tuples(*, platform_object: str):
     checked_at = timezone.now()
 
-    formal_members = Member.objects.filter(
-        status__in=MEMBER_PERMISSION_STATUSES,
-    ).filter(member_role_filter(ROLE_FORMAL_MEMBER))
-    for member in formal_members.distinct():
-        yield {
-            "user": openfga_member_user(member),
-            "relation": "formal_member",
-            "object": platform_object,
-        }
+    for role_name, relation in (
+        (ROLE_FORMAL_MEMBER, "formal_member"),
+        (ROLE_DELIBERATOR, "deliberator"),
+        (ROLE_MAINTAINER, "maintainer"),
+    ):
+        members = Member.objects.filter(member_role_filter(role_name, checked_at=checked_at)).distinct()
+        for member in members:
+            yield {
+                "user": openfga_member_user(member),
+                "relation": relation,
+                "object": platform_object,
+            }
 
-    frozen_members = Member.objects.filter(status__in={Member.Status.SUSPENDED, Member.Status.EXITED})
+    frozen_members = Member.objects.filter(
+        Q(status__in={Member.Status.SUSPENDED, Member.Status.EXITED})
+        | Q(user__isnull=False, user__is_active=False)
+    ).distinct()
     for member in frozen_members:
         yield {
             "user": openfga_member_user(member),
@@ -94,22 +113,27 @@ def _project_authorization_tuples(*, platform_object: str):
             "object": platform_object,
         }
 
-    active_assignments = RoleAssignment.objects.select_related("member", "role").filter(
-        member__status__in=MEMBER_PERMISSION_STATUSES,
+    maintainer_assignments = RoleAssignment.objects.select_related("member", "role").filter(
+        member__in=Member.objects.filter(member_role_filter(ROLE_MAINTAINER, checked_at=checked_at)),
         status=RoleAssignment.Status.ACTIVE,
         role__status=Role.Status.ACTIVE,
+        role__organization__role_catalog_key=ROLE_CATALOG_ORGANIZATION_KEY,
+        role__name=ROLE_MAINTAINER,
         start_at__lte=checked_at,
-        end_at__gte=checked_at,
+        end_at__gt=checked_at,
     )
-    for assignment in active_assignments:
+    for assignment in maintainer_assignments:
         yield {
             "user": openfga_member_user(assignment.member),
             "relation": "assignee",
             "object": openfga_role_object(assignment.role_id),
         }
 
-    active_role_ids = Role.objects.filter(status=Role.Status.ACTIVE).values("pk")
-    role_permissions = RolePermission.objects.select_related("permission").filter(role_id__in=active_role_ids)
+    role_permissions = RolePermission.objects.select_related("permission").filter(
+        role__organization__role_catalog_key=ROLE_CATALOG_ORGANIZATION_KEY,
+        role__name=ROLE_MAINTAINER,
+        role__status=Role.Status.ACTIVE,
+    )
     for role_permission in role_permissions:
         for permission_object in _permission_objects_for_role_permission(role_permission):
             yield {
@@ -123,6 +147,44 @@ def _project_authorization_tuples(*, platform_object: str):
                     "relation": "platform",
                     "object": permission_object,
                 }
+
+    qualifications = MemberProfessionalQualification.objects.select_related("member", "domain").filter(
+        member__status__in=MEMBER_PERMISSION_STATUSES,
+        status=MemberProfessionalQualification.Status.ACTIVE,
+        domain__status=ProfessionalDomain.Status.ACTIVE,
+        valid_from__lte=checked_at,
+    ).filter(Q(valid_until__isnull=True) | Q(valid_until__gt=checked_at)).filter(
+        Q(member__user__isnull=True) | Q(member__user__is_active=True)
+    )
+    for qualification in qualifications:
+        yield {
+            "user": openfga_member_user(qualification.member),
+            "relation": "qualified_member",
+            "object": openfga_professional_domain_object(qualification.domain),
+        }
+
+    proposals = Proposal.objects.select_related("professional_domain").filter(
+        status=Proposal.Status.VOTING,
+        deadline_at__gt=checked_at,
+    )
+    for proposal in proposals:
+        try:
+            proposal_object = openfga_proposal_object(proposal)
+        except ValueError:
+            continue
+        yield {
+            "user": platform_object,
+            "relation": "platform",
+            "object": proposal_object,
+        }
+        if proposal.electorate_policy == Proposal.ElectoratePolicy.PROFESSIONAL_DELIBERATION:
+            if proposal.professional_domain_id is None:
+                continue
+            yield {
+                "user": openfga_professional_domain_object(proposal.professional_domain),
+                "relation": "professional_domain",
+                "object": proposal_object,
+            }
 
 
 def _permission_objects_for_role_permission(role_permission: RolePermission):

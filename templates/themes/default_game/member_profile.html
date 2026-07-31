@@ -69,38 +69,60 @@
       </div>
     </section>
 
-    {# C. Governance identity #}
+    {# C. Membership, duties, and professional qualifications #}
     <section class="card bg-base-100 shadow">
       <div class="card-body">
-        <h2 class="card-title">治理身份</h2>
-        {% if governance_roles %}
+        <h2 class="card-title">成员资格与职责</h2>
+        {% if identity_display.membership or identity_display.duties %}
           <div class="grid gap-3 mt-2">
-            {% for gr in governance_roles %}
+            {% if identity_display.membership %}
               <div class="rounded-lg border border-base-300 p-3">
                 <div class="flex flex-wrap items-center gap-2 mb-2">
-                  <span class="font-semibold text-sm">{{ gr.organization_name }}</span>
-                  <span class="badge badge-outline">{{ gr.role_name }}</span>
-                  <span class="badge badge-ghost badge-xs">{{ gr.source_type }}</span>
+                  <span class="font-semibold text-sm">成员资格</span>
+                  <span class="badge badge-primary">{{ identity_display.membership.name }}</span>
+                  <span class="badge badge-ghost badge-xs">{{ identity_display.membership.source_type }}</span>
                 </div>
-                {% if gr.permission_labels %}
-                  <div class="flex flex-wrap gap-1 mt-1">
-                    {% for label in gr.permission_labels %}
-                      <span class="badge badge-info badge-outline badge-xs">{{ label }}</span>
-                    {% endfor %}
-                  </div>
-                {% endif %}
-                <p class="text-xs text-base-content/50 mt-1">有效期 {{ gr.start_at|date:"Y-m-d" }} ~ {{ gr.end_at|date:"Y-m-d" }}</p>
+                <p class="text-xs text-base-content/50 mt-1">有效期 {{ identity_display.membership.start_at|date:"Y-m-d" }} ~ {{ identity_display.membership.end_at|date:"Y-m-d" }}</p>
+              </div>
+            {% endif %}
+            {% for duty in identity_display.duties %}
+              <div class="rounded-lg border border-base-300 p-3">
+                <div class="flex flex-wrap items-center gap-2 mb-2">
+                  <span class="font-semibold text-sm">职责</span>
+                  <span class="badge {% if duty.code == 'deliberator' %}badge-accent{% else %}badge-secondary{% endif %}">{{ duty.name }}</span>
+                  <span class="badge badge-ghost badge-xs">{{ duty.source_type }}</span>
+                </div>
+                <p class="text-xs text-base-content/50 mt-1">有效期 {{ duty.start_at|date:"Y-m-d" }} ~ {{ duty.end_at|date:"Y-m-d" }}</p>
               </div>
             {% endfor %}
           </div>
         {% else %}
-          <p class="text-sm text-base-content/50 mt-2">当前没有公开治理角色。</p>
+          <p class="text-sm text-base-content/50 mt-2">当前没有正式成员资格或职责。</p>
         {% endif %}
-        <p class="text-xs text-base-content/50 mt-3">治理身份来自角色任命（RoleAssignment），非用户自填。运行时权限通过 RoleAssignment → RolePermission 判断。</p>
+        {% if identity_display.restriction_reason %}
+          <p class="text-xs text-base-content/50 mt-3">当前状态：{{ identity_display.restriction_reason }}</p>
+        {% endif %}
+        <p class="text-xs text-base-content/50 mt-3">成员资格和职责来自系统记录；展示信息不参与权限判断。</p>
       </div>
     </section>
 
-    {# D. Recent governance activity #}
+    <section class="card bg-base-100 shadow">
+      <div class="card-body">
+        <h2 class="card-title">专业资格</h2>
+        {% if identity_display.professional_qualifications %}
+          <div class="flex flex-wrap gap-2 mt-2">
+            {% for qualification in identity_display.professional_qualifications %}
+              <span class="badge badge-outline">{{ qualification.name }}</span>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-sm text-base-content/50 mt-2">暂无当前有效专业资格。</p>
+        {% endif %}
+        <p class="text-xs text-base-content/50 mt-3">专业资格由外部确认结果录入，可用于相应专业提案的投票资格判断。</p>
+      </div>
+    </section>
+
+    {# D. Recent deliberation and maintenance activity #}
     <section class="card bg-base-100 shadow">
       <div class="card-body">
         <h2 class="card-title">最近公开治理动作</h2>
@@ -149,7 +171,7 @@
         {% else %}
           <p class="text-sm text-base-content/50 mt-2">暂无公开治理动作记录。</p>
         {% endif %}
-        <p class="text-xs text-base-content/50 mt-3">以上记录含本人执行的公开治理动作及授予给本人的角色/凭证公开事实。治理成员姓名公开，不脱敏。</p>
+        <p class="text-xs text-base-content/50 mt-3">以上记录含本人执行的公开治理动作及授予给本人的角色/凭证公开事实。维护者姓名公开，不脱敏。</p>
       </div>
     </section>
 

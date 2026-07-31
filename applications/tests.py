@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from unittest.mock import patch
-
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -9,10 +7,10 @@ from django.utils import timezone
 from core.application_services import submit_member_application
 from core.exceptions import DomainError
 from core.identity_services import ensure_basic_member_for_user, register_participant_account
-from core.member_roles import ROLE_BIG_APPLE_MEMBER, ROLE_FORMAL_MEMBER, member_has_role
+from core.member_roles import ROLE_FORMAL_MEMBER, participation_status
 from core.models import Event, MemberApplication, PartnerApplication, Proposal, SystemEvent
 from core.models import Member
-from core.tests.helpers import create_governance_admin_member, create_member, login_as_member
+from core.tests.helpers import create_member, login_as_member
 from simulation.form_drivers import HttpFormDriver
 
 
@@ -96,7 +94,7 @@ class PublicApplicationPageTests(TestCase):
         self.assertContains(response, 'name="password1"')
         self.assertContains(response, 'name="display_name"')
 
-    def test_post_register_creates_user_member_role(self) -> None:
+    def test_post_register_creates_user_and_pending_member(self) -> None:
         event_count_before = Event.objects.count()
         response = self.client.post(
             "/register/",
@@ -116,7 +114,7 @@ class PublicApplicationPageTests(TestCase):
         self.assertEqual(member.status, Member.Status.PENDING_REVIEW)
         self.assertEqual((member.metadata or {}).get("registration_contact"), "reg@example.test")
         self.assertEqual((member.metadata or {}).get("registration_source"), "public_register_form")
-        self.assertTrue(member_has_role(member, ROLE_BIG_APPLE_MEMBER))
+        self.assertIsNone(participation_status(member))
         self.assertFalse(MemberApplication.objects.filter(linked_member=member).exists())
         self.assertEqual(Event.objects.count(), event_count_before)
 
@@ -132,7 +130,7 @@ class PublicApplicationPageTests(TestCase):
         response = self.client.get("/register/", follow=True)
         self.assertEqual(response.status_code, 200)
         member = Member.objects.get(member_no="reg-auto-mem")
-        self.assertTrue(member_has_role(member, ROLE_BIG_APPLE_MEMBER))
+        self.assertIsNone(participation_status(member))
 
     # ── /apply/ 404 ─────────────────────────────────────────────────────
 
@@ -173,7 +171,7 @@ class PublicApplicationPageTests(TestCase):
         response = self.client.get("/workspace/apply/")
         self.assertEqual(response.status_code, 200)
         member = Member.objects.get(member_no="ws-apply-auto")
-        self.assertTrue(member_has_role(member, ROLE_BIG_APPLE_MEMBER))
+        self.assertIsNone(participation_status(member))
         self.assertContains(response, 'name="applicant_name"')
 
     # ── /workspace/apply/ authenticated flow ────────────────────────────
@@ -353,7 +351,7 @@ class PublicApplicationPageTests(TestCase):
 
     # ── service-layer direct tests ──────────────────────────────────────
 
-    def test_register_participant_account_service_creates_baseline_identity(self) -> None:
+    def test_register_participant_account_service_creates_pending_identity(self) -> None:
         event_count = Event.objects.count()
         app_count = MemberApplication.objects.count()
         user, member = register_participant_account(
@@ -366,39 +364,20 @@ class PublicApplicationPageTests(TestCase):
         self.assertEqual(member.member_no, "svc-reg-user")
         self.assertEqual(member.status, Member.Status.PENDING_REVIEW)
         self.assertEqual((member.metadata or {}).get("registration_contact"), "svc-reg@example.test")
-        self.assertTrue(member_has_role(member, ROLE_BIG_APPLE_MEMBER))
+        self.assertIsNone(participation_status(member))
         self.assertEqual(MemberApplication.objects.count(), app_count)
         self.assertEqual(Event.objects.count(), event_count)
 
-    def test_ensure_basic_member_for_user_service_creates_baseline_identity(self) -> None:
+    def test_ensure_basic_member_for_user_service_creates_pending_identity(self) -> None:
         user = get_user_model().objects.create_user(username="svc-ens-user", password="p")
         member = ensure_basic_member_for_user(user)
         self.assertEqual(member.member_no, "svc-ens-user")
         self.assertEqual(member.user, user)
-        self.assertTrue(member_has_role(member, ROLE_BIG_APPLE_MEMBER))
+        self.assertIsNone(participation_status(member))
         member2 = ensure_basic_member_for_user(user)
         self.assertEqual(member2.pk, member.pk)
 
     # ── transaction rollback ────────────────────────────────────────────
-
-    def test_register_participant_account_rolls_back_when_role_assignment_fails(self) -> None:
-        with patch("core.identity_services.ensure_role_assignment", side_effect=RuntimeError("boom")):
-            with self.assertRaises(RuntimeError):
-                register_participant_account(
-                    username="rollback-reg-user",
-                    password="rollback-pass-123",
-                    display_name="Rollback",
-                    contact="rollback@example.test",
-                )
-        self.assertFalse(get_user_model().objects.filter(username="rollback-reg-user").exists())
-        self.assertFalse(Member.objects.filter(member_no="rollback-reg-user").exists())
-
-    def test_ensure_basic_member_for_user_rolls_back_when_role_assignment_fails(self) -> None:
-        user = get_user_model().objects.create_user(username="rollback-ens-user", password="p")
-        with patch("core.identity_services.ensure_role_assignment", side_effect=RuntimeError("boom")):
-            with self.assertRaises(RuntimeError):
-                ensure_basic_member_for_user(user)
-        self.assertFalse(Member.objects.filter(member_no="rollback-ens-user").exists())
 
     # ── legacy / other ──────────────────────────────────────────────────
 

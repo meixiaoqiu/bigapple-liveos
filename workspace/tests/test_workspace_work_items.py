@@ -19,7 +19,7 @@ from core.proposal_services import (
     execute_proposal,
 )
 from core.tests.helpers import (
-    create_governance_admin_member,
+    create_maintainer_member,
     create_member,
     login_as_member,
 )
@@ -48,7 +48,7 @@ class WorkItemContextTests(TestCase):
             updated_at=now,
             rule_version="v1",
         )
-        self.governor = create_governance_admin_member("gov-wi-1")
+        self.governor = create_maintainer_member("maintainer-wi-1")
         self.supplier = create_member("sup-wi-1", role_name=ROLE_FORMAL_MEMBER)
         self.regular = create_member("reg-wi-1", role_name=ROLE_FORMAL_MEMBER)
 
@@ -136,7 +136,7 @@ class WorkspaceDashboardTests(TestCase):
             updated_at=now,
             rule_version="v1",
         )
-        self.governor = create_governance_admin_member("gov-home-1")
+        self.governor = create_maintainer_member("maintainer-home-1")
 
     def test_dashboard_shows_pending_items_when_exist(self):
         login_as_member(self.client, self.governor)

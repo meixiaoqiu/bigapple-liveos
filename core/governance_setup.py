@@ -1,4 +1,4 @@
-"""Baseline governance permissions and roles."""
+"""维护者的基础维护权限初始化。"""
 
 from __future__ import annotations
 
@@ -7,41 +7,51 @@ from typing import Any
 
 from django.utils import timezone
 
-from .models import Organization, Permission, Role, RolePermission
+from .models import Permission, Role, RolePermission
+from .role_catalog import MAINTAINER_PERMISSION_CODES, ROLE_CATALOG_ORGANIZATION_KEY, ROLE_MAINTAINER
+from .member_roles import ensure_catalog_role
 
 
-GOVERNANCE_VIEW_ADMIN_PERMISSION = "governance.view_admin"
+MAINTENANCE_VIEW_ADMIN_PERMISSION = "governance.view_admin"
+PROFESSIONAL_QUALIFICATION_MANAGE_PERMISSION = "governance.manage_professional_qualifications"
+DEFAULT_ROLE_ASSIGNMENT_DAYS = 36500
 
-BASE_GOVERNANCE_PERMISSIONS = (
+BASE_MAINTENANCE_PERMISSIONS = (
     {
-        "code": GOVERNANCE_VIEW_ADMIN_PERMISSION,
-        "name": "查看治理后台",
+        "code": MAINTENANCE_VIEW_ADMIN_PERMISSION,
+        "name": "查看维护后台",
         "category": "governance",
         "description": "允许访问治理和运营维护入口。",
     },
     {
         "code": "governance.manage_people",
-        "name": "管理成员",
+        "name": "维护成员",
         "category": "governance",
-        "description": "允许维护 Member 成员和治理责任主体。",
+        "description": "允许维护 Member 成员和责任主体。",
     },
     {
         "code": "governance.manage_organizations",
-        "name": "管理组织",
+        "name": "维护组织",
         "category": "governance",
-        "description": "允许维护治理组织容器。",
+        "description": "允许维护组织容器。",
     },
     {
         "code": "governance.manage_roles",
-        "name": "管理角色",
+        "name": "维护角色",
         "category": "governance",
-        "description": "允许维护组织内角色和任命。",
+        "description": "允许维护角色和任命。",
     },
     {
         "code": "governance.manage_permissions",
-        "name": "管理权限",
+        "name": "维护权限",
         "category": "governance",
-        "description": "允许维护治理权限定义和角色权限绑定。",
+        "description": "允许维护权限定义和角色权限绑定。",
+    },
+    {
+        "code": PROFESSIONAL_QUALIFICATION_MANAGE_PERMISSION,
+        "name": "维护专业资格",
+        "category": "governance",
+        "description": "允许录入或撤销成员的专业资格权威事实。",
     },
     {
         "code": "governance.view_event_ledger",
@@ -51,20 +61,16 @@ BASE_GOVERNANCE_PERMISSIONS = (
     },
 )
 
-GOVERNANCE_ADMIN_ORGANIZATION_NAME = "大苹果治理组"
-GOVERNANCE_ADMIN_ROLE_NAME = "治理管理员"
-DEFAULT_ROLE_ASSIGNMENT_DAYS = 36500
-
 
 def default_role_assignment_end_at(start_at=None):
     return (start_at or timezone.now()) + timedelta(days=DEFAULT_ROLE_ASSIGNMENT_DAYS)
 
 
-def ensure_governance_admin_role() -> dict[str, Any]:
-    """Ensure baseline governance permissions and the governance-admin role exist."""
+def ensure_maintainer_role() -> dict[str, Any]:
+    """幂等初始化维护者及其明确的通用维护权限。"""
 
     created_permissions = 0
-    for item in BASE_GOVERNANCE_PERMISSIONS:
+    for item in BASE_MAINTENANCE_PERMISSIONS:
         _permission, created = Permission.objects.get_or_create(
             code=item["code"],
             defaults={
@@ -75,31 +81,13 @@ def ensure_governance_admin_role() -> dict[str, Any]:
         )
         created_permissions += int(created)
 
-    organization, organization_created = Organization.objects.get_or_create(
-        name=GOVERNANCE_ADMIN_ORGANIZATION_NAME,
-        defaults={
-            "status": Organization.Status.ACTIVE,
-        },
-    )
-    if organization.status != Organization.Status.ACTIVE:
-        organization.status = Organization.Status.ACTIVE
-        organization.save(update_fields=["status", "updated_at"])
-
-    role, role_created = Role.objects.get_or_create(
-        organization=organization,
-        name=GOVERNANCE_ADMIN_ROLE_NAME,
-        defaults={
-            "description": "拥有基础治理后台和治理内核维护权限的管理员角色。",
-            "status": Role.Status.ACTIVE,
-        },
-    )
-    if role.status != Role.Status.ACTIVE:
-        role.status = Role.Status.ACTIVE
-        role.save(update_fields=["status", "updated_at"])
-
+    role_exists = Role.objects.filter(
+        organization__role_catalog_key=ROLE_CATALOG_ORGANIZATION_KEY,
+        name=ROLE_MAINTAINER,
+    ).exists()
+    role = ensure_catalog_role(ROLE_MAINTAINER)
     created_bindings = 0
-    permission_codes = [item["code"] for item in BASE_GOVERNANCE_PERMISSIONS]
-    for permission in Permission.objects.filter(code__in=permission_codes):
+    for permission in Permission.objects.filter(code__in=MAINTAINER_PERMISSION_CODES):
         _binding, created = RolePermission.objects.get_or_create(
             role=role,
             permission=permission,
@@ -110,9 +98,7 @@ def ensure_governance_admin_role() -> dict[str, Any]:
 
     return {
         "permissions_created": created_permissions,
-        "organization": organization,
-        "organization_created": organization_created,
         "role": role,
-        "role_created": role_created,
+        "role_created": not role_exists,
         "role_permissions_created": created_bindings,
     }

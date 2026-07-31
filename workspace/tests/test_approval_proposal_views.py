@@ -21,7 +21,7 @@ from core.proposal_services import (
     proposal_is_approved,
 )
 from core.tests.helpers import (
-    create_governance_admin_member,
+    create_maintainer_member,
     create_member,
     login_as_member,
 )
@@ -34,7 +34,7 @@ FIXED_WORLD_SETTINGS = {"WORLD_ROUTER_FORCE_ID": "wt-apv-test"}
 class ApprovalProposalViewsTests(TestCase):
 
     def setUp(self):
-        self.governor = create_governance_admin_member("gov-apv-1")
+        self.governor = create_maintainer_member("maintainer-apv-1")
         login_as_member(self.client, self.governor)
         self.finance = create_member("fin-apv-1", role_name=ROLE_FORMAL_MEMBER)
         self.regular = create_member("reg-apv-1", role_name=ROLE_FORMAL_MEMBER)

@@ -5,7 +5,6 @@ from decimal import Decimal
 from django.test import TestCase
 from django.utils import timezone
 
-from core.member_roles import ROLE_CONTRIBUTOR
 from core.credit_services import ensure_system_accounts, post_credit_transaction
 from core.models import (
     CreditAccount,
@@ -23,7 +22,7 @@ from core.resource_services import record_resource_adjustment
 from core.service_utils import actor_ref
 from core.tasks.member_workflow import claim_task, submit_labor
 from core.tasks.review import review_task
-from core.tests.helpers import create_governance_admin_member, create_member
+from core.tests.helpers import create_maintainer_member, create_member
 
 
 class ServiceConcurrencyGuardTests(TestCase):
@@ -33,7 +32,6 @@ class ServiceConcurrencyGuardTests(TestCase):
         now = timezone.now()
         self.member = create_member(
             member_no="mem-0001",
-            role_name=ROLE_CONTRIBUTOR,
             status=Member.Status.ADMITTED,
             batch_id="batch-opening",
             joined_simulation_day=1,
@@ -43,7 +41,6 @@ class ServiceConcurrencyGuardTests(TestCase):
         )
         self.other_member = create_member(
             member_no="mem-0002",
-            role_name=ROLE_CONTRIBUTOR,
             status=Member.Status.ADMITTED,
             batch_id="batch-opening",
             joined_simulation_day=1,
@@ -51,13 +48,13 @@ class ServiceConcurrencyGuardTests(TestCase):
             profile={"display_name": "成员二号"},
             created_at=now,
         )
-        self.reviewer = create_governance_admin_member(
+        self.reviewer = create_maintainer_member(
             member_no="member-admin-0001",
             status=Member.Status.ACTIVE,
             batch_id="batch-opening",
             joined_simulation_day=1,
             credit_floor=-500,
-            profile={"display_name": "开荒队治理成员"},
+            profile={"display_name": "开荒队维护者"},
             created_at=now,
         )
         # Fund the issuance pool so task rewards can flow through

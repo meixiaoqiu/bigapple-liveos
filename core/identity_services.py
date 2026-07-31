@@ -12,9 +12,7 @@ from core.db import atomic_for_model
 from core.event_ledger import PUBLIC_LEDGER_SCHEMA, append_event
 from core.event_payloads import _member_label, _public_member_label, _private, _public_ref
 from core.exceptions import DomainError
-from core.member_roles import ROLE_BIG_APPLE_MEMBER, ensure_member_role, ensure_role_assignment
-from core.models import Member, Organization, Role, RoleAssignment, SystemEvent
-from core.role_assignment_services import create_role_assignment
+from core.models import Member, Organization, Role, SystemEvent
 
 
 def member_creation_payload(member: Member, *, actor_ref: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -84,7 +82,7 @@ def register_member(
     profile: dict[str, Any] | None = None,
     created_by: dict[str, Any] | None = None,
 ) -> Member:
-    """Create one member and assign the shared baseline role."""
+    """创建一名成员；成员存在本身不产生角色任命。"""
 
     cleaned_member_no = member_no.strip()
     cleaned_display_name = display_name.strip()
@@ -124,12 +122,6 @@ def register_member(
         actor_member=actor_member,
         payload_json=member_creation_payload(member, actor_ref=created_by),
         occurred_at=now,
-    )
-    create_role_assignment(
-        member=member,
-        role=ensure_member_role(ROLE_BIG_APPLE_MEMBER),
-        granted_by=actor_member,
-        source_type=RoleAssignment.SourceType.SYSTEM,
     )
     return member
 
@@ -192,8 +184,8 @@ def create_role_template(
 def ensure_basic_member_for_user(user) -> Member:
     """Ensure an authenticated User has the baseline Member identity.
 
-    This creates only User-bound Member + ROLE_BIG_APPLE_MEMBER. It does
-    **not** create MemberApplication, Proposal, or public observer Event.
+    This creates only a User-bound Member. It does **not** create a role
+    assignment, MemberApplication, Proposal, or public observer Event.
 
     Returns the existing Member if *user* is already bound to one.
     """
@@ -211,7 +203,6 @@ def ensure_basic_member_for_user(user) -> Member:
         if not existing.display_name:
             existing.display_name = username
         existing.save(update_fields=["user", "display_name"])
-        ensure_role_assignment(existing, ensure_member_role(ROLE_BIG_APPLE_MEMBER))
         return existing
     member = Member.objects.create(
         member_no=username,
@@ -222,7 +213,6 @@ def ensure_basic_member_for_user(user) -> Member:
     )
     member.user = user
     member.save(update_fields=["user"])
-    ensure_role_assignment(member, ensure_member_role(ROLE_BIG_APPLE_MEMBER))
     return member
 
 
@@ -272,5 +262,4 @@ def register_participant_account(
     )
     member.user = user
     member.save(update_fields=["user"])
-    ensure_role_assignment(member, ensure_member_role(ROLE_BIG_APPLE_MEMBER))
     return user, member

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from django.test import TestCase
 
+from core.member_roles import ROLE_DELIBERATOR, ROLE_FORMAL_MEMBER, ensure_catalog_role
 from core.models import Member, MemberPublicProfile
+from core.role_assignment_services import create_role_assignment
 from core.tests.helpers import create_member, login_as_member
 
 
@@ -13,7 +15,6 @@ class PublicProfilePageTests(TestCase):
     def setUp(self) -> None:
         self.member = create_member(
             member_no="mem-profile-01",
-            role_name="contributor",
             status=Member.Status.ADMITTED,
             display_name="测试成员",
         )
@@ -27,6 +28,16 @@ class PublicProfilePageTests(TestCase):
         self.assertContains(response, "预览公开主页")
         # 预览链接应使用 /u/<member_no>/
         self.assertContains(response, "/u/mem-profile-01/")
+
+    def test_workspace_profile_uses_the_same_membership_and_duty_labels(self):
+        create_role_assignment(member=self.member, role=ensure_catalog_role(ROLE_FORMAL_MEMBER))
+        create_role_assignment(member=self.member, role=ensure_catalog_role(ROLE_DELIBERATOR))
+
+        response = self.client.get("/workspace/profile/")
+
+        self.assertContains(response, "正式成员")
+        self.assertContains(response, "议事者")
+        self.assertNotContains(response, "治理成员")
 
     def test_member_can_update_own_public_profile(self):
         response = self.client.post("/workspace/profile/update/", {

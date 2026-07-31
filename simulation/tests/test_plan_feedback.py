@@ -5,7 +5,6 @@ from decimal import Decimal
 from django.test import TestCase
 from django.utils import timezone
 
-from core.member_roles import ROLE_CONTRIBUTOR
 from core.models import (
     CapacityAssessment,
     Event,
@@ -27,7 +26,7 @@ from core.models import (
 )
 from simulation.engine import run_active_plan_until_failure
 from simulation.responsibility_closure import RESPONSIBILITY_DOCUMENTS_KEY, photovoltaic_responsibility_closure_requirements
-from core.tests.helpers import create_governance_admin_member, create_member, login_as_member
+from core.tests.helpers import create_maintainer_member, create_member, login_as_member
 
 
 class SimulationPlanFeedbackTests(TestCase):
@@ -35,17 +34,16 @@ class SimulationPlanFeedbackTests(TestCase):
 
     def setUp(self) -> None:
         now = timezone.now()
-        self.governance_member = create_governance_admin_member(
+        self.governance_member = create_maintainer_member(
             member_no="member-admin-0001",
             status=Member.Status.ACTIVE,
             joined_simulation_day=1,
             credit_floor=-500,
-            profile={"display_name": "开荒队治理成员"},
+            profile={"display_name": "开荒队维护者"},
             created_at=now,
         )
         create_member(
             member_no="mem-0001",
-            role_name=ROLE_CONTRIBUTOR,
             status=Member.Status.ADMITTED,
             joined_simulation_day=1,
             credit_floor=-300,

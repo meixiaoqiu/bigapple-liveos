@@ -7,9 +7,11 @@ from typing import Any
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
+from core.authorization_services import AuthorizationService
 from core.event_ledger import append_event
 from core.event_payloads import proposal_payload, proposal_vote_payload
-from core.models import Member, Proposal, ProposalVote, Role, RoleAssignment, SystemEvent
+from core.member_roles import ROLE_DELIBERATOR, ensure_catalog_role
+from core.models import Member, Proposal, ProposalVote, RoleAssignment, SystemEvent
 
 from .voters import calculate_required_approvals
 
@@ -168,15 +170,21 @@ def cast_proposal_vote(
     eligible_voters = {str(item) for item in (proposal.eligible_voters_snapshot_json or [])}
     if str(voter_member.pk) not in eligible_voters:
         raise ValidationError("该成员不在此提案的投票资格范围内。")
+    if not AuthorizationService().member_can_vote_on_proposal(
+        member=voter_member,
+        proposal=proposal,
+        at_time=checked_at,
+    ):
+        raise ValidationError("该成员当前不具备此提案的投票资格。")
 
-    if voter_role_assignment is None and proposal.voter_scope_role_id:
+    if voter_role_assignment is None:
         voter_role_assignment = (
             RoleAssignment.objects.filter(
                 member=voter_member,
-                role=proposal.voter_scope_role,
+                role=ensure_catalog_role(ROLE_DELIBERATOR),
                 status=RoleAssignment.Status.ACTIVE,
                 start_at__lte=checked_at,
-                end_at__gte=checked_at,
+                end_at__gt=checked_at,
             )
             .order_by("-start_at")
             .first()

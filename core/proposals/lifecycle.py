@@ -11,9 +11,18 @@ from django.utils import timezone
 from core.event_ledger import append_event
 from core.event_payloads import iso_or_none, member_display_name, proposal_payload
 from core.governance_setup import default_role_assignment_end_at
-from core.models import Member, Organization, Proposal, Resource, Role, RoleAssignment, SystemEvent
+from core.models import (
+    Member,
+    Organization,
+    ProfessionalDomain,
+    Proposal,
+    Resource,
+    Role,
+    RoleAssignment,
+    SystemEvent,
+)
 
-from .voters import eligible_voter_snapshot
+from .voters import eligible_voter_snapshot, validate_electorate_policy
 from .voting import proposal_result
 
 
@@ -25,9 +34,8 @@ def create_proposal(
     proposer_member: Member | None = None,
     proposer_role_assignment: RoleAssignment | None = None,
     organization: Organization | None = None,
-    voter_scope_type: str = Proposal.VoterScopeType.ROLE,
-    voter_scope_role: Role | None = None,
-    voter_scope_organization: Organization | None = None,
+    electorate_policy: str,
+    professional_domain: ProfessionalDomain | None = None,
     pass_ratio: int = 50,
     quorum_count: int | None = None,
     allow_vote_change: bool = True,
@@ -39,10 +47,13 @@ def create_proposal(
     starts_at = start_at or timezone.now()
     if deadline_at is None:
         deadline_at = starts_at + timedelta(days=7)
+    validate_electorate_policy(
+        electorate_policy=electorate_policy,
+        professional_domain=professional_domain,
+    )
     snapshot = eligible_voter_snapshot(
-        voter_scope_type=voter_scope_type,
-        voter_scope_role=voter_scope_role,
-        voter_scope_organization=voter_scope_organization,
+        electorate_policy=electorate_policy,
+        professional_domain=professional_domain,
         at_time=starts_at,
     )
     proposal = Proposal.objects.create(
@@ -53,9 +64,8 @@ def create_proposal(
         proposer_member=proposer_member,
         proposer_role_assignment=proposer_role_assignment,
         organization=organization,
-        voter_scope_type=voter_scope_type,
-        voter_scope_role=voter_scope_role,
-        voter_scope_organization=voter_scope_organization,
+        electorate_policy=electorate_policy,
+        professional_domain=professional_domain,
         eligible_voters_snapshot_json=snapshot,
         pass_ratio=pass_ratio,
         quorum_count=quorum_count if quorum_count is not None else min(1, len(snapshot)),
@@ -104,8 +114,7 @@ def create_role_appointment_proposal(
         proposer_member=proposer_member,
         proposer_role_assignment=proposer_role_assignment,
         organization=target_role.organization,
-        voter_scope_type=Proposal.VoterScopeType.ROLE,
-        voter_scope_role=target_role.appointment_electorate_role,
+        electorate_policy=Proposal.ElectoratePolicy.GENERAL_DELIBERATION,
         pass_ratio=target_role.appointment_required_percent,
         quorum_count=None,
         allow_vote_change=True,

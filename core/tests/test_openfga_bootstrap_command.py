@@ -9,6 +9,7 @@ from django.conf import settings
 from django.core.management import call_command
 from django.test import SimpleTestCase, override_settings
 
+from core.authorization_services import OPENFGA_AUTHORIZATION_MODEL_VERSION
 
 class OpenFGABootstrapCommandTests(SimpleTestCase):
     @override_settings(
@@ -38,6 +39,10 @@ class OpenFGABootstrapCommandTests(SimpleTestCase):
             )
 
         command_output = output.getvalue()
+        self.assertIn(
+            f"OPENFGA_AUTHORIZATION_MODEL_VERSION={OPENFGA_AUTHORIZATION_MODEL_VERSION}",
+            command_output,
+        )
         self.assertIn("OPENFGA_SIM_API_URL=http://openfga-sim:8082", command_output)
         self.assertIn("OPENFGA_SIM_STORE_ID=sim-store-id", command_output)
         self.assertIn("OPENFGA_SIM_AUTHORIZATION_MODEL_ID=sim-model-id", command_output)

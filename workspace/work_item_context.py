@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone as tz
 from django.utils import timezone as dj_timezone
 
-from core.access import is_finance_reviewer, is_governance_principal
+from core.access import is_finance_reviewer, member_can_maintain
 from core.models import (
     ApprovalProposal,
     Member,
@@ -52,7 +52,7 @@ def _priority_for_type(item_type: str) -> str:
 
 
 def build_member_work_items(member: Member) -> dict:
-    is_gov = is_governance_principal(member)
+    is_gov = member_can_maintain(member)
     is_fin = is_finance_reviewer(member)
 
     items_approval: list[dict] = []

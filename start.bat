@@ -277,6 +277,11 @@ echo Reloading nginx...
 
 docker exec nginx nginx -s reload
 if errorlevel 1 (
+echo nginx reload was not ready. Retrying after a short wait...
+powershell -NoProfile -Command "Start-Sleep -Seconds 1"
+docker exec nginx nginx -s reload
+)
+if errorlevel 1 (
 echo nginx reload failed.
 echo Check nginx logs with:
 echo docker logs --tail 80 nginx

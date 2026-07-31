@@ -5,23 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from django.db.models import Q
-from django.utils import timezone
-
 from core.credential_services import credentials_for_member
 from core.event_ledger import PUBLIC_LEDGER_SCHEMA
+from core.identity_display import member_identity_display
 from core.models import CredentialGrant, Member, MemberPublicProfile, RoleAssignment, SystemEvent
-
-
-# Chinese label mapping for governance permission codes
-
-_GOVERNANCE_PERMISSION_LABELS: dict[str, str] = {
-    "governance.vote": "参与治理投票",
-    "governance.propose": "发起治理提案",
-    "governance.execute": "执行通过的治理决议",
-    "governance.view_admin": "查看治理管理后台",
-}
-
-_DEFAULT_GOVERNANCE_LABEL = "其他治理权限"
 
 # SystemEvent -> human-readable title
 
@@ -41,25 +28,20 @@ _EVENT_TITLE_MAP: dict[str, str] = {
     SystemEvent.EventType.MEMBER_APPLICATION_REVIEWED: "报名审核",
 }
 
-# member role -> identity badge
-
-from core.member_roles import (
-    ROLE_BIG_APPLE_MEMBER,
-    ROLE_FORMAL_MEMBER,
-    ROLE_GOVERNANCE_MEMBER,
-    member_has_role,
-)
-
-
 def public_identity_badges_for_member(member: Member) -> list[dict[str, str]]:
-    """Return visible identity badges for *member* based on active roles."""
+    """按统一展示投影返回身份徽章，不以层级遮蔽并存职责。"""
+
+    identity_display = member_identity_display(member)
     badges: list[dict[str, str]] = []
-    if member_has_role(member, ROLE_BIG_APPLE_MEMBER):
-        badges.append({"label": "注册参与者", "style": "badge-outline"})
-    if member_has_role(member, ROLE_FORMAL_MEMBER):
-        badges.append({"label": "正式成员", "style": "badge-primary"})
-    if member_has_role(member, ROLE_GOVERNANCE_MEMBER):
-        badges.append({"label": "治理成员", "style": "badge-accent"})
+    derived_status = identity_display["derived_status"]
+    if derived_status:
+        badges.append({"label": derived_status["name"], "style": "badge-ghost"})
+    membership = identity_display["membership"]
+    if membership:
+        badges.append({"label": membership["name"], "style": "badge-primary"})
+    for duty in identity_display["duties"]:
+        style = "badge-accent" if duty["code"] == "deliberator" else "badge-secondary"
+        badges.append({"label": duty["name"], "style": style})
     return badges
 
 
@@ -83,35 +65,14 @@ def public_credentials_for_member(member: Member) -> list[dict[str, Any]]:
 
 
 def public_roles_for_member(member: Member) -> list[dict[str, Any]]:
-    """Return active governance role assignments with Chinese permission labels."""
-    now = timezone.now()
+    """返回当前成员资格和职责；保留此函数作为公开资料的读取入口。"""
+
+    identity_display = member_identity_display(member)
     roles: list[dict[str, Any]] = []
-    for ra in member.role_assignments.filter(
-        status="active",
-        role__status="active",
-        start_at__lte=now,
-        end_at__gte=now,
-    ).select_related("role", "role__organization"):
-        gov_perms = list(
-            ra.role.role_permissions.filter(permission__code__startswith="governance.")
-            .select_related("permission")
-            .values_list("permission__code", "permission__name")
-        )
-        perm_labels: list[str] = []
-        for code, name in gov_perms:
-            label = _GOVERNANCE_PERMISSION_LABELS.get(code)
-            if label:
-                perm_labels.append(label)
-            else:
-                perm_labels.append(_DEFAULT_GOVERNANCE_LABEL)
-        roles.append({
-            "organization_name": ra.role.organization.name if ra.role.organization_id else "",
-            "role_name": ra.role.name,
-            "source_type": ra.get_source_type_display(),
-            "start_at": ra.start_at,
-            "end_at": ra.end_at,
-            "permission_labels": perm_labels,
-        })
+    membership = identity_display["membership"]
+    if membership:
+        roles.append({"kind": "成员资格", **membership})
+    roles.extend({"kind": "职责", **duty} for duty in identity_display["duties"])
     return roles
 
 
@@ -218,10 +179,7 @@ def public_governance_activity_for_member(member: Member, *, limit: int = 20) ->
     return actions
 
 
-# retained aliases for backward compatibility
-
 public_member_identity = _identity
-public_member_governance_roles = public_roles_for_member
 public_member_recent_actions = public_governance_activity_for_member
 
 
@@ -235,6 +193,6 @@ def public_member_profile_context(member_no: str) -> dict[str, Any] | None:
         "identity": _identity(member),
         "badges": public_identity_badges_for_member(member),
         "credentials": public_credentials_for_member(member),
-        "governance_roles": public_roles_for_member(member),
+        "identity_display": member_identity_display(member),
         "recent_actions": public_governance_activity_for_member(member),
     }

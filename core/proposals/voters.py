@@ -1,14 +1,15 @@
-"""Proposal voter eligibility and approval threshold helpers."""
+"""提案选民政策、快照与当前资格查询。"""
 
 from __future__ import annotations
 
 import math
 
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from core.authorization_services import AuthorizationService, authorization_backend, login_capable_member_filter
-from core.models import Member, Organization, Proposal, Role, RoleAssignment
-from core.permission_services import MEMBER_PERMISSION_STATUSES
+from core.member_roles import ROLE_DELIBERATOR, ROLE_FORMAL_MEMBER, member_role_filter
+from core.models import Member, ProfessionalDomain, Proposal
+from core.professional_qualification_services import members_with_current_professional_qualification
 
 
 def calculate_required_approvals(voter_count: int, required_percent: int) -> int:
@@ -20,78 +21,90 @@ def calculate_required_approvals(voter_count: int, required_percent: int) -> int
     return max(1, math.floor(voter_count * normalized_percent / 100) + 1)
 
 
-def eligible_voters_for_role(electorate_role: Role, *, at_time=None):
-    if authorization_backend() == "openfga":
-        return AuthorizationService().eligible_voters_for_role(electorate_role, at_time=at_time)
+def validate_electorate_policy(
+    *,
+    electorate_policy: str,
+    professional_domain: ProfessionalDomain | None = None,
+) -> None:
+    """拒绝未分类、过期或不完整的提案选民政策。"""
+
+    if electorate_policy == Proposal.ElectoratePolicy.GENERAL_DELIBERATION:
+        if professional_domain is not None:
+            raise ValidationError("普通议事提案不能指定专业领域。")
+        return
+    if electorate_policy == Proposal.ElectoratePolicy.PROFESSIONAL_DELIBERATION:
+        if professional_domain is None:
+            raise ValidationError("专业议事提案必须指定一个专业领域。")
+        if professional_domain.status != ProfessionalDomain.Status.ACTIVE:
+            raise ValidationError("专业议事提案只能使用启用中的专业领域。")
+        return
+    raise ValidationError("提案必须使用已定义的选民政策。")
+
+
+def eligible_general_deliberators(*, at_time=None):
+    """返回同时具备正式成员资格和有效议事者任期的登录成员。"""
 
     checked_at = at_time or timezone.now()
-    return (
-        Member.objects.filter(
-            login_capable_member_filter(),
-            role_assignments__role=electorate_role,
-            role_assignments__status=RoleAssignment.Status.ACTIVE,
-            role_assignments__role__status=Role.Status.ACTIVE,
-            role_assignments__start_at__lte=checked_at,
-            role_assignments__end_at__gte=checked_at,
-            status__in=MEMBER_PERMISSION_STATUSES,
-        )
-        .distinct()
-        .order_by("member_no")
-    )
+    formal_members = Member.objects.filter(
+        member_role_filter(ROLE_FORMAL_MEMBER, checked_at=checked_at)
+    ).values("pk")
+    deliberators = Member.objects.filter(
+        member_role_filter(ROLE_DELIBERATOR, checked_at=checked_at)
+    ).values("pk")
+    return Member.objects.filter(pk__in=formal_members).filter(pk__in=deliberators).order_by("member_no")
 
 
-def eligible_voters_for_proposal_scope(
+def eligible_voters_for_electorate_policy(
     *,
-    voter_scope_type: str,
-    voter_scope_role: Role | None = None,
-    voter_scope_organization: Organization | None = None,
+    electorate_policy: str,
+    professional_domain: ProfessionalDomain | None = None,
     at_time=None,
 ):
+    """根据唯一允许的政策计算选民，不读取角色或组织范围。"""
+
+    validate_electorate_policy(
+        electorate_policy=electorate_policy,
+        professional_domain=professional_domain,
+    )
     checked_at = at_time or timezone.now()
-    if voter_scope_type == Proposal.VoterScopeType.ROLE and voter_scope_role is not None:
-        return eligible_voters_for_role(voter_scope_role, at_time=checked_at)
-    if voter_scope_type == Proposal.VoterScopeType.ORGANIZATION and voter_scope_organization is not None:
-        if authorization_backend() == "openfga":
-            role_ids = Role.objects.filter(
-                organization=voter_scope_organization,
-                status=Role.Status.ACTIVE,
-            ).values_list("pk", flat=True)
-            return AuthorizationService().eligible_voters_for_organization(role_ids, at_time=checked_at)
-        return (
-            Member.objects.filter(
-                login_capable_member_filter(),
-                role_assignments__role__organization=voter_scope_organization,
-                role_assignments__status=RoleAssignment.Status.ACTIVE,
-                role_assignments__role__status=Role.Status.ACTIVE,
-                role_assignments__start_at__lte=checked_at,
-                role_assignments__end_at__gte=checked_at,
-                status__in=MEMBER_PERMISSION_STATUSES,
-            )
-            .distinct()
-            .order_by("member_no")
-        )
-    if voter_scope_type == Proposal.VoterScopeType.ALL_MEMBERS:
-        if authorization_backend() == "openfga":
-            return AuthorizationService().eligible_formal_members()
-        return Member.objects.filter(
-            login_capable_member_filter(),
-            status__in=MEMBER_PERMISSION_STATUSES,
-        ).order_by("member_no")
-    return Member.objects.none()
+    general_deliberators = eligible_general_deliberators(at_time=checked_at)
+    if electorate_policy == Proposal.ElectoratePolicy.GENERAL_DELIBERATION:
+        return general_deliberators
+    qualified_members = members_with_current_professional_qualification(
+        domain=professional_domain,
+        at_time=checked_at,
+    )
+    return general_deliberators.filter(pk__in=qualified_members.values("pk"))
+
+
+def member_is_currently_eligible_to_vote(
+    *,
+    member: Member,
+    electorate_policy: str,
+    professional_domain: ProfessionalDomain | None = None,
+    at_time=None,
+) -> bool:
+    """按提案政策重新检查单个成员当前资格，快照不能替代该检查。"""
+
+    return eligible_voters_for_electorate_policy(
+        electorate_policy=electorate_policy,
+        professional_domain=professional_domain,
+        at_time=at_time,
+    ).filter(pk=member.pk).exists()
 
 
 def eligible_voter_snapshot(
     *,
-    voter_scope_type: str,
-    voter_scope_role: Role | None = None,
-    voter_scope_organization: Organization | None = None,
+    electorate_policy: str,
+    professional_domain: ProfessionalDomain | None = None,
     at_time=None,
 ) -> list[int]:
+    """在表决开始时保存选民编号快照，用于票数阈值而非授权绕过。"""
+
     return list(
-        eligible_voters_for_proposal_scope(
-            voter_scope_type=voter_scope_type,
-            voter_scope_role=voter_scope_role,
-            voter_scope_organization=voter_scope_organization,
+        eligible_voters_for_electorate_policy(
+            electorate_policy=electorate_policy,
+            professional_domain=professional_domain,
             at_time=at_time,
         ).values_list("pk", flat=True)
     )

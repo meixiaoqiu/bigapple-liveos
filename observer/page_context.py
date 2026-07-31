@@ -6,7 +6,6 @@ from typing import Any
 
 from django.db.models import Count, Q, Sum
 
-from core.member_roles import ROLE_BIG_APPLE_MEMBER, ROLE_CANDIDATE, member_role_filter
 from core.models import (
     CapacityAssessment,
     Dispute,
@@ -221,15 +220,12 @@ def observer_context(*, full_plan_nodes: bool = False) -> dict[str, Any]:
         "task_status_rows": task_status_rows,
         "open_tasks": list(Task.objects.filter(status=Task.Status.OPEN).order_by("due_at", "task_id")[:8]),
         "member_rows": list(
-            Member.objects.filter(
-                member_role_filter(ROLE_BIG_APPLE_MEMBER),
-                status__in=[Member.Status.ADMITTED, Member.Status.ACTIVE],
-            )
+            Member.objects.filter(status__in=[Member.Status.ADMITTED, Member.Status.ACTIVE])
             .order_by("member_no")[:12]
         ),
         "simulation_event_count": Event.objects.filter(generated_by=Event.GeneratedBy.SIMULATION_ENGINE).count(),
         "formal_members": Member.objects.filter(status=Member.Status.ADMITTED).count(),
-        "candidate_members": Member.objects.filter(member_role_filter(ROLE_CANDIDATE)).count(),
+        "candidate_members": Member.objects.filter(status=Member.Status.PENDING_REVIEW).count(),
         "total_tasks": Task.objects.count(),
         "task_completion_rate": task_completion_rate(),
         "open_disputes": open_disputes,

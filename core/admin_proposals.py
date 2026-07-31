@@ -97,13 +97,15 @@ class ProposalAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
         "proposal_no",
         "title",
         "proposal_type",
+        "electorate_policy",
+        "professional_domain",
         "status",
         "proposer_member",
         "organization",
         "deadline_at",
         "created_at",
     )
-    list_filter = ("proposal_type", "status", "organization", "deadline_at")
+    list_filter = ("proposal_type", "electorate_policy", "professional_domain", "status", "organization", "deadline_at")
     search_fields = (
         "proposal_no",
         "title",
@@ -114,15 +116,13 @@ class ProposalAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
     autocomplete_fields = (
         "proposer_member",
         "organization",
-        "voter_scope_role",
-        "voter_scope_organization",
+        "professional_domain",
     )
     list_select_related = (
         "proposer_member",
         "proposer_role_assignment",
         "organization",
-        "voter_scope_role",
-        "voter_scope_organization",
+        "professional_domain",
     )
     inlines = (ProposalVoteInline, ProposalExecutionInline)
     date_hierarchy = "deadline_at"
@@ -219,5 +219,3 @@ class ProposalExecutionAdmin(HiddenFromAdminIndexMixin, ImmutableHistoryAdminMix
     autocomplete_fields = ("proposal", "executor_member", "executor_role_assignment")
     list_select_related = ("proposal", "executor_member", "executor_role_assignment")
     readonly_fields = model_field_names(ProposalExecution)
-
-

@@ -1,81 +1,86 @@
-"""Compare legacy authorization with OpenFGA for a world."""
+"""在一个明确 world 中探测新制度的 OpenFGA 具体能力。"""
 
 from __future__ import annotations
 
 from django.core.management.base import BaseCommand, CommandError
 
-from core.authorization_services import openfga_check_for_member_permission, openfga_context_for_world_kind
-from core.governance_setup import GOVERNANCE_VIEW_ADMIN_PERMISSION
-from core.models import Member
-from core.openfga_client import OpenFGAClient, OpenFGARequestError
-from core.permission_services import legacy_member_has_permission, members_with_permission
+from core.authorization_services import (
+    OPENFGA_AUTHORIZATION_MODEL_VERSION,
+    AuthorizationService,
+    openfga_context_for_world_kind,
+)
+from core.governance_setup import MAINTENANCE_VIEW_ADMIN_PERMISSION
+from core.models import Member, Proposal
 from worlds.command_context import command_world_context
 
 
 class Command(BaseCommand):
-    help = "Compare legacy Django authorization with OpenFGA checks for one world."
+    help = "探测一个 world 中的维护能力或指定提案投票能力。"
 
     def add_arguments(self, parser):
         parser.add_argument("--world-id", default="")
         parser.add_argument("--world-kind", choices=("real", "sim"), default=None)
-        parser.add_argument("--permission-code", default=GOVERNANCE_VIEW_ADMIN_PERMISSION)
+        parser.add_argument("--capability", choices=("maintenance", "proposal_vote"), default="maintenance")
+        parser.add_argument("--permission-code", default=MAINTENANCE_VIEW_ADMIN_PERMISSION)
+        parser.add_argument("--proposal-id", type=int, default=None)
         parser.add_argument("--member-no", default="")
-        parser.add_argument("--api-url", default="")
-        parser.add_argument("--store-id", default="")
-        parser.add_argument("--authorization-model-id", default="")
         parser.add_argument("--limit", type=int, default=20)
-        parser.add_argument("--fail-on-diff", action="store_true")
 
     def handle(self, *args, **options):
-        permission_code = options["permission_code"]
         with command_world_context(options["world_id"], command_name="openfga_authorization_probe"):
             context = openfga_context_for_world_kind(options["world_kind"])
-            store_id = options["store_id"] or context.store_id
-            if not store_id:
-                raise CommandError(f"{context.world_kind} OpenFGA store id is required.")
+            if not context.store_id or not context.authorization_model_id:
+                raise CommandError(f"{context.world_kind} OpenFGA store 和 authorization model 必须配置。")
 
-            members = list(_probe_members(permission_code, member_no=options["member_no"], limit=options["limit"]))
-            client = OpenFGAClient(options["api_url"] or context.api_url)
-            diffs = 0
+            capability = options["capability"]
+            proposal = self._proposal_for_capability(capability=capability, proposal_id=options["proposal_id"])
+            members = _probe_members(member_no=options["member_no"], limit=options["limit"])
+            authorization = AuthorizationService()
             self.stdout.write(
-                f"world_kind={context.world_kind} permission={permission_code} candidates={len(members)}"
+                " ".join(
+                    [
+                        f"world_kind={context.world_kind}",
+                        f"model={OPENFGA_AUTHORIZATION_MODEL_VERSION}",
+                        f"capability={capability}",
+                        f"candidates={len(members)}",
+                    ]
+                )
             )
             for member in members:
-                legacy_allowed = legacy_member_has_permission(member, permission_code)
-                check = openfga_check_for_member_permission(member, permission_code)
-                try:
-                    openfga_allowed = client.check(
-                        store_id=store_id,
-                        authorization_model_id=options["authorization_model_id"] or context.authorization_model_id,
-                        user=check.user,
-                        relation=check.relation,
-                        object_=check.object_,
+                if capability == "maintenance":
+                    allowed = authorization.member_can_maintain(
+                        member=member,
+                        permission_code=options["permission_code"],
                     )
-                except OpenFGARequestError as exc:
-                    raise CommandError(str(exc)) from exc
-
-                status = "OK" if legacy_allowed == openfga_allowed else "DIFF"
-                if status == "DIFF":
-                    diffs += 1
+                    target = options["permission_code"]
+                else:
+                    allowed = authorization.member_can_vote_on_proposal(member=member, proposal=proposal)
+                    target = f"proposal:{proposal.pk}"
                 self.stdout.write(
                     " ".join(
                         [
                             f"member_id={member.pk}",
                             f"member_no={member.member_no}",
-                            f"legacy={legacy_allowed}",
-                            f"openfga={openfga_allowed}",
-                            f"status={status}",
+                            f"target={target}",
+                            f"allowed={str(bool(allowed)).lower()}",
                         ]
                     )
                 )
 
-            self.stdout.write(self.style.SUCCESS(f"checked={len(members)} diffs={diffs}"))
-            if diffs and options["fail_on_diff"]:
-                raise CommandError(f"OpenFGA authorization probe found {diffs} differences.")
+    @staticmethod
+    def _proposal_for_capability(*, capability: str, proposal_id: int | None) -> Proposal | None:
+        if capability != "proposal_vote":
+            return None
+        if proposal_id is None:
+            raise CommandError("探测提案投票能力时必须提供 --proposal-id。")
+        try:
+            return Proposal.objects.get(pk=proposal_id)
+        except Proposal.DoesNotExist as exc:
+            raise CommandError(f"提案不存在：{proposal_id}") from exc
 
 
-def _probe_members(permission_code: str, *, member_no: str, limit: int):
+def _probe_members(*, member_no: str, limit: int) -> list[Member]:
     checked_member_no = str(member_no or "").strip()
     if checked_member_no:
-        return Member.objects.filter(member_no=checked_member_no).order_by("pk")
-    return members_with_permission(permission_code).order_by("pk")[: max(limit, 1)]
+        return list(Member.objects.filter(member_no=checked_member_no).order_by("pk"))
+    return list(Member.objects.order_by("pk")[: max(limit, 1)])

@@ -268,6 +268,7 @@ class AdminConfigTests(TestCase):
         proposal = Proposal.objects.create(
             title="Admin history proposal",
             proposal_type=Proposal.ProposalType.POLICY,
+            electorate_policy=Proposal.ElectoratePolicy.GENERAL_DELIBERATION,
             status=Proposal.Status.VOTING,
             proposer_member=self.member,
             deadline_at=self.now + timezone.timedelta(days=7),

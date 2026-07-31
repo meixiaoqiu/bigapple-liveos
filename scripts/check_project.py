@@ -7,6 +7,8 @@ import os
 import sys
 from pathlib import Path
 
+from check_role_usage import check_role_usage_catalog
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONTRACTS_ROOT = (ROOT / "../bigapple-docs/static/technical-contracts").resolve()
@@ -58,6 +60,14 @@ def check_contract_files() -> list[str]:
     return errors
 
 
+def check_role_catalog() -> list[str]:
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from core.role_catalog import validate_role_catalog
+
+    return validate_role_catalog()
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run lightweight Big Apple Live OS repository checks.")
     parser.add_argument(
@@ -72,6 +82,8 @@ def main() -> int:
     args = parse_args()
     errors = []
     errors.extend(check_python_syntax())
+    errors.extend(check_role_catalog())
+    errors.extend(check_role_usage_catalog())
     if args.check_contracts:
         errors.extend(check_contract_files())
 

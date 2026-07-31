@@ -24,7 +24,7 @@ from uuid import uuid4
 from django.db import transaction
 from django.utils import timezone
 
-from .access import is_finance_reviewer, is_governance_principal
+from .access import is_finance_reviewer, member_can_maintain
 from .event_ledger import append_event
 from .event_payloads import approval_proposal_payload
 from .exceptions import DomainError
@@ -144,7 +144,7 @@ def proposal_is_approved(proposal: ApprovalProposal) -> bool:
 def _member_role_for_proposal(member: Member, proposal: ApprovalProposal) -> list[str]:
     """Return roles a member can fill for this proposal."""
     roles: list[str] = []
-    if is_governance_principal(member):
+    if member_can_maintain(member):
         roles.append("governance")
         roles.append("second_governance")
     if is_finance_reviewer(member):
@@ -187,7 +187,7 @@ def proposal_is_actionable_by(member: Member, proposal: ApprovalProposal) -> boo
 def proposal_is_executable_by(member: Member, proposal: ApprovalProposal) -> bool:
     if proposal.status != ApprovalProposal.Status.APPROVED:
         return False
-    return is_governance_principal(member) or is_finance_reviewer(member)
+    return member_can_maintain(member) or is_finance_reviewer(member)
 
 
 def proposal_target_url(proposal: ApprovalProposal) -> str:

@@ -13,7 +13,7 @@ from core.feedback_services import (
     submit_feedback,
 )
 from core.models import CommunityFeedback, Event, Member, Organization, Proposal, Role
-from core.tests.helpers import create_governance_admin_member, create_member, login_as_member
+from core.tests.helpers import create_maintainer_member, create_member, login_as_member
 from observer.event_context import public_event_semantic_summary
 
 
@@ -66,7 +66,7 @@ class FeedbackServiceTests(TestCase):
             respond_to_feedback(feedback=fb, responder_member=self.member, response="resp")
 
     def test_governance_can_respond(self):
-        gov = create_governance_admin_member("gov-resp")
+        gov = create_maintainer_member("maintainer-resp")
         fb = submit_feedback(author_member=self.member, title="t", category="other", body="b")
         fb2 = respond_to_feedback(feedback=fb, responder_member=gov, response="已处理")
         self.assertEqual(fb2.status, CommunityFeedback.Status.ANSWERED)
@@ -75,7 +75,7 @@ class FeedbackServiceTests(TestCase):
         self.assertIn("已处理", fb2.official_response)
 
     def test_respond_creates_public_event(self):
-        gov = create_governance_admin_member("gov-resp2")
+        gov = create_maintainer_member("maintainer-resp2")
         fb = submit_feedback(author_member=self.member, title="tt", category="other", body="bb")
         respond_to_feedback(feedback=fb, responder_member=gov, response="ok")
         event = Event.objects.get(
@@ -85,7 +85,7 @@ class FeedbackServiceTests(TestCase):
         self.assertEqual(event.payload["feedback_status_label"], "已回应")
 
     def test_repeated_response_creates_distinct_public_events(self):
-        gov = create_governance_admin_member("gov-repeat")
+        gov = create_maintainer_member("maintainer-repeat")
         fb = submit_feedback(author_member=self.member, title="repeat", category="other", body="bb")
         respond_to_feedback(feedback=fb, responder_member=gov, response="first")
         respond_to_feedback(feedback=fb, responder_member=gov, response="second")
@@ -98,7 +98,7 @@ class FeedbackServiceTests(TestCase):
         )
 
     def test_invalid_response_status_rejected(self):
-        gov = create_governance_admin_member("gov-bad-status")
+        gov = create_maintainer_member("maintainer-bad-status")
         fb = submit_feedback(author_member=self.member, title="bad", category="other", body="bb")
         with self.assertRaises(DomainError):
             respond_to_feedback(
@@ -106,7 +106,7 @@ class FeedbackServiceTests(TestCase):
             )
 
     def test_respond_cannot_hide_feedback(self):
-        gov = create_governance_admin_member("gov-hide-status")
+        gov = create_maintainer_member("maintainer-hide-status")
         fb = submit_feedback(author_member=self.member, title="bad", category="other", body="bb")
         with self.assertRaises(DomainError):
             respond_to_feedback(
@@ -117,7 +117,7 @@ class FeedbackServiceTests(TestCase):
             )
 
     def test_respond_cannot_link_feedback_without_proposal(self):
-        gov = create_governance_admin_member("gov-link-status")
+        gov = create_maintainer_member("maintainer-link-status")
         fb = submit_feedback(author_member=self.member, title="bad", category="other", body="bb")
         with self.assertRaises(DomainError):
             respond_to_feedback(
@@ -128,7 +128,7 @@ class FeedbackServiceTests(TestCase):
             )
 
     def test_answered_requires_response_text(self):
-        gov = create_governance_admin_member("gov-empty-answer")
+        gov = create_maintainer_member("maintainer-empty-answer")
         fb = submit_feedback(author_member=self.member, title="empty", category="other", body="bb")
         with self.assertRaises(DomainError):
             respond_to_feedback(
@@ -139,21 +139,21 @@ class FeedbackServiceTests(TestCase):
             )
 
     def test_hide_feedback(self):
-        gov = create_governance_admin_member("gov-hide")
+        gov = create_maintainer_member("maintainer-hide")
         fb = submit_feedback(author_member=self.member, title="hide me", category="other", body="bad")
         hide_feedback(feedback=fb, actor_member=gov, reason="违规")
         fb.refresh_from_db()
         self.assertEqual(fb.status, CommunityFeedback.Status.HIDDEN)
 
     def test_hide_does_not_write_public_event(self):
-        gov = create_governance_admin_member("gov-hide2")
+        gov = create_maintainer_member("maintainer-hide2")
         fb = submit_feedback(author_member=self.member, title="x", category="other", body="y")
         before = Event.objects.count()
         hide_feedback(feedback=fb, actor_member=gov)
         self.assertEqual(Event.objects.count(), before)
 
     def test_hide_feedback_removes_existing_public_events(self):
-        gov = create_governance_admin_member("gov-hide-events")
+        gov = create_maintainer_member("maintainer-hide-events")
         fb = submit_feedback(author_member=self.member, title="hide event", category="other", body="bad")
 
         hide_feedback(feedback=fb, actor_member=gov)
@@ -166,12 +166,13 @@ class FeedbackServiceTests(TestCase):
         )
 
     def test_link_feedback_to_proposal(self):
-        gov = create_governance_admin_member("gov-link")
+        gov = create_maintainer_member("maintainer-link")
         fb = submit_feedback(author_member=self.member, title="link", category="proposal_seed", body="p")
         org = Organization.objects.create(name="TestOrg")
         role = Role.objects.create(name="Test", organization=org, status=Role.Status.ACTIVE)
         proposal = Proposal.objects.create(
             title="提案", proposal_type=Proposal.ProposalType.POLICY,
+            electorate_policy=Proposal.ElectoratePolicy.GENERAL_DELIBERATION,
             status=Proposal.Status.VOTING, proposer_member=gov,
             start_at=timezone.now(), deadline_at=timezone.now() + timezone.timedelta(days=7),
             pass_ratio=50, proposal_no="0001",
@@ -227,14 +228,14 @@ class FeedbackViewTests(TestCase):
         self.assertContains(response, f"/u/{self.author.member_no}/")
 
     def test_hidden_feedback_404_for_normal_user(self):
-        gov = create_governance_admin_member("gov-hide-view")
+        gov = create_maintainer_member("maintainer-hide-view")
         fb = submit_feedback(author_member=self.author, title="hidden", category="other", body="h")
         hide_feedback(feedback=fb, actor_member=gov)
         response = self.client.get(f"/feedback/{fb.feedback_id}/")
         self.assertEqual(response.status_code, 404)
 
     def test_governance_sees_response_form(self):
-        gov = create_governance_admin_member("gov-view-form")
+        gov = create_maintainer_member("maintainer-view-form")
         login_as_member(self.client, gov)
         response = self.client.get(f"/feedback/{self.fb.feedback_id}/")
         self.assertContains(response, "发布回应")
@@ -252,7 +253,7 @@ class FeedbackViewTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_respond_governance_success(self):
-        gov = create_governance_admin_member("gov-respond-view")
+        gov = create_maintainer_member("maintainer-respond-view")
         login_as_member(self.client, gov)
         response = self.client.post(f"/feedback/{self.fb.feedback_id}/respond/", {
             "action": "respond", "status": "answered", "official_response": "已处理",
@@ -261,7 +262,7 @@ class FeedbackViewTests(TestCase):
         self.assertContains(response, "已处理")
 
     def test_respond_answered_without_text_shows_error(self):
-        gov = create_governance_admin_member("gov-empty-view")
+        gov = create_maintainer_member("maintainer-empty-view")
         login_as_member(self.client, gov)
         response = self.client.post(f"/feedback/{self.fb.feedback_id}/respond/", {
             "action": "respond", "status": "answered", "official_response": " ",
@@ -314,14 +315,14 @@ class FeedbackViewTests(TestCase):
 
     def test_hidden_not_in_feedback_list(self):
         """Hidden feedback 不进入 /feedback/ 公开列表。"""
-        gov = create_governance_admin_member("gov-list-hide")
+        gov = create_maintainer_member("maintainer-list-hide")
         fb2 = submit_feedback(author_member=self.author, title="隐藏条目", category="other", body="h")
         hide_feedback(feedback=fb2, actor_member=gov)
         response = self.client.get("/feedback/")
         self.assertNotContains(response, "隐藏条目")
 
     def test_hidden_feedback_event_not_in_public_event_stream(self):
-        gov = create_governance_admin_member("gov-event-hide")
+        gov = create_maintainer_member("maintainer-event-hide")
         fb2 = submit_feedback(author_member=self.author, title="事件隐藏条目", category="other", body="h")
         hide_feedback(feedback=fb2, actor_member=gov)
 

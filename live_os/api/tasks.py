@@ -6,7 +6,7 @@ from django.http import HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_http_methods
 
-from live_os.access import actor_ref_for_request, require_full_workspace_member_json, require_governance_json
+from live_os.access import actor_ref_for_request, require_full_workspace_member_json, require_maintainer_json
 from core.exceptions import DomainError
 from core.models import Member, Task
 from core.tasks.member_workflow import claim_task, submit_labor
@@ -64,7 +64,7 @@ def submit_labor_view(request: HttpRequest, task_id: str, **_kwargs) -> JsonResp
 
 @require_http_methods(["POST"])
 def review_task_view(request: HttpRequest, task_id: str, **_kwargs) -> JsonResponse:
-    denied = require_governance_json(request)
+    denied = require_maintainer_json(request)
     if denied:
         return denied
     payload = read_json(request)

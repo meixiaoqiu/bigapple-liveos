@@ -11,7 +11,7 @@ from uuid import uuid4
 
 from django.utils import timezone
 
-from .access import is_governance_principal
+from .access import member_can_maintain
 from .db import atomic_for_model
 from .exceptions import DomainError
 from .models import CommunityFeedback, Event, Member, Proposal
@@ -105,8 +105,8 @@ def respond_to_feedback(
 
     *responder_member* must hold governance permission.
     """
-    if not is_governance_principal(responder_member):
-        raise DomainError("只有治理成员才能回应反馈。")
+    if not member_can_maintain(responder_member):
+        raise DomainError("只有维护者才能回应反馈。")
     if status not in CommunityFeedback.Status.values:
         raise DomainError("反馈状态无效。")
     if status == CommunityFeedback.Status.HIDDEN:
@@ -125,8 +125,8 @@ def respond_to_feedback(
     if status != CommunityFeedback.Status.HIDDEN:
         _write_public_event(
             f"community-feedback-answered-{feedback.feedback_id}-{_event_suffix()}",
-            "治理成员回应反馈",
-            f"治理成员回应了《{feedback.title}》：{response[:120]}",
+            "维护者回应反馈",
+            f"维护者回应了《{feedback.title}》：{response[:120]}",
             payload=_feedback_public_payload(feedback, action="answered"),
         )
     return feedback
@@ -141,8 +141,8 @@ def hide_feedback(
     *actor_member* must hold governance permission.
     Does NOT write a public Event (avoids amplifying hidden content).
     """
-    if not is_governance_principal(actor_member):
-        raise DomainError("只有治理成员才能隐藏反馈。")
+    if not member_can_maintain(actor_member):
+        raise DomainError("只有维护者才能隐藏反馈。")
     feedback.status = CommunityFeedback.Status.HIDDEN
     feedback.responded_by = actor_member
     feedback.responded_at = timezone.now()
@@ -168,8 +168,8 @@ def link_feedback_to_proposal(
 
     *actor_member* must hold governance permission.
     """
-    if not is_governance_principal(actor_member):
-        raise DomainError("只有治理成员才能将反馈转入治理流程。")
+    if not member_can_maintain(actor_member):
+        raise DomainError("只有维护者才能将反馈转入治理流程。")
     feedback.linked_proposal = proposal
     feedback.status = CommunityFeedback.Status.LINKED
     feedback.responded_by = actor_member

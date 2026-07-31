@@ -55,7 +55,7 @@ class ParticipantRegistrationForm(forms.Form):
     """Create a user account and basic Member identity.
 
     This form does NOT create a MemberApplication or enter the governance
-    pipeline — it only creates ``User`` + ``Member`` + ``ROLE_BIG_APPLE_MEMBER``.
+    pipeline — it only creates ``User`` + ``Member``.
     """
 
     username = UsernameField(label="登录账号", max_length=150)

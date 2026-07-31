@@ -9,7 +9,7 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from core.authorization_services import openfga_context_for_world_kind
+from core.authorization_services import OPENFGA_AUTHORIZATION_MODEL_VERSION, openfga_context_for_world_kind
 from core.openfga_client import OpenFGAClient, OpenFGARequestError
 
 
@@ -45,6 +45,7 @@ class Command(BaseCommand):
             raise CommandError(str(exc)) from exc
 
         self.stdout.write(self.style.SUCCESS("OpenFGA local store/model is ready."))
+        self.stdout.write(f"OPENFGA_AUTHORIZATION_MODEL_VERSION={OPENFGA_AUTHORIZATION_MODEL_VERSION}")
         self.stdout.write(f"OPENFGA_{context.world_kind.upper()}_API_URL={api_url}")
         self.stdout.write(f"OPENFGA_{context.world_kind.upper()}_STORE_ID={store['id']}")
         self.stdout.write(

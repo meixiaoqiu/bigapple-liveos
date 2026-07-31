@@ -15,14 +15,7 @@ from core.db import atomic_for_model
 from core.event_ledger import PUBLIC_LEDGER_SCHEMA, append_event
 from core.event_payloads import _private, member_display_name, public_member_label
 from core.exceptions import DomainError
-from core.member_roles import (
-    ROLE_CANDIDATE,
-    ROLE_FORMAL_MEMBER,
-    ROLE_GOVERNANCE_MEMBER,
-    ensure_member_role,
-    ensure_role_assignment,
-    member_has_role,
-)
+from core.member_roles import ROLE_FORMAL_MEMBER, ensure_catalog_role, member_has_role
 from core.models import Member, MemberApplication, PartnerApplication, Proposal, SystemEvent
 
 from .identity_services import register_member
@@ -375,7 +368,6 @@ def submit_member_application(
             **_application_member_profile(application),
         }
         existing_member.save(update_fields=["status", "display_name", "profile"])
-    ensure_role_assignment(existing_member, ensure_member_role(ROLE_CANDIDATE))
     application.linked_member = existing_member
     application.save(update_fields=["requested_member_no", "linked_member"])
 
@@ -469,7 +461,6 @@ def create_member_application_admission_proposal(
     application: MemberApplication,
     proposer_member: Member | None = None,
     reason: str = "",
-    voter_scope_role=None,
     deadline_at=None,
 ) -> Proposal:
     """Create the governance proposal used to admit a submitted member application."""
@@ -486,16 +477,13 @@ def create_member_application_admission_proposal(
 
     from core.proposals.lifecycle import create_proposal
 
-    voter_role = voter_scope_role or ensure_member_role(ROLE_GOVERNANCE_MEMBER)
     body = str(reason or "").strip() or f"接纳 {application.applicant_name} 成为大苹果正式成员。"
     proposal = create_proposal(
         title=f"接纳成员报名：{application.applicant_name}",
         body=body,
         proposal_type=Proposal.ProposalType.MEMBER_ADMISSION,
         proposer_member=proposer_member,
-        organization=voter_role.organization,
-        voter_scope_type=Proposal.VoterScopeType.ROLE,
-        voter_scope_role=voter_role,
+        electorate_policy=Proposal.ElectoratePolicy.GENERAL_DELIBERATION,
         pass_ratio=50,
         quorum_count=None,
         allow_vote_change=True,
@@ -539,7 +527,7 @@ def admit_member_application_from_proposal(
 
     now = admitted_at or timezone.now()
     member = application.linked_member
-    formal_role = ensure_member_role(ROLE_FORMAL_MEMBER)
+    formal_role = ensure_catalog_role(ROLE_FORMAL_MEMBER)
     from core.role_assignment_services import create_role_assignment
 
     assignment = create_role_assignment(
@@ -614,7 +602,7 @@ def reject_member_application_from_failed_proposal(
     Called from the voting lifecycle when a MEMBER_ADMISSION proposal
     transitions to FAILED (deadline expired without sufficient yes votes).
     This is the ONLY path that sets an application to REJECTED — there is
-    no standalone "reject" action a governance member can trigger directly.
+    维护者不能直接执行独立的“拒绝”操作。
     """
 
     if proposal.proposal_type != Proposal.ProposalType.MEMBER_ADMISSION:
@@ -723,10 +711,10 @@ def admit_member_application_from_approval_proposal(
         raise DomainError("该报名已被拒绝。")
 
     member = application.linked_member
-    from core.member_roles import ensure_member_role, ROLE_FORMAL_MEMBER
+    from core.member_roles import ROLE_FORMAL_MEMBER, ensure_catalog_role
     from core.role_assignment_services import create_role_assignment as _create_ra
 
-    formal_role = ensure_member_role(ROLE_FORMAL_MEMBER)
+    formal_role = ensure_catalog_role(ROLE_FORMAL_MEMBER)
     _create_ra(
         member=member,
         role=formal_role,

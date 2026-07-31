@@ -367,20 +367,18 @@ try {
         "--world-kind", "sim"
     )
 
-    Write-Host "Comparing legacy Django authorization with OpenFGA..."
+    Write-Host "Probing current OpenFGA authorization..."
     Invoke-Checked "docker" @(
         "compose", "-f", $composeFile, "run", "--rm", "--no-deps", "big-apple-real",
         "python", "manage.py", "openfga_authorization_probe",
         "--settings=live_os.settings_real",
-        "--world-kind", "real",
-        "--fail-on-diff"
+        "--world-kind", "real"
     )
     Invoke-Checked "docker" @(
         "compose", "-f", $composeFile, "run", "--rm", "--no-deps", "big-apple-sim",
         "python", "manage.py", "openfga_authorization_probe",
         "--settings=live_os.settings_sim",
-        "--world-kind", "sim",
-        "--fail-on-diff"
+        "--world-kind", "sim"
     )
 
     Write-Host "OpenFGA local setup completed."

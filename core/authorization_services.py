@@ -5,13 +5,10 @@ from __future__ import annotations
 import logging
 from base64 import urlsafe_b64encode
 from dataclasses import dataclass
-from typing import Iterable
 
 from django.conf import settings
-from django.contrib.auth import get_user_model
-from django.db.models import Q
 
-from .models import Member, Resource, Role
+from .models import Member, ProfessionalDomain, Proposal, Resource
 from .openfga_client import OpenFGAClient, OpenFGARequestError
 from .permission_services import legacy_member_has_permission, permission_requires_formal_member
 from worlds.models import WorldRegistry
@@ -19,6 +16,9 @@ from worlds.state import get_current_world
 
 
 logger = logging.getLogger(__name__)
+
+
+OPENFGA_AUTHORIZATION_MODEL_VERSION = "2026-07-30-role-baseline-v1"
 
 
 @dataclass(frozen=True)
@@ -48,18 +48,25 @@ def openfga_member_user(member: Member) -> str:
     return f"member:{member.pk}"
 
 
-def openfga_member_id_from_user(user: str) -> int | None:
-    prefix = "member:"
-    if not user.startswith(prefix):
-        return None
-    try:
-        return int(user.removeprefix(prefix))
-    except ValueError:
-        return None
-
-
 def openfga_role_object(role_id: int) -> str:
     return f"role:{role_id}"
+
+
+def openfga_professional_domain_object(domain: ProfessionalDomain | int) -> str:
+    """返回专业资格关系使用的稳定 OpenFGA 对象。"""
+
+    domain_id = domain.pk if isinstance(domain, ProfessionalDomain) else domain
+    return f"professional_domain:{domain_id}"
+
+
+def openfga_proposal_object(proposal: Proposal) -> str:
+    """按选民政策映射为 OpenFGA 提案对象；未知政策必须拒绝。"""
+
+    if proposal.electorate_policy == Proposal.ElectoratePolicy.GENERAL_DELIBERATION:
+        return f"general_proposal:{proposal.pk}"
+    if proposal.electorate_policy == Proposal.ElectoratePolicy.PROFESSIONAL_DELIBERATION:
+        return f"professional_proposal:{proposal.pk}"
+    raise ValueError(f"Unknown electorate policy: {proposal.electorate_policy}")
 
 
 def permission_object_type(permission_code: str) -> str:
@@ -171,6 +178,25 @@ class AuthorizationService:
     def member_has_full_workspace_access(self, member: Member) -> bool:
         return self.full_workspace_access_decision(member).allowed
 
+    def member_can_maintain(
+        self,
+        *,
+        member: Member,
+        permission_code: str,
+        resource: Resource | None = None,
+        at_time=None,
+    ) -> bool:
+        """检查一项明确维护能力；不允许以角色名称或后台标志旁路。"""
+
+        if not str(permission_code).startswith("governance."):
+            return False
+        return self.member_has_permission(
+            member,
+            permission_code,
+            resource=resource,
+            at_time=at_time,
+        )
+
     def full_workspace_access_decision(self, member: Member) -> WorkspaceAccessDecision:
         backend = authorization_backend()
         if backend == "legacy":
@@ -202,42 +228,43 @@ class AuthorizationService:
             logger.warning("OpenFGA workspace access check failed: %s", exc)
             return WorkspaceAccessDecision(allowed=False, reason="authorization_unavailable")
 
-    def eligible_voters_for_role(self, role: Role, *, at_time=None):
-        if authorization_backend() == "legacy":
-            return legacy_eligible_members_for_role(role, at_time=at_time)
-        return members_from_openfga_member_ids(self._openfga_member_ids_for_role(role))
+    def member_can_vote_on_proposal(self, *, member: Member, proposal, at_time=None) -> bool:
+        """检查成员当前是否可对指定提案投票，不能只依赖创建时快照。"""
 
-    def eligible_voters_for_organization(self, role_ids: Iterable[int], *, at_time=None):
-        if authorization_backend() == "legacy":
-            return None
-        member_ids: set[int] = set()
-        for role_id in role_ids:
-            member_ids.update(self._openfga_member_ids_for_role_id(role_id))
-        return members_from_openfga_member_ids(member_ids)
+        backend = authorization_backend()
+        if backend == "legacy":
+            from .proposals.voters import member_is_currently_eligible_to_vote
 
-    def eligible_formal_members(self):
-        if authorization_backend() == "legacy":
-            return None
-        context = openfga_context_for_world_kind()
-        if not context.store_id:
-            logger.warning("%s OpenFGA store id is not configured; electorate is empty", context.world_kind)
-            return members_from_openfga_member_ids(set())
-        client = self.client or OpenFGAClient(context.api_url)
-        try:
-            member_ids = {
-                member_id
-                for member_id in (
-                    openfga_member_id_from_user(item["key"]["user"])
-                    for item in client.read_tuples(store_id=context.store_id)
-                    if item["key"]["relation"] == "formal_member"
-                    and item["key"]["object"] == context.platform_object
+            return member_is_currently_eligible_to_vote(
+                member=member,
+                electorate_policy=proposal.electorate_policy,
+                professional_domain=proposal.professional_domain,
+                at_time=at_time,
+            )
+        if backend == "openfga":
+            context = openfga_context_for_world_kind()
+            if not context.store_id or not context.authorization_model_id:
+                logger.warning("%s OpenFGA proposal-voting model is unavailable; voting denied", context.world_kind)
+                return False
+            try:
+                object_ = openfga_proposal_object(proposal)
+            except ValueError:
+                logger.warning("Unknown proposal electorate policy; voting denied")
+                return False
+            client = self.client or OpenFGAClient(context.api_url)
+            try:
+                return client.check(
+                    store_id=context.store_id,
+                    authorization_model_id=context.authorization_model_id,
+                    user=openfga_member_user(member),
+                    relation="can_vote",
+                    object_=object_,
                 )
-                if member_id is not None
-            }
-        except OpenFGARequestError as exc:
-            logger.warning("OpenFGA formal member electorate read failed: %s", exc)
-            member_ids = set()
-        return members_from_openfga_member_ids(member_ids)
+            except OpenFGARequestError as exc:
+                logger.warning("OpenFGA proposal-voting check failed: %s", exc)
+                return False
+        logger.error("Unknown authorization backend %s; proposal voting denied", backend)
+        return False
 
     def _openfga_member_has_permission(
         self,
@@ -294,69 +321,5 @@ class AuthorizationService:
             logger.warning("OpenFGA check failed: %s", exc)
             return None
 
-    def _openfga_member_ids_for_role(self, role: Role) -> set[int]:
-        return self._openfga_member_ids_for_role_id(role.pk)
-
-    def _openfga_member_ids_for_role_id(self, role_id: int) -> set[int]:
-        context = openfga_context_for_world_kind()
-        if not context.store_id:
-            logger.warning("%s OpenFGA store id is not configured; electorate is empty", context.world_kind)
-            return set()
-        client = self.client or OpenFGAClient(context.api_url)
-        role_object = openfga_role_object(role_id)
-        try:
-            return {
-                member_id
-                for member_id in (
-                    openfga_member_id_from_user(item["key"]["user"])
-                    for item in client.read_tuples(store_id=context.store_id)
-                    if item["key"]["relation"] == "assignee" and item["key"]["object"] == role_object
-                )
-                if member_id is not None
-            }
-        except OpenFGARequestError as exc:
-            logger.warning("OpenFGA role electorate read failed: %s", exc)
-            return set()
-
-
 def authorization_backend() -> str:
     return getattr(settings, "BIG_APPLE_AUTHORIZATION_BACKEND", "openfga")
-
-
-def login_capable_member_filter() -> Q:
-    user_model = get_user_model()
-    active_usernames = user_model._default_manager.filter(is_active=True).values("username")
-    return Q(user__is_active=True) | Q(member_no__in=active_usernames)
-
-
-def members_from_openfga_member_ids(member_ids: Iterable[int]):
-    return (
-        Member.objects.filter(
-            login_capable_member_filter(),
-            pk__in=set(member_ids),
-        )
-        .distinct()
-        .order_by("member_no")
-    )
-
-
-def legacy_eligible_members_for_role(role: Role, *, at_time=None):
-    from django.utils import timezone
-
-    from .permission_services import MEMBER_PERMISSION_STATUSES
-    from .models import RoleAssignment
-
-    checked_at = at_time or timezone.now()
-    return (
-        Member.objects.filter(
-            login_capable_member_filter(),
-            role_assignments__role=role,
-            role_assignments__status=RoleAssignment.Status.ACTIVE,
-            role_assignments__role__status=Role.Status.ACTIVE,
-            role_assignments__start_at__lte=checked_at,
-            role_assignments__end_at__gte=checked_at,
-            status__in=MEMBER_PERMISSION_STATUSES,
-        )
-        .distinct()
-        .order_by("member_no")
-    )

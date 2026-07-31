@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-from core.governance_setup import ensure_governance_admin_role
+from core.governance_setup import ensure_maintainer_role
 from core.member_roles import (
-    ROLE_BIG_APPLE_MEMBER,
-    ROLE_CANDIDATE,
-    ROLE_CONTRIBUTOR,
     ROLE_FORMAL_MEMBER,
-    ROLE_GOVERNANCE_MEMBER,
-    ensure_member_role,
+    ensure_catalog_role,
 )
 from core.models import Member
 
@@ -17,7 +13,7 @@ from .helpers import upsert
 
 
 def seed_members(*, now, mark) -> dict[str, Member]:
-    governance_setup = ensure_governance_admin_role()
+    maintainer_setup = ensure_maintainer_role()
     admin_member = mark(
         upsert(
             Member,
@@ -33,7 +29,7 @@ def seed_members(*, now, mark) -> dict[str, Member]:
                     "skills": {"治理": 88, "安全": 74, "电工": 68, "给排水": 65, "卫生": 64},
                 },
                 "created_at": now,
-                "metadata": {"seed": True, "note": "演示治理成员"},
+                "metadata": {"seed": True, "note": "演示维护者"},
             },
         )
     )
@@ -126,7 +122,7 @@ def seed_members(*, now, mark) -> dict[str, Member]:
             },
         )
     )
-    candidate_member = mark(
+    applicant_member = mark(
         upsert(
             Member,
             {"member_no": "candidate-0001"},
@@ -137,7 +133,7 @@ def seed_members(*, now, mark) -> dict[str, Member]:
                 "credit_floor": -100,
                 "profile": {"training": 45, "public_spirit": 61, "rule_compliance": 69},
                 "created_at": now,
-                "metadata": {"seed": True, "note": "演示预备成员"},
+                "metadata": {"seed": True, "note": "演示正式成员申请中"},
             },
         )
     )
@@ -147,39 +143,20 @@ def seed_members(*, now, mark) -> dict[str, Member]:
     def _assign(member, role_name):
         create_role_assignment(
             member=member,
-            role=ensure_member_role(ROLE_BIG_APPLE_MEMBER),
-            source_type="system",
-            skip_validation=True,
-        )
-        create_role_assignment(
-            member=member,
-            role=ensure_member_role(role_name),
+            role=ensure_catalog_role(role_name),
             source_type="system",
             skip_validation=True,
         )
 
     _assign(member_1, ROLE_FORMAL_MEMBER)
-    create_role_assignment(
-        member=member_1,
-        role=ensure_member_role(ROLE_CONTRIBUTOR),
-        source_type="system",
-    )
     for member, role_name in (
-        (member_2, ROLE_CONTRIBUTOR),
         (member_3, ROLE_FORMAL_MEMBER),
-        (candidate_member, ROLE_CANDIDATE),
     ):
         _assign(member, role_name)
-    # admin_member: order matters — FORMAL before GOVERNANCE
     _assign(admin_member, ROLE_FORMAL_MEMBER)
     create_role_assignment(
         member=admin_member,
-        role=ensure_member_role(ROLE_GOVERNANCE_MEMBER),
-        source_type="system",
-    )
-    create_role_assignment(
-        member=admin_member,
-        role=governance_setup["role"],
+        role=maintainer_setup["role"],
         source_type="system",
     )
     return {
@@ -187,5 +164,5 @@ def seed_members(*, now, mark) -> dict[str, Member]:
         "member_1": member_1,
         "member_2": member_2,
         "member_3": member_3,
-        "candidate": candidate_member,
+        "applicant": applicant_member,
     }

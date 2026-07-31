@@ -5,7 +5,7 @@ from __future__ import annotations
 from django.db.models import Q
 from django.utils import timezone
 
-from .member_roles import MEMBER_ROLE_ORGANIZATION_NAME, ROLE_FORMAL_MEMBER, member_role_filter
+from .member_roles import ROLE_FORMAL_MEMBER, member_allows_role_facts, member_has_role, member_role_filter
 from .models import Member, Resource, Role, RoleAssignment, RolePermission
 
 
@@ -14,7 +14,7 @@ GUARDED_PERMISSION_PREFIXES = ("governance.", "finance.")
 
 
 def _time_window_filter(at_time):
-    return Q(start_at__lte=at_time, end_at__gte=at_time)
+    return Q(start_at__lte=at_time, end_at__gt=at_time)
 
 
 def _role_permission_applies_to_resource(role_permission: RolePermission, resource: Resource | None) -> bool:
@@ -35,17 +35,6 @@ def permission_requires_formal_member(permission_code: str) -> bool:
     return str(permission_code).startswith(GUARDED_PERMISSION_PREFIXES)
 
 
-def _member_has_active_role(member: Member, role_name: str, checked_at) -> bool:
-    return member.role_assignments.filter(
-        status=RoleAssignment.Status.ACTIVE,
-        role__status=Role.Status.ACTIVE,
-        role__organization__name=MEMBER_ROLE_ORGANIZATION_NAME,
-        role__name=role_name,
-        start_at__lte=checked_at,
-        end_at__gte=checked_at,
-    ).exists()
-
-
 def legacy_member_has_permission(
     member: Member,
     permission_code: str,
@@ -55,12 +44,10 @@ def legacy_member_has_permission(
     """Check permissions derived from active Django role assignments."""
 
     checked_at = at_time or timezone.now()
-    if member.status not in MEMBER_PERMISSION_STATUSES:
+    if not member_allows_role_facts(member):
         return False
-    if permission_requires_formal_member(permission_code) and not _member_has_active_role(
-        member,
-        ROLE_FORMAL_MEMBER,
-        checked_at,
+    if permission_requires_formal_member(permission_code) and not member_has_role(
+        member, ROLE_FORMAL_MEMBER, checked_at=checked_at
     ):
         return False
 
@@ -100,7 +87,9 @@ def member_has_permission(
 
 def members_with_permission(permission_code: str, at_time=None):
     checked_at = at_time or timezone.now()
-    queryset = Member.objects.filter(status__in=MEMBER_PERMISSION_STATUSES)
+    queryset = Member.objects.filter(
+        status__in=MEMBER_PERMISSION_STATUSES,
+    ).filter(Q(user__isnull=True) | Q(user__is_active=True))
     if permission_requires_formal_member(permission_code):
         queryset = queryset.filter(member_role_filter(ROLE_FORMAL_MEMBER))
     return (
@@ -108,7 +97,7 @@ def members_with_permission(permission_code: str, at_time=None):
             role_assignments__status=RoleAssignment.Status.ACTIVE,
             role_assignments__role__status=Role.Status.ACTIVE,
             role_assignments__start_at__lte=checked_at,
-            role_assignments__end_at__gte=checked_at,
+            role_assignments__end_at__gt=checked_at,
             role_assignments__role__role_permissions__permission__code=permission_code,
         )
         .distinct()

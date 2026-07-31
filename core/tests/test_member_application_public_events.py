@@ -11,11 +11,11 @@ from core.application_services import (
 )
 from core.event_payloads import public_member_label
 from core.models import Event, MemberApplication, Proposal, ProposalVote
-from core.tests.helpers import create_governance_admin_member, login_as_member
+from core.tests.helpers import create_maintainer_member, login_as_member
 
 
 def _submit(governance_member, **overrides):
-    """Helper that submits and returns the application with a logged-in governance member."""
+    """使用已登录的维护者提交并返回报名记录。"""
     defaults = {
         "applicant_name": "测试公开事件报名者",
         "contact": "pub-event@example.test",
@@ -41,7 +41,7 @@ class MemberApplicationPublicEventsTests(TestCase):
     """Public Event creation for submitted / admitted / rejected stages."""
 
     def setUp(self) -> None:
-        self.governance = create_governance_admin_member("pub-event-gov")
+        self.governance = create_maintainer_member("pub-event-maintainer")
         login_as_member(self.client, self.governance)
 
     # --- desensitization -------------------------------------------------------

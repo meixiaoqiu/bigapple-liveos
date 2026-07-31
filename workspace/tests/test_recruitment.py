@@ -5,7 +5,7 @@ from django.test import TestCase
 
 from core.credential_services import ensure_builtin_credential_templates
 from core.models import CredentialGrant, CredentialTemplate, Member
-from core.tests.helpers import create_governance_admin_member, create_member, login_as_member
+from core.tests.helpers import create_maintainer_member, create_member, login_as_member
 
 
 class WorkspaceRecruitmentTests(TestCase):
@@ -16,7 +16,7 @@ class WorkspaceRecruitmentTests(TestCase):
         ensure_builtin_credential_templates()
 
     def setUp(self):
-        self.gov = create_governance_admin_member("rec-gov")
+        self.gov = create_maintainer_member("rec-maintainer")
         self.ordinary = create_member("rec-ord", display_name="普通成员")
         self.applicant = create_member("rec-app", display_name="报名测试者")
         login_as_member(self.client, self.gov)

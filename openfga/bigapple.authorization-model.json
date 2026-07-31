@@ -4,251 +4,169 @@
     {
       "type": "member",
       "relations": {},
-      "metadata": {
-        "relations": {}
-      }
+      "metadata": {"relations": {}}
     },
     {
       "type": "platform",
       "relations": {
-        "formal_member": {
-          "this": {}
-        },
-        "frozen_member": {
-          "this": {}
+        "formal_member": {"this": {}},
+        "deliberator": {"this": {}},
+        "maintainer": {"this": {}},
+        "frozen_member": {"this": {}}
+      },
+      "metadata": {
+        "relations": {
+          "formal_member": {"directly_related_user_types": [{"type": "member"}]},
+          "deliberator": {"directly_related_user_types": [{"type": "member"}]},
+          "maintainer": {"directly_related_user_types": [{"type": "member"}]},
+          "frozen_member": {"directly_related_user_types": [{"type": "member"}]}
+        }
+      }
+    },
+    {
+      "type": "professional_domain",
+      "relations": {"qualified_member": {"this": {}}},
+      "metadata": {
+        "relations": {
+          "qualified_member": {"directly_related_user_types": [{"type": "member"}]}
+        }
+      }
+    },
+    {
+      "type": "general_proposal",
+      "relations": {
+        "platform": {"this": {}},
+        "can_vote": {
+          "difference": {
+            "base": {
+              "intersection": {
+                "child": [
+                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "formal_member"}}},
+                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "deliberator"}}}
+                ]
+              }
+            },
+            "subtract": {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "frozen_member"}}}
+          }
         }
       },
       "metadata": {
         "relations": {
-          "formal_member": {
-            "directly_related_user_types": [
-              {
-                "type": "member"
+          "platform": {"directly_related_user_types": [{"type": "platform"}]}
+        }
+      }
+    },
+    {
+      "type": "professional_proposal",
+      "relations": {
+        "platform": {"this": {}},
+        "professional_domain": {"this": {}},
+        "can_vote": {
+          "difference": {
+            "base": {
+              "intersection": {
+                "child": [
+                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "formal_member"}}},
+                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "deliberator"}}},
+                  {"tupleToUserset": {"tupleset": {"relation": "professional_domain"}, "computedUserset": {"relation": "qualified_member"}}}
+                ]
               }
-            ]
-          },
-          "frozen_member": {
-            "directly_related_user_types": [
-              {
-                "type": "member"
-              }
-            ]
+            },
+            "subtract": {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "frozen_member"}}}
           }
+        }
+      },
+      "metadata": {
+        "relations": {
+          "platform": {"directly_related_user_types": [{"type": "platform"}]},
+          "professional_domain": {"directly_related_user_types": [{"type": "professional_domain"}]}
         }
       }
     },
     {
       "type": "role",
-      "relations": {
-        "assignee": {
-          "this": {}
-        }
-      },
+      "relations": {"assignee": {"this": {}}},
       "metadata": {
         "relations": {
-          "assignee": {
-            "directly_related_user_types": [
-              {
-                "type": "member"
-              }
-            ]
-          }
+          "assignee": {"directly_related_user_types": [{"type": "member"}]}
         }
       }
     },
     {
       "type": "permission",
       "relations": {
-        "role": {
-          "this": {}
-        },
-        "holder": {
-          "tupleToUserset": {
-            "tupleset": {
-              "relation": "role"
-            },
-            "computedUserset": {
-              "relation": "assignee"
-            }
-          }
-        }
+        "role": {"this": {}},
+        "holder": {"tupleToUserset": {"tupleset": {"relation": "role"}, "computedUserset": {"relation": "assignee"}}}
       },
       "metadata": {
         "relations": {
-          "role": {
-            "directly_related_user_types": [
-              {
-                "type": "role"
-              }
-            ]
-          }
+          "role": {"directly_related_user_types": [{"type": "role"}]}
         }
       }
     },
     {
       "type": "guarded_permission",
       "relations": {
-        "role": {
-          "this": {}
-        },
-        "platform": {
-          "this": {}
-        },
+        "role": {"this": {}},
+        "platform": {"this": {}},
         "holder": {
           "difference": {
             "base": {
               "intersection": {
                 "child": [
-                  {
-                    "tupleToUserset": {
-                      "tupleset": {
-                        "relation": "role"
-                      },
-                      "computedUserset": {
-                        "relation": "assignee"
-                      }
-                    }
-                  },
-                  {
-                    "tupleToUserset": {
-                      "tupleset": {
-                        "relation": "platform"
-                      },
-                      "computedUserset": {
-                        "relation": "formal_member"
-                      }
-                    }
-                  }
+                  {"tupleToUserset": {"tupleset": {"relation": "role"}, "computedUserset": {"relation": "assignee"}}},
+                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "formal_member"}}},
+                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "maintainer"}}}
                 ]
               }
             },
-            "subtract": {
-              "tupleToUserset": {
-                "tupleset": {
-                  "relation": "platform"
-                },
-                "computedUserset": {
-                  "relation": "frozen_member"
-                }
-              }
-            }
+            "subtract": {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "frozen_member"}}}
           }
         }
       },
       "metadata": {
         "relations": {
-          "role": {
-            "directly_related_user_types": [
-              {
-                "type": "role"
-              }
-            ]
-          },
-          "platform": {
-            "directly_related_user_types": [
-              {
-                "type": "platform"
-              }
-            ]
-          }
+          "role": {"directly_related_user_types": [{"type": "role"}]},
+          "platform": {"directly_related_user_types": [{"type": "platform"}]}
         }
       }
     },
     {
       "type": "resource_permission",
       "relations": {
-        "role": {
-          "this": {}
-        },
-        "holder": {
-          "tupleToUserset": {
-            "tupleset": {
-              "relation": "role"
-            },
-            "computedUserset": {
-              "relation": "assignee"
-            }
-          }
-        }
+        "role": {"this": {}},
+        "holder": {"tupleToUserset": {"tupleset": {"relation": "role"}, "computedUserset": {"relation": "assignee"}}}
       },
       "metadata": {
         "relations": {
-          "role": {
-            "directly_related_user_types": [
-              {
-                "type": "role"
-              }
-            ]
-          }
+          "role": {"directly_related_user_types": [{"type": "role"}]}
         }
       }
     },
     {
       "type": "guarded_resource_permission",
       "relations": {
-        "role": {
-          "this": {}
-        },
-        "platform": {
-          "this": {}
-        },
+        "role": {"this": {}},
+        "platform": {"this": {}},
         "holder": {
           "difference": {
             "base": {
               "intersection": {
                 "child": [
-                  {
-                    "tupleToUserset": {
-                      "tupleset": {
-                        "relation": "role"
-                      },
-                      "computedUserset": {
-                        "relation": "assignee"
-                      }
-                    }
-                  },
-                  {
-                    "tupleToUserset": {
-                      "tupleset": {
-                        "relation": "platform"
-                      },
-                      "computedUserset": {
-                        "relation": "formal_member"
-                      }
-                    }
-                  }
+                  {"tupleToUserset": {"tupleset": {"relation": "role"}, "computedUserset": {"relation": "assignee"}}},
+                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "formal_member"}}},
+                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "maintainer"}}}
                 ]
               }
             },
-            "subtract": {
-              "tupleToUserset": {
-                "tupleset": {
-                  "relation": "platform"
-                },
-                "computedUserset": {
-                  "relation": "frozen_member"
-                }
-              }
-            }
+            "subtract": {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "frozen_member"}}}
           }
         }
       },
       "metadata": {
         "relations": {
-          "role": {
-            "directly_related_user_types": [
-              {
-                "type": "role"
-              }
-            ]
-          },
-          "platform": {
-            "directly_related_user_types": [
-              {
-                "type": "platform"
-              }
-            ]
-          }
+          "role": {"directly_related_user_types": [{"type": "role"}]},
+          "platform": {"directly_related_user_types": [{"type": "platform"}]}
         }
       }
     }

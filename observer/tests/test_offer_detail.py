@@ -9,7 +9,7 @@ from core.credential_services import ensure_builtin_credential_templates
 from core.member_roles import ROLE_FORMAL_MEMBER
 from core.models import Resource, SupplierQuote
 from core.procurement_services import submit_resource_offer
-from core.tests.helpers import create_member, create_governance_admin_member, login_as_member
+from core.tests.helpers import create_maintainer_member, create_member, login_as_member
 
 FIXED_WORLD_SETTINGS = {"WORLD_ROUTER_FORCE_ID": "wt-od-test"}
 
@@ -276,7 +276,7 @@ class ChallengeUITests(TestCase):
             updated_at=now, rule_version="v1",
         )
         self.member = create_member("mem-ch-1", role_name=ROLE_FORMAL_MEMBER)
-        self.governor = create_governance_admin_member("gov-ch-1")
+        self.governor = create_maintainer_member("maintainer-ch-1")
 
     def _submit_quote(self):
         login_as_member(self.client, self.member)

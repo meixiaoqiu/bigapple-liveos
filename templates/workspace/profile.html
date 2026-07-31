@@ -56,8 +56,12 @@
         <h2 class="card-title text-base">只读信息</h2>
         <div class="text-sm space-y-2">
           <p><span class="text-base-content/60">成员编号：</span><span class="font-mono">{{ member.member_no }}</span></p>
-          <p><span class="text-base-content/60">当前角色：</span>{{ member.active_roles_display|default:"暂无角色" }}</p>
-          <p class="text-xs text-base-content/50 mt-2">治理身份来自系统角色任命，不能在这里编辑。</p>
+          <p><span class="text-base-content/60">成员资格：</span>{% if identity_display.membership %}{{ identity_display.membership.name }}{% elif identity_display.derived_status %}{{ identity_display.derived_status.name }}{% else %}暂无可用身份{% endif %}</p>
+          <p><span class="text-base-content/60">议事与维护职责：</span>{% for duty in identity_display.duties %}{{ duty.name }}{% if not forloop.last %}、{% endif %}{% empty %}当前未承担职责{% endfor %}</p>
+          {% if identity_display.professional_qualifications %}
+            <p><span class="text-base-content/60">专业资格：</span>{% for qualification in identity_display.professional_qualifications %}{{ qualification.name }}{% if not forloop.last %}、{% endif %}{% endfor %}</p>
+          {% endif %}
+          <p class="text-xs text-base-content/50 mt-2">此处仅展示当前身份事实；授权由权限服务独立判定，不能在这里编辑。</p>
         </div>
       </div>
     </section>

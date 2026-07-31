@@ -7,7 +7,6 @@ from decimal import Decimal, InvalidOperation
 from django.db.models import Sum
 
 from core.exceptions import DomainError
-from core.member_roles import ROLE_CANDIDATE, member_role_filter
 from core.models import CapacityAssessment, Member, PlanRevision, ProjectPlan, Resource
 
 
@@ -59,11 +58,7 @@ def simulation_available_people() -> int:
     latest = latest_capacity_snapshot()
     if latest:
         return latest.current_formal_members
-    return (
-        Member.objects.filter(status__in=[Member.Status.ADMITTED, Member.Status.ACTIVE])
-        .exclude(member_role_filter(ROLE_CANDIDATE))
-        .count()
-    )
+    return Member.objects.filter(status__in=[Member.Status.ADMITTED, Member.Status.ACTIVE]).count()
 
 
 def normalize_skill(skill: object) -> str:

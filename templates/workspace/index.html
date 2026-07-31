@@ -20,7 +20,14 @@
             <h1 class="text-3xl font-bold tracking-normal">成员工作台</h1>
             <div class="mt-2 flex flex-wrap gap-2">
               <span class="badge badge-primary-content badge-outline">{{ member.member_no }}</span>
-              <span class="badge badge-primary-content badge-outline">{{ member.active_roles_display|default:"暂无角色" }}</span>
+              {% if identity_display.membership %}
+                <span class="badge badge-primary-content badge-outline">{{ identity_display.membership.name }}</span>
+              {% elif identity_display.derived_status %}
+                <span class="badge badge-primary-content badge-outline">{{ identity_display.derived_status.name }}</span>
+              {% endif %}
+              {% for duty in identity_display.duties %}
+                <span class="badge badge-primary-content badge-outline">{{ duty.name }}</span>
+              {% endfor %}
               <span class="badge badge-primary-content badge-outline">模拟第 {{ simulation_day }} 天</span>
             </div>
           </div>
@@ -111,7 +118,10 @@
       <div class="stat">
         <div class="stat-title">成员状态</div>
         <div class="stat-value text-primary">{{ member.get_status_display }}</div>
-        <div class="stat-desc">{{ member.active_roles_display|default:"暂无角色" }}</div>
+        <div class="stat-desc">
+          {% if identity_display.membership %}{{ identity_display.membership.name }}{% elif identity_display.derived_status %}{{ identity_display.derived_status.name }}{% else %}暂无可用身份{% endif %}
+          {% for duty in identity_display.duties %} · {{ duty.name }}{% endfor %}
+        </div>
       </div>
       <div class="stat">
         <div class="stat-title">当前积分</div>
