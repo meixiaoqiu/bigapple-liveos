@@ -224,8 +224,8 @@ def observer_context(*, full_plan_nodes: bool = False) -> dict[str, Any]:
             .order_by("member_no")[:12]
         ),
         "simulation_event_count": Event.objects.filter(generated_by=Event.GeneratedBy.SIMULATION_ENGINE).count(),
-        "formal_members": Member.objects.filter(status=Member.Status.ADMITTED).count(),
-        "candidate_members": Member.objects.filter(status=Member.Status.PENDING_REVIEW).count(),
+        "covenanters": Member.objects.filter(status=Member.Status.ADMITTED).count(),
+        "contributors": Member.objects.filter(status=Member.Status.PENDING_REVIEW).count(),
         "total_tasks": Task.objects.count(),
         "task_completion_rate": task_completion_rate(),
         "open_disputes": open_disputes,

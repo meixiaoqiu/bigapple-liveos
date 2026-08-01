@@ -23,7 +23,7 @@ def _require_governance(request: HttpRequest) -> Member | HttpResponseForbidden:
     if isinstance(member, HttpResponseForbidden):
         return member
     if not member_can_maintain(member):
-        return page_forbidden("仅维护者可访问。")
+        return page_forbidden("仅典守者可访问。")
     return member
 
 

@@ -57,7 +57,7 @@ def simulation_available_budget() -> Decimal:
 def simulation_available_people() -> int:
     latest = latest_capacity_snapshot()
     if latest:
-        return latest.current_formal_members
+        return latest.current_covenanters
     return Member.objects.filter(status__in=[Member.Status.ADMITTED, Member.Status.ACTIVE]).count()
 
 

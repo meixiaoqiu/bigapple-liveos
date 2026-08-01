@@ -12,7 +12,7 @@ from django.test import Client, TestCase
 from django.utils import timezone
 
 from core.credit_services import ensure_system_accounts, issue_credits_to_pool, lock_task_credit_budget
-from core.member_roles import ROLE_FORMAL_MEMBER
+from core.member_roles import ROLE_COVENANTER
 from core.openfga_client import OpenFGARequestError
 from core.models import CapacityAssessment, Dispute, Event, LedgerEntry, Member, Resource, Task
 from core.tests.helpers import create_maintainer_member, create_member, login_as_member
@@ -22,7 +22,7 @@ def actor(actor_id: str = "member-admin-0001") -> dict[str, str]:
     return {
         "actor_id": actor_id,
         "actor_type": "human_member",
-        "display_name": "开荒队维护者",
+        "display_name": "开荒队典守者",
     }
 
 
@@ -36,7 +36,7 @@ class ApiWorkflowTests(TestCase):
         now = timezone.now()
         self.member = create_member(
             member_no="mem-0001",
-            role_name=ROLE_FORMAL_MEMBER,
+            role_name=ROLE_COVENANTER,
             status=Member.Status.ADMITTED,
             batch_id="batch-opening",
             joined_simulation_day=1,
@@ -87,8 +87,8 @@ class ApiWorkflowTests(TestCase):
         CapacityAssessment.objects.create(
             assessment_id="capacity-0001",
             simulation_day=7,
-            current_formal_members=100,
-            current_candidate_members=900,
+            current_covenanters=100,
+            current_contributors=900,
             maximum_admissible_members=130,
             recommended_new_members=20,
             bottlenecks=["canteen"],
@@ -183,7 +183,7 @@ class ApiWorkflowTests(TestCase):
         self.assertEqual(summary_response.status_code, 200)
         summary = summary_response.json()
         self.assertEqual(summary["simulation_day"], 7)
-        self.assertEqual(summary["formal_members"], 1)
+        self.assertEqual(summary["covenanters"], 1)
         self.assertEqual(len(summary["events"]), 1)
         self.assertNotIn("payload", summary["events"][0])
 
@@ -651,8 +651,8 @@ class CreditTransferApiTests(TestCase):
     def setUp(self):
         from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account
         ensure_system_accounts()
-        self.member_a = create_member("transfer-api-a", role_name=ROLE_FORMAL_MEMBER)
-        self.member_b = create_member("transfer-api-b", role_name=ROLE_FORMAL_MEMBER)
+        self.member_a = create_member("transfer-api-a", role_name=ROLE_COVENANTER)
+        self.member_b = create_member("transfer-api-b", role_name=ROLE_COVENANTER)
         get_or_create_member_credit_account(self.member_a)
         get_or_create_member_credit_account(self.member_b)
         # Give A some credits
@@ -764,7 +764,7 @@ class CreditTransferApiTests(TestCase):
         self.assertEqual(resp.status_code, 400)
 
     def test_governance_cannot_transfer_as_other_member(self):
-        """维护者不能通过成员转账 API 代别人转出。"""
+        """典守者不能通过成员转账 API 代别人转出。"""
         from core.tests.helpers import create_maintainer_member
         gov = create_maintainer_member("maintainer-transfer-hack")
         login_as_member(self.client, gov)
@@ -867,7 +867,7 @@ class RedemptionOrderApiTests(TestCase):
     def setUp(self):
         from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account
         ensure_system_accounts()
-        self.member = create_member("ro-api-member", role_name=ROLE_FORMAL_MEMBER)
+        self.member = create_member("ro-api-member", role_name=ROLE_COVENANTER)
         self.governor = create_maintainer_member("maintainer-ro-api")
         get_or_create_member_credit_account(self.member)
         # Give member enough credits
@@ -900,7 +900,7 @@ class RedemptionOrderApiTests(TestCase):
         self.assertEqual(credit_balance(frozen), bal_before + 30)
 
     def test_create_order_balance_zero_blocks(self):
-        zero_member = create_member("ro-api-zero", role_name=ROLE_FORMAL_MEMBER)
+        zero_member = create_member("ro-api-zero", role_name=ROLE_COVENANTER)
         from core.credit_services import get_or_create_member_credit_account
         get_or_create_member_credit_account(zero_member)
         login_as_member(self.client, zero_member)
@@ -1155,8 +1155,8 @@ class MerchantSettlementApiTests(TestCase):
         from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account
         ensure_system_accounts()
         self.governor = create_maintainer_member("maintainer-settle-api")
-        self.operator = create_member("settle-op-api", role_name=ROLE_FORMAL_MEMBER)
-        self.unrelated = create_member("settle-unrel-api", role_name=ROLE_FORMAL_MEMBER)
+        self.operator = create_member("settle-op-api", role_name=ROLE_COVENANTER)
+        self.unrelated = create_member("settle-unrel-api", role_name=ROLE_COVENANTER)
         acct = get_or_create_member_credit_account(self.operator)
         from core.credit_services import post_credit_transaction
         from core.models import CreditAccount, CreditTransaction
@@ -1227,10 +1227,10 @@ class CreditTransferPageTest(TestCase):
     def setUp(self):
         from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account, post_credit_transaction
         from core.models import CreditAccount, CreditTransaction
-        from core.member_roles import ROLE_FORMAL_MEMBER
+        from core.member_roles import ROLE_COVENANTER
         ensure_system_accounts()
-        self.member_a = create_member("transfer-page-a", role_name=ROLE_FORMAL_MEMBER)
-        self.member_b = create_member("transfer-page-b", role_name=ROLE_FORMAL_MEMBER)
+        self.member_a = create_member("transfer-page-a", role_name=ROLE_COVENANTER)
+        self.member_b = create_member("transfer-page-b", role_name=ROLE_COVENANTER)
         acct = get_or_create_member_credit_account(self.member_a)
         get_or_create_member_credit_account(self.member_b)
         post_credit_transaction(
@@ -1291,9 +1291,9 @@ class RedemptionOrderPageTest(TestCase):
     def setUp(self):
         from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account, post_credit_transaction
         from core.models import CreditAccount, CreditTransaction
-        from core.member_roles import ROLE_FORMAL_MEMBER
+        from core.member_roles import ROLE_COVENANTER
         ensure_system_accounts()
-        self.member = create_member("redemption-page-m", role_name=ROLE_FORMAL_MEMBER)
+        self.member = create_member("redemption-page-m", role_name=ROLE_COVENANTER)
         acct = get_or_create_member_credit_account(self.member)
         post_credit_transaction(
             transaction_type=CreditTransaction.Type.ISSUANCE, amount=200, target_account=acct,
@@ -1373,7 +1373,7 @@ class RedemptionOrderPageTest(TestCase):
         self.assertEqual(resp.status_code, 403)
 
     def test_workspace_page_shows_credit_stats(self):
-        """Workspace index shows current/available/lifetime credit stats for formal member."""
+        """Workspace index shows current/available/lifetime credit stats for covenanter."""
         login_as_member(self.client, self.member)
         resp = self.client.get("/workspace/")
         self.assertEqual(resp.status_code, 200)
@@ -1397,7 +1397,7 @@ class RedemptionOrderPageTest(TestCase):
         self.assertContains(resp, "商户结算")
 
     def test_regular_member_does_not_see_review_link(self):
-        """Regular formal member does NOT see 兑换履约 nav entry."""
+        """Regular covenanter does NOT see 兑换履约 nav entry."""
         login_as_member(self.client, self.member)
         resp = self.client.get("/workspace/")
         self.assertNotContains(resp, "兑换履约")
@@ -1410,10 +1410,10 @@ class GovernanceReviewPageTests(TestCase):
         from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account, post_credit_transaction
         from core.models import CreditAccount, CreditTransaction
         from core.tests.helpers import create_maintainer_member
-        from core.member_roles import ROLE_FORMAL_MEMBER
+        from core.member_roles import ROLE_COVENANTER
         ensure_system_accounts()
         self.gov = create_maintainer_member("review-maintainer-page")
-        self.member = create_member("review-normal", role_name=ROLE_FORMAL_MEMBER)
+        self.member = create_member("review-normal", role_name=ROLE_COVENANTER)
         acct = get_or_create_member_credit_account(self.member)
         get_or_create_member_credit_account(self.gov)
         post_credit_transaction(
@@ -1467,11 +1467,11 @@ class MerchantSettlementsPageTests(TestCase):
         from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account, post_credit_transaction, create_redemption_order as _cro, fulfill_redemption_order
         from core.models import CreditAccount, CreditTransaction, MerchantProfile
         from core.tests.helpers import create_maintainer_member
-        from core.member_roles import ROLE_FORMAL_MEMBER
+        from core.member_roles import ROLE_COVENANTER
         ensure_system_accounts()
         self.gov = create_maintainer_member("settle-maintainer-page")
-        self.operator = create_member("settle-op-page", role_name=ROLE_FORMAL_MEMBER)
-        self.unrelated = create_member("settle-urel-page", role_name=ROLE_FORMAL_MEMBER)
+        self.operator = create_member("settle-op-page", role_name=ROLE_COVENANTER)
+        self.unrelated = create_member("settle-urel-page", role_name=ROLE_COVENANTER)
         op_acct = get_or_create_member_credit_account(self.operator)
         get_or_create_member_credit_account(self.gov)
         get_or_create_member_credit_account(self.unrelated)
@@ -1519,8 +1519,8 @@ class MerchantSettlementsPageTests(TestCase):
     def test_operator_with_no_settlements_gets_200_empty(self):
         """Operator with a merchant but zero settlement records gets 200 + empty list."""
         from core.models import MerchantProfile
-        from core.member_roles import ROLE_FORMAL_MEMBER
-        new_op = create_member("settle-empty-op", role_name=ROLE_FORMAL_MEMBER)
+        from core.member_roles import ROLE_COVENANTER
+        new_op = create_member("settle-empty-op", role_name=ROLE_COVENANTER)
         from core.credit_services import get_or_create_member_credit_account
         get_or_create_member_credit_account(new_op)
         MerchantProfile.objects.create(
@@ -1537,8 +1537,8 @@ class MerchantSettlementsPageTests(TestCase):
     def test_operator_cannot_see_other_merchant_filter(self):
         """Operator cannot use ?merchant_id= to see another merchant's settlements."""
         from core.models import MerchantProfile
-        from core.member_roles import ROLE_FORMAL_MEMBER
-        other_op = create_member("settle-other-op", role_name=ROLE_FORMAL_MEMBER)
+        from core.member_roles import ROLE_COVENANTER
+        other_op = create_member("settle-other-op", role_name=ROLE_COVENANTER)
         from core.credit_services import get_or_create_member_credit_account
         get_or_create_member_credit_account(other_op)
         other_merchant = MerchantProfile.objects.create(
@@ -1564,9 +1564,9 @@ class MerchantSettlementsPageTests(TestCase):
         self.assertEqual(len(resp.context.get("settlements", [])), 0)
 
     def test_regular_member_cannot_access_settlements(self):
-        """Regular formal member (not operator, not governance) gets 403."""
-        from core.member_roles import ROLE_FORMAL_MEMBER
-        reg = create_member("settle-regular", role_name=ROLE_FORMAL_MEMBER)
+        """Regular covenanter (not operator, not governance) gets 403."""
+        from core.member_roles import ROLE_COVENANTER
+        reg = create_member("settle-regular", role_name=ROLE_COVENANTER)
         from core.credit_services import get_or_create_member_credit_account
         get_or_create_member_credit_account(reg)
         login_as_member(self.client, reg)
@@ -1575,8 +1575,8 @@ class MerchantSettlementsPageTests(TestCase):
 
     def test_regular_member_cannot_access_review_page(self):
         """Regular member cannot access fulfillment page."""
-        from core.member_roles import ROLE_FORMAL_MEMBER
-        reg = create_member("review-regular", role_name=ROLE_FORMAL_MEMBER)
+        from core.member_roles import ROLE_COVENANTER
+        reg = create_member("review-regular", role_name=ROLE_COVENANTER)
         from core.credit_services import get_or_create_member_credit_account
         get_or_create_member_credit_account(reg)
         login_as_member(self.client, reg)
@@ -1590,9 +1590,9 @@ class RedemptionMerchantUITests(TestCase):
     def setUp(self):
         from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account, post_credit_transaction
         from core.models import CreditAccount, CreditTransaction, MerchantProfile
-        from core.member_roles import ROLE_FORMAL_MEMBER
+        from core.member_roles import ROLE_COVENANTER
         ensure_system_accounts()
-        self.member = create_member("redo-merchant", role_name=ROLE_FORMAL_MEMBER)
+        self.member = create_member("redo-merchant", role_name=ROLE_COVENANTER)
         acct = get_or_create_member_credit_account(self.member)
         post_credit_transaction(
             transaction_type=CreditTransaction.Type.ISSUANCE, amount=200, target_account=acct,
@@ -1696,10 +1696,10 @@ class CreditBudgetsPageTests(TestCase):
         from core.credit_services import ensure_system_accounts, issue_credits_to_pool, get_or_create_member_credit_account, post_credit_transaction
         from core.models import CreditAccount, CreditTransaction
         from core.tests.helpers import create_maintainer_member
-        from core.member_roles import ROLE_FORMAL_MEMBER
+        from core.member_roles import ROLE_COVENANTER
         ensure_system_accounts()
         self.gov = create_maintainer_member("budget-maintainer-page")
-        self.normal = create_member("budget-normal", role_name=ROLE_FORMAL_MEMBER)
+        self.normal = create_member("budget-normal", role_name=ROLE_COVENANTER)
         get_or_create_member_credit_account(self.gov)
         get_or_create_member_credit_account(self.normal)
         # Give pool some initial credits for lock/unlock tests
@@ -1865,11 +1865,11 @@ class TaskManagePageTests(TestCase):
         from core.credit_services import ensure_system_accounts, issue_credits_to_pool, get_or_create_member_credit_account, post_credit_transaction
         from core.models import CreditAccount, CreditTransaction
         from core.tests.helpers import create_maintainer_member
-        from core.member_roles import ROLE_FORMAL_MEMBER
+        from core.member_roles import ROLE_COVENANTER
         from django.utils import timezone
         ensure_system_accounts()
         self.gov = create_maintainer_member("task-mgmt-maintainer")
-        self.normal = create_member("task-mgmt-normal", role_name=ROLE_FORMAL_MEMBER)
+        self.normal = create_member("task-mgmt-normal", role_name=ROLE_COVENANTER)
         get_or_create_member_credit_account(self.gov)
         get_or_create_member_credit_account(self.normal)
         # Give pool some credits for publish-with-budget tests
@@ -2044,15 +2044,15 @@ class TaskReviewPageTests(TestCase):
         from core.credit_services import ensure_system_accounts, lock_task_credit_budget, get_or_create_member_credit_account, post_credit_transaction, issue_credits_to_pool
         from core.models import CreditAccount, CreditTransaction
         from core.tests.helpers import create_maintainer_member
-        from core.member_roles import ROLE_FORMAL_MEMBER
+        from core.member_roles import ROLE_COVENANTER
         from core.tasks.member_workflow import claim_task, submit_labor
         from core.tasks.authoring import create_task_draft, publish_task
         from decimal import Decimal
         from django.utils import timezone
         ensure_system_accounts()
         self.gov = create_maintainer_member("task-review-maintainer")
-        self.worker = create_member("task-review-worker", role_name=ROLE_FORMAL_MEMBER)
-        self.normal = create_member("task-review-normal", role_name=ROLE_FORMAL_MEMBER)
+        self.worker = create_member("task-review-worker", role_name=ROLE_COVENANTER)
+        self.normal = create_member("task-review-normal", role_name=ROLE_COVENANTER)
         get_or_create_member_credit_account(self.gov)
         get_or_create_member_credit_account(self.worker)
         get_or_create_member_credit_account(self.normal)
@@ -2223,8 +2223,8 @@ class TaskReviewPageTests(TestCase):
         self.assertContains(resp, "/tasks/review/")
 
     def test_workspace_nav_hides_review_url_for_normal(self):
-        from core.member_roles import ROLE_FORMAL_MEMBER
-        reg = create_member("task-review-regular-nav3", role_name=ROLE_FORMAL_MEMBER)
+        from core.member_roles import ROLE_COVENANTER
+        reg = create_member("task-review-regular-nav3", role_name=ROLE_COVENANTER)
         login_as_member(self.client, reg)
         resp = self.client.get("/workspace/")
         self.assertNotContains(resp, "/tasks/review/")

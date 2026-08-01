@@ -1,4 +1,4 @@
-"""Formal risk-alert system: rules, alerts, and lifecycle events."""
+"""正式风险告警系统：规则、告警与生命周期事件。"""
 
 from django.db import models
 from django.utils import timezone

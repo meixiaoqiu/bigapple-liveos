@@ -23,10 +23,10 @@ class CredentialRecruitmentTests(TestCase):
         opts = recruitment_credential_options()
         self.assertGreater(len(opts), 0)
 
-    def test_formal_member_number_not_in_recruitment(self):
+    def test_covenanter_number_not_in_recruitment(self):
         opts = recruitment_credential_options()
         codes = [o["code"] for o in opts]
-        self.assertNotIn("formal_member_number", codes)
+        self.assertNotIn("covenanter_number", codes)
 
     def test_recruitment_option_has_current_and_missing_counts(self):
         opt = recruitment_option_for_code("medical_support")

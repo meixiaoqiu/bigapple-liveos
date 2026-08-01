@@ -1,8 +1,8 @@
 {% extends "applications/base.html" %}
 
 {% block title %}成员报名 · 大苹果{% endblock %}
-{% block heading %}正式成员报名{% endblock %}
-{% block subtitle %}这里是正式成员报名入口，报名后将进入治理表决流程。{% endblock %}
+{% block heading %}守约者报名{% endblock %}
+{% block subtitle %}这里是守约者报名入口，报名后将进入治理表决流程。{% endblock %}
 
 {% block content %}
   <form class="grid gap-6" method="post" data-draft-key="member_application_draft" data-step-form>
@@ -61,7 +61,7 @@
         {% endfor %}
       </div>
       <div class="alert alert-info text-sm mt-3">
-        <span>申请通过只代表成为正式成员；具体资格/职责后续通过治理授权或凭证发放处理，不会自动授予所选方向凭证或角色。</span>
+        <span>申请通过只代表成为守约者；具体资格/职责后续通过治理授权或凭证发放处理，不会自动授予所选方向凭证或角色。</span>
       </div>
       {% for error in form.role_gap.errors %}
         <div class="label"><span class="label-text-alt text-error">{{ error }}</span></div>

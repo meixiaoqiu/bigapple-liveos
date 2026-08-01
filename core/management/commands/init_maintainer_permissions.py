@@ -1,4 +1,4 @@
-"""初始化维护者的基础权限与角色。"""
+"""初始化典守者的基础权限与角色。"""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from worlds.command_context import command_world_context, command_world_label
 
 
 class Command(BaseCommand):
-    help = "创建维护者的基础权限、角色和角色权限绑定。"
+    help = "创建典守者的基础权限、角色和角色权限绑定。"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -25,7 +25,7 @@ class Command(BaseCommand):
 
             self.stdout.write(
                 self.style.SUCCESS(
-                    "已初始化维护者权限："
+                    "已初始化典守者权限："
                     f"world_id={command_world_label(world)}, "
                     f"permissions_created={result['permissions_created']}, "
                     f"role_created={result['role_created']}, "

@@ -8,7 +8,7 @@ from unittest.mock import patch
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from core.member_roles import ROLE_FORMAL_MEMBER
+from core.member_roles import ROLE_COVENANTER
 from core.models import Member, Resource, ResourceTransaction
 from core.openfga_client import OpenFGARequestError
 from core.tests.helpers import create_maintainer_member, create_member, login_as_member
@@ -31,7 +31,7 @@ class InventoryPermissionTests(TestCase):
         now = timezone.now()
         self.member = create_member(
             "mem-inv-001",
-            role_name=ROLE_FORMAL_MEMBER,
+            role_name=ROLE_COVENANTER,
             status=Member.Status.ADMITTED,
             batch_id="batch-op",
             joined_simulation_day=1,

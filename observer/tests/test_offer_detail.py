@@ -6,7 +6,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from core.credential_services import ensure_builtin_credential_templates
-from core.member_roles import ROLE_FORMAL_MEMBER
+from core.member_roles import ROLE_COVENANTER
 from core.models import Resource, SupplierQuote
 from core.procurement_services import submit_resource_offer
 from core.tests.helpers import create_maintainer_member, create_member, login_as_member
@@ -32,7 +32,7 @@ class OfferDetailPageTests(TestCase):
             updated_at=now,
             rule_version="v1",
         )
-        self.member = create_member("mem-od-1", role_name=ROLE_FORMAL_MEMBER)
+        self.member = create_member("mem-od-1", role_name=ROLE_COVENANTER)
 
     def test_anonymous_can_view_offer_detail(self):
         login_as_member(self.client, self.member)
@@ -141,7 +141,7 @@ class AntiSpamTests(TestCase):
             updated_at=now,
             rule_version="v1",
         )
-        self.member = create_member("mem-as-1", role_name=ROLE_FORMAL_MEMBER)
+        self.member = create_member("mem-as-1", role_name=ROLE_COVENANTER)
         login_as_member(self.client, self.member)
 
     def _submit(self, resource_id="res-as-1"):
@@ -178,7 +178,7 @@ class AntiSpamTests(TestCase):
     def test_different_member_no_limit(self):
         for _ in range(5):
             self._submit()
-        member2 = create_member("mem-as-2", role_name=ROLE_FORMAL_MEMBER)
+        member2 = create_member("mem-as-2", role_name=ROLE_COVENANTER)
         login_as_member(self.client, member2)
         resp = self._submit()
         self.assertEqual(resp.status_code, 200)
@@ -209,7 +209,7 @@ class DonationVisibilityTests(TestCase):
             loss_rate=Decimal("0"), replenishment_method=Resource.ReplenishmentMethod.PURCHASE,
             updated_at=now, rule_version="v1",
         )
-        self.member = create_member("mem-dv-1", role_name=ROLE_FORMAL_MEMBER)
+        self.member = create_member("mem-dv-1", role_name=ROLE_COVENANTER)
 
     def test_quote_anonymous_rejected(self):
         login_as_member(self.client, self.member)
@@ -239,7 +239,7 @@ class DonationVisibilityTests(TestCase):
             "public_visibility": "anonymous",
         })
         # View as a different member to avoid nav-bar self-identification
-        viewer = create_member("mem-dv-2", role_name=ROLE_FORMAL_MEMBER)
+        viewer = create_member("mem-dv-2", role_name=ROLE_COVENANTER)
         login_as_member(self.client, viewer)
         resp = self.client.get("/resources/res-dv-1/offers/")
         self.assertEqual(resp.status_code, 200)
@@ -252,7 +252,7 @@ class DonationVisibilityTests(TestCase):
             "offer_type": "donation", "available_quantity": "5", "unit_price": "0",
             "public_visibility": "anonymous", "public_display_name": "热心市民",
         })
-        viewer = create_member("mem-dv-3", role_name=ROLE_FORMAL_MEMBER)
+        viewer = create_member("mem-dv-3", role_name=ROLE_COVENANTER)
         login_as_member(self.client, viewer)
         resp = self.client.get("/resources/res-dv-1/offers/")
         self.assertEqual(resp.status_code, 200)
@@ -275,7 +275,7 @@ class ChallengeUITests(TestCase):
             loss_rate=Decimal("0"), replenishment_method=Resource.ReplenishmentMethod.PURCHASE,
             updated_at=now, rule_version="v1",
         )
-        self.member = create_member("mem-ch-1", role_name=ROLE_FORMAL_MEMBER)
+        self.member = create_member("mem-ch-1", role_name=ROLE_COVENANTER)
         self.governor = create_maintainer_member("maintainer-ch-1")
 
     def _submit_quote(self):
@@ -296,14 +296,14 @@ class ChallengeUITests(TestCase):
 
     def test_member_can_get_challenge_form(self):
         quote = self._submit_quote()
-        login_as_member(self.client, create_member("mem-ch-2", role_name=ROLE_FORMAL_MEMBER))
+        login_as_member(self.client, create_member("mem-ch-2", role_name=ROLE_COVENANTER))
         resp = self.client.get(f"/resources/res-ch-ui-1/offers/{quote.quote_id}/challenges/new/")
         self.assertEqual(resp.status_code, 200)
 
     def test_member_can_submit_question_challenge(self):
         from core.models import ProcurementChallenge
         quote = self._submit_quote()
-        login_as_member(self.client, create_member("mem-ch-3", role_name=ROLE_FORMAL_MEMBER))
+        login_as_member(self.client, create_member("mem-ch-3", role_name=ROLE_COVENANTER))
         cb = ProcurementChallenge.objects.count()
         resp = self.client.post(
             f"/resources/res-ch-ui-1/offers/{quote.quote_id}/challenges/new/",
@@ -315,7 +315,7 @@ class ChallengeUITests(TestCase):
 
     def test_lower_price_must_be_less(self):
         quote = self._submit_quote()
-        login_as_member(self.client, create_member("mem-ch-4", role_name=ROLE_FORMAL_MEMBER))
+        login_as_member(self.client, create_member("mem-ch-4", role_name=ROLE_COVENANTER))
         resp = self.client.post(
             f"/resources/res-ch-ui-1/offers/{quote.quote_id}/challenges/new/",
             {"challenge_type": "lower_price", "public_reason": "too high",
@@ -325,7 +325,7 @@ class ChallengeUITests(TestCase):
 
     def test_detail_page_shows_challenges(self):
         quote = self._submit_quote()
-        login_as_member(self.client, create_member("mem-ch-5", role_name=ROLE_FORMAL_MEMBER))
+        login_as_member(self.client, create_member("mem-ch-5", role_name=ROLE_COVENANTER))
         self.client.post(
             f"/resources/res-ch-ui-1/offers/{quote.quote_id}/challenges/new/",
             {"challenge_type": "question", "public_reason": "test challenge"},
@@ -336,7 +336,7 @@ class ChallengeUITests(TestCase):
 
     def test_detail_page_no_metadata_leak(self):
         quote = self._submit_quote()
-        login_as_member(self.client, create_member("mem-ch-6", role_name=ROLE_FORMAL_MEMBER))
+        login_as_member(self.client, create_member("mem-ch-6", role_name=ROLE_COVENANTER))
         self.client.post(
             f"/resources/res-ch-ui-1/offers/{quote.quote_id}/challenges/new/",
             {"challenge_type": "question", "public_reason": "ok"},

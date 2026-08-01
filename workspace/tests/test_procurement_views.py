@@ -8,7 +8,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from core.credential_services import ensure_builtin_credential_templates
-from core.member_roles import ROLE_FORMAL_MEMBER
+from core.member_roles import ROLE_COVENANTER
 from core.models import (
     ApprovalProposal,
     CredentialGrant,
@@ -53,8 +53,8 @@ class WorkspaceProcurementTests(TestCase):
         self.governor = create_maintainer_member("maintainer-proc-1")
         login_as_member(self.client, self.governor)
 
-        self.supplier = create_member("sup-proc-1", role_name=ROLE_FORMAL_MEMBER)
-        self.regular = create_member("reg-proc-1", role_name=ROLE_FORMAL_MEMBER)
+        self.supplier = create_member("sup-proc-1", role_name=ROLE_COVENANTER)
+        self.regular = create_member("reg-proc-1", role_name=ROLE_COVENANTER)
 
     def _submit_quote(
         self,

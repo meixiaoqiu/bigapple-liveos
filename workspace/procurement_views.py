@@ -47,7 +47,7 @@ def procurement_list(request: HttpRequest) -> HttpResponse:
     if isinstance(member, HttpResponseForbidden):
         return member
     if _governance_or_finance_or_forbidden(member):
-        return page_forbidden("仅维护者或财务职责成员可访问。")
+        return page_forbidden("仅典守者或财务职责成员可访问。")
 
     quotes = list(
         SupplierQuote.objects.select_related("resource", "submitted_by")
@@ -89,7 +89,7 @@ def procurement_create_proposal(request: HttpRequest, quote_id: str) -> HttpResp
     if isinstance(member, HttpResponseForbidden):
         return member
     if _governance_or_finance_or_forbidden(member):
-        return page_forbidden("仅维护者或财务职责成员可访问。")
+        return page_forbidden("仅典守者或财务职责成员可访问。")
 
     quote = get_object_or_404(SupplierQuote, quote_id=quote_id)
     try:
@@ -119,7 +119,7 @@ def procurement_receipt(request: HttpRequest, quote_id: str) -> HttpResponse:
     if isinstance(member, HttpResponseForbidden):
         return member
     if _governance_or_finance_or_forbidden(member):
-        return page_forbidden("仅维护者或财务职责成员可访问。")
+        return page_forbidden("仅典守者或财务职责成员可访问。")
 
     quote = get_object_or_404(SupplierQuote, quote_id=quote_id)
     receipt_status = request.POST.get("receipt_status", "").strip()
@@ -144,7 +144,7 @@ def procurement_complete(request: HttpRequest, quote_id: str) -> HttpResponse:
     if isinstance(member, HttpResponseForbidden):
         return member
     if _governance_or_finance_or_forbidden(member):
-        return page_forbidden("仅维护者或财务职责成员可访问。")
+        return page_forbidden("仅典守者或财务职责成员可访问。")
 
     quote = get_object_or_404(SupplierQuote, quote_id=quote_id)
     try:
@@ -162,7 +162,7 @@ def procurement_challenge_list(request):
     if isinstance(member, HttpResponseForbidden):
         return member
     if _governance_or_finance_or_forbidden(member):
-        return page_forbidden("仅维护者或财务职责成员可访问。")
+        return page_forbidden("仅典守者或财务职责成员可访问。")
     challenges = list(ProcurementChallenge.objects.filter(status=ProcurementChallenge.Status.SUBMITTED).select_related('quote__resource','submitted_by').order_by('-created_at'))
     from core.access import member_can_maintain
     return render(request, 'workspace/procurement_challenge_list.html', {'member':member,'challenges':challenges,'is_governance':member_can_maintain(member)})
@@ -173,7 +173,7 @@ def procurement_challenge_review(request, challenge_id):
     if isinstance(member, HttpResponseForbidden):
         return member
     if _governance_or_finance_or_forbidden(member):
-        return page_forbidden("仅维护者或财务职责成员可访问。")
+        return page_forbidden("仅典守者或财务职责成员可访问。")
     from core.procurement_challenge_services import review_procurement_challenge
     ch = get_object_or_404(ProcurementChallenge, challenge_id=challenge_id)
     action = request.POST.get('action','').strip()

@@ -9,10 +9,10 @@ from core.credential_services import (
     _issue_credential_unlocked,
     credentials_for_member,
     ensure_builtin_credential_templates,
-    issue_formal_member_number,
+    issue_covenanter_number,
 )
 from core.models import CredentialTemplate, Member, MemberPublicProfile, Permission, Role, RolePermission, RoleAssignment
-from core.tests.helpers import create_member
+from core.tests.helpers import create_member, electorate_rule_fields
 
 
 class MemberProfileTests(TestCase):
@@ -34,7 +34,7 @@ class MemberProfileTests(TestCase):
         self.assertContains(response, "王梓尧")
         self.assertContains(response, "https://example.com/a.png")
         self.assertContains(response, "@test-profile-01")
-        self.assertNotContains(response, "观察者")
+        self.assertNotContains(response, "观察" + "者")
 
     def test_old_members_path_returns_404(self):
         self._create_member("test-oldpath", "旧路径")
@@ -82,47 +82,47 @@ class MemberProfileTests(TestCase):
     # identity badges
 
     def test_member_profile_shows_identity_badges(self):
-        from core.member_roles import ROLE_FORMAL_MEMBER
-        member = create_member("badge-test-01", display_name="徽章人", role_name=ROLE_FORMAL_MEMBER)
+        from core.member_roles import ROLE_COVENANTER
+        member = create_member("badge-test-01", display_name="徽章人", role_name=ROLE_COVENANTER)
         response = self.client.get("/u/badge-test-01/")
-        self.assertContains(response, "正式成员")
+        self.assertContains(response, "守约者")
 
-    def test_regular_member_does_not_show_fake_formal_number(self):
+    def test_regular_member_does_not_show_fake_covenanter_number(self):
         member = self._create_member("reg-only", "普通注册者")
         response = self.client.get("/u/reg-only/")
         self.assertContains(response, "贡献者")
-        self.assertNotContains(response, "正式成员 #")
+        self.assertNotContains(response, "守约者 #")
 
     # governance roles with Chinese labels
 
     def test_member_profile_shows_catalog_deliberator_label(self):
-        from core.member_roles import ROLE_DELIBERATOR, ROLE_FORMAL_MEMBER, ensure_catalog_role
+        from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ensure_catalog_role
         from core.role_assignment_services import create_role_assignment
 
-        member = self._create_member("test-deliberator-zh", "议事者")
-        create_role_assignment(member=member, role=ensure_catalog_role(ROLE_FORMAL_MEMBER))
+        member = self._create_member("test-deliberator-zh", "执衡者")
+        create_role_assignment(member=member, role=ensure_catalog_role(ROLE_COVENANTER))
         create_role_assignment(member=member, role=ensure_catalog_role(ROLE_DELIBERATOR))
         response = self.client.get("/u/test-deliberator-zh/")
-        self.assertContains(response, "正式成员")
-        self.assertContains(response, "议事者")
+        self.assertContains(response, "守约者")
+        self.assertContains(response, "执衡者")
 
     # credentials
 
-    def test_member_profile_shows_formal_member_number_credential(self):
-        from core.member_roles import ROLE_FORMAL_MEMBER
+    def test_member_profile_shows_covenanter_number_credential(self):
+        from core.member_roles import ROLE_COVENANTER
         ensure_builtin_credential_templates()
-        member = create_member("cred-obs-01", display_name="凭证成员", role_name=ROLE_FORMAL_MEMBER)
-        issue_formal_member_number(member)
+        member = create_member("cred-obs-01", display_name="凭证成员", role_name=ROLE_COVENANTER)
+        issue_covenanter_number(member)
         response = self.client.get("/u/cred-obs-01/")
-        self.assertContains(response, "正式成员编号")
+        self.assertContains(response, "守约者编号")
         self.assertContains(response, "#1")
-        self.assertContains(response, "正式成员 #1")
+        self.assertContains(response, "守约者 #1")
 
     def test_member_profile_does_not_leak_internal_pks(self):
-        from core.member_roles import ROLE_FORMAL_MEMBER
+        from core.member_roles import ROLE_COVENANTER
         ensure_builtin_credential_templates()
-        member = create_member("cred-obs-safe", display_name="安全成员", role_name=ROLE_FORMAL_MEMBER)
-        issue_formal_member_number(member)
+        member = create_member("cred-obs-safe", display_name="安全成员", role_name=ROLE_COVENANTER)
+        issue_covenanter_number(member)
         response = self.client.get("/u/cred-obs-safe/")
         content = response.content.decode().lower()
         self.assertNotIn("credential-grant-", content)
@@ -132,10 +132,10 @@ class MemberProfileTests(TestCase):
         self.assertNotIn("member_id", content)
 
     def test_multiple_credentials_sorted_stable(self):
-        from core.member_roles import ROLE_FORMAL_MEMBER
+        from core.member_roles import ROLE_COVENANTER
         ensure_builtin_credential_templates()
-        member = create_member("cred-obs-sort", role_name=ROLE_FORMAL_MEMBER)
-        issue_formal_member_number(member)
+        member = create_member("cred-obs-sort", role_name=ROLE_COVENANTER)
+        issue_covenanter_number(member)
         badge_template = CredentialTemplate.objects.create(
             template_id="credential-template-test-badge",
             code="test_badge",
@@ -152,7 +152,7 @@ class MemberProfileTests(TestCase):
         )
         creds = credentials_for_member(member)
         self.assertGreaterEqual(len(creds), 2)
-        self.assertEqual(creds[0]["template_code"], "formal_member_number")
+        self.assertEqual(creds[0]["template_code"], "covenanter_number")
         self.assertEqual(creds[-1]["template_code"], "test_badge")
 
     # recent governance activity
@@ -189,7 +189,7 @@ class MemberProfileTests(TestCase):
             "subject": {"type": "proposal_vote", "ref": "proposal:0001", "label": "准入提案"},
             "action": "vote",
             "stage": "voting",
-            "summary": "议事者对提案 0001 投了反对票。",
+            "summary": "执衡者对提案 0001 投了反对票。",
             "public_facts": {
                 "proposal_no": "0001",
                 "vote_choice_label": "反对",
@@ -266,7 +266,7 @@ class MemberProfileTests(TestCase):
         role = Role.objects.create(name="TestRole", organization=org, status=Role.Status.ACTIVE)
         proposal = Proposal.objects.create(
             title="Test", proposal_type=Proposal.ProposalType.MEMBER_ADMISSION,
-            electorate_policy=Proposal.ElectoratePolicy.GENERAL_DELIBERATION,
+            **electorate_rule_fields(Proposal.ProposalType.MEMBER_ADMISSION),
             status=Proposal.Status.VOTING, pass_ratio=50,
             start_at=timezone.now(), deadline_at=timezone.now() + timezone.timedelta(days=7),
             eligible_voters_snapshot_json=[str(member.pk)],
@@ -284,10 +284,10 @@ class MemberProfileTests(TestCase):
         self.assertNotIn("bio", flat)
 
     def test_page_does_not_contain_sensitive_fields(self):
-        from core.member_roles import ROLE_FORMAL_MEMBER
+        from core.member_roles import ROLE_COVENANTER
         ensure_builtin_credential_templates()
-        member = create_member("sensitive-test", display_name="敏感测试", role_name=ROLE_FORMAL_MEMBER)
-        issue_formal_member_number(member)
+        member = create_member("sensitive-test", display_name="敏感测试", role_name=ROLE_COVENANTER)
+        issue_covenanter_number(member)
         response = self.client.get("/u/sensitive-test/")
         content = response.content.decode()
         self.assertNotIn("contact", content.lower())
@@ -299,23 +299,23 @@ class MemberProfileTests(TestCase):
     # passive events: credential / role granted to member
 
     def test_credential_grant_appears_in_recent_actions(self):
-        """成员获得正式成员编号后，治理记录包含"凭证发放"和正式编号。"""
+        """成员获得守约者编号后，治理记录包含"凭证发放"和正式编号。"""
         from core.event_ledger import PUBLIC_LEDGER_SCHEMA, append_event
         from core.models import SystemEvent, CredentialGrant
-        from core.member_roles import ROLE_FORMAL_MEMBER
+        from core.member_roles import ROLE_COVENANTER
 
         ensure_builtin_credential_templates()
-        member = create_member("passive-cred", display_name="被动凭证", role_name=ROLE_FORMAL_MEMBER)
-        grant = issue_formal_member_number(member)
+        member = create_member("passive-cred", display_name="被动凭证", role_name=ROLE_COVENANTER)
+        grant = issue_covenanter_number(member)
 
         payload = {
             "schema": PUBLIC_LEDGER_SCHEMA,
             "subject": {"type": "CredentialGrant", "ref": str(grant.grant_id), "label": "凭证发放"},
             "action": "granted",
             "stage": "granted",
-            "summary": "发放正式成员编号 #1。",
+            "summary": "发放守约者编号 #1。",
             "public_facts": {
-                "template_name": "正式成员编号",
+                "template_name": "守约者编号",
                 "display_no": "#1",
             },
             "private_commitments": [
@@ -333,7 +333,7 @@ class MemberProfileTests(TestCase):
         )
         response = self.client.get("/u/passive-cred/")
         self.assertContains(response, "凭证发放")
-        self.assertContains(response, "正式成员编号 #1")
+        self.assertContains(response, "守约者编号 #1")
 
     def test_role_assignment_appears_in_recent_actions(self):
         """成员被授予角色后，治理记录包含"角色任命"和角色名。"""
@@ -379,18 +379,18 @@ class MemberProfileTests(TestCase):
         """治理记录不泄露 credential-grant-、role_assignment_id、grant_id、aggregate_id。"""
         from core.event_ledger import PUBLIC_LEDGER_SCHEMA, append_event
         from core.models import SystemEvent
-        from core.member_roles import ROLE_FORMAL_MEMBER
+        from core.member_roles import ROLE_COVENANTER
 
         ensure_builtin_credential_templates()
-        member = create_member("safe-actor", display_name="安全行动", role_name=ROLE_FORMAL_MEMBER)
-        grant = issue_formal_member_number(member)
+        member = create_member("safe-actor", display_name="安全行动", role_name=ROLE_COVENANTER)
+        grant = issue_covenanter_number(member)
         payload = {
             "schema": PUBLIC_LEDGER_SCHEMA,
             "subject": {"type": "CredentialGrant", "ref": str(grant.grant_id), "label": "凭证"},
             "action": "granted",
             "stage": "granted",
             "summary": "发放凭证。",
-            "public_facts": {"template_name": "正式成员编号", "display_no": "#1"},
+            "public_facts": {"template_name": "守约者编号", "display_no": "#1"},
             "private_commitments": [
                 {"name": "grant_id", "present": True, "reason": "关联凭证"},
             ],

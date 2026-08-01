@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from core.member_roles import ROLE_FORMAL_MEMBER
+from core.member_roles import ROLE_COVENANTER
 from core.models import (
     CapacityAssessment,
     Dispute,
@@ -30,7 +30,7 @@ class WorkspacePageTests(TestCase):
         now = timezone.now()
         self.member = create_member(
             member_no="mem-0001",
-            role_name=ROLE_FORMAL_MEMBER,
+            role_name=ROLE_COVENANTER,
             status=Member.Status.ADMITTED,
             batch_id="batch-opening",
             joined_simulation_day=1,
@@ -142,8 +142,8 @@ class WorkspacePageTests(TestCase):
         CapacityAssessment.objects.create(
             assessment_id="capacity-0001",
             simulation_day=7,
-            current_formal_members=100,
-            current_candidate_members=900,
+            current_covenanters=100,
+            current_contributors=900,
             maximum_admissible_members=130,
             recommended_new_members=20,
             bottlenecks=["canteen"],
@@ -349,7 +349,7 @@ class WorkspacePageTests(TestCase):
         self.assertContains(response, "/register/")
         self.assertContains(response, "/login/?next=/workspace/")
         self.assertNotContains(response, "/observer/")
-        self.assertContains(response, "申请正式成员")
+        self.assertContains(response, "申请守约者")
         # 不应该包含旧的 forbidden 文案
         self.assertNotContains(response, "需要登录并绑定成员身份")
 
@@ -365,7 +365,7 @@ class WorkspacePageTests(TestCase):
 
 
 class WorkspaceAccessRoleTests(TestCase):
-    """Full workspace access gated by ROLE_FORMAL_MEMBER, not Member.status."""
+    """Full workspace access gated by ROLE_COVENANTER, not Member.status."""
 
     def _active_member(self, member_no: str, status: str = Member.Status.ACTIVE, role_name: str | None = None):
         kwargs = {"member_no": member_no, "status": status}
@@ -373,14 +373,14 @@ class WorkspaceAccessRoleTests(TestCase):
             kwargs["role_name"] = role_name
         return create_member(**kwargs)
 
-    def _formal_member(self, member_no: str, status: str = Member.Status.ACTIVE):
+    def _covenanter(self, member_no: str, status: str = Member.Status.ACTIVE):
         skip = status in {Member.Status.SUSPENDED, Member.Status.EXITED}
-        return create_member(member_no=member_no, role_name=ROLE_FORMAL_MEMBER, status=status,
+        return create_member(member_no=member_no, role_name=ROLE_COVENANTER, status=status,
                              skip_role_validation=skip)
 
     # ── status alone does NOT grant full workspace ──
 
-    def test_active_status_without_formal_role_no_full_workspace(self) -> None:
+    def test_active_status_without_covenanter_role_no_full_workspace(self) -> None:
         member = self._active_member("mem-act-norole")
         login_as_member(self.client, member)
         response = self.client.get("/workspace/")
@@ -389,26 +389,26 @@ class WorkspaceAccessRoleTests(TestCase):
         self.assertNotContains(response, "可领取任务")
         self.assertNotContains(response, "提交劳动")
 
-    def test_admitted_status_without_formal_role_no_full_workspace(self) -> None:
+    def test_admitted_status_without_covenanter_role_no_full_workspace(self) -> None:
         member = self._active_member("mem-adm-norole", status=Member.Status.ADMITTED)
         login_as_member(self.client, member)
         response = self.client.get("/workspace/")
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "可领取任务")
 
-    # ── ROLE_FORMAL_MEMBER grants full workspace ──
+    # ── ROLE_COVENANTER grants full workspace ──
 
-    def test_formal_role_non_disabled_status_has_full_workspace(self) -> None:
-        member = self._formal_member("mem-formal-active")
+    def test_covenanter_role_non_disabled_status_has_full_workspace(self) -> None:
+        member = self._covenanter("mem-covenanter-active")
         login_as_member(self.client, member)
         response = self.client.get("/workspace/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "成员工作台")
-        self.assertContains(response, "mem-formal-active")
+        self.assertContains(response, "mem-covenanter-active")
         self.assertIn("no-store", response.headers["Cache-Control"])
 
-    def test_formal_role_pending_review_status_has_full_workspace(self) -> None:
-        member = create_member(member_no="mem-formal-pend", role_name=ROLE_FORMAL_MEMBER, status=Member.Status.PENDING_REVIEW)
+    def test_covenanter_role_pending_review_status_has_full_workspace(self) -> None:
+        member = create_member(member_no="mem-covenanter-pend", role_name=ROLE_COVENANTER, status=Member.Status.PENDING_REVIEW)
         login_as_member(self.client, member)
         response = self.client.get("/workspace/")
         self.assertEqual(response.status_code, 200)
@@ -422,7 +422,7 @@ class WorkspaceAccessRoleTests(TestCase):
         OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
     )
     def test_openfga_outage_does_not_crash_workspace(self) -> None:
-        member = self._formal_member("mem-openfga-down")
+        member = self._covenanter("mem-openfga-down")
         login_as_member(self.client, member)
 
         with patch("core.authorization_services.OpenFGAClient") as client_class:
@@ -441,7 +441,7 @@ class WorkspaceAccessRoleTests(TestCase):
         OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
     )
     def test_openfga_outage_action_forbidden_message_mentions_authorization_service(self) -> None:
-        member = self._formal_member("mem-openfga-action-down")
+        member = self._covenanter("mem-openfga-action-down")
         login_as_member(self.client, member)
 
         with patch("core.authorization_services.OpenFGAClient") as client_class:
@@ -451,15 +451,15 @@ class WorkspaceAccessRoleTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertContains(response, "权限服务暂时不可用", status_code=403)
 
-    def test_formal_role_suspended_denied_full_workspace(self) -> None:
-        member = self._formal_member("mem-formal-susp", status=Member.Status.SUSPENDED)
+    def test_covenanter_role_suspended_denied_full_workspace(self) -> None:
+        member = self._covenanter("mem-covenanter-susp", status=Member.Status.SUSPENDED)
         login_as_member(self.client, member)
         response = self.client.get("/workspace/")
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "可领取任务")
 
-    def test_formal_role_exited_denied_full_workspace(self) -> None:
-        member = self._formal_member("mem-formal-exit", status=Member.Status.EXITED)
+    def test_covenanter_role_exited_denied_full_workspace(self) -> None:
+        member = self._covenanter("mem-covenanter-exit", status=Member.Status.EXITED)
         login_as_member(self.client, member)
         response = self.client.get("/workspace/")
         self.assertEqual(response.status_code, 200)
@@ -468,7 +468,7 @@ class WorkspaceAccessRoleTests(TestCase):
     # ── status change from active → suspended revokes access ──
 
     def test_active_to_suspended_revokes_full_workspace(self) -> None:
-        member = self._formal_member("mem-active2susp")
+        member = self._covenanter("mem-active2susp")
         login_as_member(self.client, member)
         self.assertEqual(self.client.get("/workspace/").status_code, 200)
         member.status = Member.Status.SUSPENDED

@@ -8,6 +8,109 @@ from .identity import Member, Organization, RoleAssignment
 from .qualifications import ProfessionalDomain
 
 
+class ElectorateRuleTemplate(models.Model):
+    """制度允许使用的选民规则模板；具体语义保存在不可变版本中。"""
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", "启用"
+        INACTIVE = "inactive", "停用"
+
+    code = models.SlugField("稳定代码", max_length=64, unique=True)
+    name = models.CharField("中文名称", max_length=64)
+    status = models.CharField("状态", max_length=16, choices=Status.choices, default=Status.ACTIVE)
+    description = models.TextField("说明", blank=True)
+    created_at = models.DateTimeField("创建时间", auto_now_add=True)
+    updated_at = models.DateTimeField("更新时间", auto_now=True)
+
+    class Meta:
+        db_table = "core_electorate_rule_template"
+        verbose_name = "选民规则模板"
+        verbose_name_plural = "选民规则模板"
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.code})"
+
+
+class ElectorateRuleVersion(models.Model):
+    """选民规则模板的不可变版本。"""
+
+    template = models.ForeignKey(
+        ElectorateRuleTemplate,
+        on_delete=models.PROTECT,
+        related_name="versions",
+        verbose_name="规则模板",
+    )
+    version = models.PositiveIntegerField("版本")
+    condition_json = models.JSONField(
+        "结构化条件",
+        help_text="仅允许由 ALL、ANY、NOT 和已注册选择器组成的条件树。",
+    )
+    parameter_schema_json = models.JSONField(
+        "开放参数约束",
+        default=dict,
+        blank=True,
+        help_text="声明提案创建时允许填写的参数；不得接受任意条件树。",
+    )
+    created_at = models.DateTimeField("创建时间", auto_now_add=True)
+
+    class Meta:
+        db_table = "core_electorate_rule_version"
+        verbose_name = "选民规则版本"
+        verbose_name_plural = "选民规则版本"
+        constraints = [
+            models.UniqueConstraint(fields=["template", "version"], name="unique_electorate_rule_version"),
+        ]
+        ordering = ("template__code", "-version")
+
+    def __str__(self) -> str:
+        return f"{self.template.name} v{self.version}"
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            original = type(self).objects.filter(pk=self.pk).values(
+                "template_id", "version", "condition_json", "parameter_schema_json"
+            ).first()
+            current = {
+                "template_id": self.template_id,
+                "version": self.version,
+                "condition_json": self.condition_json,
+                "parameter_schema_json": self.parameter_schema_json,
+            }
+            if original is not None and original != current:
+                raise ValidationError("选民规则版本不可原地修改；请创建新版本。")
+        return super().save(*args, **kwargs)
+
+
+class ProposalTypeElectorateRule(models.Model):
+    """提案类型允许使用的选民规则及不可删除的最低条件。"""
+
+    proposal_type = models.CharField("提案类型", max_length=32)
+    template = models.ForeignKey(
+        ElectorateRuleTemplate,
+        on_delete=models.PROTECT,
+        related_name="proposal_type_bindings",
+        verbose_name="允许的规则模板",
+    )
+    minimum_condition_json = models.JSONField(
+        "最低必要条件",
+        default=dict,
+        blank=True,
+        help_text="创建提案时必须保留的制度条件；空对象表示模板本身已经完整约束。",
+    )
+    created_at = models.DateTimeField("创建时间", auto_now_add=True)
+
+    class Meta:
+        db_table = "core_proposal_type_electorate_rule"
+        verbose_name = "提案类型选民规则"
+        verbose_name_plural = "提案类型选民规则"
+        constraints = [
+            models.UniqueConstraint(fields=["proposal_type", "template"], name="unique_proposal_type_rule"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.proposal_type}: {self.template.name}"
+
+
 class Proposal(models.Model):
     """Generic governance proposal.
 
@@ -24,6 +127,8 @@ class Proposal(models.Model):
         BUDGET = "budget", "预算"
         PROJECT = "project", "项目"
         STATEMENT = "statement", "声明"
+        COMMUNITY = "community", "社区共议"
+        MAINTENANCE = "maintenance", "典守事务"
 
     class Status(models.TextChoices):
         DRAFT = "draft", "草稿"
@@ -32,12 +137,6 @@ class Proposal(models.Model):
         FAILED = "failed", "未通过"
         CANCELLED = "cancelled", "已取消"
         EXECUTED = "executed", "已执行"
-
-    class ElectoratePolicy(models.TextChoices):
-        """提案表决资格的服务端政策。"""
-
-        GENERAL_DELIBERATION = "general_deliberation", "普通议事"
-        PROFESSIONAL_DELIBERATION = "professional_deliberation", "专业议事"
 
     proposal_no = models.CharField("提案编号", max_length=32, unique=True, blank=True)
     title = models.CharField("标题", max_length=255)
@@ -68,11 +167,17 @@ class Proposal(models.Model):
         related_name="proposals",
         verbose_name="组织",
     )
-    electorate_policy = models.CharField(
-        "选民政策",
-        max_length=32,
-        choices=ElectoratePolicy.choices,
-        help_text="普通议事由有效正式成员和议事者组成；专业议事还需要对应专业资格。",
+    electorate_rule_version = models.ForeignKey(
+        ElectorateRuleVersion,
+        on_delete=models.PROTECT,
+        related_name="proposals",
+        verbose_name="选民规则版本",
+        help_text="创建提案时固定的规则版本；后续模板更新不得改变本提案语义。",
+    )
+    electorate_rule_snapshot_json = models.JSONField(
+        "选民规则快照",
+        default=dict,
+        help_text="规范化后的实际条件树和开放参数，用于当前资格重检与审计。",
     )
     professional_domain = models.ForeignKey(
         ProfessionalDomain,
@@ -104,7 +209,7 @@ class Proposal(models.Model):
         verbose_name_plural = "提案"
         indexes = [
             models.Index(fields=["proposal_type", "status"]),
-            models.Index(fields=["electorate_policy", "status"]),
+            models.Index(fields=["electorate_rule_version", "status"]),
             models.Index(fields=["organization", "status"]),
             models.Index(fields=["deadline_at"]),
             models.Index(fields=["proposer_member"]),
@@ -121,16 +226,28 @@ class Proposal(models.Model):
             raise ValidationError({"quorum_count": "最低参与人数不能为负数。"})
         if self.start_at and self.deadline_at and self.deadline_at <= self.start_at:
             raise ValidationError({"deadline_at": "截止时间必须晚于开始时间。"})
-        if self.electorate_policy == self.ElectoratePolicy.GENERAL_DELIBERATION:
-            if self.professional_domain_id is not None:
-                raise ValidationError({"professional_domain": "普通议事提案不能指定专业领域。"})
-        elif self.electorate_policy == self.ElectoratePolicy.PROFESSIONAL_DELIBERATION:
-            if self.professional_domain_id is None:
-                raise ValidationError({"professional_domain": "专业议事提案必须指定一个专业领域。"})
-            elif self.professional_domain.status != ProfessionalDomain.Status.ACTIVE:
-                raise ValidationError({"professional_domain": "专业议事提案只能使用启用中的专业领域。"})
-        else:
-            raise ValidationError({"electorate_policy": "提案必须使用已定义的选民政策。"})
+        if not self.electorate_rule_version_id:
+            raise ValidationError({"electorate_rule_version": "可表决提案必须指定选民规则版本。"})
+        if not isinstance(self.electorate_rule_snapshot_json, dict) or not self.electorate_rule_snapshot_json:
+            raise ValidationError({"electorate_rule_snapshot_json": "可表决提案必须保存有效选民规则快照。"})
+        from core.electorate_rules import rule_snapshot_for_proposal
+
+        expected_snapshot = rule_snapshot_for_proposal(
+            proposal_type=self.proposal_type,
+            rule_version=self.electorate_rule_version,
+            parameters=self.electorate_rule_snapshot_json.get("parameters", {}),
+        )
+        if self.electorate_rule_snapshot_json != expected_snapshot:
+            raise ValidationError({"electorate_rule_snapshot_json": "选民规则快照与允许的模板版本不一致。"})
+        parameters = self.electorate_rule_snapshot_json.get("parameters", {})
+        domain_code = parameters.get("professional_domain") if isinstance(parameters, dict) else None
+        if domain_code:
+            if self.professional_domain_id is None or self.professional_domain.code != domain_code:
+                raise ValidationError({"professional_domain": "专业领域必须与选民规则参数一致。"})
+            if self.professional_domain.status != ProfessionalDomain.Status.ACTIVE:
+                raise ValidationError({"professional_domain": "专业事务只能使用启用中的专业领域。"})
+        elif self.professional_domain_id is not None:
+            raise ValidationError({"professional_domain": "当前选民规则不接受专业领域。"})
 
     def save(self, *args, **kwargs):
         if not self.proposal_no:

@@ -12,7 +12,7 @@ from .role_catalog import (
     ROLE_CATALOG_ORGANIZATION_KEY,
     ROLE_CATALOG_ORGANIZATION_NAME,
     ROLE_DELIBERATOR,
-    ROLE_FORMAL_MEMBER,
+    ROLE_COVENANTER,
     ROLE_MAINTAINER,
     ensure_catalog_roles,
     role_definition_for_name,
@@ -58,11 +58,11 @@ def member_role_filter(*role_names: str, checked_at=None) -> Q:
     if not role_names or any(role_definition_for_name(name) is None for name in role_names):
         return Q(pk__in=[])
     condition = _current_catalog_role_filter(*role_names, checked_at=checked_at)
-    if any(role_definition_for_name(name).requires_formal_member for name in role_names):
-        formal_members = Member.objects.filter(
-            _current_catalog_role_filter(ROLE_FORMAL_MEMBER, checked_at=checked_at)
+    if any(role_definition_for_name(name).requires_covenanter for name in role_names):
+        covenanters = Member.objects.filter(
+            _current_catalog_role_filter(ROLE_COVENANTER, checked_at=checked_at)
         ).values("pk")
-        condition &= Q(pk__in=formal_members)
+        condition &= Q(pk__in=covenanters)
     return condition
 
 
@@ -109,7 +109,7 @@ def participation_status(member: object, *, checked_at=None) -> str | None:
 
     if not member_allows_role_facts(member):
         return None
-    if not member_has_role(member, ROLE_FORMAL_MEMBER, checked_at=checked_at):
+    if not member_has_role(member, ROLE_COVENANTER, checked_at=checked_at):
         return "contributor"
     return None
 
@@ -147,7 +147,7 @@ def ensure_role_assignment(member, role, *, granted_by=None, start_at=None, end_
 
 __all__ = [
     "ROLE_DELIBERATOR",
-    "ROLE_FORMAL_MEMBER",
+    "ROLE_COVENANTER",
     "ROLE_MAINTAINER",
     "ROLE_CATALOG_ORGANIZATION_NAME",
     "active_member_role_names",

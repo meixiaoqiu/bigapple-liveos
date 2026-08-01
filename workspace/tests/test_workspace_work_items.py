@@ -6,7 +6,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from core.credential_services import ensure_builtin_credential_templates
-from core.member_roles import ROLE_FORMAL_MEMBER
+from core.member_roles import ROLE_COVENANTER
 from core.models import (
     ApprovalProposal,
     Resource,
@@ -49,8 +49,8 @@ class WorkItemContextTests(TestCase):
             rule_version="v1",
         )
         self.governor = create_maintainer_member("maintainer-wi-1")
-        self.supplier = create_member("sup-wi-1", role_name=ROLE_FORMAL_MEMBER)
-        self.regular = create_member("reg-wi-1", role_name=ROLE_FORMAL_MEMBER)
+        self.supplier = create_member("sup-wi-1", role_name=ROLE_COVENANTER)
+        self.regular = create_member("reg-wi-1", role_name=ROLE_COVENANTER)
 
     def test_governance_sees_pending_approval_proposal(self):
         create_approval_proposal(

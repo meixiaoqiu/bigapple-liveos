@@ -54,7 +54,7 @@ class ServiceConcurrencyGuardTests(TestCase):
             batch_id="batch-opening",
             joined_simulation_day=1,
             credit_floor=-500,
-            profile={"display_name": "开荒队维护者"},
+            profile={"display_name": "开荒队典守者"},
             created_at=now,
         )
         # Fund the issuance pool so task rewards can flow through

@@ -7,10 +7,11 @@ from base64 import urlsafe_b64encode
 from dataclasses import dataclass
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 
 from .models import Member, ProfessionalDomain, Proposal, Resource
 from .openfga_client import OpenFGAClient, OpenFGARequestError
-from .permission_services import legacy_member_has_permission, permission_requires_formal_member
+from .permission_services import legacy_member_has_permission, permission_requires_covenanter
 from worlds.models import WorldRegistry
 from worlds.state import get_current_world
 
@@ -18,7 +19,7 @@ from worlds.state import get_current_world
 logger = logging.getLogger(__name__)
 
 
-OPENFGA_AUTHORIZATION_MODEL_VERSION = "2026-07-30-role-baseline-v1"
+OPENFGA_AUTHORIZATION_MODEL_VERSION = "2026-08-01-electorate-rules-v1"
 
 
 @dataclass(frozen=True)
@@ -60,23 +61,21 @@ def openfga_professional_domain_object(domain: ProfessionalDomain | int) -> str:
 
 
 def openfga_proposal_object(proposal: Proposal) -> str:
-    """按选民政策映射为 OpenFGA 提案对象；未知政策必须拒绝。"""
+    """返回通用 OpenFGA 提案对象。"""
 
-    if proposal.electorate_policy == Proposal.ElectoratePolicy.GENERAL_DELIBERATION:
-        return f"general_proposal:{proposal.pk}"
-    if proposal.electorate_policy == Proposal.ElectoratePolicy.PROFESSIONAL_DELIBERATION:
-        return f"professional_proposal:{proposal.pk}"
-    raise ValueError(f"Unknown electorate policy: {proposal.electorate_policy}")
+    if not proposal.pk or not proposal.electorate_rule_version_id:
+        raise ValueError("Proposal electorate rule is unavailable")
+    return f"proposal:{proposal.pk}"
 
 
 def permission_object_type(permission_code: str) -> str:
-    if permission_requires_formal_member(permission_code):
+    if permission_requires_covenanter(permission_code):
         return "guarded_permission"
     return "permission"
 
 
 def resource_permission_object_type(permission_code: str) -> str:
-    if permission_requires_formal_member(permission_code):
+    if permission_requires_covenanter(permission_code):
         return "guarded_resource_permission"
     return "resource_permission"
 
@@ -200,11 +199,11 @@ class AuthorizationService:
     def full_workspace_access_decision(self, member: Member) -> WorkspaceAccessDecision:
         backend = authorization_backend()
         if backend == "legacy":
-            from .member_roles import ROLE_FORMAL_MEMBER, member_has_role
+            from .member_roles import ROLE_COVENANTER, member_has_role
 
             allowed = member.status in {Member.Status.ACTIVE, Member.Status.ADMITTED} and member_has_role(
                 member,
-                ROLE_FORMAL_MEMBER,
+                ROLE_COVENANTER,
             )
             return WorkspaceAccessDecision(allowed=allowed, reason="" if allowed else "not_authorized")
         if backend != "openfga":
@@ -220,7 +219,7 @@ class AuthorizationService:
                 store_id=context.store_id,
                 authorization_model_id=context.authorization_model_id,
                 user=openfga_member_user(member),
-                relation="formal_member",
+                relation="covenanter",
                 object_=context.platform_object,
             )
             return WorkspaceAccessDecision(allowed=allowed, reason="" if allowed else "not_authorized")
@@ -231,16 +230,22 @@ class AuthorizationService:
     def member_can_vote_on_proposal(self, *, member: Member, proposal, at_time=None) -> bool:
         """检查成员当前是否可对指定提案投票，不能只依赖创建时快照。"""
 
-        backend = authorization_backend()
-        if backend == "legacy":
-            from .proposals.voters import member_is_currently_eligible_to_vote
+        from .proposals.voters import member_is_currently_eligible_to_vote
 
-            return member_is_currently_eligible_to_vote(
+        try:
+            currently_eligible = member_is_currently_eligible_to_vote(
                 member=member,
-                electorate_policy=proposal.electorate_policy,
-                professional_domain=proposal.professional_domain,
+                proposal=proposal,
                 at_time=at_time,
             )
+        except (ValidationError, ValueError, TypeError):
+            logger.warning("Proposal electorate rule cannot be evaluated; voting denied")
+            return False
+        if not currently_eligible:
+            return False
+        backend = authorization_backend()
+        if backend == "legacy":
+            return True
         if backend == "openfga":
             context = openfga_context_for_world_kind()
             if not context.store_id or not context.authorization_model_id:

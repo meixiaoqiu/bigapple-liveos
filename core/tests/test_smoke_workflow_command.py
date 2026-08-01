@@ -7,7 +7,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 
-from core.member_roles import ROLE_FORMAL_MEMBER, participation_status
+from core.member_roles import ROLE_COVENANTER, participation_status
 from core.models import LedgerEntry, Member, RoleAssignment, Task
 from worlds.state import get_current_world
 
@@ -25,7 +25,7 @@ class SmokeWorkflowCommandTests(TestCase):
                 status=RoleAssignment.Status.ACTIVE,
             ).values_list("role__name", flat=True)
         )
-        self.assertIn(ROLE_FORMAL_MEMBER, active_role_names)
+        self.assertIn(ROLE_COVENANTER, active_role_names)
         self.assertIsNone(participation_status(worker))
 
     def test_smoke_workflow_does_not_seed_realworld_by_default(self) -> None:

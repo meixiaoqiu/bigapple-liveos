@@ -7,7 +7,7 @@ from django.utils import timezone
 from core.application_services import submit_member_application
 from core.exceptions import DomainError
 from core.identity_services import ensure_basic_member_for_user, register_participant_account
-from core.member_roles import ROLE_FORMAL_MEMBER, participation_status
+from core.member_roles import ROLE_COVENANTER, participation_status
 from core.models import Event, MemberApplication, PartnerApplication, Proposal, SystemEvent
 from core.models import Member
 from core.tests.helpers import create_member, login_as_member
@@ -213,7 +213,7 @@ class PublicApplicationPageTests(TestCase):
         self.assertEqual(member.status, Member.Status.PENDING_REVIEW)
 
     def test_formal_role_workspace_apply_shows_already_member(self) -> None:
-        member = create_member(member_no="mem-fml-ws", role_name=ROLE_FORMAL_MEMBER, status=Member.Status.ACTIVE)
+        member = create_member(member_no="mem-fml-ws", role_name=ROLE_COVENANTER, status=Member.Status.ACTIVE)
         login_as_member(self.client, member)
         response = self.client.get("/workspace/apply/")
         self.assertEqual(response.status_code, 200)
@@ -281,20 +281,20 @@ class PublicApplicationPageTests(TestCase):
     # ── SUSPENDED / EXITED ──────────────────────────────────────────────
 
     def test_suspended_workspace_apply_shows_warning(self) -> None:
-        member = create_member(member_no="susp-ws", role_name=ROLE_FORMAL_MEMBER, status=Member.Status.SUSPENDED, skip_role_validation=True)
+        member = create_member(member_no="susp-ws", role_name=ROLE_COVENANTER, status=Member.Status.SUSPENDED, skip_role_validation=True)
         login_as_member(self.client, member)
         response = self.client.get("/workspace/apply/")
         self.assertContains(response, "当前账号暂不能提交成员报名")
         self.assertNotContains(response, 'name="applicant_name"')
 
     def test_exited_workspace_apply_shows_warning(self) -> None:
-        member = create_member(member_no="exit-ws", role_name=ROLE_FORMAL_MEMBER, status=Member.Status.EXITED, skip_role_validation=True)
+        member = create_member(member_no="exit-ws", role_name=ROLE_COVENANTER, status=Member.Status.EXITED, skip_role_validation=True)
         login_as_member(self.client, member)
         response = self.client.get("/workspace/apply/")
         self.assertContains(response, "当前账号暂不能提交成员报名")
 
     def test_suspended_post_workspace_apply_rejected(self) -> None:
-        member = create_member(member_no="susp-post-ws", role_name=ROLE_FORMAL_MEMBER, status=Member.Status.SUSPENDED, skip_role_validation=True)
+        member = create_member(member_no="susp-post-ws", role_name=ROLE_COVENANTER, status=Member.Status.SUSPENDED, skip_role_validation=True)
         login_as_member(self.client, member)
         app_before = MemberApplication.objects.count()
         self.client.post("/workspace/apply/", _apply_post_data(
@@ -305,7 +305,7 @@ class PublicApplicationPageTests(TestCase):
         self.assertEqual(member.status, Member.Status.SUSPENDED)
 
     def test_exited_post_workspace_apply_rejected(self) -> None:
-        member = create_member(member_no="exit-post-ws", role_name=ROLE_FORMAL_MEMBER, status=Member.Status.EXITED, skip_role_validation=True)
+        member = create_member(member_no="exit-post-ws", role_name=ROLE_COVENANTER, status=Member.Status.EXITED, skip_role_validation=True)
         login_as_member(self.client, member)
         app_before = MemberApplication.objects.count()
         self.client.post("/workspace/apply/", _apply_post_data(
@@ -475,18 +475,18 @@ class PublicApplicationPageTests(TestCase):
 
 
 class ApplyFormalMemberRoleTests(TestCase):
-    """``/workspace/apply/`` formal-member detection based on ROLE_FORMAL_MEMBER."""
+    """``/workspace/apply/`` formal-member detection based on ROLE_COVENANTER."""
 
     def _active_no_role(self, member_no: str):
         return create_member(member_no=member_no, status=Member.Status.ACTIVE)
 
-    def _formal_member(self, member_no: str, status: str = Member.Status.ACTIVE):
+    def _covenanter(self, member_no: str, status: str = Member.Status.ACTIVE):
         skip = status in {Member.Status.SUSPENDED, Member.Status.EXITED}
-        return create_member(member_no=member_no, role_name=ROLE_FORMAL_MEMBER, status=status,
+        return create_member(member_no=member_no, role_name=ROLE_COVENANTER, status=status,
                              skip_role_validation=skip)
 
     def test_formal_role_shows_already_member_status(self) -> None:
-        member = self._formal_member("mem-formal-apply")
+        member = self._covenanter("mem-formal-apply")
         login_as_member(self.client, member)
         response = self.client.get("/workspace/apply/")
         self.assertEqual(response.status_code, 200)
@@ -494,7 +494,7 @@ class ApplyFormalMemberRoleTests(TestCase):
         self.assertNotContains(response, 'name="password1"')
 
     def test_formal_role_suspended_does_not_show_already_member(self) -> None:
-        member = self._formal_member("mem-formal-susp-a", status=Member.Status.SUSPENDED)
+        member = self._covenanter("mem-formal-susp-a", status=Member.Status.SUSPENDED)
         login_as_member(self.client, member)
         response = self.client.get("/workspace/apply/")
         self.assertEqual(response.status_code, 200)
@@ -503,7 +503,7 @@ class ApplyFormalMemberRoleTests(TestCase):
         self.assertNotContains(response, 'name="applicant_name"')
 
     def test_formal_role_exited_does_not_show_already_member(self) -> None:
-        member = self._formal_member("mem-formal-exit-a", status=Member.Status.EXITED)
+        member = self._covenanter("mem-formal-exit-a", status=Member.Status.EXITED)
         login_as_member(self.client, member)
         response = self.client.get("/workspace/apply/")
         self.assertEqual(response.status_code, 200)
@@ -533,7 +533,7 @@ class ApplyFormalMemberRoleTests(TestCase):
         self.assertEqual(member.status, Member.Status.PENDING_REVIEW)
 
     def test_formal_role_cannot_submit_duplicate_via_service(self) -> None:
-        member = self._formal_member("mem-formal-svc-dup")
+        member = self._covenanter("mem-formal-svc-dup")
         login_as_member(self.client, member)
         with self.assertRaises(DomainError):
             submit_member_application(

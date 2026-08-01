@@ -207,7 +207,7 @@ def fulfill_redemption_order_view(request: HttpRequest, order_id: str, **_kwargs
     from core.access import member_can_maintain
     current_member = _mfr(request)
     if current_member is None or not member_can_maintain(current_member):
-        return JsonResponse({"error": "只有维护者可以履约兑换订单。"}, status=403)
+        return JsonResponse({"error": "只有典守者可以履约兑换订单。"}, status=403)
 
     order = get_object_or_404(RedemptionOrder, order_id=order_id)
 

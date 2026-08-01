@@ -209,7 +209,7 @@ def redemption_review_page(request: HttpRequest) -> HttpResponse:
     if isinstance(member, HttpResponseForbidden):
         return member
     if not member_can_maintain(member):
-        return page_forbidden("仅维护者可访问履约页面。")
+        return page_forbidden("仅典守者可访问履约页面。")
 
     if request.method == "POST" and "fulfill" in request.POST:
         order_id = request.POST.get("fulfill", "").strip()
@@ -303,12 +303,12 @@ def merchant_settlements_page(request: HttpRequest) -> HttpResponse:
 
 @require_http_methods(["GET", "POST"])
 def budgets_page(request: HttpRequest) -> HttpResponse:
-    """维护者专用：发行池余额与任务预算锁定、退回。"""
+    """典守者专用：发行池余额与任务预算锁定、退回。"""
     member = _require_full_workspace(request)
     if isinstance(member, HttpResponseForbidden):
         return member
     if not member_can_maintain(member):
-        return page_forbidden("仅维护者可访问积分预算页面。")
+        return page_forbidden("仅典守者可访问积分预算页面。")
 
     ensure_system_accounts()
 

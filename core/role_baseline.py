@@ -6,12 +6,16 @@ from django.db import transaction
 from django.utils import timezone
 
 from .deliberation_services import apply_for_deliberator_term
+from .electorate_rules import ensure_electorate_rule_baseline
 from .governance_setup import ensure_maintainer_role
-from .member_roles import ROLE_FORMAL_MEMBER, ensure_catalog_role
+from .member_roles import ROLE_COVENANTER, ensure_catalog_role
 from .models import (
     Member,
     MemberProfessionalQualification,
+    ElectorateRuleTemplate,
+    ElectorateRuleVersion,
     Proposal,
+    ProposalTypeElectorateRule,
     ProposalExecution,
     ProposalVote,
     Role,
@@ -43,13 +47,11 @@ def clear_role_permission_baseline() -> dict[str, int]:
 
     with transaction.atomic():
         ProposalVote.objects.all().delete()
-        ProposalExecution.objects.update(executor_role_assignment=None)
-        Proposal.objects.update(
-            proposer_role_assignment=None,
-            eligible_voters_snapshot_json=[],
-            professional_domain=None,
-            electorate_policy=Proposal.ElectoratePolicy.GENERAL_DELIBERATION,
-        )
+        ProposalExecution.objects.all().delete()
+        Proposal.objects.all().delete()
+        ProposalTypeElectorateRule.objects.all().delete()
+        ElectorateRuleVersion.objects.all().delete()
+        ElectorateRuleTemplate.objects.all().delete()
         qualification_count, _ = MemberProfessionalQualification.objects.all().delete()
         role_event_count, _ = SystemEvent.objects.filter(
             event_type__in=(SystemEvent.EventType.ROLE_ASSIGNED, SystemEvent.EventType.ROLE_REVOKED)
@@ -73,6 +75,7 @@ def load_role_permission_baseline() -> dict[str, int]:
 
     now = timezone.now()
     ensure_catalog_roles()
+    ensure_electorate_rule_baseline()
     ensure_maintainer_role()
     domains = {
         code: ensure_professional_domain(code=code, name=name, description=description)
@@ -80,16 +83,16 @@ def load_role_permission_baseline() -> dict[str, int]:
     }
 
     contributor = _ensure_baseline_member("role-baseline-contributor", "基线贡献者")
-    formal_member = _ensure_baseline_member("role-baseline-formal", "基线正式成员")
-    deliberator = _ensure_baseline_member("role-baseline-deliberator", "基线议事者")
-    maintainer = _ensure_baseline_member("role-baseline-maintainer", "基线维护者")
-    qualified_deliberator = _ensure_baseline_member("role-baseline-finance", "基线财务议事者")
+    covenanter = _ensure_baseline_member("role-baseline-covenanter", "基线守约者")
+    deliberator = _ensure_baseline_member("role-baseline-deliberator", "基线执衡者")
+    maintainer = _ensure_baseline_member("role-baseline-maintainer", "基线典守者")
+    qualified_deliberator = _ensure_baseline_member("role-baseline-finance", "基线财务执衡者")
 
-    formal_role = ensure_catalog_role(ROLE_FORMAL_MEMBER)
-    create_role_assignment(member=formal_member, role=formal_role, start_at=now)
-    create_role_assignment(member=deliberator, role=formal_role, start_at=now)
+    covenanter_role = ensure_catalog_role(ROLE_COVENANTER)
+    create_role_assignment(member=covenanter, role=covenanter_role, start_at=now)
+    create_role_assignment(member=deliberator, role=covenanter_role, start_at=now)
     bootstrap_initial_maintainer(maintainer)
-    create_role_assignment(member=qualified_deliberator, role=formal_role, start_at=now)
+    create_role_assignment(member=qualified_deliberator, role=covenanter_role, start_at=now)
     apply_for_deliberator_term(member=deliberator, at_time=now)
     apply_for_deliberator_term(member=qualified_deliberator, at_time=now)
     if not MemberProfessionalQualification.objects.filter(

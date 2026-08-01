@@ -21,7 +21,7 @@ from simulation.projections import (
     SCREENING_STANDBY,
     SCREENING_WITHDREW,
     candidate_applications_for_run,
-    candidate_members_for_run,
+    contributors_for_run,
     candidate_summary_for_run,
     capability_coverage_for_members,
     document_signer_coverage_for_partners,
@@ -134,22 +134,22 @@ class ProjectionsTests(TestCase):
         qs = candidate_applications_for_run(self.run)
         self.assertEqual(qs.count(), 2)
 
-    def test_candidate_members_for_run_without_founder_returns_candidates_only(self) -> None:
+    def test_contributors_for_run_without_founder_returns_candidates_only(self) -> None:
         self._app("candidate-a", SCREENING_CANDIDATE)
-        members = candidate_members_for_run(self.run, founder_member_no=None)
+        members = contributors_for_run(self.run, founder_member_no=None)
         self.assertEqual(len(members), 1)
-        members = candidate_members_for_run(self.run, founder_member_no="founder-noexist")
+        members = contributors_for_run(self.run, founder_member_no="founder-noexist")
         self.assertEqual(len(members), 1)  # founder not found, only applicant
 
-    def test_candidate_members_for_run_with_founder_includes_founder_first(self) -> None:
+    def test_contributors_for_run_with_founder_includes_founder_first(self) -> None:
         create_member(member_no="founder-test", status=Member.Status.ACTIVE)
         self._app("candidate-a", SCREENING_CANDIDATE)
-        members = candidate_members_for_run(self.run, founder_member_no="founder-test")
+        members = contributors_for_run(self.run, founder_member_no="founder-test")
         self.assertEqual(len(members), 2)
         self.assertEqual(members[0].member_no, "founder-test")
         self.assertEqual(members[1].member_no, "candidate-a")
 
-    def test_candidate_members_for_run_skips_app_without_linked_member(self) -> None:
+    def test_contributors_for_run_skips_app_without_linked_member(self) -> None:
         MemberApplication.objects.create(
             application_id="member-application-no-link",
             applicant_name="no-link",
@@ -159,7 +159,7 @@ class ProjectionsTests(TestCase):
             frozen_at=self.now,
             metadata={"simulation_run_id": self.run.run_id, "screening_status": SCREENING_CANDIDATE},
         )
-        members = candidate_members_for_run(self.run)
+        members = contributors_for_run(self.run)
         self.assertEqual(len(members), 0)
 
     # candidate_summary_for_run
@@ -174,7 +174,7 @@ class ProjectionsTests(TestCase):
         self._app("reg1", None)
         summary = candidate_summary_for_run(self.run, startup_gate_satisfied=False)
         self.assertEqual(summary["registered_applicants"], 6)
-        self.assertEqual(summary["candidate_members"], 2)
+        self.assertEqual(summary["contributors"], 2)
         self.assertEqual(summary["standby_applicants"], 1)
         self.assertEqual(summary["rejected_applicants"], 1)
         self.assertEqual(summary["withdrawn_applicants"], 1)

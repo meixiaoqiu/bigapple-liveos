@@ -41,17 +41,17 @@ ROLE_USAGE_CATALOG: dict[str, dict[str, str]] = {
         "category": "显示查询",
         "reason": "Django Admin 的角色权限排序字段。",
     },
-    "core/application_services.py:300": {
+    "core/application_services.py:301": {
         "category": "权威事实查询",
-        "reason": "阻止已具正式成员资格的账号重复提交成员报名。",
+        "reason": "阻止已具守约者资格的账号重复提交成员报名。",
     },
-    "core/authorization_services.py:205": {
+    "core/authorization_services.py:204": {
         "category": "授权查询",
         "reason": "兼容授权后端下的完整工作台访问判定。",
     },
     "core/deliberation_services.py:32": {
         "category": "权威事实查询",
-        "reason": "议事者本人申请前确认当前正式成员资格。",
+        "reason": "执衡者本人申请前确认当前守约者资格。",
     },
     "core/identity_display.py:24": {
         "category": "显示查询",
@@ -61,25 +61,25 @@ ROLE_USAGE_CATALOG: dict[str, dict[str, str]] = {
         "category": "显示查询",
         "reason": "身份展示投影读取规范角色对应的当前任命。",
     },
-    "core/management/commands/openfga_rebuild_tuples.py:97": {
+    "core/management/commands/openfga_rebuild_tuples.py:99": {
         "category": "权威事实查询",
-        "reason": "从当前正式成员资格、议事职责和维护职责重建 OpenFGA 关系。",
+        "reason": "从当前守约者资格、议事职责和维护职责重建 OpenFGA 关系。",
     },
-    "core/management/commands/openfga_rebuild_tuples.py:116": {
+    "core/management/commands/openfga_rebuild_tuples.py:119": {
         "category": "授权查询",
-        "reason": "投影当前有效维护者任命，不读取任意角色任命。",
+        "reason": "投影当前有效典守者任命，不读取任意角色任命。",
     },
-    "core/management/commands/openfga_rebuild_tuples.py:117": {
+    "core/management/commands/openfga_rebuild_tuples.py:118": {
         "category": "授权查询",
-        "reason": "维护者 tuple 仅接受同时满足前置资格的当前职责事实。",
+        "reason": "典守者 tuple 仅接受同时满足前置资格的当前职责事实。",
     },
-    "core/management/commands/openfga_rebuild_tuples.py:132": {
+    "core/management/commands/openfga_rebuild_tuples.py:134": {
         "category": "授权查询",
-        "reason": "只投影维护者的显式权限绑定。",
+        "reason": "只投影典守者的显式权限绑定。",
     },
-    "core/management/commands/repair_formal_member_credentials.py:34": {
+    "core/management/commands/repair_covenanter_credentials.py:34": {
         "category": "权威事实查询",
-        "reason": "识别应持有正式成员编号凭证的成员。",
+        "reason": "识别应持有守约者编号凭证的成员。",
     },
     "core/member_roles.py:81": {
         "category": "权威事实查询",
@@ -91,7 +91,7 @@ ROLE_USAGE_CATALOG: dict[str, dict[str, str]] = {
     },
     "core/member_roles.py:112": {
         "category": "显示查询",
-        "reason": "由正式成员资格派生贡献者展示状态。",
+        "reason": "由守约者资格派生贡献者展示状态。",
     },
     "core/models/identity.py:78": {
         "category": "显示查询",
@@ -103,43 +103,43 @@ ROLE_USAGE_CATALOG: dict[str, dict[str, str]] = {
     },
     "core/permission_services.py:49": {
         "category": "授权查询",
-        "reason": "权限检查确认受保护权限的正式成员资格前置条件。",
+        "reason": "权限检查确认受保护权限的守约者资格前置条件。",
     },
     "core/permission_services.py:94": {
         "category": "授权查询",
-        "reason": "权限查询筛选具备受保护权限的正式成员。",
+        "reason": "权限查询筛选具备受保护权限的守约者。",
     },
     "core/professional_qualification_services.py:55": {
         "category": "权威事实查询",
-        "reason": "录入专业资格前确认成员当前具备正式成员资格。",
+        "reason": "录入专业资格前确认成员当前具备守约者资格。",
     },
     "core/professional_qualification_services.py:143": {
         "category": "授权查询",
-        "reason": "专业资格授权查询确认成员当前具备正式成员资格。",
+        "reason": "专业资格授权查询确认成员当前具备守约者资格。",
     },
     "core/professional_qualification_services.py:171": {
         "category": "授权查询",
-        "reason": "筛选可用于专业提案授权的当前正式成员。",
+        "reason": "筛选可用于专业提案授权的当前守约者。",
     },
-    "core/proposals/voters.py:49": {
+    "core/electorate_rules.py:122": {
         "category": "授权查询",
-        "reason": "普通议事选民资格要求当前正式成员资格。",
+        "reason": "贡献者派生状态通过排除当前守约者资格计算。",
     },
-    "core/proposals/voters.py:52": {
+    "core/electorate_rules.py:128": {
         "category": "授权查询",
-        "reason": "普通议事选民资格要求当前议事者任期。",
+        "reason": "通用 catalog_role 选择器按目录角色事实计算选民集合。",
     },
     "core/role_assignment_services.py:44": {
         "category": "权威事实查询",
-        "reason": "校验目录角色是否需要当前正式成员资格。",
+        "reason": "校验目录角色是否需要当前守约者资格。",
     },
     "core/role_assignment_services.py:51": {
         "category": "权威事实查询",
-        "reason": "校验动态角色的正式成员资格前置条件。",
+        "reason": "校验动态角色的守约者资格前置条件。",
     },
     "core/role_audit.py:304": {
         "category": "权威事实查询",
-        "reason": "盘点角色是否满足正式成员资格前置条件。",
+        "reason": "盘点角色是否满足守约者资格前置条件。",
     },
 }
 

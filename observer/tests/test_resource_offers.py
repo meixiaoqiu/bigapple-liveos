@@ -8,7 +8,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from core.credential_services import ensure_builtin_credential_templates
-from core.member_roles import ROLE_FORMAL_MEMBER
+from core.member_roles import ROLE_COVENANTER
 from core.models import Resource, SupplierQuote
 from core.tests.helpers import create_member, login_as_member
 
@@ -35,7 +35,7 @@ class PublicResourceOffersTests(TestCase):
             updated_at=now,
             rule_version="v1",
         )
-        self.member = create_member("mem-offer-1", role_name=ROLE_FORMAL_MEMBER)
+        self.member = create_member("mem-offer-1", role_name=ROLE_COVENANTER)
 
     def test_anonymous_can_view_offers_page(self):
         response = self.client.get("/resources/res-offer-1/offers/")

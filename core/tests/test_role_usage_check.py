@@ -27,7 +27,7 @@ class RoleUsageCheckTests(SimpleTestCase):
             sample = root / "module.py"
             sample.write_text(
                 "def may_access(member):\n"
-                "    return member_has_role(member, '正式成员')\n",
+                "    return member_has_role(member, '守约者')\n",
                 encoding="utf-8",
             )
 
@@ -39,8 +39,17 @@ class RoleUsageCheckTests(SimpleTestCase):
             )
 
     def test_product_source_does_not_keep_old_role_labels(self) -> None:
-        forbidden_labels = ("观察者", "预备成员", "大苹果成员", "治理成员", "治理管理员")
-        ignored_parts = {".git", ".venv", "node_modules", "openspec", "migrations", "tests", "__pycache__"}
+        forbidden_labels = (
+            "观察" + "者",
+            "预备" + "成员",
+            "大苹果" + "成员",
+            "正式" + "成员",
+            "议事" + "者",
+            "维护" + "者",
+            "治理" + "成员",
+            "治理" + "管理员",
+        )
+        ignored_parts = {".git", ".venv", "node_modules", "openspec", "migrations", "__pycache__"}
         product_files = [
             path
             for pattern in ("*.py", "*.html")

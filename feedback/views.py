@@ -97,7 +97,7 @@ def feedback_respond(request: HttpRequest, feedback_id: str) -> HttpResponse:
     feedback = get_object_or_404(CommunityFeedback, feedback_id=feedback_id)
     member = member_for_request(request)
     if member is None or not member_can_maintain(member):
-        return HttpResponseForbidden("只有维护者才能回应反馈。")
+        return HttpResponseForbidden("只有典守者才能回应反馈。")
 
     action = request.POST.get("action", "respond")
     try:

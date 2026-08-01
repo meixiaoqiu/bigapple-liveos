@@ -10,7 +10,7 @@ from .db import atomic_for_model
 from .exceptions import DomainError
 from .governance_setup import default_role_assignment_end_at, ensure_maintainer_role
 from .member_roles import (
-    ROLE_FORMAL_MEMBER,
+    ROLE_COVENANTER,
     ROLE_MAINTAINER,
     ensure_catalog_role,
     member_has_role,
@@ -19,12 +19,12 @@ from .models import Member, Role, RoleAssignment
 from .role_catalog import catalog_role_definition_for_role, role_definition_for_name
 
 
-def _role_requires_formal_member(role: Role) -> bool:
-    """判断角色的明确前置条件是否要求当前正式成员资格。"""
+def _role_requires_covenanter(role: Role) -> bool:
+    """判断角色的明确前置条件是否要求当前守约者资格。"""
 
     definition = catalog_role_definition_for_role(role)
     if definition is not None:
-        return definition.requires_formal_member
+        return definition.requires_covenanter
     return any(
         str(role_permission.permission.code).startswith(("governance.", "finance."))
         for role_permission in role.role_permissions.select_related("permission")
@@ -41,15 +41,15 @@ def validate_role_assignment_prerequisites(member: Member, role: Role) -> None:
 
     definition = catalog_role_definition_for_role(role)
     if definition is not None:
-        if definition.requires_formal_member and not member_has_role(member, ROLE_FORMAL_MEMBER):
-            raise DomainError(f"授予{definition.display_name}前必须具有当前有效正式成员资格。")
+        if definition.requires_covenanter and not member_has_role(member, ROLE_COVENANTER):
+            raise DomainError(f"授予{definition.display_name}前必须具有当前有效守约者资格。")
         return
 
     if role_definition_for_name(role.name) is not None:
         raise DomainError("内置角色只能从规范成员资格与职责目录授予。")
 
-    if _role_requires_formal_member(role) and not member_has_role(member, ROLE_FORMAL_MEMBER):
-        raise DomainError("授予该角色前必须具有当前有效正式成员资格。")
+    if _role_requires_covenanter(role) and not member_has_role(member, ROLE_COVENANTER):
+        raise DomainError("授予该角色前必须具有当前有效守约者资格。")
 
 
 @atomic_for_model(RoleAssignment)
@@ -102,10 +102,10 @@ def create_role_assignment(
             source_proposal_execution=source_proposal_execution,
         )
     definition = catalog_role_definition_for_role(role)
-    if definition is not None and definition.display_name == ROLE_FORMAL_MEMBER:
-        from .credential_services import issue_formal_member_number
+    if definition is not None and definition.display_name == ROLE_COVENANTER:
+        from .credential_services import issue_covenanter_number
 
-        issue_formal_member_number(
+        issue_covenanter_number(
             member,
             source_proposal=source_proposal,
             source_proposal_execution=source_proposal_execution,
@@ -135,12 +135,12 @@ def bootstrap_initial_maintainer(
     *,
     granted_by: Member | None = None,
 ) -> dict[str, Any]:
-    """初始化一个通用维护者，不创建议事者任期或个人专属授权。"""
+    """初始化一个通用典守者，不创建执衡者任期或个人专属授权。"""
 
     assignments: dict[str, RoleAssignment] = {}
-    assignments["formal_member"] = create_role_assignment(
+    assignments["covenanter"] = create_role_assignment(
         member=member,
-        role=ensure_catalog_role(ROLE_FORMAL_MEMBER),
+        role=ensure_catalog_role(ROLE_COVENANTER),
         granted_by=granted_by,
         source_type=RoleAssignment.SourceType.INITIALIZATION,
     )

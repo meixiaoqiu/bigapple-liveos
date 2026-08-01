@@ -1,4 +1,4 @@
-"""向已有成员授予维护者职责。"""
+"""向已有成员授予典守者职责。"""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from worlds.command_context import command_world_context, command_world_label
 
 
 class Command(BaseCommand):
-    help = "向一名已有成员授予维护者职责，不修改 Django User 标志。"
+    help = "向一名已有成员授予典守者职责，不修改 Django User 标志。"
 
     def add_arguments(self, parser):
         parser.add_argument("--username", help="与目标成员关联的 Django User 用户名。")
@@ -36,13 +36,13 @@ class Command(BaseCommand):
                 assignment = create_role_assignment(member=member, role=role, source_type="direct")
             except DomainError as exc:
                 raise CommandError(
-                    f"授予维护者职责失败：{exc}\n"
-                    "目标成员必须先通过正式成员准入；本命令不会自动授予正式成员资格。"
+                    f"授予典守者职责失败：{exc}\n"
+                    "目标成员必须先通过守约者准入；本命令不会自动授予守约者资格。"
                 ) from exc
 
             self.stdout.write(
                 self.style.SUCCESS(
-                    "维护者任命已创建："
+                    "典守者任命已创建："
                     f"world_id={command_world_label(world)}，member_no={member.member_no}，"
                     f"role_id={role.pk}，role_assignment_id={assignment.pk}。"
                     "Django User.is_staff 和 User.is_superuser 未改变。"

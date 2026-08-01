@@ -14,7 +14,7 @@ from django.utils import timezone
 
 from core.credential_services import ensure_builtin_credential_templates
 from core.member_roles import (
-    ROLE_FORMAL_MEMBER,
+    ROLE_COVENANTER,
     ensure_catalog_role,
     ensure_role_assignment,
 )
@@ -68,7 +68,7 @@ def seed_zero_start(*, founder_member_no: str = "", founder_display_name: str = 
             },
         },
     )
-    ensure_role_assignment(founder, ensure_catalog_role(ROLE_FORMAL_MEMBER))
+    ensure_role_assignment(founder, ensure_catalog_role(ROLE_COVENANTER))
 
     # Ensure built-in credential templates (including provider_delivery_completed)
     ensure_builtin_credential_templates()
@@ -168,7 +168,7 @@ def seed_zero_start(*, founder_member_no: str = "", founder_display_name: str = 
             "parent_id": "node-zero-start-z0",
             "sequence": 30,
             "code": "Z2",
-            "title": "候选成员能力矩阵",
+            "title": "贡献者能力矩阵",
             "node_type": PlanNode.NodeType.GOVERNANCE,
             "status": PlanNode.Status.PLANNED,
             "is_required": True,

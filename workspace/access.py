@@ -11,7 +11,7 @@ from .context import workspace_access_decision
 
 
 AUTHORIZATION_UNAVAILABLE_MESSAGE = "权限服务暂时不可用，无法确认当前成员权限。请稍后重试。"
-FULL_WORKSPACE_REQUIRED_MESSAGE = "正式成员以上才能访问此功能。"
+FULL_WORKSPACE_REQUIRED_MESSAGE = "守约者以上才能访问此功能。"
 
 
 def full_workspace_denial_message(reason: str) -> str:

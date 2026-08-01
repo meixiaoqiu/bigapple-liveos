@@ -90,8 +90,8 @@ class CapacityAssessment(models.Model):
 
     assessment_id = models.CharField("容量评估ID", max_length=64, primary_key=True)
     simulation_day = models.PositiveIntegerField("模拟日期")
-    current_formal_members = models.PositiveIntegerField("当前正式成员数")
-    current_candidate_members = models.PositiveIntegerField("当前候选成员数")
+    current_covenanters = models.PositiveIntegerField("当前守约者数")
+    current_contributors = models.PositiveIntegerField("当前贡献者数")
     maximum_admissible_members = models.PositiveIntegerField("当前最大可接纳人数")
     recommended_new_members = models.PositiveIntegerField("建议新增人数")
     bottlenecks = models.JSONField("容量瓶颈", default=list)

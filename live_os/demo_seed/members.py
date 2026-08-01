@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from core.governance_setup import ensure_maintainer_role
 from core.member_roles import (
-    ROLE_FORMAL_MEMBER,
+    ROLE_COVENANTER,
     ensure_catalog_role,
 )
 from core.models import Member
@@ -29,7 +29,7 @@ def seed_members(*, now, mark) -> dict[str, Member]:
                     "skills": {"治理": 88, "安全": 74, "电工": 68, "给排水": 65, "卫生": 64},
                 },
                 "created_at": now,
-                "metadata": {"seed": True, "note": "演示维护者"},
+                "metadata": {"seed": True, "note": "演示典守者"},
             },
         )
     )
@@ -133,7 +133,7 @@ def seed_members(*, now, mark) -> dict[str, Member]:
                 "credit_floor": -100,
                 "profile": {"training": 45, "public_spirit": 61, "rule_compliance": 69},
                 "created_at": now,
-                "metadata": {"seed": True, "note": "演示正式成员申请中"},
+                "metadata": {"seed": True, "note": "演示守约者申请中"},
             },
         )
     )
@@ -148,12 +148,12 @@ def seed_members(*, now, mark) -> dict[str, Member]:
             skip_validation=True,
         )
 
-    _assign(member_1, ROLE_FORMAL_MEMBER)
+    _assign(member_1, ROLE_COVENANTER)
     for member, role_name in (
-        (member_3, ROLE_FORMAL_MEMBER),
+        (member_3, ROLE_COVENANTER),
     ):
         _assign(member, role_name)
-    _assign(admin_member, ROLE_FORMAL_MEMBER)
+    _assign(admin_member, ROLE_COVENANTER)
     create_role_assignment(
         member=admin_member,
         role=maintainer_setup["role"],

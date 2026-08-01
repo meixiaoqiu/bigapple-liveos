@@ -16,8 +16,8 @@ def seed_capacity(*, now, mark, ruleset: Ruleset) -> None:
             {"assessment_id": "capacity-0001"},
             {
                 "simulation_day": 7,
-                "current_formal_members": 100,
-                "current_candidate_members": 900,
+                "current_covenanters": 100,
+                "current_contributors": 900,
                 "maximum_admissible_members": 130,
                 "recommended_new_members": 20,
                 "bottlenecks": ["canteen", "hygiene", "high_load_roles"],
@@ -46,8 +46,8 @@ def seed_capacity(*, now, mark, ruleset: Ruleset) -> None:
             {"assessment_id": "capacity-0002"},
             {
                 "simulation_day": 10,
-                "current_formal_members": 100,
-                "current_candidate_members": 900,
+                "current_covenanters": 100,
+                "current_contributors": 900,
                 "maximum_admissible_members": 112,
                 "recommended_new_members": 0,
                 "bottlenecks": ["medicine", "repair_capacity", "open_disputes"],

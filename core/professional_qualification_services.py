@@ -9,7 +9,7 @@ from .access import member_can_maintain
 from .db import atomic_for_model
 from .exceptions import DomainError
 from .governance_setup import PROFESSIONAL_QUALIFICATION_MANAGE_PERMISSION
-from .member_roles import ROLE_FORMAL_MEMBER, member_allows_role_facts, member_has_role, member_role_filter
+from .member_roles import ROLE_COVENANTER, member_allows_role_facts, member_has_role, member_role_filter
 from .models import Member, MemberProfessionalQualification, ProfessionalDomain
 
 
@@ -52,8 +52,8 @@ def ensure_professional_domain(*, code: str, name: str, description: str = "") -
 def _require_qualification_subject(member: Member, *, at_time) -> None:
     if not member_allows_role_facts(member):
         raise DomainError("成员或登录账号当前不可持有专业资格。")
-    if not member_has_role(member, ROLE_FORMAL_MEMBER, checked_at=at_time):
-        raise DomainError("只有当前有效的正式成员可以录入专业资格。")
+    if not member_has_role(member, ROLE_COVENANTER, checked_at=at_time):
+        raise DomainError("只有当前有效的守约者可以录入专业资格。")
 
 
 def _require_qualification_maintainer(member: Member, *, action: str) -> None:
@@ -62,7 +62,7 @@ def _require_qualification_maintainer(member: Member, *, action: str) -> None:
     if not member_allows_role_facts(member):
         raise DomainError(f"{action}人当前不可用。")
     if not member_can_maintain(member, PROFESSIONAL_QUALIFICATION_MANAGE_PERMISSION):
-        raise DomainError(f"只有具备专业资格维护权限的维护者可以{action}专业资格。")
+        raise DomainError(f"只有具备专业资格维护权限的典守者可以{action}专业资格。")
 
 
 @atomic_for_model(MemberProfessionalQualification)
@@ -140,7 +140,7 @@ def has_current_professional_qualification(
     checked_at = at_time or timezone.now()
     if not member_allows_role_facts(member):
         return False
-    if not member_has_role(member, ROLE_FORMAL_MEMBER, checked_at=checked_at):
+    if not member_has_role(member, ROLE_COVENANTER, checked_at=checked_at):
         return False
     queryset = MemberProfessionalQualification.objects.filter(
         member=member,
@@ -167,12 +167,12 @@ def members_with_current_professional_qualification(
     checked_at = at_time or timezone.now()
     if domain.status != ProfessionalDomain.Status.ACTIVE:
         return Member.objects.none()
-    formal_members = Member.objects.filter(
-        member_role_filter(ROLE_FORMAL_MEMBER, checked_at=checked_at)
+    covenanters = Member.objects.filter(
+        member_role_filter(ROLE_COVENANTER, checked_at=checked_at)
     ).values("pk")
     return (
         Member.objects.filter(
-            pk__in=formal_members,
+            pk__in=covenanters,
             professional_qualifications__domain=domain,
             professional_qualifications__status=MemberProfessionalQualification.Status.ACTIVE,
             professional_qualifications__valid_from__lte=checked_at,

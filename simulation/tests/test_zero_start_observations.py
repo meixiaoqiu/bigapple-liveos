@@ -97,7 +97,7 @@ class ZeroStartObservationsTests(TestCase):
         fake_run = FakeRun()
         gate = self._gate()
         pe = {}
-        summary = {"registered_applicants": 3, "candidate_members": 1}
+        summary = {"registered_applicants": 3, "contributors": 1}
 
         payload = build_hour_payload(
             run=fake_run,
@@ -128,7 +128,7 @@ class ZeroStartObservationsTests(TestCase):
 
     def test_build_hour_summary_zero_hour_mentions_zero_start(self):
         candidate_summary = {
-            "registered_applicants": 0, "candidate_members": 0,
+            "registered_applicants": 0, "contributors": 0,
             "partner_applications": 0, "qualified_partners": 0,
         }
         gate = self._gate(
@@ -147,7 +147,7 @@ class ZeroStartObservationsTests(TestCase):
 
     def test_build_hour_summary_includes_application_and_screening_rows(self):
         candidate_summary = {
-            "registered_applicants": 1, "candidate_members": 1,
+            "registered_applicants": 1, "contributors": 1,
             "partner_applications": 1, "qualified_partners": 1,
         }
         gate = self._gate()
@@ -178,7 +178,7 @@ class ZeroStartObservationsTests(TestCase):
 
     def test_build_hour_summary_appends_pre_engineering_summary(self):
         candidate_summary = {
-            "registered_applicants": 0, "candidate_members": 0,
+            "registered_applicants": 0, "contributors": 0,
             "partner_applications": 0, "qualified_partners": 0,
         }
         gate = self._gate(satisfied=True)

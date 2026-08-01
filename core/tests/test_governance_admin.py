@@ -26,11 +26,11 @@ _v2 = lambda action="manual": {
 }
 from core.event_ledger import append_event
 from core.governance_setup import MAINTENANCE_VIEW_ADMIN_PERMISSION
-from core.member_roles import ROLE_DELIBERATOR, ROLE_FORMAL_MEMBER, ROLE_MAINTAINER, ensure_catalog_role
+from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ROLE_MAINTAINER, ensure_catalog_role
 from core.role_catalog import ROLE_CATALOG_ORGANIZATION_NAME
 from core.models import Permission, SystemEvent, Member, Organization, Proposal, Role, RoleAssignment, RolePermission
 from core.role_assignment_services import create_role_assignment
-from core.tests.helpers import create_member
+from core.tests.helpers import create_member, electorate_rule_fields
 
 
 class GovernanceAdminUsabilityTests(TestCase):
@@ -76,14 +76,14 @@ class GovernanceAdminUsabilityTests(TestCase):
     def test_proposal_admin_uses_chinese_role_identity_label_and_filters_by_proposer(self):
         role = ensure_catalog_role(ROLE_DELIBERATOR)
         other_role = ensure_catalog_role(ROLE_MAINTAINER)
-        proposer = create_member("member-proposer", role_name=ROLE_FORMAL_MEMBER)
-        other_member = create_member("member-other", role_name=ROLE_FORMAL_MEMBER)
+        proposer = create_member("member-proposer", role_name=ROLE_COVENANTER)
+        other_member = create_member("member-other", role_name=ROLE_COVENANTER)
         proposer_assignment = create_role_assignment(member=proposer, role=role)
         other_assignment = create_role_assignment(member=other_member, role=other_role)
         proposal = Proposal.objects.create(
             title="测试提案",
             proposal_type=Proposal.ProposalType.POLICY,
-            electorate_policy=Proposal.ElectoratePolicy.GENERAL_DELIBERATION,
+            **electorate_rule_fields(Proposal.ProposalType.POLICY),
             status=Proposal.Status.DRAFT,
             proposer_member=proposer,
             organization=role.organization,
@@ -102,8 +102,8 @@ class GovernanceAdminUsabilityTests(TestCase):
     def test_proposal_admin_role_identity_options_are_limited_to_selected_proposer(self):
         proposer_role = ensure_catalog_role(ROLE_DELIBERATOR)
         other_role = ensure_catalog_role(ROLE_MAINTAINER)
-        proposer = create_member("member-proposer-options", role_name=ROLE_FORMAL_MEMBER)
-        other_member = create_member("member-other-options", role_name=ROLE_FORMAL_MEMBER)
+        proposer = create_member("member-proposer-options", role_name=ROLE_COVENANTER)
+        other_member = create_member("member-other-options", role_name=ROLE_COVENANTER)
         proposer_assignment = create_role_assignment(member=proposer, role=proposer_role)
         suspended_assignment = create_role_assignment(member=proposer, role=other_role)
         suspended_assignment.status = RoleAssignment.Status.SUSPENDED
@@ -140,8 +140,8 @@ class GovernanceAdminUsabilityTests(TestCase):
 
 
 class GrantMaintainerCommandTests(TestCase):
-    def _formal_member(self, member_no: str, user=None):
-        return create_member(member_no, role_name=ROLE_FORMAL_MEMBER, user=user)
+    def _covenanter(self, member_no: str, user=None):
+        return create_member(member_no, role_name=ROLE_COVENANTER, user=user)
 
     def test_grant_maintainer_assigns_role_and_permission(self):
         user = get_user_model().objects.create_user(
@@ -149,7 +149,7 @@ class GrantMaintainerCommandTests(TestCase):
             email="target@example.com",
             password="test-password",
         )
-        member = self._formal_member("member-maintainer-target", user=user)
+        member = self._covenanter("member-maintainer-target", user=user)
         output = StringIO()
 
         call_command("grant_maintainer", username=user.username, stdout=output)
@@ -172,7 +172,7 @@ class GrantMaintainerCommandTests(TestCase):
 
     def test_grant_maintainer_is_idempotent_for_active_assignment(self):
         user = get_user_model().objects.create_user(username="repeat-admin", password="test-password")
-        member = self._formal_member("member-repeat-admin", user=user)
+        member = self._covenanter("member-repeat-admin", user=user)
         output = StringIO()
 
         call_command("grant_maintainer", username=user.username, stdout=output)
@@ -191,16 +191,16 @@ class GrantMaintainerCommandTests(TestCase):
             1,
         )
 
-    def test_grant_maintainer_fails_without_formal_member(self):
-        user = get_user_model().objects.create_user(username="no-formal-admin", password="test-password")
-        create_member("member-no-formal", user=user)
+    def test_grant_maintainer_fails_without_covenanter(self):
+        user = get_user_model().objects.create_user(username="no-covenanter-admin", password="test-password")
+        create_member("member-no-covenanter", user=user)
         with self.assertRaises(CommandError) as captured:
             call_command("grant_maintainer", username=user.username, stdout=StringIO())
-        self.assertIn("正式成员", str(captured.exception))
+        self.assertIn("守约者", str(captured.exception))
 
     def test_grant_maintainer_reports_explicit_world_id(self):
         user = get_user_model().objects.create_user(username="world-admin-target", password="test-password")
-        self._formal_member("member-world-admin-target", user=user)
+        self._covenanter("member-world-admin-target", user=user)
         output = StringIO()
 
         call_command("grant_maintainer", "--world-id", "simulation0001", username=user.username, stdout=output)
@@ -214,19 +214,19 @@ class GrantMaintainerCommandTests(TestCase):
 
         self.assertIn("requires --world-id", str(captured.exception))
 
-    def test_governance_permission_role_requires_formal_member(self):
-        """A non-basic role with governance.* permissions cannot be granted without ROLE_FORMAL_MEMBER."""
+    def test_governance_permission_role_requires_covenanter(self):
+        """A non-basic role with governance.* permissions cannot be granted without ROLE_COVENANTER."""
         from core.exceptions import DomainError
         from core.role_assignment_services import create_role_assignment
 
-        member = create_member("member-no-formal-gov-role")
+        member = create_member("member-no-covenanter-gov-role")
         org = Organization.objects.create(name="自定义治理组")
         gov_role = Role.objects.create(organization=org, name="自定义管理员", status=Role.Status.ACTIVE)
         perm = Permission.objects.create(code="governance.custom", name="自定义治理权", category="governance")
         RolePermission.objects.create(role=gov_role, permission=perm, scope="global")
         with self.assertRaises(DomainError) as ctx:
             create_role_assignment(member=member, role=gov_role, source_type="direct")
-        self.assertIn("正式成员", str(ctx.exception))
+        self.assertIn("守约者", str(ctx.exception))
 
     def test_bootstrap_initial_maintainer_fails_for_suspended_member(self):
         from core.exceptions import DomainError

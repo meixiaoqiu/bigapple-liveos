@@ -5,11 +5,26 @@ from django.test import Client
 from django.utils import timezone
 
 from core.member_roles import (
-    ROLE_FORMAL_MEMBER,
+    ROLE_COVENANTER,
     ensure_catalog_role,
     ensure_role_assignment,
 )
 from core.models import Member
+
+
+def electorate_rule_fields(proposal_type: str, *, template_code: str = "covenanter_matter", parameters=None) -> dict:
+    """返回直接创建 Proposal 的规范规则字段。"""
+
+    from core.electorate_rules import current_electorate_rule_version, ensure_electorate_rule_baseline, rule_snapshot_for_proposal
+
+    ensure_electorate_rule_baseline()
+    version = current_electorate_rule_version(template_code)
+    snapshot = rule_snapshot_for_proposal(
+        proposal_type=proposal_type,
+        rule_version=version,
+        parameters=parameters,
+    )
+    return {"electorate_rule_version": version, "electorate_rule_snapshot_json": snapshot}
 
 
 def grant_maintainer_role(member: Member):
@@ -30,10 +45,10 @@ def _ensure_maintainer_setup():
 
 
 def create_maintainer_member(member_no: str, **overrides) -> Member:
-    """创建一名正式成员并授予独立维护者职责。"""
+    """创建一名守约者并授予独立典守者职责。"""
     from core.role_assignment_services import bootstrap_initial_maintainer
 
-    member = create_member(member_no, role_name=ROLE_FORMAL_MEMBER, **overrides)
+    member = create_member(member_no, role_name=ROLE_COVENANTER, **overrides)
     bootstrap_initial_maintainer(member)
     return member
 

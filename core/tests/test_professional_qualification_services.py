@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from core.exceptions import DomainError
 from core.governance_setup import ensure_maintainer_role
-from core.member_roles import ROLE_FORMAL_MEMBER, ensure_catalog_role
+from core.member_roles import ROLE_COVENANTER, ensure_catalog_role
 from core.models import Member, MemberProfessionalQualification
 from core.professional_qualification_services import (
     ensure_professional_domain,
@@ -30,22 +30,22 @@ class ProfessionalQualificationServiceTests(TestCase):
             created_at=timezone.now(),
         )
 
-    def admit_formal_member(self, member: Member, *, start_at=None) -> None:
+    def admit_covenanter(self, member: Member, *, start_at=None) -> None:
         create_role_assignment(
             member=member,
-            role=ensure_catalog_role(ROLE_FORMAL_MEMBER),
+            role=ensure_catalog_role(ROLE_COVENANTER),
             start_at=start_at,
         )
 
     def admit_qualification_maintainer(self, member: Member) -> None:
-        self.admit_formal_member(member)
+        self.admit_covenanter(member)
         create_role_assignment(member=member, role=ensure_maintainer_role()["role"])
 
     def test_external_confirmation_records_authority_without_credential(self):
         domain = ensure_professional_domain(code="finance", name="财务")
         member = self.create_member("qualification-finance")
         confirmer = self.create_member("qualification-confirmer")
-        self.admit_formal_member(member)
+        self.admit_covenanter(member)
         self.admit_qualification_maintainer(confirmer)
         qualification = record_external_professional_qualification(
             member=member,
@@ -59,12 +59,12 @@ class ProfessionalQualificationServiceTests(TestCase):
         self.assertEqual(qualification.confirmed_by, confirmer)
         self.assertTrue(has_current_professional_qualification(member, domain=domain))
 
-    def test_non_formal_member_cannot_receive_professional_qualification(self):
+    def test_non_covenanter_cannot_receive_professional_qualification(self):
         domain = ensure_professional_domain(code="construction", name="建设")
-        member = self.create_member("qualification-non-formal")
-        confirmer = self.create_member("qualification-non-formal-confirmer")
+        member = self.create_member("qualification-non-covenanter")
+        confirmer = self.create_member("qualification-non-covenanter-confirmer")
 
-        with self.assertRaisesRegex(DomainError, "正式成员"):
+        with self.assertRaisesRegex(DomainError, "守约者"):
             record_external_professional_qualification(
                 member=member,
                 domain=domain,
@@ -76,7 +76,7 @@ class ProfessionalQualificationServiceTests(TestCase):
         domain = ensure_professional_domain(code="law", name="法律")
         member = self.create_member("qualification-subject")
         regular_member = self.create_member("qualification-regular-member")
-        self.admit_formal_member(member)
+        self.admit_covenanter(member)
 
         with self.assertRaisesRegex(DomainError, "专业资格维护权限"):
             record_external_professional_qualification(
@@ -93,7 +93,7 @@ class ProfessionalQualificationServiceTests(TestCase):
         member = self.create_member("qualification-expired")
         confirmer = self.create_member("qualification-expired-confirmer")
         starts_at = timezone.now() - timedelta(days=3)
-        self.admit_formal_member(member, start_at=starts_at)
+        self.admit_covenanter(member, start_at=starts_at)
         self.admit_qualification_maintainer(confirmer)
         qualification = record_external_professional_qualification(
             member=member,
@@ -113,7 +113,7 @@ class ProfessionalQualificationServiceTests(TestCase):
         domain = ensure_professional_domain(code="safety", name="安全")
         member = self.create_member("qualification-revoked")
         confirmer = self.create_member("qualification-revoked-confirmer")
-        self.admit_formal_member(member)
+        self.admit_covenanter(member)
         self.admit_qualification_maintainer(confirmer)
         qualification = record_external_professional_qualification(
             member=member,
@@ -137,7 +137,7 @@ class ProfessionalQualificationServiceTests(TestCase):
         user = get_user_model().objects.create_user(username="qualification-disabled", password="test-password")
         member = self.create_member("qualification-disabled", user=user)
         confirmer = self.create_member("qualification-disabled-confirmer")
-        self.admit_formal_member(member)
+        self.admit_covenanter(member)
         self.admit_qualification_maintainer(confirmer)
         record_external_professional_qualification(
             member=member,

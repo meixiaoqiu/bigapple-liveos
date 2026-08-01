@@ -5,7 +5,7 @@ from __future__ import annotations
 from django.db.models import Q
 from django.utils import timezone
 
-from .member_roles import ROLE_FORMAL_MEMBER, member_allows_role_facts, member_has_role, member_role_filter
+from .member_roles import ROLE_COVENANTER, member_allows_role_facts, member_has_role, member_role_filter
 from .models import Member, Resource, Role, RoleAssignment, RolePermission
 
 
@@ -31,7 +31,7 @@ def _role_permission_applies_to_resource(role_permission: RolePermission, resour
     return role_permission.scope in {"", "global", "all"}
 
 
-def permission_requires_formal_member(permission_code: str) -> bool:
+def permission_requires_covenanter(permission_code: str) -> bool:
     return str(permission_code).startswith(GUARDED_PERMISSION_PREFIXES)
 
 
@@ -46,8 +46,8 @@ def legacy_member_has_permission(
     checked_at = at_time or timezone.now()
     if not member_allows_role_facts(member):
         return False
-    if permission_requires_formal_member(permission_code) and not member_has_role(
-        member, ROLE_FORMAL_MEMBER, checked_at=checked_at
+    if permission_requires_covenanter(permission_code) and not member_has_role(
+        member, ROLE_COVENANTER, checked_at=checked_at
     ):
         return False
 
@@ -90,8 +90,8 @@ def members_with_permission(permission_code: str, at_time=None):
     queryset = Member.objects.filter(
         status__in=MEMBER_PERMISSION_STATUSES,
     ).filter(Q(user__isnull=True) | Q(user__is_active=True))
-    if permission_requires_formal_member(permission_code):
-        queryset = queryset.filter(member_role_filter(ROLE_FORMAL_MEMBER))
+    if permission_requires_covenanter(permission_code):
+        queryset = queryset.filter(member_role_filter(ROLE_COVENANTER))
     return (
         queryset.filter(
             role_assignments__status=RoleAssignment.Status.ACTIVE,

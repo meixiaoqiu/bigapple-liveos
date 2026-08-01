@@ -34,7 +34,7 @@ def seed_events(*, now, mark, members: dict, tasks: dict) -> None:
                 "occurred_at": now,
                 "generated_by": Event.GeneratedBy.LIVE_OS,
                 "visibility": Event.Visibility.PUBLIC,
-                "payload": {"seed": True, "formal_members": 100},
+                "payload": {"seed": True, "covenanters": 100},
             },
         )
     )

@@ -165,7 +165,7 @@ def build_hour_summary(
         (
             f"第 {hour} 小时：发起人继续通过自媒体说明大苹果计划，"
             f"累计主动报名 {candidate_summary['registered_applicants']} 人，"
-            f"进入候选池 {candidate_summary['candidate_members']} 人，"
+            f"进入候选池 {candidate_summary['contributors']} 人，"
             f"合作方报名 {candidate_summary['partner_applications']} 个，"
             f"合格责任合作方 {candidate_summary['qualified_partners']} 个。"
         ),

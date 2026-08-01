@@ -20,7 +20,7 @@ def generate_credential_grant_id() -> str:
 
 class CredentialTemplate(models.Model):
     class CredentialType(models.TextChoices):
-        FORMAL_NUMBER = "formal_number", "正式成员编号"
+        COVENANTER_NUMBER = "covenanter_number", "守约者编号"
         BADGE = "badge", "勋章"
         CERTIFICATE = "certificate", "证书"
         NFT_PLACEHOLDER = "nft_placeholder", "NFT占位"
@@ -37,13 +37,13 @@ class CredentialTemplate(models.Model):
         "模板 ID",
         max_length=128,
         unique=True,
-        help_text="稳定的业务 ID，例如 credential-template-formal-member-number。",
+        help_text="稳定的业务 ID，例如 credential-template-covenanter-number。",
     )
     code = models.CharField(
         "凭证编码",
         max_length=64,
         unique=True,
-        help_text="程序内唯一编码，例如 formal_member_number。",
+        help_text="程序内唯一编码，例如 covenanter_number。",
     )
     name = models.CharField("名称", max_length=255)
     description = models.TextField("说明", blank=True)
@@ -106,7 +106,7 @@ class CredentialGrant(models.Model):
         "序列号",
         null=True,
         blank=True,
-        help_text="递增序列号，同一模板内唯一（如正式成员编号 1,2,3…）。",
+        help_text="递增序列号，同一模板内唯一（如守约者编号 1,2,3…）。",
     )
     display_no = models.CharField(
         "展示编号",

@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from .member_roles import (
     ROLE_DELIBERATOR,
-    ROLE_FORMAL_MEMBER,
+    ROLE_COVENANTER,
     ROLE_MAINTAINER,
     member_allows_role_facts,
     member_has_role,
@@ -64,7 +64,7 @@ def member_identity_display(member: Member, *, at_time=None) -> dict[str, object
             "restriction_reason": "成员状态或登录账号当前不可用。",
         }
 
-    membership = _current_role_display(member, ROLE_FORMAL_MEMBER, at_time=checked_at)
+    membership = _current_role_display(member, ROLE_COVENANTER, at_time=checked_at)
     duties = [
         item
         for item in (
@@ -99,7 +99,7 @@ def member_identity_display(member: Member, *, at_time=None) -> dict[str, object
     derived_status = participation_status(member, checked_at=checked_at)
     restriction_reason = ""
     if membership is None:
-        restriction_reason = "尚未取得当前有效的正式成员资格。"
+        restriction_reason = "尚未取得当前有效的守约者资格。"
     elif not duties:
         restriction_reason = "当前未承担议事或维护职责。"
     return {

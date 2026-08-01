@@ -8,7 +8,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 
-from core.member_roles import ROLE_DELIBERATOR, ROLE_FORMAL_MEMBER, ROLE_MAINTAINER, member_has_role
+from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ROLE_MAINTAINER, member_has_role
 from core.models import Member, MemberProfessionalQualification, Organization, ProfessionalDomain, Role, RoleAssignment
 from core.openfga_client import OpenFGARequestError
 from core.role_baseline import clear_role_permission_baseline, load_role_permission_baseline
@@ -25,7 +25,7 @@ class RolePermissionBaselineServiceTests(TestCase):
         self.assertEqual(
             set(Role.objects.values_list("organization__name", "name")),
             {
-                (ROLE_CATALOG_ORGANIZATION_NAME, ROLE_FORMAL_MEMBER),
+                (ROLE_CATALOG_ORGANIZATION_NAME, ROLE_COVENANTER),
                 (ROLE_CATALOG_ORGANIZATION_NAME, ROLE_DELIBERATOR),
                 (ROLE_CATALOG_ORGANIZATION_NAME, ROLE_MAINTAINER),
             },
@@ -35,7 +35,7 @@ class RolePermissionBaselineServiceTests(TestCase):
         maintainer = Member.objects.get(member_no="role-baseline-maintainer")
         qualified = Member.objects.get(member_no="role-baseline-finance")
         self.assertFalse(RoleAssignment.objects.filter(member=contributor).exists())
-        self.assertTrue(member_has_role(deliberator, ROLE_FORMAL_MEMBER))
+        self.assertTrue(member_has_role(deliberator, ROLE_COVENANTER))
         self.assertTrue(member_has_role(deliberator, ROLE_DELIBERATOR))
         self.assertTrue(member_has_role(maintainer, ROLE_MAINTAINER))
         self.assertFalse(member_has_role(maintainer, ROLE_DELIBERATOR))

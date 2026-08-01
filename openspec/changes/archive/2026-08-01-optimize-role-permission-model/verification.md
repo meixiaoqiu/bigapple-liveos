@@ -74,6 +74,7 @@ docker compose -f docker-compose.dev.yml exec big-apple-admin python manage.py t
 - OpenFGA 启动验收：real 与 sim 模型重新发布，tuple 重建与维护能力探针 PASS；`start.bat` 完整启动退出码为 0。
 - 项目检查：`scripts/check_project.py`、Django system check、迁移漂移检查和 `git diff --check` 均为 PASS。
 - 完整 Docker 回归：2026-07-31 运行 1,081 项测试，全部 PASS。
+- Docs 一致性终审：清除架构总览、AI 开发指南、维护后台和成员工作台中的旧角色、旧服务与旧命令说明；验收矩阵全部映射到真实测试模块。矩阵相关 88 项测试 PASS，Docs 中文与英文站点重新构建 PASS。
 
 ## 改动范围
 

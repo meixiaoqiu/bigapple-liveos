@@ -182,7 +182,7 @@ def inventory_list(request: HttpRequest) -> HttpResponse:
     if isinstance(member, HttpResponseForbidden):
         return member
     if _governance_or_forbidden(member):
-        return page_forbidden("仅维护者可访问。")
+        return page_forbidden("仅典守者可访问。")
 
     resources = list(Resource.objects.order_by("resource_type", "resource_id")[:_RESOURCE_LIST_LIMIT])
     low_stock = [r for r in resources if r.current_stock <= r.warning_threshold]
@@ -204,7 +204,7 @@ def inventory_adjust(request: HttpRequest, resource_id: str) -> HttpResponse:
     if isinstance(member, HttpResponseForbidden):
         return member
     if _governance_or_forbidden(member):
-        return page_forbidden("仅维护者可访问。")
+        return page_forbidden("仅典守者可访问。")
 
     resource = get_object_or_404(Resource, resource_id=resource_id)
 
@@ -299,7 +299,7 @@ def inventory_new(request: HttpRequest) -> HttpResponse:
     if isinstance(member, HttpResponseForbidden):
         return member
     if _governance_or_forbidden(member):
-        return page_forbidden("仅维护者可访问。")
+        return page_forbidden("仅典守者可访问。")
 
     choices = _inventory_choices()
 
@@ -381,7 +381,7 @@ def inventory_edit(request: HttpRequest, resource_id: str) -> HttpResponse:
     if isinstance(member, HttpResponseForbidden):
         return member
     if _governance_or_forbidden(member):
-        return page_forbidden("仅维护者可访问。")
+        return page_forbidden("仅典守者可访问。")
 
     resource = get_object_or_404(Resource, resource_id=resource_id)
     choices = _inventory_choices()

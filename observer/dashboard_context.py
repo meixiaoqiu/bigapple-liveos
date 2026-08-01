@@ -37,7 +37,7 @@ def observer_command_dashboard_context() -> dict[str, Any]:
     )
     open_disputes_count = open_disputes_queryset.count()
 
-    capacity_current = latest.current_formal_members if latest else Member.objects.filter(status=Member.Status.ACTIVE).count()
+    capacity_current = latest.current_covenanters if latest else Member.objects.filter(status=Member.Status.ACTIVE).count()
     capacity_total = latest.maximum_admissible_members if latest else max(capacity_current, 0)
     capacity_usage = percent_ratio(capacity_current, capacity_total)
     completion_rate = task_completion_rate()

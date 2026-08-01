@@ -1,4 +1,4 @@
-"""维护者的基础维护权限初始化。"""
+"""典守者的基础维护权限初始化。"""
 
 from __future__ import annotations
 
@@ -67,7 +67,7 @@ def default_role_assignment_end_at(start_at=None):
 
 
 def ensure_maintainer_role() -> dict[str, Any]:
-    """幂等初始化维护者及其明确的通用维护权限。"""
+    """幂等初始化典守者及其明确的通用维护权限。"""
 
     created_permissions = 0
     for item in BASE_MAINTENANCE_PERMISSIONS:

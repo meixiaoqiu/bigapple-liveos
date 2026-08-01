@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from django import forms
 from django.contrib import admin
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import JsonResponse
 from django.urls import path
 from django.utils import timezone
@@ -16,7 +16,16 @@ from .admin_support import (
     NoDeleteAdminMixin,
     model_field_names,
 )
-from .models import Proposal, ProposalExecution, ProposalVote, Role, RoleAssignment
+from .models import (
+    ElectorateRuleTemplate,
+    ElectorateRuleVersion,
+    Proposal,
+    ProposalExecution,
+    ProposalTypeElectorateRule,
+    ProposalVote,
+    Role,
+    RoleAssignment,
+)
 
 
 class ProposalVoteInline(ImmutableHistoryInlineMixin, admin.TabularInline):
@@ -87,6 +96,25 @@ class ProposalAdminForm(forms.ModelForm):
             self.add_error("proposer_role_assignment", "选择提案时角色身份前必须先选择提案人。")
         if proposer_member and proposer_role_assignment and proposer_role_assignment.member_id != proposer_member.pk:
             self.add_error("proposer_role_assignment", "提案时角色身份必须属于当前提案人。")
+        rule_version = cleaned_data.get("electorate_rule_version")
+        proposal_type = cleaned_data.get("proposal_type")
+        professional_domain = cleaned_data.get("professional_domain")
+        if rule_version and proposal_type:
+            from .electorate_rules import rule_snapshot_for_proposal
+
+            parameters = (
+                {"professional_domain": professional_domain.code}
+                if professional_domain is not None
+                else {}
+            )
+            try:
+                self.instance.electorate_rule_snapshot_json = rule_snapshot_for_proposal(
+                    proposal_type=proposal_type,
+                    rule_version=rule_version,
+                    parameters=parameters,
+                )
+            except ValidationError as exc:
+                self.add_error("electorate_rule_version", exc)
         return cleaned_data
 
 
@@ -97,7 +125,7 @@ class ProposalAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
         "proposal_no",
         "title",
         "proposal_type",
-        "electorate_policy",
+        "electorate_rule_version",
         "professional_domain",
         "status",
         "proposer_member",
@@ -105,7 +133,7 @@ class ProposalAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
         "deadline_at",
         "created_at",
     )
-    list_filter = ("proposal_type", "electorate_policy", "professional_domain", "status", "organization", "deadline_at")
+    list_filter = ("proposal_type", "electorate_rule_version__template", "professional_domain", "status", "organization", "deadline_at")
     search_fields = (
         "proposal_no",
         "title",
@@ -117,12 +145,14 @@ class ProposalAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
         "proposer_member",
         "organization",
         "professional_domain",
+        "electorate_rule_version",
     )
     list_select_related = (
         "proposer_member",
         "proposer_role_assignment",
         "organization",
         "professional_domain",
+        "electorate_rule_version__template",
     )
     inlines = (ProposalVoteInline, ProposalExecutionInline)
     date_hierarchy = "deadline_at"
@@ -131,6 +161,7 @@ class ProposalAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
     readonly_fields = (
         "proposal_no",
         "eligible_voters_snapshot_json",
+        "electorate_rule_snapshot_json",
         "result_json",
         "passed_at",
         "failed_at",
@@ -219,3 +250,25 @@ class ProposalExecutionAdmin(HiddenFromAdminIndexMixin, ImmutableHistoryAdminMix
     autocomplete_fields = ("proposal", "executor_member", "executor_role_assignment")
     list_select_related = ("proposal", "executor_member", "executor_role_assignment")
     readonly_fields = model_field_names(ProposalExecution)
+
+
+@admin.register(ElectorateRuleTemplate)
+class ElectorateRuleTemplateAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
+    list_display = ("code", "name", "status", "updated_at")
+    list_filter = ("status",)
+    search_fields = ("code", "name")
+
+
+@admin.register(ElectorateRuleVersion)
+class ElectorateRuleVersionAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
+    list_display = ("template", "version", "created_at")
+    list_filter = ("template",)
+    search_fields = ("template__code", "template__name")
+    readonly_fields = model_field_names(ElectorateRuleVersion)
+
+
+@admin.register(ProposalTypeElectorateRule)
+class ProposalTypeElectorateRuleAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
+    list_display = ("proposal_type", "template", "created_at")
+    list_filter = ("proposal_type", "template")
+    readonly_fields = model_field_names(ProposalTypeElectorateRule)

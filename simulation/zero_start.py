@@ -159,7 +159,7 @@ def _run_zero_start(*, revision: PlanRevision, hours: int, run: SimulationRun | 
                 "founder_member_no": founder.member_no,
                 "initial_members": 1,
                 "registered_applicants": 0,
-                "candidate_members": 0,
+                "contributors": 0,
                 "screened_applicants": 0,
                 "partner_applications": 0,
                 "startup_gate_satisfied": False,

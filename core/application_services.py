@@ -15,7 +15,8 @@ from core.db import atomic_for_model
 from core.event_ledger import PUBLIC_LEDGER_SCHEMA, append_event
 from core.event_payloads import _private, member_display_name, public_member_label
 from core.exceptions import DomainError
-from core.member_roles import ROLE_FORMAL_MEMBER, ensure_catalog_role, member_has_role
+from core.electorate_rules import TEMPLATE_COVENANTER, current_electorate_rule_version
+from core.member_roles import ROLE_COVENANTER, ensure_catalog_role, member_has_role
 from core.models import Member, MemberApplication, PartnerApplication, Proposal, SystemEvent
 
 from .identity_services import register_member
@@ -297,8 +298,8 @@ def submit_member_application(
     if existing_member is not None:
         if existing_member.status in DISABLED_MEMBER_STATUSES:
             raise DomainError("当前账号成员状态已停用，不能提交成员报名。")
-        if member_has_role(existing_member, ROLE_FORMAL_MEMBER):
-            raise DomainError("当前账号已经是正式成员，不能重复报名。")
+        if member_has_role(existing_member, ROLE_COVENANTER):
+            raise DomainError("当前账号已经是守约者，不能重复报名。")
         active_application_exists = MemberApplication.objects.filter(
             linked_member=existing_member,
             status__in=active_application_statuses,
@@ -383,7 +384,7 @@ def submit_member_application(
     # enters the governance voting pipeline. No manual "review" step exists.
     create_member_application_admission_proposal(
         application=application,
-        reason=f"系统自动发起：接纳 {application.applicant_name} 成为大苹果正式成员。",
+        reason=f"系统自动发起：接纳 {application.applicant_name} 成为大苹果守约者。",
     )
     _append_member_application_public_event_once(
         event_id=f"member-application-submitted-{application.application_id}",
@@ -477,13 +478,13 @@ def create_member_application_admission_proposal(
 
     from core.proposals.lifecycle import create_proposal
 
-    body = str(reason or "").strip() or f"接纳 {application.applicant_name} 成为大苹果正式成员。"
+    body = str(reason or "").strip() or f"接纳 {application.applicant_name} 成为大苹果守约者。"
     proposal = create_proposal(
         title=f"接纳成员报名：{application.applicant_name}",
         body=body,
         proposal_type=Proposal.ProposalType.MEMBER_ADMISSION,
         proposer_member=proposer_member,
-        electorate_policy=Proposal.ElectoratePolicy.GENERAL_DELIBERATION,
+        electorate_rule_version=current_electorate_rule_version(TEMPLATE_COVENANTER),
         pass_ratio=50,
         quorum_count=None,
         allow_vote_change=True,
@@ -527,12 +528,12 @@ def admit_member_application_from_proposal(
 
     now = admitted_at or timezone.now()
     member = application.linked_member
-    formal_role = ensure_catalog_role(ROLE_FORMAL_MEMBER)
+    covenanter_role = ensure_catalog_role(ROLE_COVENANTER)
     from core.role_assignment_services import create_role_assignment
 
     assignment = create_role_assignment(
         member=member,
-        role=formal_role,
+        role=covenanter_role,
         granted_by=executor_member,
         source_type="proposal",
         source_proposal=proposal,
@@ -560,7 +561,7 @@ def admit_member_application_from_proposal(
         **(application.metadata or {}),
         "decision_note": str(proposal.body or "准入提案已执行。").strip(),
         "decided_by_display": member_display_name(executor_member) if executor_member else "",
-        "formal_role_assignment_id": assignment.pk,
+        "covenanter_role_assignment_id": assignment.pk,
     }
     application.save(update_fields=["status", "decided_by", "decided_at", "admission_proposal", "metadata"])
     append_event(
@@ -602,7 +603,7 @@ def reject_member_application_from_failed_proposal(
     Called from the voting lifecycle when a MEMBER_ADMISSION proposal
     transitions to FAILED (deadline expired without sufficient yes votes).
     This is the ONLY path that sets an application to REJECTED — there is
-    维护者不能直接执行独立的“拒绝”操作。
+    典守者不能直接执行独立的“拒绝”操作。
     """
 
     if proposal.proposal_type != Proposal.ProposalType.MEMBER_ADMISSION:
@@ -711,13 +712,13 @@ def admit_member_application_from_approval_proposal(
         raise DomainError("该报名已被拒绝。")
 
     member = application.linked_member
-    from core.member_roles import ROLE_FORMAL_MEMBER, ensure_catalog_role
+    from core.member_roles import ROLE_COVENANTER, ensure_catalog_role
     from core.role_assignment_services import create_role_assignment as _create_ra
 
-    formal_role = ensure_catalog_role(ROLE_FORMAL_MEMBER)
+    covenanter_role = ensure_catalog_role(ROLE_COVENANTER)
     _create_ra(
         member=member,
-        role=formal_role,
+        role=covenanter_role,
         granted_by=actor,
         source_type="proposal",
     )

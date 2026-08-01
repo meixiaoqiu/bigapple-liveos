@@ -102,7 +102,7 @@ def current_full_member_or_forbidden(request: HttpRequest) -> Member | HttpRespo
     return member
 
 
-def _member_is_formal_member(member: Member | None) -> bool:
+def _member_is_covenanter(member: Member | None) -> bool:
     if member is None:
         return False
     return AuthorizationService().member_has_full_workspace_access(member)
@@ -153,7 +153,7 @@ def workspace_member_application(request: HttpRequest):
 
     current_application = _latest_member_application(user=request.user, member=member)
 
-    if _member_is_formal_member(member):
+    if _member_is_covenanter(member):
         return render(request, "applications/member_application_status.html", {"member": member})
 
     can_reapply = bool(current_application and current_application.status in MEMBER_APPLICATION_REAPPLY_STATUSES)
@@ -284,7 +284,7 @@ def workspace_create_dispute(request: HttpRequest):
 
 
 # --- Member-application review module -------------------------------------------------
-# 维护者专用界面，提供报名列表以及提案、表决和执行流程。
+# 典守者专用界面，提供报名列表以及提案、表决和执行流程。
 # proposal/voting/execution pipeline through the workspace. Views stay thin:
 # every state change goes through the service layer so the invariants around
 # proposal-driven admission are preserved.
@@ -308,7 +308,7 @@ def current_maintainer_or_forbidden(request: HttpRequest) -> Member | HttpRespon
     if member is None:
         return page_forbidden("需要登录并绑定成员身份。")
     if not member_can_maintain(member):
-        return page_forbidden("需要维护者权限。")
+        return page_forbidden("需要典守者权限。")
     return member
 
 
@@ -421,7 +421,7 @@ def workspace_proposal_execute(request: HttpRequest, proposal_id: str):
 
 
 # --- Recruitment-direction maintenance -----------------------------------------
-# 维护者专用界面，用于更新报名页的招募方向元数据。
+# 典守者专用界面，用于更新报名页的招募方向元数据。
 # metadata (show_on_application, public_label, required_count, etc.) stored in
 # CredentialTemplate.metadata["recruitment"].  No CredentialGrant issuance,
 # no CredentialTemplate CRUD, no new database tables.

@@ -30,12 +30,12 @@ class WorkspaceRecruitmentTests(TestCase):
         self.assertIn("/login/", response["Location"])
         self.assertIn("/workspace/recruitment/", response["Location"])
 
-    def test_recruitment_page_requires_governance_member(self):
+    def test_recruitment_page_requires_maintainer_member(self):
         login_as_member(self.client, self.ordinary)
         response = self.client.get("/workspace/recruitment/")
         self.assertEqual(response.status_code, 403)
 
-    def test_governance_member_can_view_recruitment_page(self):
+    def test_maintainer_member_can_view_recruitment_page(self):
         response = self.client.get("/workspace/recruitment/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "招募方向维护")
@@ -92,12 +92,12 @@ class WorkspaceRecruitmentTests(TestCase):
         self.assertEqual(t.name, "新的模板名称")
         self.assertEqual(t.description, "新的模板描述")
 
-    def test_cannot_update_formal_member_number_recruitment(self):
+    def test_cannot_update_covenanter_number_recruitment(self):
         response = self.client.post(
             "/workspace/recruitment/",
             {
                 "action": "update",
-                "template_code": "formal_member_number",
+                "template_code": "covenanter_number",
                 "public_label": "不应该成功",
                 "required_count": "1",
                 "sort_order": "1",
@@ -260,7 +260,7 @@ class WorkspaceRecruitmentTests(TestCase):
 
     # --- 5. nav entry -----------------------------------------------------------
 
-    def test_workspace_nav_shows_recruitment_for_governance_member(self):
+    def test_workspace_nav_shows_recruitment_for_maintainer_member(self):
         response = self.client.get("/workspace/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "招募方向")
@@ -274,7 +274,7 @@ class WorkspaceRecruitmentTests(TestCase):
 
     # --- 6. create recruitment template ------------------------------------------
 
-    def test_governance_member_can_create_recruitment_template(self):
+    def test_maintainer_member_can_create_recruitment_template(self):
         response = self.client.post(
             "/workspace/recruitment/",
             {
@@ -332,7 +332,7 @@ class WorkspaceRecruitmentTests(TestCase):
         )
         self.assertEqual(CredentialGrant.objects.count(), grant_count)
 
-    def test_create_recruitment_template_requires_governance_member(self):
+    def test_create_recruitment_template_requires_maintainer_member(self):
         login_as_member(self.client, self.ordinary)
         response = self.client.post(
             "/workspace/recruitment/",
@@ -372,12 +372,12 @@ class WorkspaceRecruitmentTests(TestCase):
         )
         self.assertContains(response, "编码已存在")
 
-    def test_create_recruitment_template_rejects_formal_member_number_code(self):
+    def test_create_recruitment_template_rejects_covenanter_number_code(self):
         response = self.client.post(
             "/workspace/recruitment/",
             {
                 "action": "create",
-                "code": "formal_member_number",
+                "code": "covenanter_number",
                 "public_label": "不应该成功",
                 "required_count": "1",
                 "sort_order": "1",

@@ -9,14 +9,14 @@
     {
       "type": "platform",
       "relations": {
-        "formal_member": {"this": {}},
+        "covenanter": {"this": {}},
         "deliberator": {"this": {}},
         "maintainer": {"this": {}},
         "frozen_member": {"this": {}}
       },
       "metadata": {
         "relations": {
-          "formal_member": {"directly_related_user_types": [{"type": "member"}]},
+          "covenanter": {"directly_related_user_types": [{"type": "member"}]},
           "deliberator": {"directly_related_user_types": [{"type": "member"}]},
           "maintainer": {"directly_related_user_types": [{"type": "member"}]},
           "frozen_member": {"directly_related_user_types": [{"type": "member"}]}
@@ -33,45 +33,13 @@
       }
     },
     {
-      "type": "general_proposal",
+      "type": "proposal",
       "relations": {
         "platform": {"this": {}},
+        "eligible_member": {"this": {}},
         "can_vote": {
           "difference": {
-            "base": {
-              "intersection": {
-                "child": [
-                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "formal_member"}}},
-                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "deliberator"}}}
-                ]
-              }
-            },
-            "subtract": {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "frozen_member"}}}
-          }
-        }
-      },
-      "metadata": {
-        "relations": {
-          "platform": {"directly_related_user_types": [{"type": "platform"}]}
-        }
-      }
-    },
-    {
-      "type": "professional_proposal",
-      "relations": {
-        "platform": {"this": {}},
-        "professional_domain": {"this": {}},
-        "can_vote": {
-          "difference": {
-            "base": {
-              "intersection": {
-                "child": [
-                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "formal_member"}}},
-                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "deliberator"}}},
-                  {"tupleToUserset": {"tupleset": {"relation": "professional_domain"}, "computedUserset": {"relation": "qualified_member"}}}
-                ]
-              }
-            },
+            "base": {"computedUserset": {"relation": "eligible_member"}},
             "subtract": {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "frozen_member"}}}
           }
         }
@@ -79,7 +47,7 @@
       "metadata": {
         "relations": {
           "platform": {"directly_related_user_types": [{"type": "platform"}]},
-          "professional_domain": {"directly_related_user_types": [{"type": "professional_domain"}]}
+          "eligible_member": {"directly_related_user_types": [{"type": "member"}]}
         }
       }
     },
@@ -115,7 +83,7 @@
               "intersection": {
                 "child": [
                   {"tupleToUserset": {"tupleset": {"relation": "role"}, "computedUserset": {"relation": "assignee"}}},
-                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "formal_member"}}},
+                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "covenanter"}}},
                   {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "maintainer"}}}
                 ]
               }
@@ -154,7 +122,7 @@
               "intersection": {
                 "child": [
                   {"tupleToUserset": {"tupleset": {"relation": "role"}, "computedUserset": {"relation": "assignee"}}},
-                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "formal_member"}}},
+                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "covenanter"}}},
                   {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "maintainer"}}}
                 ]
               }

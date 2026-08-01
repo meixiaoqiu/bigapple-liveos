@@ -63,7 +63,7 @@ def feasibility_failure_for_node(run: SimulationRun, node: PlanNode) -> dict[str
         return {
             "failure_type": SimulationFailure.FailureType.LABOR_SHORTAGE,
             "title": f"{node.code} {node.title} 人力不足",
-            "description": f"节点最低需要 {node.required_people_min} 人，但当前可用于模拟的正式成员只有 {available_people} 人。",
+            "description": f"节点最低需要 {node.required_people_min} 人，但当前可用于模拟的守约者只有 {available_people} 人。",
             "metadata": {"required_people_min": node.required_people_min, "available_people": available_people},
         }
 

@@ -7,7 +7,7 @@ from core.application_services import (
     submit_member_application,
     create_approval_proposal_for_application,
 )
-from core.member_roles import ROLE_FORMAL_MEMBER
+from core.member_roles import ROLE_COVENANTER
 from core.models import (
     ApprovalProposal,
     ApprovalDecision,
@@ -48,7 +48,7 @@ class WorkspaceApplicationsReviewTests(TestCase):
 
     # --- 入口与权限 ------------------------------------------------
 
-    def test_governance_member_sees_review_entry_and_list(self) -> None:
+    def test_maintainer_member_sees_review_entry_and_list(self) -> None:
         _submit_application()
         workspace = self.client.get("/workspace/")
         self.assertEqual(workspace.status_code, 200)
@@ -59,7 +59,7 @@ class WorkspaceApplicationsReviewTests(TestCase):
         self.assertContains(review, "审核测试报名者")
 
     def test_regular_form_member_cannot_see_entry_and_gets_403(self) -> None:
-        member = create_member("mem-regular-0001", role_name=ROLE_FORMAL_MEMBER, status=Member.Status.ADMITTED)
+        member = create_member("mem-regular-0001", role_name=ROLE_COVENANTER, status=Member.Status.ADMITTED)
         login_as_member(self.client, member)
         review = self.client.get("/workspace/applications/")
         self.assertEqual(review.status_code, 403)
@@ -135,7 +135,7 @@ class WorkspaceApplicationsReviewTests(TestCase):
         member.refresh_from_db()
         self.assertEqual(application.status, MemberApplication.Status.ADMITTED)
         self.assertEqual(member.status, Member.Status.ADMITTED)
-        self.assertIn(ROLE_FORMAL_MEMBER, member.active_role_names())
+        self.assertIn(ROLE_COVENANTER, member.active_role_names())
 
     def test_reject_sets_application_rejected(self) -> None:
         application = _submit_application()
@@ -174,7 +174,7 @@ class WorkspaceApplicationsReviewTests(TestCase):
         ap = create_approval_proposal_for_application(
             application=application, submitted_by=self.governance,
         )
-        regular = create_member("mem-reg-000x", role_name=ROLE_FORMAL_MEMBER, status=Member.Status.ADMITTED)
+        regular = create_member("mem-reg-000x", role_name=ROLE_COVENANTER, status=Member.Status.ADMITTED)
         from core.exceptions import DomainError
         with self.assertRaises(DomainError):
             approve_proposal(proposal=ap, approved_by=regular, role="governance")

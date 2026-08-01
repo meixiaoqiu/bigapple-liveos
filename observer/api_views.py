@@ -16,8 +16,8 @@ def observer_summary(request: HttpRequest, **_kwargs) -> JsonResponse:
     return JsonResponse(
         {
             "simulation_day": context["latest_day"],
-            "formal_members": context["formal_members"],
-            "candidate_members": context["candidate_members"],
+            "covenanters": context["covenanters"],
+            "contributors": context["contributors"],
             "resources": [public_resource_to_contract(resource) for resource in context["resources"]],
             "task_completion_rate": context["task_completion_rate"],
             "average_satisfaction": 0,

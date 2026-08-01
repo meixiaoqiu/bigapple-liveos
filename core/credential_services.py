@@ -29,10 +29,10 @@ def ensure_builtin_credential_templates():
     """Idempotently create built-in credential templates."""
     builtins = [
         {
-            "template_id": "credential-template-formal-member-number",
-            "code": "formal_member_number",
-            "name": "正式成员编号",
-            "credential_type": CredentialTemplate.CredentialType.FORMAL_NUMBER,
+            "template_id": "credential-template-covenanter-number",
+            "code": "covenanter_number",
+            "name": "守约者编号",
+            "credential_type": CredentialTemplate.CredentialType.COVENANTER_NUMBER,
             "visibility": CredentialTemplate.Visibility.PUBLIC,
             "display_order": 1,
         },
@@ -318,16 +318,16 @@ def issue_credential(
 
 
 @atomic_for_model(CredentialGrant)
-def issue_formal_member_number(
+def issue_covenanter_number(
     member: Member,
     *,
     source_proposal=None,
     source_proposal_execution=None,
     issued_by: Member | None = None,
 ) -> CredentialGrant:
-    """Issue or return the existing formal member number for *member*.
+    """Issue or return the existing covenanter number for *member*.
 
-    Formal member numbers increment globally (1, 2, 3, …) and are never
+    Covenanter numbers increment globally (1, 2, 3, …) and are never
     re-used, even if the member later exits or is suspended.
 
     The outer ``@atomic_for_model`` wraps the entire lock-scoped sequence:
@@ -335,7 +335,7 @@ def issue_formal_member_number(
     create CredentialGrant → write SystemEvent.
     """
     ensure_builtin_credential_templates()
-    template = CredentialTemplate.objects.get(code="formal_member_number")
+    template = CredentialTemplate.objects.get(code="covenanter_number")
 
     # Lock the template row to serialise concurrent issuers.
     locked = (
@@ -362,7 +362,7 @@ def issue_formal_member_number(
     return _issue_credential_unlocked(
         template=template,
         member=member,
-        dedupe_key=f"formal_number:{member.member_no}",
+        dedupe_key=f"covenanter_number:{member.member_no}",
         source_type=CredentialGrant.SourceType.PROPOSAL_EXECUTION
         if source_proposal
         else CredentialGrant.SourceType.SYSTEM,
@@ -414,13 +414,13 @@ def recruitment_credential_options() -> list[dict[str, Any]]:
     """Return active recruitment direction options, each a full gap dict.
 
     Only templates where ``metadata.recruitment.show_on_application`` is True
-    are returned.  The ``formal_member_number`` template is explicitly excluded.
+    are returned.  The ``covenanter_number`` template is explicitly excluded.
     Sorted in Python by sort_order, display_order, code to avoid JSON-field
     ordering differences across databases.
     """
     templates = CredentialTemplate.objects.filter(
         status=CredentialTemplate.Status.ACTIVE,
-    ).exclude(code="formal_member_number")
+    ).exclude(code="covenanter_number")
 
     rows: list[dict[str, Any]] = []
     for t in templates:
@@ -435,7 +435,7 @@ def recruitment_credential_options() -> list[dict[str, Any]]:
 
 def recruitment_option_for_code(code: str) -> dict[str, Any] | None:
     """Return the full recruitment gap dict for *code* or None."""
-    if code == "formal_member_number":
+    if code == "covenanter_number":
         return None
     t = CredentialTemplate.objects.filter(
         code=code, status=CredentialTemplate.Status.ACTIVE,
@@ -534,7 +534,7 @@ def create_recruitment_template(
 
     Raises ``DomainError`` when:
     - *actor_member* is not a governance principal.
-    - *code* is invalid or normalises to ``formal_member_number``.
+    - *code* is invalid or normalises to ``covenanter_number``.
     - *code* already exists.
     - *public_label* is empty or exceeds 255 characters.
     - *public_description* exceeds 500 characters.
@@ -543,11 +543,11 @@ def create_recruitment_template(
     from core.access import member_can_maintain
 
     if not member_can_maintain(actor_member):
-        raise DomainError("只有维护者可以新增招募方向。")
+        raise DomainError("只有典守者可以新增招募方向。")
 
     norm_code = normalize_recruitment_template_code(code)
-    if norm_code == "formal_member_number":
-        raise DomainError("正式成员编号不能作为招募方向编码。")
+    if norm_code == "covenanter_number":
+        raise DomainError("守约者编号不能作为招募方向编码。")
 
     if CredentialTemplate.objects.filter(code=norm_code).exists():
         raise DomainError("招募方向编码已存在。")
@@ -607,14 +607,14 @@ def recruitment_templates_for_management() -> list[dict[str, Any]]:
     """Return all recruitment-direction templates with gap info for management.
 
     Ensures built-in templates exist, then returns every active
-    ``CredentialTemplate`` except ``formal_member_number``, each annotated
+    ``CredentialTemplate`` except ``covenanter_number``, each annotated
     with its current recruitment metadata and gap counts.  Sorted by
     ``sort_order``, ``display_order``, ``code``.
     """
     ensure_builtin_credential_templates()
     templates = CredentialTemplate.objects.filter(
         status=CredentialTemplate.Status.ACTIVE,
-    ).exclude(code="formal_member_number")
+    ).exclude(code="covenanter_number")
 
     rows: list[dict[str, Any]] = []
     for t in templates:
@@ -657,7 +657,7 @@ def update_recruitment_template_config(
 
     Raises ``DomainError`` when:
     - *actor_member* is not a governance principal.
-    - *template_code* is ``formal_member_number``.
+    - *template_code* is ``covenanter_number``.
     - *template_code* cannot be found.
     - *required_count* or *sort_order* is not a valid integer.
 
@@ -667,10 +667,10 @@ def update_recruitment_template_config(
     from core.access import member_can_maintain
 
     if not member_can_maintain(actor_member):
-        raise DomainError("只有维护者可以维护招募方向配置。")
+        raise DomainError("只有典守者可以维护招募方向配置。")
 
-    if template_code == "formal_member_number":
-        raise DomainError("正式成员编号不是招募方向，不能修改。")
+    if template_code == "covenanter_number":
+        raise DomainError("守约者编号不是招募方向，不能修改。")
 
     try:
         required_count = int(required_count)

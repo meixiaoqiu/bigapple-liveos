@@ -311,7 +311,7 @@ def simulation_run_review(
             {"label": "观察窗口小时", "value": metadata.get("observation_window_hours", metadata.get("max_turns", run.max_turns))},
             {"label": "主动报名人数", "value": metadata.get("registered_applicants", "-")},
             {"label": "已筛选报名", "value": metadata.get("screened_applicants", "-")},
-            {"label": "候选成员", "value": metadata.get("candidate_members", "-")},
+            {"label": "贡献者", "value": metadata.get("contributors", "-")},
             {"label": "合作方报名", "value": metadata.get("partner_applications", "-")},
             {"label": "合格合作方", "value": metadata.get("qualified_partners", "-")},
             {"label": "能力缺口", "value": len(missing_capabilities)},
@@ -602,7 +602,7 @@ def simulation_turn_rows(turns, *, include_metadata: bool = False) -> list[Simul
         turn.screened_count = len(metadata.get("screening_results") or [])
         turn.partner_screened_count = len(metadata.get("partner_screening_results") or [])
         turn.registered_applicants = candidate_summary.get("registered_applicants", "")
-        turn.candidate_members = candidate_summary.get("candidate_members", "")
+        turn.contributors = candidate_summary.get("contributors", "")
         turn.partner_applications = candidate_summary.get("partner_applications", "")
         turn.qualified_partners = candidate_summary.get("qualified_partners", "")
         turn.missing_capability_count = len(startup_gate.get("missing_capabilities") or [])

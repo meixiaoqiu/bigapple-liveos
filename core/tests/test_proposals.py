@@ -7,6 +7,12 @@ from django.test import TestCase
 from django.utils import timezone
 
 from core.application_services import submit_member_application
+from core.electorate_rules import (
+    TEMPLATE_COVENANTER,
+    TEMPLATE_PROFESSIONAL,
+    current_electorate_rule_version,
+    ensure_electorate_rule_baseline,
+)
 from core.governance_setup import ensure_maintainer_role
 from core.proposals.execution import execute_proposal
 from core.proposals.lifecycle import create_proposal, create_role_appointment_proposal
@@ -17,40 +23,41 @@ from core.professional_qualification_services import (
     revoke_professional_qualification,
 )
 from core.role_assignment_services import create_role_assignment, revoke_role_assignment
-from core.member_roles import ROLE_DELIBERATOR, ROLE_FORMAL_MEMBER, ensure_catalog_role
+from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ensure_catalog_role
 from core.models import Proposal, ProposalVote
 from core.tests.helpers import create_member, ensure_login_user_for_member
 
 
 class ProposalVotingPolicyTests(TestCase):
-    """新提案只能使用普通议事或单一专业议事政策。"""
+    """提案使用受类型约束的版本化选民规则。"""
 
     def setUp(self) -> None:
-        self.formal_role = ensure_catalog_role(ROLE_FORMAL_MEMBER)
+        self.covenanter_role = ensure_catalog_role(ROLE_COVENANTER)
         self.deliberator_role = ensure_catalog_role(ROLE_DELIBERATOR)
         self.maintainer_role = ensure_maintainer_role()["role"]
         self.deliberator_1 = self._member("policy-deliberator-1")
         self.deliberator_2 = self._member("policy-deliberator-2")
-        self.formal_only = self._member("policy-formal-only")
+        self.covenanter_only = self._member("policy-covenanter-only")
         self.maintainer_only = self._member("policy-maintainer-only")
         self.target = self._member("policy-target")
         self.finance_domain = ensure_professional_domain(code="finance", name="财务")
         self.construction_domain = ensure_professional_domain(code="construction", name="建设")
+        ensure_electorate_rule_baseline()
 
         for member in (self.deliberator_1, self.deliberator_2):
-            self._grant_formal_and_deliberator(member)
-        create_role_assignment(member=self.formal_only, role=self.formal_role)
-        create_role_assignment(member=self.maintainer_only, role=self.formal_role)
+            self._grant_covenanter_and_deliberator(member)
+        create_role_assignment(member=self.covenanter_only, role=self.covenanter_role)
+        create_role_assignment(member=self.maintainer_only, role=self.covenanter_role)
         create_role_assignment(member=self.maintainer_only, role=self.maintainer_role)
-        create_role_assignment(member=self.target, role=self.formal_role)
+        create_role_assignment(member=self.target, role=self.covenanter_role)
 
     def _member(self, member_no: str):
         member = create_member(member_no)
         ensure_login_user_for_member(member)
         return member
 
-    def _grant_formal_and_deliberator(self, member) -> None:
-        create_role_assignment(member=member, role=self.formal_role)
+    def _grant_covenanter_and_deliberator(self, member) -> None:
+        create_role_assignment(member=member, role=self.covenanter_role)
         create_role_assignment(member=member, role=self.deliberator_role)
 
     def _general_proposal(self, *, start_at=None, deadline_at=None) -> Proposal:
@@ -59,7 +66,7 @@ class ProposalVotingPolicyTests(TestCase):
             title="普通议事提案",
             proposal_type=Proposal.ProposalType.POLICY,
             proposer_member=self.deliberator_1,
-            electorate_policy=Proposal.ElectoratePolicy.GENERAL_DELIBERATION,
+            electorate_rule_version=current_electorate_rule_version(TEMPLATE_COVENANTER),
             start_at=starts_at,
             deadline_at=deadline_at or starts_at + timedelta(days=7),
         )
@@ -70,16 +77,16 @@ class ProposalVotingPolicyTests(TestCase):
             title="专业议事提案",
             proposal_type=Proposal.ProposalType.BUDGET,
             proposer_member=self.deliberator_1,
-            electorate_policy=Proposal.ElectoratePolicy.PROFESSIONAL_DELIBERATION,
+            electorate_rule_version=current_electorate_rule_version(TEMPLATE_PROFESSIONAL),
             professional_domain=domain or self.finance_domain,
             start_at=starts_at,
             deadline_at=deadline_at or starts_at + timedelta(days=7),
         )
 
-    def test_general_policy_snapshot_is_intersection_of_formal_members_and_deliberators(self) -> None:
+    def test_general_policy_snapshot_is_intersection_of_covenanters_and_deliberators(self) -> None:
         proposal = self._general_proposal()
 
-        self.assertEqual(proposal.electorate_policy, Proposal.ElectoratePolicy.GENERAL_DELIBERATION)
+        self.assertEqual(proposal.electorate_rule_version.template.code, TEMPLATE_COVENANTER)
         self.assertIsNone(proposal.professional_domain)
         self.assertEqual(
             set(proposal.eligible_voters_snapshot_json),
@@ -109,21 +116,21 @@ class ProposalVotingPolicyTests(TestCase):
             create_proposal(
                 title="无效政策",
                 proposal_type=Proposal.ProposalType.RULE,
-                electorate_policy="",
+                electorate_rule_version=None,
                 deadline_at=timezone.now() + timedelta(days=1),
             )
         with self.assertRaises(ValidationError):
             create_proposal(
                 title="缺少领域",
                 proposal_type=Proposal.ProposalType.BUDGET,
-                electorate_policy=Proposal.ElectoratePolicy.PROFESSIONAL_DELIBERATION,
+                electorate_rule_version=current_electorate_rule_version(TEMPLATE_PROFESSIONAL),
                 deadline_at=timezone.now() + timedelta(days=1),
             )
         with self.assertRaises(ValidationError):
             create_proposal(
                 title="普通提案错误指定领域",
                 proposal_type=Proposal.ProposalType.RULE,
-                electorate_policy=Proposal.ElectoratePolicy.GENERAL_DELIBERATION,
+                electorate_rule_version=current_electorate_rule_version(TEMPLATE_COVENANTER),
                 professional_domain=self.finance_domain,
                 deadline_at=timezone.now() + timedelta(days=1),
             )
@@ -132,11 +139,11 @@ class ProposalVotingPolicyTests(TestCase):
         with self.assertRaises(ValidationError):
             self._professional_proposal(domain=self.finance_domain)
 
-    def test_formal_member_or_maintainer_without_deliberator_term_cannot_vote(self) -> None:
+    def test_covenanter_or_maintainer_without_deliberator_term_cannot_vote(self) -> None:
         proposal = self._general_proposal()
 
         with self.assertRaises(ValidationError):
-            cast_proposal_vote(proposal=proposal, voter_member=self.formal_only, choice=ProposalVote.Choice.YES)
+            cast_proposal_vote(proposal=proposal, voter_member=self.covenanter_only, choice=ProposalVote.Choice.YES)
         with self.assertRaises(ValidationError):
             cast_proposal_vote(proposal=proposal, voter_member=self.maintainer_only, choice=ProposalVote.Choice.YES)
 
@@ -177,20 +184,20 @@ class ProposalVotingPolicyTests(TestCase):
         self.assertEqual(vote.voter_role_assignment.role, self.deliberator_role)
         self.assertEqual(vote.choice, ProposalVote.Choice.YES)
 
-    def test_role_appointment_proposal_uses_general_deliberation_policy(self) -> None:
+    def test_role_appointment_proposal_uses_covenanter_rule(self) -> None:
         proposal = create_role_appointment_proposal(
             target_member=self.target,
             target_role=self.maintainer_role,
             proposer_member=self.deliberator_1,
         )
 
-        self.assertEqual(proposal.electorate_policy, Proposal.ElectoratePolicy.GENERAL_DELIBERATION)
+        self.assertEqual(proposal.electorate_rule_version.template.code, TEMPLATE_COVENANTER)
         self.assertEqual(
             set(proposal.eligible_voters_snapshot_json),
             {self.deliberator_1.pk, self.deliberator_2.pk},
         )
 
-    def test_member_admission_proposal_uses_general_deliberation_policy(self) -> None:
+    def test_member_admission_proposal_uses_covenanter_rule(self) -> None:
         application = submit_member_application(
             applicant_name="申请者",
             contact="applicant@example.test",
@@ -202,7 +209,7 @@ class ProposalVotingPolicyTests(TestCase):
         )
         proposal = application.admission_proposal
 
-        self.assertEqual(proposal.electorate_policy, Proposal.ElectoratePolicy.GENERAL_DELIBERATION)
+        self.assertEqual(proposal.electorate_rule_version.template.code, TEMPLATE_COVENANTER)
         self.assertEqual(
             set(proposal.eligible_voters_snapshot_json),
             {self.deliberator_1.pk, self.deliberator_2.pk},

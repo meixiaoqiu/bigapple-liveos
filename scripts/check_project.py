@@ -68,6 +68,33 @@ def check_role_catalog() -> list[str]:
     return validate_role_catalog()
 
 
+def check_legacy_role_names() -> list[str]:
+    """拒绝在运行源码中保留旧制度名称或稳定标识。"""
+
+    forbidden = (
+        "ROLE_" + "FORMAL_MEMBER",
+        "formal" + "_member",
+        "general_" + "deliberation",
+        "professional_" + "deliberation",
+        "正式" + "成员",
+        "议事" + "者",
+        "维护" + "者",
+        "治理" + "成员",
+        "治理" + "管理员",
+    )
+    ignored = {".git", ".venv", "node_modules", "openspec", "migrations", "__pycache__"}
+    errors: list[str] = []
+    for pattern in ("*.py", "*.html", "*.json", "*.fga"):
+        for path in ROOT.rglob(pattern):
+            if ignored.intersection(path.relative_to(ROOT).parts):
+                continue
+            content = path.read_text(encoding="utf-8")
+            for label in forbidden:
+                if label in content:
+                    errors.append(f"旧制度名称仍存在：{path.relative_to(ROOT)}（{label}）")
+    return errors
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run lightweight Big Apple Live OS repository checks.")
     parser.add_argument(
@@ -83,6 +110,7 @@ def main() -> int:
     errors = []
     errors.extend(check_python_syntax())
     errors.extend(check_role_catalog())
+    errors.extend(check_legacy_role_names())
     errors.extend(check_role_usage_catalog())
     if args.check_contracts:
         errors.extend(check_contract_files())

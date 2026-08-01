@@ -48,7 +48,7 @@ from core.models import (
     SimulationRun,
     SimulationTurn,
 )
-from core.tests.helpers import create_member
+from core.tests.helpers import create_member, electorate_rule_fields
 
 
 class AdminConfigTests(TestCase):
@@ -268,7 +268,7 @@ class AdminConfigTests(TestCase):
         proposal = Proposal.objects.create(
             title="Admin history proposal",
             proposal_type=Proposal.ProposalType.POLICY,
-            electorate_policy=Proposal.ElectoratePolicy.GENERAL_DELIBERATION,
+            **electorate_rule_fields(Proposal.ProposalType.POLICY),
             status=Proposal.Status.VOTING,
             proposer_member=self.member,
             deadline_at=self.now + timezone.timedelta(days=7),
@@ -352,8 +352,8 @@ class AdminConfigTests(TestCase):
         capacity = CapacityAssessment.objects.create(
             assessment_id="capacity-0001",
             simulation_day=1,
-            current_formal_members=10,
-            current_candidate_members=20,
+            current_covenanters=10,
+            current_contributors=20,
             maximum_admissible_members=12,
             recommended_new_members=2,
             bottlenecks=[],

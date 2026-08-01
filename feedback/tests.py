@@ -13,7 +13,7 @@ from core.feedback_services import (
     submit_feedback,
 )
 from core.models import CommunityFeedback, Event, Member, Organization, Proposal, Role
-from core.tests.helpers import create_maintainer_member, create_member, login_as_member
+from core.tests.helpers import create_maintainer_member, create_member, electorate_rule_fields, login_as_member
 from observer.event_context import public_event_semantic_summary
 
 
@@ -172,7 +172,7 @@ class FeedbackServiceTests(TestCase):
         role = Role.objects.create(name="Test", organization=org, status=Role.Status.ACTIVE)
         proposal = Proposal.objects.create(
             title="提案", proposal_type=Proposal.ProposalType.POLICY,
-            electorate_policy=Proposal.ElectoratePolicy.GENERAL_DELIBERATION,
+            **electorate_rule_fields(Proposal.ProposalType.POLICY),
             status=Proposal.Status.VOTING, proposer_member=gov,
             start_at=timezone.now(), deadline_at=timezone.now() + timezone.timedelta(days=7),
             pass_ratio=50, proposal_no="0001",

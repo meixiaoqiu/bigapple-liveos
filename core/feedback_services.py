@@ -106,7 +106,7 @@ def respond_to_feedback(
     *responder_member* must hold governance permission.
     """
     if not member_can_maintain(responder_member):
-        raise DomainError("只有维护者才能回应反馈。")
+        raise DomainError("只有典守者才能回应反馈。")
     if status not in CommunityFeedback.Status.values:
         raise DomainError("反馈状态无效。")
     if status == CommunityFeedback.Status.HIDDEN:
@@ -125,8 +125,8 @@ def respond_to_feedback(
     if status != CommunityFeedback.Status.HIDDEN:
         _write_public_event(
             f"community-feedback-answered-{feedback.feedback_id}-{_event_suffix()}",
-            "维护者回应反馈",
-            f"维护者回应了《{feedback.title}》：{response[:120]}",
+            "典守者回应反馈",
+            f"典守者回应了《{feedback.title}》：{response[:120]}",
             payload=_feedback_public_payload(feedback, action="answered"),
         )
     return feedback
@@ -142,7 +142,7 @@ def hide_feedback(
     Does NOT write a public Event (avoids amplifying hidden content).
     """
     if not member_can_maintain(actor_member):
-        raise DomainError("只有维护者才能隐藏反馈。")
+        raise DomainError("只有典守者才能隐藏反馈。")
     feedback.status = CommunityFeedback.Status.HIDDEN
     feedback.responded_by = actor_member
     feedback.responded_at = timezone.now()
@@ -164,12 +164,12 @@ def link_feedback_to_proposal(
     proposal: Proposal,
     actor_member: Member,
 ) -> CommunityFeedback:
-    """Link a feedback entry to a formal governance Proposal.
+    """将反馈关联到正式治理 Proposal。
 
     *actor_member* must hold governance permission.
     """
     if not member_can_maintain(actor_member):
-        raise DomainError("只有维护者才能将反馈转入治理流程。")
+        raise DomainError("只有典守者才能将反馈转入治理流程。")
     feedback.linked_proposal = proposal
     feedback.status = CommunityFeedback.Status.LINKED
     feedback.responded_by = actor_member

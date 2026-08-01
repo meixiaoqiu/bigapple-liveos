@@ -18,7 +18,7 @@ from core.credit_services import (
 )
 from core.governance_setup import ensure_maintainer_role
 from core.member_roles import (
-    ROLE_FORMAL_MEMBER,
+    ROLE_COVENANTER,
     ensure_catalog_role,
     ensure_role_assignment,
 )
@@ -56,14 +56,14 @@ class Command(BaseCommand):
                     "For browser QA, use settings_admin with --world-id realworld, not live_os.test_settings."
                 )
 
-            formal_role = ensure_catalog_role(ROLE_FORMAL_MEMBER)
+            covenanter_role = ensure_catalog_role(ROLE_COVENANTER)
             maintainer_role = ensure_maintainer_role()["role"]
 
             mem_a = self._ensure_member("qa-a", "QA Member A")
             mem_b = self._ensure_member("qa-b", "QA Member B")
             maintainer = self._ensure_member("qa-maintainer", "QA Maintainer")
             for member in [mem_a, mem_b, maintainer]:
-                ensure_role_assignment(member, formal_role)
+                ensure_role_assignment(member, covenanter_role)
             ensure_role_assignment(maintainer, maintainer_role)
 
             user_model = get_user_model()

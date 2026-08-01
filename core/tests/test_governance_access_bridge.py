@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from core.access import member_can_maintain, user_can_maintain, user_has_permission
 from core.governance_setup import BASE_MAINTENANCE_PERMISSIONS, MAINTENANCE_VIEW_ADMIN_PERMISSION
-from core.member_roles import ROLE_DELIBERATOR, ROLE_FORMAL_MEMBER
+from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER
 from core.role_catalog import ROLE_CATALOG_ORGANIZATION_NAME, ROLE_MAINTAINER
 from core.models import Organization, Permission, Role, RoleAssignment, RolePermission
 from core.role_assignment_services import create_role_assignment
@@ -34,7 +34,7 @@ class GovernanceAccessBridgeTests(TestCase):
                 "category": "governance",
             },
         )
-        member = create_member(user.username, role_name=ROLE_FORMAL_MEMBER, user=user, display_name=user.username)
+        member = create_member(user.username, role_name=ROLE_COVENANTER, user=user, display_name=user.username)
         assignment = create_role_assignment(member=member, role=role)
         RolePermission.objects.create(role=role, permission=permission, scope="global")
         return member, assignment, permission
@@ -104,7 +104,7 @@ class GovernanceAccessBridgeTests(TestCase):
     def test_member_principal_can_use_role_permission(self):
         member = create_member(
             "member-with-role-permission",
-            role_name=ROLE_FORMAL_MEMBER,
+            role_name=ROLE_COVENANTER,
             profile={"display_name": "member-with-role-permission"},
         )
         organization = Organization.objects.create(
@@ -123,7 +123,7 @@ class GovernanceAccessBridgeTests(TestCase):
 
         self.assertTrue(member_can_maintain(member))
 
-    def test_user_without_governance_member_role_or_role_permission_is_denied(self):
+    def test_user_without_maintainer_member_role_or_role_permission_is_denied(self):
         user = self.create_user("plain-user")
         create_member(user.username, profile={"display_name": user.username})
 

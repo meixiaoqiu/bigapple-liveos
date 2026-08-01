@@ -55,7 +55,7 @@ class ObserverSimulationConsoleTests(TestCase):
             batch_id="batch-opening",
             joined_simulation_day=1,
             credit_floor=-500,
-            profile={"display_name": "开荒队维护者"},
+            profile={"display_name": "开荒队典守者"},
             created_at=timezone.now(),
         )
         self.task = Task.objects.create(
@@ -544,7 +544,7 @@ class ObserverSimulationConsoleTests(TestCase):
             "observation_window_hours": 168,
             "registered_applicants": 12,
             "screened_applicants": 8,
-            "candidate_members": 4,
+            "contributors": 4,
             "partner_applications": 3,
             "qualified_partners": 0,
             "startup_gate_satisfied": False,
@@ -600,7 +600,7 @@ class ObserverSimulationConsoleTests(TestCase):
                 "partner_screening_results": [],
                 "candidate_summary": {
                     "registered_applicants": 12,
-                    "candidate_members": 4,
+                    "contributors": 4,
                     "partner_applications": 3,
                     "qualified_partners": 0,
                 },
@@ -810,7 +810,7 @@ class ObserverSimulationConsoleTests(TestCase):
                 "title": "工程前置责任闭环观察窗口结束",
                 "candidate_summary": {
                     "registered_applicants": 156,
-                    "candidate_members": 129,
+                    "contributors": 129,
                     "partner_applications": 17,
                     "qualified_partners": 10,
                 },
@@ -1596,7 +1596,7 @@ class SimulationLabResetWorldTests(TestCase):
         self.assertContains(response, "当前记录数")
 
     def test_reset_world_with_bootstrap_maintainer_uses_configured_initial_member(self) -> None:
-        """启用首个维护者后，零起点使用该成员作为唯一初始成员。"""
+        """启用首个典守者后，零起点使用该成员作为唯一初始成员。"""
         import os
         from unittest import mock
 

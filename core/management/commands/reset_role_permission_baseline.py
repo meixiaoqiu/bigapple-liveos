@@ -7,6 +7,7 @@ from io import StringIO
 
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
+from django.test.utils import override_settings
 
 from core.authorization_services import openfga_context_for_world_kind
 from core.openfga_client import OpenFGAClient, OpenFGARequestError
@@ -35,7 +36,11 @@ class Command(BaseCommand):
         with command_world_context(world_id, command_name="reset_role_permission_baseline"):
             openfga_status = self._preflight_openfga()
             cleared = clear_role_permission_baseline()
-            seeded = load_role_permission_baseline()
+            # OpenFGA tuple 只能在完整 Django 权威基线建立后重建。此处仅在受控
+            # 初始化阶段依据新建的 Django 事实校验典守能力，避免专业资格装载
+            # 依赖尚未重建的旧 tuple。
+            with override_settings(BIG_APPLE_AUTHORIZATION_BACKEND="legacy"):
+                seeded = load_role_permission_baseline()
             if openfga_status != "SKIP:not_configured":
                 openfga_status = self._rebuild_openfga(world_id)
 
@@ -69,7 +74,7 @@ class Command(BaseCommand):
                 store_id=context.store_id,
                 authorization_model_id=context.authorization_model_id,
                 user="member:role-baseline-preflight",
-                relation="formal_member",
+                relation="covenanter",
                 object_=context.platform_object,
             )
         except OpenFGARequestError as exc:

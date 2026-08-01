@@ -312,7 +312,7 @@ def proposal_payload(proposal: Proposal) -> dict[str, Any]:
         "proposer_label": proposer_label,
         "pass_ratio": proposal.pass_ratio,
         "quorum_count": proposal.quorum_count,
-        "electorate_policy": proposal.electorate_policy,
+        "electorate_rule": proposal.electorate_rule_snapshot_json,
     }
     if proposal.professional_domain_id:
         facts["professional_domain_code"] = proposal.professional_domain.code
@@ -354,7 +354,7 @@ def proposal_vote_payload(vote: ProposalVote, *, previous_choice: str | None = N
     if profile and profile.is_visible and profile.public_name:
         voter_public_name = profile.public_name
     else:
-        voter_public_name = voter.display_name or voter.member_no or (voter.user.get_username() if voter.user_id else "") or "议事者"
+        voter_public_name = voter.display_name or voter.member_no or (voter.user.get_username() if voter.user_id else "") or "执衡者"
     ref = _public_ref("proposal", proposal.proposal_no) if proposal.proposal_no else _public_ref(
         "proposal", proposal.proposal_type, proposal.title
     )

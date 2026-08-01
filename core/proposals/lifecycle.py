@@ -13,6 +13,7 @@ from core.event_payloads import iso_or_none, member_display_name, proposal_paylo
 from core.governance_setup import default_role_assignment_end_at
 from core.models import (
     Member,
+    ElectorateRuleVersion,
     Organization,
     ProfessionalDomain,
     Proposal,
@@ -22,7 +23,7 @@ from core.models import (
     SystemEvent,
 )
 
-from .voters import eligible_voter_snapshot, validate_electorate_policy
+from .voters import prepare_electorate_rule
 from .voting import proposal_result
 
 
@@ -34,7 +35,8 @@ def create_proposal(
     proposer_member: Member | None = None,
     proposer_role_assignment: RoleAssignment | None = None,
     organization: Organization | None = None,
-    electorate_policy: str,
+    electorate_rule_version: ElectorateRuleVersion,
+    electorate_parameters: dict[str, Any] | None = None,
     professional_domain: ProfessionalDomain | None = None,
     pass_ratio: int = 50,
     quorum_count: int | None = None,
@@ -47,13 +49,14 @@ def create_proposal(
     starts_at = start_at or timezone.now()
     if deadline_at is None:
         deadline_at = starts_at + timedelta(days=7)
-    validate_electorate_policy(
-        electorate_policy=electorate_policy,
-        professional_domain=professional_domain,
-    )
-    snapshot = eligible_voter_snapshot(
-        electorate_policy=electorate_policy,
-        professional_domain=professional_domain,
+    if electorate_rule_version is None:
+        raise ValidationError("提案必须指定选民规则版本。")
+    if electorate_parameters is None and professional_domain is not None:
+        electorate_parameters = {"professional_domain": professional_domain.code}
+    rule_snapshot, snapshot = prepare_electorate_rule(
+        proposal_type=proposal_type,
+        rule_version=electorate_rule_version,
+        parameters=electorate_parameters,
         at_time=starts_at,
     )
     proposal = Proposal.objects.create(
@@ -64,7 +67,8 @@ def create_proposal(
         proposer_member=proposer_member,
         proposer_role_assignment=proposer_role_assignment,
         organization=organization,
-        electorate_policy=electorate_policy,
+        electorate_rule_version=electorate_rule_version,
+        electorate_rule_snapshot_json=rule_snapshot,
         professional_domain=professional_domain,
         eligible_voters_snapshot_json=snapshot,
         pass_ratio=pass_ratio,
@@ -107,6 +111,8 @@ def create_role_appointment_proposal(
         "start_at": iso_or_none(starts_at),
         "end_at": iso_or_none(assignment_end_at),
     }
+    from core.electorate_rules import TEMPLATE_COVENANTER, current_electorate_rule_version
+
     return create_proposal(
         title=f"任命 {member_display_name(target_member)} 为 {target_role.name}",
         body=reason,
@@ -114,7 +120,7 @@ def create_role_appointment_proposal(
         proposer_member=proposer_member,
         proposer_role_assignment=proposer_role_assignment,
         organization=target_role.organization,
-        electorate_policy=Proposal.ElectoratePolicy.GENERAL_DELIBERATION,
+        electorate_rule_version=current_electorate_rule_version(TEMPLATE_COVENANTER),
         pass_ratio=target_role.appointment_required_percent,
         quorum_count=None,
         allow_vote_change=True,

@@ -11,7 +11,7 @@ from core.access import user_has_permission
 from core.governance_setup import MAINTENANCE_VIEW_ADMIN_PERMISSION
 from core.member_roles import (
     ROLE_DELIBERATOR,
-    ROLE_FORMAL_MEMBER,
+    ROLE_COVENANTER,
     ROLE_MAINTAINER,
     member_has_role,
 )
@@ -61,8 +61,8 @@ class BootstrapWorldCommandTests(TestCase):
                 status=RoleAssignment.Status.ACTIVE,
             ).exists()
         )
-        # 维护者与正式成员资格是独立的直接事实，不会附带议事者职责。
-        self.assertTrue(member_has_role(member, ROLE_FORMAL_MEMBER))
+        # 典守者与守约者资格是独立的直接事实，不会附带执衡者职责。
+        self.assertTrue(member_has_role(member, ROLE_COVENANTER))
         self.assertTrue(member_has_role(member, ROLE_MAINTAINER))
         self.assertFalse(member_has_role(member, ROLE_DELIBERATOR))
         self.assertTrue(user_has_permission(world_user, MAINTENANCE_VIEW_ADMIN_PERMISSION))

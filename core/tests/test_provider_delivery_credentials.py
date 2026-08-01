@@ -12,7 +12,7 @@ from core.credential_services import (
     ensure_builtin_credential_templates,
 )
 from core.exceptions import DomainError
-from core.member_roles import ROLE_FORMAL_MEMBER
+from core.member_roles import ROLE_COVENANTER
 from core.models import (
     CredentialGrant,
     CredentialTemplate,
@@ -89,7 +89,7 @@ class ProcurementWorkflowTests(TestCase):
             updated_at=now,
             rule_version="v1",
         )
-        self.supplier = create_member("mem-supplier-1", role_name=ROLE_FORMAL_MEMBER)
+        self.supplier = create_member("mem-supplier-1", role_name=ROLE_COVENANTER)
         from core.tests.helpers import create_maintainer_member
         self.governor = create_maintainer_member("maintainer-proc-1")
 

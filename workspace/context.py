@@ -59,13 +59,13 @@ ADMISSION_FILTER_LABELS: dict[str, str] = {
 def member_has_full_workspace_access(member: Member) -> bool:
     """Return True if *member* is entitled to the full workspace.
 
-    Full workspace access is primarily granted by the ``ROLE_FORMAL_MEMBER``
+    Full workspace access is primarily granted by the ``ROLE_COVENANTER``
     role.  Lifecycle-disabled statuses (``SUSPENDED``, ``EXITED``) act as a
-    hard veto — even an active ``ROLE_FORMAL_MEMBER`` assignment cannot
+    hard veto — even an active ``ROLE_COVENANTER`` assignment cannot
     override them.
 
     ``Member.status`` is a lifecycle display field and is NOT the source of
-    truth for formal-membership decisions.
+    truth for covenantership decisions.
     """
     return AuthorizationService().member_has_full_workspace_access(member)
 
@@ -255,7 +255,7 @@ def _application_summary(application: MemberApplication) -> dict[str, Any]:
 
 
 def applications_review_list_context(*, member: Member, status_filter: str) -> dict[str, Any]:
-    """为维护者组装成员报名复核列表。
+    """为典守者组装成员报名复核列表。
 
     ``status_filter`` is one of ``voting`` / ``passed_pending`` / ``admitted`` /
     ``rejected`` / ``all``, derived from the linked admission proposal lifecycle.

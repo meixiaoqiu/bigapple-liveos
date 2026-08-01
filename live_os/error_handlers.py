@@ -74,7 +74,7 @@ def server_error(request: HttpRequest) -> HttpResponse:
         status_code=500,
         title="系统暂时无法完成请求",
         message="系统处理请求时出现异常。",
-        detail="请稍后重试；如果问题持续出现，请记录当前页面地址并联系维护者。",
+        detail="请稍后重试；如果问题持续出现，请记录当前页面地址并联系典守者。",
     )
 
 

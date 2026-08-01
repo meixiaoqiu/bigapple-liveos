@@ -34,12 +34,12 @@ class SimulationPlanFeedbackTests(TestCase):
 
     def setUp(self) -> None:
         now = timezone.now()
-        self.governance_member = create_maintainer_member(
+        self.maintainer_member = create_maintainer_member(
             member_no="member-admin-0001",
             status=Member.Status.ACTIVE,
             joined_simulation_day=1,
             credit_floor=-500,
-            profile={"display_name": "开荒队维护者"},
+            profile={"display_name": "开荒队典守者"},
             created_at=now,
         )
         create_member(
@@ -53,8 +53,8 @@ class SimulationPlanFeedbackTests(TestCase):
         CapacityAssessment.objects.create(
             assessment_id="capacity-0001",
             simulation_day=3,
-            current_formal_members=10,
-            current_candidate_members=0,
+            current_covenanters=10,
+            current_contributors=0,
             maximum_admissible_members=12,
             recommended_new_members=0,
             bottlenecks=[],
@@ -257,7 +257,7 @@ class SimulationPlanFeedbackTests(TestCase):
             )
 
     def test_admin_simulation_lab_can_start_auto_run_without_redirecting_to_observer(self) -> None:
-        user = login_as_member(self.client, self.governance_member, is_staff=True)
+        user = login_as_member(self.client, self.maintainer_member, is_staff=True)
         user.is_superuser = True
         user.save(update_fields=["is_superuser"])
         response = self.client.post("/admin/simulation-lab/run-until-failure/", {"max_turns": "5"}, follow=True)

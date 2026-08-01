@@ -76,7 +76,7 @@ def require_maintainer_page(view_func: Callable[P, R]) -> Callable[P, R | HttpRe
         if not is_authenticated(request):
             return redirect_to_login(request.get_full_path(), login_url=world_login_url_for_request(request))
         if not user_can_maintain(request_user(request)):
-            return page_forbidden("需要维护者权限。")
+            return page_forbidden("需要典守者权限。")
         return view_func(request, *args, **kwargs)
 
     return wrapper
@@ -137,5 +137,5 @@ def require_full_workspace_member_json(request: HttpRequest, member_no: str) -> 
 
 def require_member_page(request: HttpRequest, member_no: str) -> HttpResponseForbidden | None:
     if not is_authenticated(request) or not can_access_member(request, member_no):
-        return page_forbidden("需要当前成员或维护者权限。")
+        return page_forbidden("需要当前成员或典守者权限。")
     return None

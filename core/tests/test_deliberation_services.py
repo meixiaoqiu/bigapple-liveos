@@ -9,7 +9,7 @@ from core.deliberation_services import apply_for_deliberator_term, deliberator_t
 from core.exceptions import DomainError
 from core.member_roles import (
     ROLE_DELIBERATOR,
-    ROLE_FORMAL_MEMBER,
+    ROLE_COVENANTER,
     ROLE_MAINTAINER,
     ensure_catalog_role,
     member_has_role,
@@ -27,22 +27,22 @@ class DeliberationServiceTests(TestCase):
             created_at=timezone.now(),
         )
 
-    def admit_formal_member(self, member: Member, *, start_at=None) -> None:
+    def admit_covenanter(self, member: Member, *, start_at=None) -> None:
         create_role_assignment(
             member=member,
-            role=ensure_catalog_role(ROLE_FORMAL_MEMBER),
+            role=ensure_catalog_role(ROLE_COVENANTER),
             start_at=start_at,
         )
 
-    def test_non_formal_member_cannot_apply_for_deliberator_term(self):
-        member = self.create_member("deliberation-non-formal")
+    def test_non_covenanter_cannot_apply_for_deliberator_term(self):
+        member = self.create_member("deliberation-non-covenanter")
 
-        with self.assertRaisesRegex(DomainError, "正式成员"):
+        with self.assertRaisesRegex(DomainError, "守约者"):
             apply_for_deliberator_term(member=member)
 
-    def test_formal_member_self_application_creates_immediate_one_year_term(self):
+    def test_covenanter_self_application_creates_immediate_one_year_term(self):
         member = self.create_member("deliberation-one-year")
-        self.admit_formal_member(member)
+        self.admit_covenanter(member)
         starts_at = timezone.now()
 
         assignment = apply_for_deliberator_term(member=member, at_time=starts_at)
@@ -55,7 +55,7 @@ class DeliberationServiceTests(TestCase):
 
     def test_active_deliberator_term_cannot_be_reapplied_for(self):
         member = self.create_member("deliberation-no-overlap")
-        self.admit_formal_member(member)
+        self.admit_covenanter(member)
         apply_for_deliberator_term(member=member)
 
         with self.assertRaisesRegex(DomainError, "不能重复申请"):
@@ -63,8 +63,8 @@ class DeliberationServiceTests(TestCase):
 
     def test_expired_term_is_retained_and_reapplication_creates_new_term(self):
         member = self.create_member("deliberation-reapply")
-        formal_start = timezone.now() - timedelta(days=400)
-        self.admit_formal_member(member, start_at=formal_start)
+        covenanter_start = timezone.now() - timedelta(days=400)
+        self.admit_covenanter(member, start_at=covenanter_start)
         first = apply_for_deliberator_term(member=member, at_time=timezone.now() - timedelta(days=367))
 
         second = apply_for_deliberator_term(member=member)

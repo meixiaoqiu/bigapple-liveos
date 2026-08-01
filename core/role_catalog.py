@@ -13,9 +13,10 @@ from enum import Enum
 ROLE_CATALOG_ORGANIZATION_NAME = "成员资格与职责"
 ROLE_CATALOG_ORGANIZATION_KEY = "member-role-catalog"
 
-ROLE_FORMAL_MEMBER = "正式成员"
-ROLE_DELIBERATOR = "议事者"
-ROLE_MAINTAINER = "维护者"
+CONTRIBUTOR_DISPLAY_NAME = "贡献者"
+ROLE_COVENANTER = "守约者"
+ROLE_DELIBERATOR = "执衡者"
+ROLE_MAINTAINER = "典守者"
 
 
 class RoleDimension(str, Enum):
@@ -42,7 +43,8 @@ class RoleDefinition:
     description: str
     dimension: RoleDimension
     direct_assignable: bool
-    requires_formal_member: bool
+    electorate_selectable: bool
+    requires_covenanter: bool
     term_rule: TermRule
     openfga_relation: str
 
@@ -54,36 +56,42 @@ class DerivedConceptDefinition:
     code: str
     display_name: str
     description: str
+    dimension: str
+    direct_assignable: bool
+    electorate_selectable: bool
 
 
 ROLE_DEFINITIONS: tuple[RoleDefinition, ...] = (
     RoleDefinition(
-        code="formal_member",
-        display_name=ROLE_FORMAL_MEMBER,
-        description="通过正式成员准入后取得的成员资格。",
+        code="covenanter",
+        display_name=ROLE_COVENANTER,
+        description="通过守约者准入后取得的成员资格。",
         dimension=RoleDimension.MEMBER_QUALIFICATION,
         direct_assignable=True,
-        requires_formal_member=False,
+        electorate_selectable=True,
+        requires_covenanter=False,
         term_rule=TermRule.APPOINTMENT_DEFINED,
-        openfga_relation="formal_member",
+        openfga_relation="covenanter",
     ),
     RoleDefinition(
         code="deliberator",
         display_name=ROLE_DELIBERATOR,
-        description="正式成员主动申请、承担参与义务的一年期议事职责。",
+        description="守约者主动申请、承担参与义务的一年期执衡职责。",
         dimension=RoleDimension.DELIBERATION_DUTY,
         direct_assignable=True,
-        requires_formal_member=True,
+        electorate_selectable=True,
+        requires_covenanter=True,
         term_rule=TermRule.ONE_YEAR_SELF_APPLICATION,
         openfga_relation="deliberator",
     ),
     RoleDefinition(
         code="maintainer",
         display_name=ROLE_MAINTAINER,
-        description="通过正常程序取得、只包含明确维护权限的独立职责。",
+        description="通过正常程序取得、只包含明确典守权限的独立职责。",
         dimension=RoleDimension.MAINTENANCE_DUTY,
         direct_assignable=True,
-        requires_formal_member=True,
+        electorate_selectable=True,
+        requires_covenanter=True,
         term_rule=TermRule.APPOINTMENT_DEFINED,
         openfga_relation="maintainer",
     ),
@@ -92,22 +100,31 @@ ROLE_DEFINITIONS: tuple[RoleDefinition, ...] = (
 DERIVED_CONCEPT_DEFINITIONS: tuple[DerivedConceptDefinition, ...] = (
     DerivedConceptDefinition(
         code="contributor",
-        display_name="贡献者",
-        description="已注册且没有当前有效正式成员资格的参与状态。",
+        display_name=CONTRIBUTOR_DISPLAY_NAME,
+        description="已注册且没有当前有效守约者资格的长期参与状态。",
+        dimension="participation_status",
+        direct_assignable=False,
+        electorate_selectable=True,
     ),
     DerivedConceptDefinition(
         code="anonymous_observation",
         display_name="匿名观察",
         description="未注册用户访问公开内容时的行为，不是身份或角色。",
+        dimension="observation_behavior",
+        direct_assignable=False,
+        electorate_selectable=False,
     ),
     DerivedConceptDefinition(
-        code="formal_member_application",
-        display_name="正式成员申请",
+        code="covenanter_application",
+        display_name="守约者申请",
         description="申请流程状态，不是身份或角色。",
+        dimension="application_status",
+        direct_assignable=False,
+        electorate_selectable=False,
     ),
 )
 
-# 初始化维护者时可复用的具体权限。角色目录只说明初始集合；实际授权仍由
+# 初始化典守者时可复用的具体权限。角色目录只说明初始集合；实际授权仍由
 # ``RolePermission`` 和 ``AuthorizationService`` 决定。
 MAINTAINER_PERMISSION_CODES: tuple[str, ...] = (
     "governance.view_admin",
@@ -181,22 +198,22 @@ def validate_role_catalog() -> list[str]:
     if len(direct_dimensions) != len(set(direct_dimensions)):
         errors.append("每个角色维度只能有一个内置直接事实。")
 
-    formal_member = role_definition_for_name(ROLE_FORMAL_MEMBER)
-    if formal_member is None or formal_member.requires_formal_member:
-        errors.append("正式成员资格必须是无需既有正式成员资格的直接事实。")
+    covenanter = role_definition_for_name(ROLE_COVENANTER)
+    if covenanter is None or covenanter.requires_covenanter:
+        errors.append("守约者资格必须是无需既有守约者资格的直接事实。")
 
     for definition in ROLE_DEFINITIONS:
-        if definition.display_name == ROLE_FORMAL_MEMBER:
+        if definition.display_name == ROLE_COVENANTER:
             continue
-        if not definition.requires_formal_member:
-            errors.append(f"{definition.display_name}必须以前有效正式成员资格为前置条件。")
+        if not definition.requires_covenanter:
+            errors.append(f"{definition.display_name}必须以前有效守约者资格为前置条件。")
 
     if set(role_codes).intersection(derived_codes):
         errors.append("派生概念不能与直接角色共用稳定代码。")
     if set(role_names).intersection(derived_names):
         errors.append("派生概念不能与直接角色共用显示名称。")
     if not MAINTAINER_PERMISSION_CODES:
-        errors.append("维护者必须至少具有一项初始化维护权限。")
+        errors.append("典守者必须至少具有一项初始化典守权限。")
     return errors
 
 

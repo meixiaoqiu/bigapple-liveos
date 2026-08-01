@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from django.test import TestCase
 
-from core.member_roles import ROLE_DELIBERATOR, ROLE_FORMAL_MEMBER, ensure_catalog_role
+from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ensure_catalog_role
 from core.models import Member, MemberPublicProfile
 from core.role_assignment_services import create_role_assignment
 from core.tests.helpers import create_member, login_as_member
@@ -30,14 +30,14 @@ class PublicProfilePageTests(TestCase):
         self.assertContains(response, "/u/mem-profile-01/")
 
     def test_workspace_profile_uses_the_same_membership_and_duty_labels(self):
-        create_role_assignment(member=self.member, role=ensure_catalog_role(ROLE_FORMAL_MEMBER))
+        create_role_assignment(member=self.member, role=ensure_catalog_role(ROLE_COVENANTER))
         create_role_assignment(member=self.member, role=ensure_catalog_role(ROLE_DELIBERATOR))
 
         response = self.client.get("/workspace/profile/")
 
-        self.assertContains(response, "正式成员")
-        self.assertContains(response, "议事者")
-        self.assertNotContains(response, "治理成员")
+        self.assertContains(response, "守约者")
+        self.assertContains(response, "执衡者")
+        self.assertNotContains(response, "治理" + "成员")
 
     def test_member_can_update_own_public_profile(self):
         response = self.client.post("/workspace/profile/update/", {
@@ -110,37 +110,37 @@ class PublicProfilePageTests(TestCase):
         response = self.client.get("/workspace/")
         self.assertContains(response, "/workspace/profile/")
 
-    def test_workspace_profile_shows_formal_member_number(self):
-        """Workspace profile 显示自己的正式成员编号。"""
-        from core.credential_services import ensure_builtin_credential_templates, issue_formal_member_number
-        from core.member_roles import ROLE_FORMAL_MEMBER
+    def test_workspace_profile_shows_covenanter_number(self):
+        """Workspace profile 显示自己的守约者编号。"""
+        from core.credential_services import ensure_builtin_credential_templates, issue_covenanter_number
+        from core.member_roles import ROLE_COVENANTER
 
         ensure_builtin_credential_templates()
         member = create_member(
             member_no="cred-ws-01",
-            role_name=ROLE_FORMAL_MEMBER,
+            role_name=ROLE_COVENANTER,
             status=Member.Status.ADMITTED,
             display_name="凭证成员",
         )
-        issue_formal_member_number(member)
+        issue_covenanter_number(member)
         login_as_member(self.client, member)
         response = self.client.get("/workspace/profile/")
-        self.assertContains(response, "正式成员编号")
+        self.assertContains(response, "守约者编号")
         self.assertContains(response, "#1")
 
     def test_workspace_profile_does_not_leak_internal_pks(self):
         """Workpace profile 不泄露 CredentialGrant.pk / Member.pk / User.id。"""
-        from core.credential_services import ensure_builtin_credential_templates, issue_formal_member_number
-        from core.member_roles import ROLE_FORMAL_MEMBER
+        from core.credential_services import ensure_builtin_credential_templates, issue_covenanter_number
+        from core.member_roles import ROLE_COVENANTER
 
         ensure_builtin_credential_templates()
         member = create_member(
             member_no="cred-ws-safe",
-            role_name=ROLE_FORMAL_MEMBER,
+            role_name=ROLE_COVENANTER,
             status=Member.Status.ADMITTED,
             display_name="安全成员",
         )
-        issue_formal_member_number(member)
+        issue_covenanter_number(member)
         login_as_member(self.client, member)
         response = self.client.get("/workspace/profile/")
         content = response.content.decode()

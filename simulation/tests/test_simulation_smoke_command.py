@@ -225,12 +225,12 @@ class SimulationSmokeCommandTests(TestCase):
         )
         # Verify projections module produces the same results as direct queries.
         from simulation.projections import (
-            candidate_members_for_run,
+            contributors_for_run,
             candidate_summary_for_run,
         )
 
         founder_member_no = run.metadata["founder_member_no"]
-        proj_members = candidate_members_for_run(
+        proj_members = contributors_for_run(
             run,
             founder_member_no=founder_member_no,
         )
@@ -238,7 +238,7 @@ class SimulationSmokeCommandTests(TestCase):
         self.assertEqual(proj_members[0].member_no, founder_member_no)
         proj_summary = candidate_summary_for_run(run, startup_gate_satisfied=False)
         self.assertEqual(proj_summary["registered_applicants"], 6)
-        self.assertEqual(proj_summary["candidate_members"], 3)
+        self.assertEqual(proj_summary["contributors"], 3)
 
         partners = PartnerApplication.objects.filter(metadata__simulation_run_id=run.run_id)
         self.assertEqual(partners.count(), 2)

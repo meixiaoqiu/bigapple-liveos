@@ -13,8 +13,14 @@ from core.authorization_services import (
     openfga_proposal_object,
 )
 from core.governance_setup import ensure_maintainer_role
+from core.electorate_rules import (
+    TEMPLATE_COVENANTER,
+    TEMPLATE_PROFESSIONAL,
+    current_electorate_rule_version,
+    ensure_electorate_rule_baseline,
+)
 from core.management.commands.openfga_rebuild_tuples import _project_authorization_tuples, _unique_tuples
-from core.member_roles import ROLE_DELIBERATOR, ROLE_FORMAL_MEMBER, ROLE_MAINTAINER, ensure_catalog_role
+from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ROLE_MAINTAINER, ensure_catalog_role
 from core.models import Proposal
 from core.professional_qualification_services import (
     ensure_professional_domain,
@@ -27,15 +33,16 @@ from core.tests.helpers import create_member
 
 class OpenFGARolePolicyTests(TestCase):
     def setUp(self) -> None:
-        self.formal_role = ensure_catalog_role(ROLE_FORMAL_MEMBER)
+        self.covenanter_role = ensure_catalog_role(ROLE_COVENANTER)
         self.deliberator_role = ensure_catalog_role(ROLE_DELIBERATOR)
         self.maintainer_role = ensure_maintainer_role()["role"]
         self.deliberator = create_member("fga-deliberator")
         self.maintainer = create_member("fga-maintainer")
         self.finance_domain = ensure_professional_domain(code="finance", name="财务")
-        self._assign(self.deliberator, self.formal_role)
+        ensure_electorate_rule_baseline()
+        self._assign(self.deliberator, self.covenanter_role)
         self._assign(self.deliberator, self.deliberator_role)
-        self._assign(self.maintainer, self.formal_role)
+        self._assign(self.maintainer, self.covenanter_role)
         self._assign(self.maintainer, self.maintainer_role)
         self.qualification = record_external_professional_qualification(
             member=self.deliberator,
@@ -47,14 +54,14 @@ class OpenFGARolePolicyTests(TestCase):
         self.general_proposal = create_proposal(
             title="普通议事",
             proposal_type=Proposal.ProposalType.RULE,
-            electorate_policy=Proposal.ElectoratePolicy.GENERAL_DELIBERATION,
+            electorate_rule_version=current_electorate_rule_version(TEMPLATE_COVENANTER),
             start_at=now,
             deadline_at=now + timedelta(days=7),
         )
         self.professional_proposal = create_proposal(
             title="财务议事",
             proposal_type=Proposal.ProposalType.BUDGET,
-            electorate_policy=Proposal.ElectoratePolicy.PROFESSIONAL_DELIBERATION,
+            electorate_rule_version=current_electorate_rule_version(TEMPLATE_PROFESSIONAL),
             professional_domain=self.finance_domain,
             start_at=now,
             deadline_at=now + timedelta(days=7),
@@ -69,8 +76,8 @@ class OpenFGARolePolicyTests(TestCase):
             for item in _unique_tuples(_project_authorization_tuples(platform_object="platform:test"))
         }
 
-        self.assertEqual(OPENFGA_AUTHORIZATION_MODEL_VERSION, "2026-07-30-role-baseline-v1")
-        self.assertIn((f"member:{self.deliberator.pk}", "formal_member", "platform:test"), tuples)
+        self.assertEqual(OPENFGA_AUTHORIZATION_MODEL_VERSION, "2026-08-01-electorate-rules-v1")
+        self.assertIn((f"member:{self.deliberator.pk}", "covenanter", "platform:test"), tuples)
         self.assertIn((f"member:{self.deliberator.pk}", "deliberator", "platform:test"), tuples)
         self.assertNotIn((f"member:{self.deliberator.pk}", "maintainer", "platform:test"), tuples)
         self.assertIn((f"member:{self.maintainer.pk}", "maintainer", "platform:test"), tuples)
@@ -87,14 +94,7 @@ class OpenFGARolePolicyTests(TestCase):
             ("platform:test", "platform", openfga_proposal_object(self.professional_proposal)),
             tuples,
         )
-        self.assertIn(
-            (
-                openfga_professional_domain_object(self.finance_domain),
-                "professional_domain",
-                openfga_proposal_object(self.professional_proposal),
-            ),
-            tuples,
-        )
+        self.assertIn((f"member:{self.deliberator.pk}", "eligible_member", openfga_proposal_object(self.professional_proposal)), tuples)
         self.assertFalse(any("投票者" in user or "voter" in user for user, _relation, _object in tuples))
 
     @override_settings(

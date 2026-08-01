@@ -16,7 +16,7 @@ from core.authorization_services import (
     openfga_resource_permission_object,
 )
 from core.governance_setup import MAINTENANCE_VIEW_ADMIN_PERMISSION, ensure_maintainer_role
-from core.member_roles import ROLE_FORMAL_MEMBER, ROLE_MAINTAINER
+from core.member_roles import ROLE_COVENANTER, ROLE_MAINTAINER
 from core.models import Organization, Permission, Role, RoleAssignment, RolePermission
 from core.permission_services import member_has_permission
 from core.role_assignment_services import revoke_role_assignment
@@ -25,17 +25,17 @@ from core.management.commands.openfga_rebuild_tuples import _project_authorizati
 
 
 class AuthorizationServiceTests(TestCase):
-    def test_governance_permission_requires_formal_member_to_remain_active(self) -> None:
+    def test_governance_permission_requires_covenanter_to_remain_active(self) -> None:
         member = create_maintainer_member("auth-gov")
 
         self.assertTrue(member_has_permission(member, MAINTENANCE_VIEW_ADMIN_PERMISSION))
 
-        formal_assignment = RoleAssignment.objects.get(
+        covenanter_assignment = RoleAssignment.objects.get(
             member=member,
-            role__name=ROLE_FORMAL_MEMBER,
+            role__name=ROLE_COVENANTER,
             status=RoleAssignment.Status.ACTIVE,
         )
-        revoke_role_assignment(assignment=formal_assignment)
+        revoke_role_assignment(assignment=covenanter_assignment)
 
         self.assertFalse(member_has_permission(member, MAINTENANCE_VIEW_ADMIN_PERMISSION))
 
@@ -151,22 +151,22 @@ class AuthorizationServiceTests(TestCase):
         self.assertIn("capability=maintenance", probe_output)
         self.assertIn("allowed=true", probe_output)
 
-    def test_openfga_projection_removes_formal_member_after_revocation(self) -> None:
-        member = create_maintainer_member("auth-fga-revoked-formal")
-        formal_assignment = RoleAssignment.objects.get(
+    def test_openfga_projection_removes_covenanter_after_revocation(self) -> None:
+        member = create_maintainer_member("auth-fga-revoked-covenanter")
+        covenanter_assignment = RoleAssignment.objects.get(
             member=member,
-            role__name=ROLE_FORMAL_MEMBER,
+            role__name=ROLE_COVENANTER,
             status=RoleAssignment.Status.ACTIVE,
         )
         maintainer_assignment = RoleAssignment.objects.get(member=member, role__name=ROLE_MAINTAINER)
 
-        revoke_role_assignment(assignment=formal_assignment)
+        revoke_role_assignment(assignment=covenanter_assignment)
 
         tuples = set(
             (item["user"], item["relation"], item["object"])
             for item in _unique_tuples(_project_authorization_tuples(platform_object="platform:test"))
         )
-        self.assertNotIn((f"member:{member.pk}", "formal_member", "platform:test"), tuples)
+        self.assertNotIn((f"member:{member.pk}", "covenanter", "platform:test"), tuples)
         self.assertNotIn((f"member:{member.pk}", "maintainer", "platform:test"), tuples)
         self.assertNotIn((f"member:{member.pk}", "assignee", f"role:{maintainer_assignment.role_id}"), tuples)
 
@@ -176,7 +176,7 @@ class AuthorizationServiceTests(TestCase):
         OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
     )
     def test_openfga_backend_rejects_governance_permission_when_openfga_denies(self) -> None:
-        member = create_maintainer_member("auth-fga-denied-formal")
+        member = create_maintainer_member("auth-fga-denied-covenanter")
 
         with patch("core.authorization_services.OpenFGAClient") as client_class:
             client_class.return_value.check.return_value = False
@@ -303,7 +303,7 @@ class AuthorizationServiceTests(TestCase):
         OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
         OPENFGA_SIM_PLATFORM_OBJECT="platform:sim",
     )
-    def test_full_workspace_access_uses_openfga_formal_member_relation(self) -> None:
+    def test_full_workspace_access_uses_openfga_covenanter_relation(self) -> None:
         member = create_maintainer_member("auth-fga-workspace")
 
         with patch("core.authorization_services.OpenFGAClient") as client_class:
@@ -315,6 +315,6 @@ class AuthorizationServiceTests(TestCase):
             store_id="store-id",
             authorization_model_id="model-id",
             user=f"member:{member.pk}",
-            relation="formal_member",
+            relation="covenanter",
             object_="platform:sim",
         )

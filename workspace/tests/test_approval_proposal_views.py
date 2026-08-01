@@ -7,7 +7,7 @@ from decimal import Decimal
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from core.member_roles import ROLE_FORMAL_MEMBER
+from core.member_roles import ROLE_COVENANTER
 from core.models import (
     ApprovalDecision,
     ApprovalProposal,
@@ -36,8 +36,8 @@ class ApprovalProposalViewsTests(TestCase):
     def setUp(self):
         self.governor = create_maintainer_member("maintainer-apv-1")
         login_as_member(self.client, self.governor)
-        self.finance = create_member("fin-apv-1", role_name=ROLE_FORMAL_MEMBER)
-        self.regular = create_member("reg-apv-1", role_name=ROLE_FORMAL_MEMBER)
+        self.finance = create_member("fin-apv-1", role_name=ROLE_COVENANTER)
+        self.regular = create_member("reg-apv-1", role_name=ROLE_COVENANTER)
 
         now = timezone.now()
         self.resource = Resource.objects.create(
@@ -52,7 +52,7 @@ class ApprovalProposalViewsTests(TestCase):
             updated_at=now,
             rule_version="v1",
         )
-        self.supplier = create_member("sup-apv-1", role_name=ROLE_FORMAL_MEMBER)
+        self.supplier = create_member("sup-apv-1", role_name=ROLE_COVENANTER)
 
     _proposal_counter = 0
 

@@ -847,7 +847,7 @@ class PublicEventsBrowserTests(TestCase):
                      "application_id": "app-legacy-link", "proposal_no": "0007"},
         )
         response = self.client.get("/member-applications/app-legacy-link/")
-        self.assertContains(response, "议事者已投票")
+        self.assertContains(response, "执衡者已投票")
         self.assertContains(response, "wzy")
         self.assertContains(response, "反对")
         self.assertContains(response, "理由测试")
@@ -870,7 +870,7 @@ class PublicEventsBrowserTests(TestCase):
         )
         response = self.client.get("/member-applications/app-dup-1/")
         content = response.content.decode()
-        self.assertEqual(content.count("议事者已投票"), 1,
+        self.assertEqual(content.count("执衡者已投票"), 1,
                          "Vote event must appear exactly once")
 
     def test_event_id_prefix_triggers_proposal_no_linkage(self):
@@ -916,13 +916,13 @@ class PublicEventsBrowserTests(TestCase):
     def test_real_member_admission_flow_shows_timeline_with_proposal_and_vote(self):
         """End-to-end: submit → proposal created → timeline shows core events."""
         from core.application_services import submit_member_application
-        from core.member_roles import ROLE_DELIBERATOR, ROLE_FORMAL_MEMBER, ensure_catalog_role
+        from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ensure_catalog_role
         from core.role_assignment_services import create_role_assignment
 
-        # 在创建申请前准备议事者投票人，供投票人快照使用。
-        formal_role = ensure_catalog_role(ROLE_FORMAL_MEMBER)
+        # 在创建申请前准备执衡者投票人，供投票人快照使用。
+        covenanter_role = ensure_catalog_role(ROLE_COVENANTER)
         deliberator_role = ensure_catalog_role(ROLE_DELIBERATOR)
-        create_role_assignment(member=self.member, role=formal_role)
+        create_role_assignment(member=self.member, role=covenanter_role)
         create_role_assignment(member=self.member, role=deliberator_role)
 
         # Submit real member application

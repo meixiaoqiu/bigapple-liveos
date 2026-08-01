@@ -63,8 +63,8 @@ class Command(BaseCommand):
             )
             self.stdout.write(
                 "  前置条件："
-                f"要求正式成员={compliance['requires_formal_member']} "
-                f"缺失={compliance['missing_formal_member']} "
+                f"要求守约者={compliance['requires_covenanter']} "
+                f"缺失={compliance['missing_covenanter']} "
                 f"已停用={compliance['disabled_member']} "
                 f"账号停用={compliance['inactive_user']}"
             )

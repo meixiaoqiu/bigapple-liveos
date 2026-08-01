@@ -72,7 +72,7 @@ def proposal_list(request: HttpRequest) -> HttpResponse:
     if isinstance(member, HttpResponseForbidden):
         return member
     if _governance_or_finance_or_forbidden(member):
-        return page_forbidden("仅维护者或财务职责成员可访问。")
+        return page_forbidden("仅典守者或财务职责成员可访问。")
 
     all_proposals = list(
         ApprovalProposal.objects.select_related("submitted_by")
@@ -124,7 +124,7 @@ def approval_proposal_approve(request: HttpRequest, proposal_id: str) -> HttpRes
     if isinstance(member, HttpResponseForbidden):
         return member
     if _governance_or_finance_or_forbidden(member):
-        return page_forbidden("仅维护者或财务职责成员可访问。")
+        return page_forbidden("仅典守者或财务职责成员可访问。")
 
     proposal = get_object_or_404(ApprovalProposal, proposal_id=proposal_id)
     available = member_available_approval_roles(member, proposal)
@@ -155,7 +155,7 @@ def approval_proposal_reject(request: HttpRequest, proposal_id: str) -> HttpResp
     if isinstance(member, HttpResponseForbidden):
         return member
     if _governance_or_finance_or_forbidden(member):
-        return page_forbidden("仅维护者或财务职责成员可访问。")
+        return page_forbidden("仅典守者或财务职责成员可访问。")
 
     proposal = get_object_or_404(ApprovalProposal, proposal_id=proposal_id)
     available = member_available_approval_roles(member, proposal)
@@ -182,7 +182,7 @@ def approval_proposal_execute(request: HttpRequest, proposal_id: str) -> HttpRes
     if isinstance(member, HttpResponseForbidden):
         return member
     if _governance_or_finance_or_forbidden(member):
-        return page_forbidden("仅维护者或财务职责成员可访问。")
+        return page_forbidden("仅典守者或财务职责成员可访问。")
 
     proposal = get_object_or_404(ApprovalProposal, proposal_id=proposal_id)
 

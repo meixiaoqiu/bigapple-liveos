@@ -11,7 +11,7 @@ from core.finance_services import (
     mark_expense_claim_paid, review_expense_claim, submit_expense_claim, withdraw_expense_claim,
     FINANCE_REVIEW_PERMISSION, FINANCE_PAY_PERMISSION,
 )
-from core.member_roles import ROLE_FORMAL_MEMBER
+from core.member_roles import ROLE_COVENANTER
 from core.models import (
     ExpenseClaim, FinanceReview, FinanceTransaction,
     Organization, Permission, Role, RoleAssignment, RolePermission, SystemEvent, Event,
@@ -23,7 +23,7 @@ from observer.event_context import public_event_semantic_summary
 
 def _make_finance_member(member_no: str, perm_code: str):
     """Create a member with the given finance permission."""
-    member = create_member(member_no, display_name=member_no, role_name=ROLE_FORMAL_MEMBER)
+    member = create_member(member_no, display_name=member_no, role_name=ROLE_COVENANTER)
     setup = ensure_finance_roles()
     role = setup["review_role"] if perm_code == FINANCE_REVIEW_PERMISSION else setup["pay_role"]
     create_role_assignment(member=member, role=role)
@@ -153,7 +153,7 @@ class FinanceServiceTests(TestCase):
         with self.assertRaises(DomainError):
             withdraw_expense_claim(claim=c, member=self.author)
 
-    def test_finance_role_requires_formal_member(self):
+    def test_finance_role_requires_covenanter(self):
         basic = create_member("fin-basic-only")
         setup = ensure_finance_roles()
         with self.assertRaises(DomainError):
@@ -178,7 +178,7 @@ class FinanceServiceTests(TestCase):
 class FinanceViewTests(TestCase):
 
     def setUp(self):
-        self.author = create_member("fin-view-author", display_name="视图作者", role_name=ROLE_FORMAL_MEMBER)
+        self.author = create_member("fin-view-author", display_name="视图作者", role_name=ROLE_COVENANTER)
         login_as_member(self.client, self.author)
 
     def test_claims_page_redirects_unauthenticated(self):

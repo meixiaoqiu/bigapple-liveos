@@ -231,7 +231,7 @@ def seed_tasks(*, now, mark, ruleset: Ruleset, plan_nodes: dict, members: dict) 
                 "metadata": {
                     "seed": True,
                     "simulation_day": 1,
-                    "closed_by": actor("member-admin-0001", "开荒队维护者"),
+                    "closed_by": actor("member-admin-0001", "开荒队典守者"),
                     "closed_at": (now - timedelta(hours=2)).isoformat(),
                     "close_reason": "与已有仓库盘点安排重复，运营侧关闭未开始任务。",
                 },

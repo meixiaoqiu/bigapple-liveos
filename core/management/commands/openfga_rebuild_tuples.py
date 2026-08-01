@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from django.core.management.base import BaseCommand, CommandError
+from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.utils import timezone
 
@@ -17,7 +18,8 @@ from core.authorization_services import (
     openfga_resource_permission_object,
     openfga_role_object,
 )
-from core.member_roles import ROLE_DELIBERATOR, ROLE_FORMAL_MEMBER, ROLE_MAINTAINER, member_role_filter
+from core.proposals.voters import eligible_voters_for_rule_snapshot
+from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ROLE_MAINTAINER, member_role_filter
 from core.models import (
     Member,
     MemberProfessionalQualification,
@@ -29,7 +31,7 @@ from core.models import (
 )
 from core.role_catalog import ROLE_CATALOG_ORGANIZATION_KEY
 from core.openfga_client import OpenFGAClient, OpenFGARequestError
-from core.permission_services import MEMBER_PERMISSION_STATUSES, permission_requires_formal_member
+from core.permission_services import MEMBER_PERMISSION_STATUSES, permission_requires_covenanter
 from worlds.command_context import command_world_context
 
 
@@ -90,7 +92,7 @@ def _project_authorization_tuples(*, platform_object: str):
     checked_at = timezone.now()
 
     for role_name, relation in (
-        (ROLE_FORMAL_MEMBER, "formal_member"),
+        (ROLE_COVENANTER, "covenanter"),
         (ROLE_DELIBERATOR, "deliberator"),
         (ROLE_MAINTAINER, "maintainer"),
     ):
@@ -141,7 +143,7 @@ def _project_authorization_tuples(*, platform_object: str):
                 "relation": "role",
                 "object": permission_object,
             }
-            if permission_requires_formal_member(role_permission.permission.code):
+            if permission_requires_covenanter(role_permission.permission.code):
                 yield {
                     "user": platform_object,
                     "relation": "platform",
@@ -163,7 +165,7 @@ def _project_authorization_tuples(*, platform_object: str):
             "object": openfga_professional_domain_object(qualification.domain),
         }
 
-    proposals = Proposal.objects.select_related("professional_domain").filter(
+    proposals = Proposal.objects.select_related("electorate_rule_version").filter(
         status=Proposal.Status.VOTING,
         deadline_at__gt=checked_at,
     )
@@ -177,12 +179,17 @@ def _project_authorization_tuples(*, platform_object: str):
             "relation": "platform",
             "object": proposal_object,
         }
-        if proposal.electorate_policy == Proposal.ElectoratePolicy.PROFESSIONAL_DELIBERATION:
-            if proposal.professional_domain_id is None:
-                continue
+        try:
+            eligible_members = eligible_voters_for_rule_snapshot(
+                rule_snapshot=proposal.electorate_rule_snapshot_json,
+                at_time=checked_at,
+            )
+        except (ValidationError, ValueError, TypeError):
+            continue
+        for member in eligible_members:
             yield {
-                "user": openfga_professional_domain_object(proposal.professional_domain),
-                "relation": "professional_domain",
+                "user": openfga_member_user(member),
+                "relation": "eligible_member",
                 "object": proposal_object,
             }
 

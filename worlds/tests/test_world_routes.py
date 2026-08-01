@@ -39,7 +39,7 @@ class WorldRouteTests(TestCase):
             batch_id="batch-opening",
             joined_simulation_day=1,
             credit_floor=-500,
-            profile={"display_name": "维护者"},
+            profile={"display_name": "典守者"},
             created_at=timezone.now(),
         )
         login_as_member(self.client, operator)
@@ -107,7 +107,7 @@ class WorldRouteTests(TestCase):
             batch_id="batch-opening",
             joined_simulation_day=1,
             credit_floor=-500,
-            profile={"display_name": "维护者"},
+            profile={"display_name": "典守者"},
             created_at=timezone.now(),
         )
 

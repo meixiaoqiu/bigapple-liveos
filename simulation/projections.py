@@ -71,7 +71,7 @@ def candidate_applications_for_run(run: SimulationRun):
     )
 
 
-def candidate_members_for_run(run: SimulationRun, *, founder_member_no: str | None = None) -> list[Member]:
+def contributors_for_run(run: SimulationRun, *, founder_member_no: str | None = None) -> list[Member]:
     """Return the candidate members for *run*: all linked members whose
     application has ``screening_status=candidate``.
 
@@ -131,7 +131,7 @@ def candidate_summary_for_run(
     document_signer_partners = qualified_document_signer_partners_for_run(run)
     return {
         "registered_applicants": applicants.count(),
-        "candidate_members": applicants.filter(
+        "contributors": applicants.filter(
             metadata__screening_status=SCREENING_CANDIDATE
         ).count(),
         "standby_applicants": applicants.filter(
@@ -272,7 +272,7 @@ def startup_gate_summary_for_run(
     - missing_capabilities
     - missing_document_signers
     """
-    members = candidate_members_for_run(run, founder_member_no=founder_member_no)
+    members = contributors_for_run(run, founder_member_no=founder_member_no)
     partner_applications = qualified_document_signer_partners_for_run(run)
     capability_coverage = capability_coverage_for_members(members, capability_requirements)
     document_signer_coverage = document_signer_coverage_for_partners(

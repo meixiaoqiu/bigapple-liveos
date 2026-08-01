@@ -13,7 +13,7 @@ from .role_catalog import (
     ROLE_CATALOG_ORGANIZATION_KEY,
     ROLE_CATALOG_ORGANIZATION_NAME,
     ROLE_DEFINITIONS,
-    ROLE_FORMAL_MEMBER,
+    ROLE_COVENANTER,
     catalog_role_definition_for_role,
 )
 
@@ -28,13 +28,13 @@ ROLE_ASSIGNMENT_CREATION_PATHS: tuple[dict[str, Any], ...] = (
         ),
         "category": "注册",
         "direct_role_facts": (),
-        "assessment": "注册只创建 User 和 Member；贡献者状态由成员存在与正式成员资格派生。",
+        "assessment": "注册只创建 User 和 Member；贡献者状态由成员存在与守约者资格派生。",
         "follow_up_task": "6.2",
     },
     {
         "id": "member-application-submission",
         "entry_points": ("core.application_services.submit_member_application",),
-        "category": "正式成员申请",
+        "category": "守约者申请",
         "direct_role_facts": (),
         "assessment": "申请进度由 MemberApplication 状态表达，不创建角色任命。",
         "follow_up_task": "6.2",
@@ -45,17 +45,17 @@ ROLE_ASSIGNMENT_CREATION_PATHS: tuple[dict[str, Any], ...] = (
             "core.application_services.admit_member_application_from_proposal",
             "core.proposals.execution.execute_proposal",
         ),
-        "category": "正式成员准入",
-        "direct_role_facts": ("正式成员",),
-        "assessment": "准入提案执行后只创建正式成员资格。",
+        "category": "守约者准入",
+        "direct_role_facts": ("守约者",),
+        "assessment": "准入提案执行后只创建守约者资格。",
         "follow_up_task": "4.2",
     },
     {
         "id": "deliberator-self-application",
         "entry_points": ("core.deliberation_services.apply_for_deliberator_term",),
-        "category": "议事者申请",
-        "direct_role_facts": ("议事者",),
-        "assessment": "有效正式成员的自助申请创建独立一年期职责。",
+        "category": "执衡者申请",
+        "direct_role_facts": ("执衡者",),
+        "assessment": "有效守约者的自助申请创建独立一年期职责。",
         "follow_up_task": "3.1",
     },
     {
@@ -65,8 +65,8 @@ ROLE_ASSIGNMENT_CREATION_PATHS: tuple[dict[str, Any], ...] = (
             "worlds.management.commands.bootstrap_world",
         ),
         "category": "世界初始化",
-        "direct_role_facts": ("正式成员", "维护者"),
-        "assessment": "初始化只使用可复用的正式成员和维护者事实，不创建议事者任期。",
+        "direct_role_facts": ("守约者", "典守者"),
+        "assessment": "初始化只使用可复用的守约者和典守者事实，不创建执衡者任期。",
         "follow_up_task": "3.3",
     },
     {
@@ -161,7 +161,7 @@ def build_role_inventory(*, world: object | None, checked_at=None) -> dict[str, 
                     "expected_name": definition.display_name,
                     "dimension": definition.dimension.value,
                     "direct_assignable": definition.direct_assignable,
-                    "requires_formal_member": definition.requires_formal_member,
+                    "requires_covenanter": definition.requires_covenanter,
                     "term_rule": definition.term_rule.value,
                     "openfga_relation": definition.openfga_relation,
                 },
@@ -183,7 +183,7 @@ def build_role_inventory(*, world: object | None, checked_at=None) -> dict[str, 
                     "expected_name": "",
                     "dimension": "unclassified",
                     "direct_assignable": False,
-                    "requires_formal_member": _role_requires_formal_member(role),
+                    "requires_covenanter": _role_requires_covenanter(role),
                     "term_rule": "unclassified",
                     "openfga_relation": "",
                 },
@@ -248,7 +248,7 @@ def _role_entry(
         "prerequisite_compliance": _prerequisite_compliance(
             assignments=effective_assignments,
             all_assignments=all_assignments,
-            requires_formal_member=bool(catalog["requires_formal_member"]),
+            requires_covenanter=bool(catalog["requires_covenanter"]),
             checked_at=checked_at,
         ),
         "permission_bindings": _permission_bindings(role),
@@ -277,10 +277,10 @@ def _permission_bindings(role: Role | None) -> list[dict[str, Any]]:
     ]
 
 
-def _role_requires_formal_member(role: Role) -> bool:
+def _role_requires_covenanter(role: Role) -> bool:
     definition = catalog_role_definition_for_role(role)
     if definition is not None:
-        return definition.requires_formal_member
+        return definition.requires_covenanter
     return any(
         item.permission.code.startswith(("governance.", "finance.")) for item in role.role_permissions.all()
     )
@@ -290,27 +290,27 @@ def _prerequisite_compliance(
     *,
     assignments: Iterable[RoleAssignment],
     all_assignments: Iterable[RoleAssignment],
-    requires_formal_member: bool,
+    requires_covenanter: bool,
     checked_at,
 ) -> dict[str, Any]:
     current_assignments = list(assignments)
-    if not requires_formal_member:
-        return {"requires_formal_member": False, "checked_effective_assignments": len(current_assignments), "missing_formal_member": 0, "disabled_member": 0, "inactive_user": 0}
+    if not requires_covenanter:
+        return {"requires_covenanter": False, "checked_effective_assignments": len(current_assignments), "missing_covenanter": 0, "disabled_member": 0, "inactive_user": 0}
 
     qualified_member_ids = {
         assignment.member_id
         for assignment in all_assignments
         if catalog_role_definition_for_role(assignment.role) is not None
-        and assignment.role.name == ROLE_FORMAL_MEMBER
+        and assignment.role.name == ROLE_COVENANTER
         and assignment.status == RoleAssignment.Status.ACTIVE
         and assignment.role.status == Role.Status.ACTIVE
         and assignment.start_at <= checked_at < assignment.end_at
     }
     disabled_statuses = {Member.Status.SUSPENDED, Member.Status.EXITED}
     return {
-        "requires_formal_member": True,
+        "requires_covenanter": True,
         "checked_effective_assignments": len(current_assignments),
-        "missing_formal_member": sum(item.member_id not in qualified_member_ids for item in current_assignments),
+        "missing_covenanter": sum(item.member_id not in qualified_member_ids for item in current_assignments),
         "disabled_member": sum(item.member.status in disabled_statuses for item in current_assignments),
         "inactive_user": sum(bool(item.member.user_id and not item.member.user.is_active) for item in current_assignments),
     }
