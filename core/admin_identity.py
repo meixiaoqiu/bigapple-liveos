@@ -126,8 +126,13 @@ class MemberPublicProfileInline(NoDeleteInlineMixin, admin.StackedInline):
     model = MemberPublicProfile
     extra = 0
     max_num = 1
-    fields = ("public_name", "avatar_url", "bio", "is_visible", "created_at", "updated_at")
-    readonly_fields = ("created_at", "updated_at")
+    fields = (
+        "public_name", "avatar_key", "avatar_sha256", "avatar_size", "avatar_updated_at",
+        "bio", "is_visible", "created_at", "updated_at",
+    )
+    readonly_fields = (
+        "avatar_key", "avatar_sha256", "avatar_size", "avatar_updated_at", "created_at", "updated_at",
+    )
 
 
 @admin.register(Member)
@@ -309,7 +314,7 @@ class MemberPublicProfileAdmin(HiddenFromAdminIndexMixin, NoDeleteAdminMixin, ad
     search_fields = ("member__member_no", "member__display_name", "public_name", "bio")
     autocomplete_fields = ("member",)
     list_select_related = ("member",)
-    readonly_fields = ("created_at", "updated_at")
+    readonly_fields = ("avatar_key", "avatar_sha256", "avatar_size", "avatar_updated_at", "created_at", "updated_at")
 
 
 @admin.register(CredentialTemplate)

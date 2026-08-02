@@ -5,9 +5,10 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from django.conf import settings
 from django.contrib import messages
 from django.db.models import Q, Sum
-from django.http import Http404, HttpRequest, HttpResponse, HttpResponseRedirect
+from django.http import FileResponse, Http404, HttpRequest, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods
@@ -203,6 +204,41 @@ def observer_member_profile(request: HttpRequest, member_no: str, **_kwargs):
         get_theme_template_path(request, "member_profile.html"),
         context,
     )
+
+
+def _default_avatar_response() -> HttpResponse:
+    svg = b'''<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><rect width="512" height="512" fill="#e5e7eb"/><circle cx="256" cy="190" r="92" fill="#9ca3af"/><path d="M96 480c12-112 72-172 160-172s148 60 160 172" fill="#9ca3af"/></svg>'''
+    response = HttpResponse(svg, content_type="image/svg+xml")
+    response["X-Content-Type-Options"] = "nosniff"
+    response["Cache-Control"] = "public, max-age=60"
+    return response
+
+
+@require_GET
+def observer_member_avatar(request: HttpRequest, member_no: str, **_kwargs):
+    """Stream the current private avatar without exposing its object key."""
+
+    from core.file_storage import AvatarStorageGateway
+    from core.file_storage.keys import require_deletable_avatar_key
+    from core.models import MemberPublicProfile
+
+    profile = MemberPublicProfile.objects.filter(member__member_no=member_no).only(
+        "avatar_key", "avatar_sha256", "avatar_size"
+    ).first()
+    if profile is None or not profile.avatar_key:
+        return _default_avatar_response()
+    try:
+        world_id = getattr(request, "world_id", "") or getattr(settings, "SITE_WORLD_ID", "") or "realworld"
+        require_deletable_avatar_key(profile.avatar_key, world_id=world_id)
+        handle = AvatarStorageGateway().open_current(profile.avatar_key)
+    except Exception:
+        return _default_avatar_response()
+    response = FileResponse(handle, content_type="image/webp")
+    response["X-Content-Type-Options"] = "nosniff"
+    response["Cache-Control"] = "public, max-age=31536000, immutable"
+    if profile.avatar_sha256:
+        response["ETag"] = f'"{profile.avatar_sha256}"'
+    return response
 
 
 @require_GET

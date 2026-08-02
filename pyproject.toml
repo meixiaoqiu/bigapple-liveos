@@ -13,7 +13,14 @@ dependencies = [
   "Django>=5.0,<6.0",
   "django-htmx>=1.27,<2.0",
   "django-tailwind>=4.2,<5.0",
-  "openfga-sdk>=0.10.4,<0.11.0"
+  "openfga-sdk>=0.10.4,<0.11.0",
+  # Pillow decodes and re-encodes untrusted avatar images into a safe format.
+  "Pillow>=11.0,<13.0",
+  # Magika provides mature content-based file type detection.
+  "magika>=1.0,<2.0",
+  # django-storages and boto3 connect Django's Storage API to OCI's S3-compatible endpoint.
+  "django-storages[s3]>=1.14,<2.0",
+  "boto3>=1.35,<2.0"
 ]
 
 [project.optional-dependencies]

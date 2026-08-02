@@ -42,34 +42,36 @@ class PublicProfilePageTests(TestCase):
     def test_member_can_update_own_public_profile(self):
         response = self.client.post("/workspace/profile/update/", {
             "public_name": "王梓尧",
-            "avatar_url": "https://example.com/avatar.png",
         })
         self.assertEqual(response.status_code, 302)
         profile = MemberPublicProfile.objects.get(member=self.member)
         self.assertEqual(profile.public_name, "王梓尧")
-        self.assertEqual(profile.avatar_url, "https://example.com/avatar.png")
+        self.assertEqual(profile.avatar_key, "")
         self.assertTrue(profile.is_visible)  # always visible from workspace
 
-    def test_invalid_avatar_url_does_not_create_or_overwrite_profile(self):
-        """Validation failure must not create a profile with bad URL, nor overwrite existing one."""
+    def test_external_avatar_url_is_not_accepted_as_profile_data(self):
         response = self.client.post("/workspace/profile/update/", {
             "public_name": "test",
-            "avatar_url": "not-a-url",
+            "avatar_url": "https://untrusted.example/avatar.png",
         })
         self.assertEqual(response.status_code, 302)
-        self.assertFalse(
-            MemberPublicProfile.objects.filter(member=self.member).exists()
-        )
+        profile = MemberPublicProfile.objects.get(member=self.member)
+        self.assertEqual(profile.avatar_key, "")
 
-    def test_invalid_avatar_url_does_not_overwrite_existing_profile(self):
-        MemberPublicProfile.objects.create(member=self.member, public_name="旧名", avatar_url="https://old.com/pic.png")
+    def test_text_profile_update_does_not_overwrite_managed_avatar(self):
+        MemberPublicProfile.objects.create(
+            member=self.member,
+            public_name="旧名",
+            avatar_key="worlds/realworld/current-assets/avatars/old.webp",
+            avatar_sha256="a" * 64,
+            avatar_size=123,
+        )
         self.client.post("/workspace/profile/update/", {
             "public_name": "新名",
-            "avatar_url": "not-a-url",
         })
         profile = MemberPublicProfile.objects.get(member=self.member)
-        self.assertEqual(profile.public_name, "旧名")
-        self.assertEqual(profile.avatar_url, "https://old.com/pic.png")
+        self.assertEqual(profile.public_name, "新名")
+        self.assertEqual(profile.avatar_key, "worlds/realworld/current-assets/avatars/old.webp")
 
     def test_pending_applicant_can_edit_public_profile(self):
         applicant = create_member(
@@ -80,7 +82,7 @@ class PublicProfilePageTests(TestCase):
         response = self.client.get("/workspace/profile/")
         self.assertEqual(response.status_code, 200)
         self.client.post("/workspace/profile/update/", {
-            "public_name": "报名者公开名", "avatar_url": "",
+            "public_name": "报名者公开名",
         })
         profile = MemberPublicProfile.objects.get(member=applicant)
         self.assertEqual(profile.public_name, "报名者公开名")
@@ -96,7 +98,7 @@ class PublicProfilePageTests(TestCase):
     def test_public_profile_page_only_updates_current_member(self):
         other = create_member(member_no="other-01", status=Member.Status.ADMITTED)
         self.client.post("/workspace/profile/update/", {
-            "public_name": "我的名字", "avatar_url": "",
+            "public_name": "我的名字",
         })
         self.assertFalse(
             MemberPublicProfile.objects.filter(member=other).exists()

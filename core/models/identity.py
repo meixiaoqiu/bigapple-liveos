@@ -102,11 +102,29 @@ class MemberPublicProfile(models.Model):
         blank=True,
         help_text="公开显示名，不等同证件实名。为空时回落至 Member.display_name。",
     )
-    avatar_url = models.URLField(
-        "公开头像URL",
-        max_length=1000,
+    avatar_key = models.CharField(
+        "当前头像对象Key",
+        max_length=255,
         blank=True,
-        help_text="公开头像地址，使用 URL 而非上传文件。",
+        help_text="系统生成的当前头像私有对象标识；为空时使用默认头像，不得由表单直接填写。",
+    )
+    avatar_sha256 = models.CharField(
+        "当前头像SHA-256",
+        max_length=64,
+        blank=True,
+        help_text="处理后 WebP 内容的 SHA-256，用于一致性检查，不作为公开地址。",
+    )
+    avatar_size = models.PositiveIntegerField(
+        "当前头像字节数",
+        null=True,
+        blank=True,
+        help_text="处理后 WebP 的字节数；使用默认头像时为空。",
+    )
+    avatar_updated_at = models.DateTimeField(
+        "头像更新时间",
+        null=True,
+        blank=True,
+        help_text="当前头像最后成功切换或移除的时间，与其它公开资料更新时间分开记录。",
     )
     bio = models.TextField(
         "公开简介",
@@ -132,6 +150,14 @@ class MemberPublicProfile(models.Model):
 
     def __str__(self) -> str:
         return f"Profile: {self.member_id}"
+
+    def clean(self):
+        super().clean()
+        values = (self.avatar_key, self.avatar_sha256, self.avatar_size)
+        if any(value not in {None, ""} for value in values) and not all(
+            value not in {None, ""} for value in values
+        ):
+            raise ValidationError("头像对象标识、SHA-256 和字节数必须同时存在或同时为空。")
 
 
 class Organization(models.Model):

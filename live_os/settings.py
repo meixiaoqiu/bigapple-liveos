@@ -38,6 +38,13 @@ def parse_int_setting(value: str | None, *, default: int = 0) -> int:
         raise ImproperlyConfigured(f"Invalid integer setting value: {value}") from exc
 
 
+def parse_positive_int_setting(value: str | None, *, default: int, key: str) -> int:
+    parsed = parse_int_setting(value, default=default)
+    if parsed <= 0:
+        raise ImproperlyConfigured(f"{key} 必须是正整数。")
+    return parsed
+
+
 def parse_csv_setting(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
@@ -351,6 +358,86 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 SIMULATION_ARCHIVE_ROOT = Path(config_value("BIG_APPLE_SIMULATION_ARCHIVE_ROOT", str(BASE_DIR / "var" / "simulation_archives")))
+AVATAR_MAX_UPLOAD_BYTES = parse_positive_int_setting(
+    config_value("BIG_APPLE_AVATAR_MAX_UPLOAD_BYTES") or None,
+    default=10 * 1024 * 1024,
+    key="BIG_APPLE_AVATAR_MAX_UPLOAD_BYTES",
+)
+AVATAR_MAX_EDGE_PIXELS = parse_positive_int_setting(
+    config_value("BIG_APPLE_AVATAR_MAX_EDGE_PIXELS") or None,
+    default=8192,
+    key="BIG_APPLE_AVATAR_MAX_EDGE_PIXELS",
+)
+AVATAR_MAX_TOTAL_PIXELS = parse_positive_int_setting(
+    config_value("BIG_APPLE_AVATAR_MAX_TOTAL_PIXELS") or None,
+    default=25_000_000,
+    key="BIG_APPLE_AVATAR_MAX_TOTAL_PIXELS",
+)
+AVATAR_OUTPUT_PIXELS = parse_positive_int_setting(
+    config_value("BIG_APPLE_AVATAR_OUTPUT_PIXELS") or None,
+    default=512,
+    key="BIG_APPLE_AVATAR_OUTPUT_PIXELS",
+)
+AVATAR_WEBP_QUALITY = parse_positive_int_setting(
+    config_value("BIG_APPLE_AVATAR_WEBP_QUALITY") or None,
+    default=85,
+    key="BIG_APPLE_AVATAR_WEBP_QUALITY",
+)
+if AVATAR_WEBP_QUALITY > 100:
+    raise ImproperlyConfigured("BIG_APPLE_AVATAR_WEBP_QUALITY 不能大于 100。")
+AVATAR_TEMPORARY_RETENTION_HOURS = parse_positive_int_setting(
+    config_value("BIG_APPLE_AVATAR_TEMPORARY_RETENTION_HOURS") or None,
+    default=24,
+    key="BIG_APPLE_AVATAR_TEMPORARY_RETENTION_HOURS",
+)
+
+AVATAR_STORAGE_BACKEND = config_value("BIG_APPLE_AVATAR_STORAGE_BACKEND", "filesystem").lower()
+if AVATAR_STORAGE_BACKEND not in {"filesystem", "oci_s3"}:
+    raise ImproperlyConfigured("BIG_APPLE_AVATAR_STORAGE_BACKEND 只允许 filesystem 或 oci_s3。")
+
+
+def _avatar_storage_options(*, temporary: bool) -> tuple[str, dict[str, object]]:
+    if AVATAR_STORAGE_BACKEND == "filesystem":
+        folder = "avatar_temporary" if temporary else "avatars"
+        return "django.core.files.storage.FileSystemStorage", {
+            "location": str(BASE_DIR / "var" / folder),
+            "base_url": None,
+        }
+
+    required = {
+        "BIG_APPLE_OCI_S3_ENDPOINT_URL": config_value("BIG_APPLE_OCI_S3_ENDPOINT_URL"),
+        "BIG_APPLE_OCI_S3_REGION": config_value("BIG_APPLE_OCI_S3_REGION"),
+        "BIG_APPLE_OCI_S3_BUCKET": config_value("BIG_APPLE_OCI_S3_BUCKET"),
+        "BIG_APPLE_OCI_S3_ACCESS_KEY": config_value("BIG_APPLE_OCI_S3_ACCESS_KEY"),
+        "BIG_APPLE_OCI_S3_SECRET_KEY": config_value("BIG_APPLE_OCI_S3_SECRET_KEY"),
+    }
+    missing = [key for key, value in required.items() if not value]
+    if missing:
+        raise ImproperlyConfigured(f"OCI 头像存储缺少配置：{', '.join(missing)}")
+    options: dict[str, object] = {
+        "bucket_name": required["BIG_APPLE_OCI_S3_BUCKET"],
+        "endpoint_url": required["BIG_APPLE_OCI_S3_ENDPOINT_URL"],
+        "region_name": required["BIG_APPLE_OCI_S3_REGION"],
+        "access_key": required["BIG_APPLE_OCI_S3_ACCESS_KEY"],
+        "secret_key": required["BIG_APPLE_OCI_S3_SECRET_KEY"],
+        "default_acl": None,
+        "querystring_auth": True,
+        "signature_version": "s3v4",
+        "addressing_style": "path",
+        "file_overwrite": False,
+        "location": "temporary" if temporary else "current",
+    }
+    return "storages.backends.s3.S3Storage", options
+
+
+_avatar_backend, _avatar_options = _avatar_storage_options(temporary=False)
+_avatar_temp_backend, _avatar_temp_options = _avatar_storage_options(temporary=True)
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    "avatars": {"BACKEND": _avatar_backend, "OPTIONS": _avatar_options},
+    "avatar_temporary": {"BACKEND": _avatar_temp_backend, "OPTIONS": _avatar_temp_options},
+}
 TAILWIND_APP_NAME = "theme"
 NPM_BIN_PATH = os.environ.get("NPM_BIN_PATH", "npm.cmd" if os.name == "nt" else "npm")
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

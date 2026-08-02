@@ -27,12 +27,14 @@ class MemberProfileTests(TestCase):
         MemberPublicProfile.objects.create(
             member=member,
             public_name="王梓尧",
-            avatar_url="https://example.com/a.png",
+            avatar_key="worlds/realworld/current-assets/avatars/a.webp",
+            avatar_sha256="a" * 64,
+            avatar_size=123,
         )
         response = self.client.get("/u/test-profile-01/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "王梓尧")
-        self.assertContains(response, "https://example.com/a.png")
+        self.assertContains(response, "/u/test-profile-01/avatar/")
         self.assertContains(response, "@test-profile-01")
         self.assertNotContains(response, "观察" + "者")
 
@@ -51,18 +53,20 @@ class MemberProfileTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_profile_with_is_visible_false_still_shows_public_name_and_avatar(self):
-        """is_visible=False 时仍展示 public_name 和 avatar_url。"""
+        """is_visible=False 时仍展示 public_name 和系统头像入口。"""
         member = self._create_member("test-invis", "隐藏名")
         MemberPublicProfile.objects.create(
             member=member,
             public_name="我的公开名",
-            avatar_url="https://example.com/priv.png",
+            avatar_key="worlds/realworld/current-assets/avatars/private.webp",
+            avatar_sha256="b" * 64,
+            avatar_size=123,
             is_visible=False,
         )
         response = self.client.get("/u/test-invis/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "我的公开名")
-        self.assertContains(response, "https://example.com/priv.png")
+        self.assertContains(response, "/u/test-invis/avatar/")
 
     def test_profile_page_does_not_show_bio_or_is_visible(self):
         """页面不包含 bio 和 is_profile_visible。"""

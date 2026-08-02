@@ -34,20 +34,30 @@
             <input class="input input-bordered" type="text" name="public_name" maxlength="255"
                    value="{{ profile_form.public_name }}" placeholder="在公开首页显示的公开姓名">
           </div>
-          <div class="form-control mt-4">
-            <label class="label"><span class="label-text">公开头像 URL</span></label>
-            <input class="input input-bordered" type="url" name="avatar_url" maxlength="1000"
-                   value="{{ profile_form.avatar_url }}" placeholder="https://example.com/avatar.png">
-          </div>
-          {% if profile_form.avatar_url %}
-            <div class="avatar mt-2"><div class="w-12 rounded-full"><img src="{{ profile_form.avatar_url }}" alt="头像预览"></div></div>
-          {% endif %}
           <div class="mt-6 flex flex-wrap gap-2">
             <button class="btn btn-primary" type="submit">保存</button>
             <a class="btn btn-ghost" href="{% world_url 'workspace-page' %}">返回工作台</a>
             <a class="btn btn-ghost btn-outline" href="{% world_url 'observer-member-profile' member.member_no %}">预览公开主页</a>
           </div>
         </form>
+        <div class="divider">头像</div>
+        <div class="flex flex-wrap items-center gap-4">
+          <div class="avatar"><div class="w-20 rounded-full"><img src="{{ profile_form.avatar_url }}" alt="当前头像"></div></div>
+          <div class="grow">
+            <form method="post" enctype="multipart/form-data" action="{% world_url 'workspace-avatar-upload' %}" class="grid gap-2">
+              {% csrf_token %}
+              <input class="file-input file-input-bordered w-full" type="file" name="avatar" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,image/tiff" required>
+              <p class="text-xs text-base-content/60">支持 JPEG、PNG、WebP、GIF、BMP、TIFF，最大 10 MiB；系统会裁剪并转换为 512×512 WebP。</p>
+              <button class="btn btn-primary btn-sm justify-self-start" type="submit">上传或替换头像</button>
+            </form>
+            {% if profile_form.has_avatar %}
+              <form method="post" action="{% world_url 'workspace-avatar-remove' %}" class="mt-2">
+                {% csrf_token %}
+                <button class="btn btn-ghost btn-sm" type="submit">恢复默认头像</button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
       </div>
     </section>
 

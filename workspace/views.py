@@ -64,15 +64,48 @@ def workspace_public_profile_update(request: HttpRequest):
     if isinstance(member, HttpResponseForbidden):
         return member
     public_name = request.POST.get("public_name", "").strip()
-    avatar_url = request.POST.get("avatar_url", "").strip()
     try:
         from core.member_profile_services import update_member_public_profile
-        update_member_public_profile(member=member, public_name=public_name, avatar_url=avatar_url)
+        update_member_public_profile(member=member, public_name=public_name)
         messages.success(request, "公开资料已更新。")
     except DjangoValidationError as exc:
         messages.error(request, f"保存失败：{exc}")
     except DomainError as exc:
         messages.error(request, f"保存失败：{exc}")
+    return world_redirect(request, "workspace-public-profile")
+
+
+@require_POST
+def workspace_avatar_upload(request: HttpRequest):
+    member = current_member_or_forbidden(request)
+    if isinstance(member, HttpResponseForbidden):
+        return member
+    upload = request.FILES.get("avatar")
+    if upload is None:
+        messages.error(request, "请选择头像图片。")
+        return world_redirect(request, "workspace-public-profile")
+    try:
+        from core.avatar_services import replace_own_avatar
+
+        replace_own_avatar(member=member, world_id=request.world_id, upload=upload)
+        messages.success(request, "头像已更新。")
+    except DomainError as exc:
+        messages.error(request, f"头像上传失败：{exc}")
+    return world_redirect(request, "workspace-public-profile")
+
+
+@require_POST
+def workspace_avatar_remove(request: HttpRequest):
+    member = current_member_or_forbidden(request)
+    if isinstance(member, HttpResponseForbidden):
+        return member
+    try:
+        from core.avatar_services import remove_own_avatar
+
+        remove_own_avatar(member=member, world_id=request.world_id)
+        messages.success(request, "已恢复默认头像。")
+    except DomainError as exc:
+        messages.error(request, f"头像移除失败：{exc}")
     return world_redirect(request, "workspace-public-profile")
 
 

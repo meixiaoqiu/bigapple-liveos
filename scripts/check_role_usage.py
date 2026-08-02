@@ -29,15 +29,15 @@ ROLE_USAGE_CATEGORIES = {
 # 每项均以 ``相对路径:行号`` 为键。分类说明是本次角色迁移的静态盘点基线，
 # 新增直接角色判断必须同时更新此目录并接受代码审查。
 ROLE_USAGE_CATALOG: dict[str, dict[str, str]] = {
-    "core/admin_identity.py:238": {
+    "core/admin_identity.py:243": {
         "category": "显示查询",
         "reason": "Django Admin 的任命历史搜索字段。",
     },
-    "core/admin_identity.py:297": {
+    "core/admin_identity.py:302": {
         "category": "显示查询",
         "reason": "Django Admin 的角色权限搜索字段。",
     },
-    "core/admin_identity.py:300": {
+    "core/admin_identity.py:305": {
         "category": "显示查询",
         "reason": "Django Admin 的角色权限排序字段。",
     },

@@ -389,13 +389,19 @@ def workspace_public_profile_context(member: Member) -> dict[str, Any]:
     from core.credential_services import credentials_for_member
 
     profile = MemberPublicProfile.objects.filter(member=member).first()
+    avatar_version = (
+        str(int(profile.avatar_updated_at.timestamp() * 1_000_000))
+        if profile and profile.avatar_updated_at
+        else "default"
+    )
     return {
         "member": member,
         "identity_display": member_identity_display(member),
         "profile": profile,
         "profile_form": {
             "public_name": profile.public_name if profile else "",
-            "avatar_url": profile.avatar_url if profile else "",
+            "has_avatar": bool(profile and profile.avatar_key),
+            "avatar_url": f"/u/{member.member_no}/avatar/?v={avatar_version}",
         },
         "observer_profile_url": f"/u/{member.member_no}/",
         "credentials": credentials_for_member(member),

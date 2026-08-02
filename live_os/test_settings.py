@@ -36,3 +36,10 @@ BIG_APPLE_AUTHORIZATION_BACKEND = "legacy"
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.MD5PasswordHasher",
 ]
+
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
+    "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    "avatars": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
+    "avatar_temporary": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
+}

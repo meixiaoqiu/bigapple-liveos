@@ -81,11 +81,20 @@ def _identity(member: Member) -> dict[str, Any]:
     profile = getattr(member, "public_profile", None)
     if profile is not None:
         public_name = profile.public_name or member.display_name or member.member_no
+        avatar_version = (
+            str(int(profile.avatar_updated_at.timestamp() * 1_000_000))
+            if profile.avatar_updated_at
+            else "default"
+        )
         return {
             "member_no": member.member_no,
             "public_name": public_name,
             "display_name": member.display_name or "",
-            "avatar_url": profile.avatar_url or "",
+            "avatar_url": (
+                f"/u/{member.member_no}/avatar/?v={avatar_version}"
+                if profile.avatar_key
+                else ""
+            ),
             "initials": public_name[0] if public_name else (member.member_no or "?")[0],
         }
     public_name = member.display_name or member.member_no

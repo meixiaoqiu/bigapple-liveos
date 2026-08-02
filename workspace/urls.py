@@ -89,6 +89,16 @@ urlpatterns = [
         name="workspace-public-profile-update",
     ),
     path(
+        "profile/avatar/upload/",
+        world_scoped_view(views.workspace_avatar_upload),
+        name="workspace-avatar-upload",
+    ),
+    path(
+        "profile/avatar/remove/",
+        world_scoped_view(views.workspace_avatar_remove),
+        name="workspace-avatar-remove",
+    ),
+    path(
         "finance/claims/",
         world_scoped_view(finance_views.finance_claims_list),
         name="workspace-finance-list",
