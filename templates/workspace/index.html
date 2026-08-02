@@ -71,6 +71,29 @@
       </section>
     {% endif %}
 
+    <section class="card bg-base-100 shadow-xl" aria-labelledby="workspace-matters-title">
+      <div class="card-body gap-5">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p class="text-sm font-semibold text-primary">统一工作视图</p>
+            <h2 class="card-title text-2xl" id="workspace-matters-title">我的事务</h2>
+            <p class="mt-1 text-sm text-base-content/65">这里只汇总现有业务状态；具体规则和操作仍由各业务模块负责。</p>
+          </div>
+          <span class="badge badge-primary badge-outline">{{ work_items.matters.total_active }} 项进行中</span>
+        </div>
+
+        <div class="grid gap-5 xl:grid-cols-3">
+          {% include "workspace/partials/matter_group.html" with title="需要我处理" items=work_items.matters.action_required tone="warning" empty_text="当前没有需要你立即处理的事务。" %}
+          {% include "workspace/partials/matter_group.html" with title="等待他人" items=work_items.matters.waiting tone="info" empty_text="当前没有等待其他处理方的事务。" %}
+          {% include "workspace/partials/matter_group.html" with title="最近结束" items=work_items.matters.recently_ended tone="success" empty_text="近期没有已结束的相关事务。" %}
+        </div>
+
+        <div class="alert">
+          <span>迁移期说明：下方原有 Workspace 模块全部保留，后续将逐项确认是否删除或迁移。</span>
+        </div>
+      </div>
+    </section>
+
     {% if is_governance or is_finance %}
       {% if work_items.total_pending %}
         <section class="card bg-base-100 shadow border-l-4 border-warning">
@@ -85,22 +108,22 @@
             <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 mt-2">
               {% if work_items.approval_pending %}
                 <a class="btn btn-sm btn-outline btn-warning justify-start" href="{% world_url 'workspace-approval-proposals' %}">
-                  待审批 ({{ work_items.approval_pending|length }})
+                  待审批 ({{ work_items.approval_pending_count }})
                 </a>
               {% endif %}
               {% if work_items.execute_pending %}
                 <a class="btn btn-sm btn-outline btn-info justify-start" href="{% world_url 'workspace-approval-proposals' %}">
-                  待执行 ({{ work_items.execute_pending|length }})
+                  待执行 ({{ work_items.execute_pending_count }})
                 </a>
               {% endif %}
               {% if work_items.receipt_pending %}
                 <a class="btn btn-sm btn-outline btn-success justify-start" href="{% world_url 'workspace-procurement' %}?status=accepted">
-                  待验收 ({{ work_items.receipt_pending|length }})
+                  待验收 ({{ work_items.receipt_pending_count }})
                 </a>
               {% endif %}
               {% if work_items.payment_pending %}
                 <a class="btn btn-sm btn-outline justify-start" href="{% world_url 'workspace-procurement' %}?status=accepted">
-                  待付款/完成 ({{ work_items.payment_pending|length }})
+                  待付款/完成 ({{ work_items.payment_pending_count }})
                 </a>
               {% endif %}
               {% if work_items.challenge_pending %}
@@ -187,7 +210,7 @@
       </div>
     </section>
 
-    <section class="card bg-base-100 shadow">
+    <section class="card bg-base-100 shadow" id="task-history">
       <div class="card-body">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h2 class="card-title">个人任务历史</h2>
@@ -420,7 +443,7 @@
         </div>
       </div>
 
-      <div class="card bg-base-100 shadow">
+      <div class="card bg-base-100 shadow" id="dispute-status">
         <div class="card-body">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <h2 class="card-title">申诉状态</h2>
