@@ -9,6 +9,7 @@ Live OS 目前没有统一、安全的文件上传和图片处理能力，成员
 - 不保存客户端原始文件名；对象 key 使用随机标识和隔离的 world 前缀，数据库只保存当前头像对象 key、处理后媒体类型和必要状态信息。
 - 头像替换采用“先生成并保存新对象、再原子切换数据库引用、提交成功后删除旧对象”的顺序；任一步失败时不得破坏当前有效头像。
 - 头像存储使用 Django Storage 抽象，当前生产后端通过 S3 兼容方式接入 Oracle Cloud Infrastructure Object Storage，开发和测试使用隔离的本地存储。
+- 对象 key 以 `<world-id>/runtime/` 为统一运行期根前缀；仿真 world 重置必须清理该 runtime 前缀后再重建 zero-start，且不得读取、移动或删除 control DB 与 `var/simulation_archives/` 中的历史归档。
 - 提取可复用但不提前泛化的文件处理边界：流式大小限制、Magika 内容类型识别、图片解码重编码、随机 key、哈希计算、临时对象管理和 Storage 访问均不得写死在头像 view 中。
 - 为未来永久附件预留二次开发空间：后续可在相同处理和存储基础设施上增加独立的 `AttachmentCollection` / `Attachment` 模型、真实业务外键、正式提交、冻结、版本更正、密封、归档和永久一致性审计；头像模型不得冒充或弱化该永久生命周期。
 - 第一阶段不实现通用附件表、报销/提案/任务附件、永久版本链、公开文件 API、断点续传、在线预览、文件去重、ClamAV、消息队列、云镜像复制、冷热分层或自动灾难切换。
@@ -28,7 +29,7 @@ Live OS 目前没有统一、安全的文件上传和图片处理能力，成员
 
 ## Impact
 
-- Live OS：修改 `MemberPublicProfile`，增加头像领域服务、文件识别与图片处理模块、成员工作台上传入口、受控头像读取入口、配置、测试和运维一致性检查。
+- Live OS：修改 `MemberPublicProfile`，增加头像领域服务、文件识别与图片处理模块、成员工作台上传入口、受控头像读取入口、配置、测试、运维一致性检查和仿真 world runtime 文件清理。
 - 存储：新增命名 Django Storage alias；生产环境使用私有 OCI Object Storage bucket 的 S3 兼容 endpoint，业务代码不得依赖 Oracle namespace、bucket 名称、永久公网 URL或本地绝对路径。
 - 依赖：增加 Pillow、Magika、`django-storages` 与 boto3；分别承担图片格式解析和重编码、内容类型识别、Django Storage 后端与 S3 兼容客户端职责。
 - 演进边界：未来永久附件复用处理模块和 storage gateway，但使用独立权威模型及只追加服务；不得通过给头像记录堆叠状态字段来实现审计附件。

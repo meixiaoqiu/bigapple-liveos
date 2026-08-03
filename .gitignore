@@ -21,6 +21,7 @@ var/
 # Runtime avatar objects live below var/ in local development and never enter Git.
 var/avatars/
 var/avatar_temporary/
+var/world_files/
 /docs/**/*.md
 .DS_Store
 .idea/

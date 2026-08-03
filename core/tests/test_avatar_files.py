@@ -79,7 +79,7 @@ class AvatarFileProcessingTests(SimpleTestCase):
 class AvatarKeyBoundaryTests(SimpleTestCase):
     def test_random_key_contains_lifecycle_and_world_but_not_hash(self):
         key = new_avatar_key("realworld")
-        self.assertTrue(key.startswith("worlds/realworld/current-assets/avatars/"))
+        self.assertTrue(key.startswith("realworld/runtime/current-assets/avatars/"))
         self.assertTrue(key.endswith(".webp"))
 
     def test_delete_validation_rejects_other_world_and_permanent_prefix(self):
@@ -88,7 +88,7 @@ class AvatarKeyBoundaryTests(SimpleTestCase):
             require_deletable_avatar_key(key, world_id="simulation0001")
         with self.assertRaises(DomainError):
             require_deletable_avatar_key(
-                "worlds/realworld/permanent-attachments/file.webp",
+                "realworld/runtime/permanent-attachments/file.webp",
                 world_id="realworld",
             )
 
@@ -105,14 +105,14 @@ class AvatarKeyBoundaryTests(SimpleTestCase):
     def test_delete_validation_rejects_path_traversal(self):
         with self.assertRaises(DomainError):
             require_deletable_avatar_key(
-                "worlds/realworld/current-assets/avatars/../secret",
+                "realworld/runtime/current-assets/avatars/../secret",
                 world_id="realworld",
             )
 
 
 class MemberPublicProfileAvatarModelTests(TestCase):
     def test_partial_avatar_metadata_is_invalid(self):
-        profile = MemberPublicProfile(avatar_key="worlds/realworld/current-assets/avatars/x.webp")
+        profile = MemberPublicProfile(avatar_key="realworld/runtime/current-assets/avatars/x.webp")
         with self.assertRaises(ValidationError):
             profile.clean()
 
@@ -127,7 +127,7 @@ class _FakeGateway:
     def save_processed(self, *, world_id, content):
         if self.fail_save:
             raise OSError("storage down")
-        key = f"worlds/{world_id}/current-assets/avatars/new.webp"
+        key = f"{world_id}/runtime/current-assets/avatars/new.webp"
         self.saved.append((key, content))
         return key
 
@@ -151,7 +151,7 @@ class AvatarServiceTests(TransactionTestCase):
         process.return_value = self.processed
         MemberPublicProfile.objects.create(
             member=self.member,
-            avatar_key="worlds/realworld/current-assets/avatars/old.webp",
+            avatar_key="realworld/runtime/current-assets/avatars/old.webp",
             avatar_sha256="b" * 64,
             avatar_size=3,
         )
@@ -163,7 +163,7 @@ class AvatarServiceTests(TransactionTestCase):
             gateway=gateway,
         )
         self.assertTrue(profile.avatar_key.endswith("new.webp"))
-        self.assertEqual(gateway.deleted, [("worlds/realworld/current-assets/avatars/old.webp", "realworld")])
+        self.assertEqual(gateway.deleted, [("realworld/runtime/current-assets/avatars/old.webp", "realworld")])
 
     @patch("core.avatar_services.process_avatar")
     def test_storage_failure_preserves_existing_avatar(self, process):
@@ -172,7 +172,7 @@ class AvatarServiceTests(TransactionTestCase):
         process.return_value = self.processed
         profile = MemberPublicProfile.objects.create(
             member=self.member,
-            avatar_key="worlds/realworld/current-assets/avatars/old.webp",
+            avatar_key="realworld/runtime/current-assets/avatars/old.webp",
             avatar_sha256="b" * 64,
             avatar_size=3,
         )
@@ -206,7 +206,7 @@ class AvatarServiceTests(TransactionTestCase):
         target = create_member(member_no="mem-avatar-target-authorized")
         profile = MemberPublicProfile.objects.create(
             member=target,
-            avatar_key="worlds/realworld/current-assets/avatars/bad.webp",
+            avatar_key="realworld/runtime/current-assets/avatars/bad.webp",
             avatar_sha256="d" * 64,
             avatar_size=3,
         )
@@ -220,7 +220,7 @@ class AvatarServiceTests(TransactionTestCase):
         profile.refresh_from_db()
         self.assertEqual(profile.avatar_key, "")
         self.assertIsNotNone(profile.avatar_updated_at)
-        self.assertEqual(gateway.deleted, [("worlds/realworld/current-assets/avatars/bad.webp", "realworld")])
+        self.assertEqual(gateway.deleted, [("realworld/runtime/current-assets/avatars/bad.webp", "realworld")])
         event = Event.objects.get(payload__action="member_avatar_removed")
         self.assertEqual(event.payload["actor_member_no"], self.member.member_no)
         self.assertEqual(event.payload["target_member_no"], target.member_no)

@@ -3,9 +3,20 @@
 from django.core.files.base import ContentFile
 from django.core.files.storage import storages
 from django.core.management.base import BaseCommand, CommandError
+from botocore.exceptions import ClientError
 
 from core.file_storage.keys import new_temporary_key, require_deletable_avatar_key
 from worlds.command_context import command_world_context
+
+
+def _safe_storage_error(exc: Exception) -> str:
+    """Return diagnostics that cannot expose storage names, URLs, keys, or credentials."""
+
+    if isinstance(exc, ClientError):
+        error_code = str(exc.response.get("Error", {}).get("Code", "unknown"))
+        http_status = str(exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode", "unknown"))
+        return f"ClientError code={error_code} http_status={http_status}"
+    return type(exc).__name__
 
 
 class Command(BaseCommand):
@@ -36,11 +47,11 @@ class Command(BaseCommand):
             except CommandError:
                 raise
             except Exception as exc:
-                raise CommandError(f"头像存储探针失败：{type(exc).__name__}") from exc
+                raise CommandError(f"头像存储探针失败：{_safe_storage_error(exc)}") from exc
             finally:
                 if saved:
                     try:
                         storage.delete(require_deletable_avatar_key(saved, world_id=world.world_id, temporary=True))
                     except Exception as exc:
-                        raise CommandError(f"头像存储探针清理失败：{type(exc).__name__}") from exc
+                        raise CommandError(f"头像存储探针清理失败：{_safe_storage_error(exc)}") from exc
             self.stdout.write(self.style.SUCCESS(f"头像存储探针通过：world_id={world.world_id}"))

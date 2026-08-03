@@ -91,7 +91,7 @@ Magika 是第一层内容分类，不替代 Pillow 格式解析。Pillow 解码�
 - Customer Secret Key access/secret；
 - SigV4 与 path-style addressing（除非实际 bucket 明确启用并验证 virtual-hosted style）。
 
-所有凭据来自环境变量，不进入仓库、数据库、日志或页面。开发与测试使用 `FileSystemStorage` 指向被 Git 忽略的独立目录或每个测试的临时目录。
+所有凭据来自环境变量，不进入仓库、数据库、日志或页面。开发与测试的两个 alias 指向同一个被 Git 忽略的 world 文件根目录；OCI 的两个 alias 指向同一个私有 bucket 根目录。alias 只提供窄接口语义，不再通过 `location=current/temporary` 改写 object key。
 
 业务代码只能调用 gateway 的 `save_processed`、`open_current`、`exists` 和“当前资产安全删除”等窄接口，不能直接拼 OCI URL。未来园区内网存储只需替换 Storage 配置或 gateway 后端。
 
@@ -102,24 +102,26 @@ Magika 是第一层内容分类，不替代 Pillow 格式解析。Pillow 解码�
 正式头像 key 形如：
 
 ```text
-worlds/<world-id>/current-assets/avatars/<random-uuid>.webp
+<world-id>/runtime/current-assets/avatars/<random-uuid>.webp
 ```
 
 临时 key 形如：
 
 ```text
-worlds/<world-id>/temporary/avatar-uploads/<random-uuid>
+<world-id>/runtime/temporary/avatar-uploads/<random-uuid>
 ```
 
 未来永久附件必须使用独立前缀，例如：
 
 ```text
-worlds/<world-id>/permanent-attachments/<random-uuid>
+<world-id>/runtime/permanent-attachments/<random-uuid>
 ```
 
 删除接口只接受解析并验证为 `current-assets/avatars/` 或头像临时区的 key，拒绝任何永久附件前缀、其它 world、路径穿越或调用者提供的任意 key。永久附件 gateway 将来不提供通用 delete。
 
-world id 由可信 request/world context 推导，不能来自上传表单。若部署选择每个 world 独立 bucket，key 中仍保留 world 前缀以便迁移与审计。
+world id 由可信 request/world context 推导，不能来自上传表单。world id 是 object key 的第一段，因此删除整个 world 时可以按 `<world-id>/` 统一清理；普通仿真重置只允许清理 `<world-id>/runtime/`。`SimulationSnapshot` 与 `var/simulation_archives/` 不属于对象存储 runtime，也不进入头像清理逻辑。
+
+旧版布局由 Storage `location` 与业务 key 共同组成，例如 `current/worlds/<world-id>/current-assets/avatars/...`。迁移命令必须先复制到新 key、核对字节数与 SHA-256、事务切换 `MemberPublicProfile.avatar_key`，提交后才删除旧对象。临时旧对象没有权威引用，可以由显式迁移清理处理。
 
 ### 6. 头像替换采用先写后切换和提交后补偿
 
@@ -195,5 +197,6 @@ Attachment --supersedes--> Attachment
 4. 上线文件处理、Storage gateway、头像服务、独立 multipart 页面动作和受控读取 endpoint。
 5. 上线 dry-run 一致性检查，确认只扫描当前 world 的头像和临时前缀后再启用清理模式。
 6. 更新数据库、架构、成员工作台和部署文档，并运行 workspace、observer、core、world 隔离及完整回归测试。
+7. 把 Storage alias 统一到 bucket/root 根目录，将既有头像从旧 location 布局无损迁移到 `<world-id>/runtime/`，随后让仿真重置在数据库 flush 前清理该 world 的 runtime 前缀；历史仿真归档保持原位且不参与清理。
 
 回滚时先关闭上传和清理入口，保留新头像字段与对象；可以让读取临时回退默认头像，但不得执行无法证明归属的批量对象删除。已移除的外部 URL 不自动恢复。

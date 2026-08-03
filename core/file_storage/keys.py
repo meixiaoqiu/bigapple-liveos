@@ -19,11 +19,30 @@ def require_safe_world_id(world_id: str) -> str:
 
 
 def avatar_prefix(world_id: str) -> str:
-    return f"worlds/{require_safe_world_id(world_id)}/current-assets/avatars/"
+    return f"{require_safe_world_id(world_id)}/runtime/current-assets/avatars/"
 
 
 def avatar_temporary_prefix(world_id: str) -> str:
-    return f"worlds/{require_safe_world_id(world_id)}/temporary/avatar-uploads/"
+    return f"{require_safe_world_id(world_id)}/runtime/temporary/avatar-uploads/"
+
+
+def world_runtime_prefix(world_id: str) -> str:
+    return f"{require_safe_world_id(world_id)}/runtime/"
+
+
+def legacy_avatar_prefix(world_id: str) -> str:
+    return f"worlds/{require_safe_world_id(world_id)}/current-assets/avatars/"
+
+
+def migrate_legacy_avatar_key(key: str, *, world_id: str) -> str:
+    legacy_prefix = legacy_avatar_prefix(world_id)
+    value = str(key or "")
+    if not value.startswith(legacy_prefix) or ".." in value or "\\" in value:
+        raise DomainError("头像 key 不属于指定 world 的旧布局。")
+    suffix = value.removeprefix(legacy_prefix)
+    if not suffix or "/" in suffix:
+        raise DomainError("无效的旧头像对象 key。")
+    return f"{avatar_prefix(world_id)}{suffix}"
 
 
 def new_avatar_key(world_id: str) -> str:

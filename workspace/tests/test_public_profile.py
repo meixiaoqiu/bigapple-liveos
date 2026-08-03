@@ -62,7 +62,7 @@ class PublicProfilePageTests(TestCase):
         MemberPublicProfile.objects.create(
             member=self.member,
             public_name="旧名",
-            avatar_key="worlds/realworld/current-assets/avatars/old.webp",
+            avatar_key="realworld/runtime/current-assets/avatars/old.webp",
             avatar_sha256="a" * 64,
             avatar_size=123,
         )
@@ -71,7 +71,7 @@ class PublicProfilePageTests(TestCase):
         })
         profile = MemberPublicProfile.objects.get(member=self.member)
         self.assertEqual(profile.public_name, "新名")
-        self.assertEqual(profile.avatar_key, "worlds/realworld/current-assets/avatars/old.webp")
+        self.assertEqual(profile.avatar_key, "realworld/runtime/current-assets/avatars/old.webp")
 
     def test_pending_applicant_can_edit_public_profile(self):
         applicant = create_member(

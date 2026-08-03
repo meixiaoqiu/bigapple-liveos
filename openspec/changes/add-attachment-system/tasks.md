@@ -52,7 +52,7 @@
 - [x] 7.3 更新成员工作台相关产品文档以及 `../bigapple-docs/docs/development/setup.md`，说明头像格式/限制、OCI S3 兼容配置、私有 bucket、存储探针和一致性命令。
 - [x] 7.4 确认没有新增 `/api/v0.1/` 路径或 payload，因而无需修改 technical contracts；若实施中出现公开 API 需求，先停止实现并更新 contracts。
 - [x] 7.5 运行 core、workspace、observer、world 隔离的最小相关测试以及完整本地回归，并执行 `scripts/check_project.py`、`manage.py check`、migration dry-run 和 `git diff --check`。
-- [ ] 7.6 按规格逐项验收格式识别、WebP 重编码、元数据剥离、替换失败回退、并发替换、默认头像、未授权修改、OCI 存储和永久前缀防删除，并记录结果。
+- [x] 7.6 按规格逐项验收格式识别、WebP 重编码、元数据剥离、替换失败回退、并发替换、默认头像、未授权修改、OCI 存储和永久前缀防删除，并记录结果。
 
 ### 7.6 验收记录
 
@@ -62,4 +62,11 @@
 - 通过：WebP 输出元数据剥离、透明通道、替换失败回退、默认头像、未授权修改和永久前缀防删除测试。
 - 通过：头像 URL 随 `avatar_updated_at` 变化，有效头像使用 immutable 缓存，默认或故障回退仅短期缓存。
 - 通过：最终镜像相关测试 58/58、完整回归 1126/1126、存储命令测试 3/3。
-- 待部署验证：使用真实 OCI 私有 bucket 和部署凭据执行 `probe_avatar_storage` 的 Put/Get/Head/Delete 验收。
+- 通过：使用真实 OCI 私有 bucket 和部署凭据执行 `probe_avatar_storage`，Put、Head/exists、size、Get 内容校验和 Delete 清理全部成功。初次 Put 因新版 botocore 尾随 checksum 使用 `aws-chunked` 而返回 HTTP 501；按 OCI 官方兼容要求把请求和响应 checksum 策略设为 `when_required` 后通过。
+
+## 8. World runtime 布局与重置清理
+
+- [x] 8.1 移除 Storage alias 的 `current/temporary` location，把本地与 OCI alias 统一到同一根目录，并把 key 改为 `<world-id>/runtime/current-assets/avatars/` 与 `<world-id>/runtime/temporary/avatar-uploads/`；更新边界测试和运维文档。
+- [x] 8.2 实现显式 world 的旧布局迁移命令：复制并校验现有头像、事务切换数据库 key、提交后删除旧对象；对失败补偿、幂等重跑、其它 world 和永久前缀增加测试。
+- [x] 8.3 实现只接受安全 world runtime 前缀的清理服务并接入仿真重置：Storage 清理失败时不得 flush 数据库，成功后才继续 zero-start；测试证明真实 world、其它 world、control DB 和仿真归档均不受影响。
+- [x] 8.4 在 `simulation0001` 真实 OCI 中迁移当前头像，验证新地址可读、旧对象已清理、runtime 清理 dry-run/执行边界正确，并运行相关测试、完整回归与 OpenSpec strict validation。

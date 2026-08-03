@@ -27,7 +27,7 @@ class MemberProfileTests(TestCase):
         MemberPublicProfile.objects.create(
             member=member,
             public_name="王梓尧",
-            avatar_key="worlds/realworld/current-assets/avatars/a.webp",
+            avatar_key="realworld/runtime/current-assets/avatars/a.webp",
             avatar_sha256="a" * 64,
             avatar_size=123,
         )
@@ -58,7 +58,7 @@ class MemberProfileTests(TestCase):
         MemberPublicProfile.objects.create(
             member=member,
             public_name="我的公开名",
-            avatar_key="worlds/realworld/current-assets/avatars/private.webp",
+            avatar_key="realworld/runtime/current-assets/avatars/private.webp",
             avatar_sha256="b" * 64,
             avatar_size=123,
             is_visible=False,

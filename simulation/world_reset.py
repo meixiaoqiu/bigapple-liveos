@@ -41,6 +41,7 @@ from simulation.disposition import (
     ensure_no_unresolved_finished_runs,
     source_alias_for_world,
 )
+from simulation.runtime_storage import clean_simulation_world_runtime
 from worlds.models import WorldMaintenanceLog, WorldRegistry
 
 # OrderedDict keeps table names in a stable, human-readable order on the UI.
@@ -94,12 +95,13 @@ def reset_simulation_world_to_zero_start(
     1. Validates the world is an active simulation world (refuses realworld).
     2. Counts records before flush for audit / UI display.
     3. Checks for unresolved or running runs (blocks unless force=True).
-    4. Flushes the target world database without touching the control DB.
-    5. Calls seed_world --template zero_start on the target world.
-    6. Counts records after re-seed.
-    7. Rebuilds sim OpenFGA tuples when a sim OpenFGA store is configured.
-    8. Writes a WorldMaintenanceLog in the control database.
-    9. Returns a result dict with counts and metadata.
+    4. Deletes only the target world's runtime objects; archives are untouched.
+    5. Flushes the target world database without touching the control DB.
+    6. Calls seed_world --template zero_start on the target world.
+    7. Counts records after re-seed.
+    8. Rebuilds sim OpenFGA tuples when a sim OpenFGA store is configured.
+    9. Writes a WorldMaintenanceLog in the control database.
+    10. Returns a result dict with counts and metadata.
 
     Note: This function does NOT run run_zero_start_simulation. The world
     after reset will have only the zero-start baseline: one founder member,
@@ -153,6 +155,21 @@ def reset_simulation_world_to_zero_start(
                 f"仿真世界 {world.world_id} 仍有运行中的仿真 {running_run.run_id}。"
                 " 如需强制重置，请勾选 force_reset。"
             )
+
+    # ---- Clean target world runtime objects before changing authority data ----
+    try:
+        runtime_objects_deleted = clean_simulation_world_runtime(world)
+    except CommandError as exc:
+        _record_maintenance_log(
+            world=world,
+            actor=actor,
+            force=force,
+            counts_before=counts_before,
+            counts_after={},
+            status=WorldMaintenanceLog.StatusChoices.FAILED,
+            message=f"清理目标 world runtime 文件失败：{exc}",
+        )
+        raise
 
     # ---- Flush target world database ----
     # Save world registry fields before flush so we can restore it.
@@ -234,6 +251,7 @@ def reset_simulation_world_to_zero_start(
         "seed_template": "zero_start",
         "actor": actor,
         "openfga_rebuild_status": openfga_rebuild_status,
+        "runtime_objects_deleted": runtime_objects_deleted,
         "counts_before": counts_before,
         "counts_after": counts_after,
     }

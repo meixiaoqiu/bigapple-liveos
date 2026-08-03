@@ -46,7 +46,7 @@
           <div class="grow">
             <form method="post" enctype="multipart/form-data" action="{% world_url 'workspace-avatar-upload' %}" class="grid gap-2">
               {% csrf_token %}
-              <input class="file-input file-input-bordered w-full" type="file" name="avatar" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,image/tiff" required>
+              <input class="file-input file-input-primary w-full" type="file" name="avatar" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,image/tiff" required>
               <p class="text-xs text-base-content/60">支持 JPEG、PNG、WebP、GIF、BMP、TIFF，最大 10 MiB；系统会裁剪并转换为 512×512 WebP。</p>
               <button class="btn btn-primary btn-sm justify-self-start" type="submit">上传或替换头像</button>
             </form>

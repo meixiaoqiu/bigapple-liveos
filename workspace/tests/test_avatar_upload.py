@@ -33,7 +33,7 @@ class WorkspaceAvatarUploadTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         profile = MemberPublicProfile.objects.get(member=self.member)
-        self.assertTrue(profile.avatar_key.startswith("worlds/realworld/current-assets/avatars/"))
+        self.assertTrue(profile.avatar_key.startswith("realworld/runtime/current-assets/avatars/"))
         self.assertNotIn("secret-name", profile.avatar_key)
         response = self.client.get(f"/u/{self.member.member_no}/avatar/")
         self.assertEqual(response.status_code, 200)
@@ -116,7 +116,7 @@ class WorkspaceAvatarUploadTests(TestCase):
     def test_missing_current_object_falls_back_to_default(self):
         MemberPublicProfile.objects.create(
             member=self.member,
-            avatar_key="worlds/realworld/current-assets/avatars/missing.webp",
+            avatar_key="realworld/runtime/current-assets/avatars/missing.webp",
             avatar_sha256="f" * 64,
             avatar_size=123,
         )

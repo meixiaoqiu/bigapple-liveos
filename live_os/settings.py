@@ -396,9 +396,9 @@ if AVATAR_STORAGE_BACKEND not in {"filesystem", "oci_s3"}:
     raise ImproperlyConfigured("BIG_APPLE_AVATAR_STORAGE_BACKEND 只允许 filesystem 或 oci_s3。")
 
 
-def _avatar_storage_options(*, temporary: bool) -> tuple[str, dict[str, object]]:
+def _avatar_storage_options(*, temporary: bool, legacy: bool = False) -> tuple[str, dict[str, object]]:
     if AVATAR_STORAGE_BACKEND == "filesystem":
-        folder = "avatar_temporary" if temporary else "avatars"
+        folder = ("avatar_temporary" if temporary else "avatars") if legacy else "world_files"
         return "django.core.files.storage.FileSystemStorage", {
             "location": str(BASE_DIR / "var" / folder),
             "base_url": None,
@@ -414,6 +414,8 @@ def _avatar_storage_options(*, temporary: bool) -> tuple[str, dict[str, object]]
     missing = [key for key, value in required.items() if not value]
     if missing:
         raise ImproperlyConfigured(f"OCI 头像存储缺少配置：{', '.join(missing)}")
+    from botocore.config import Config
+
     options: dict[str, object] = {
         "bucket_name": required["BIG_APPLE_OCI_S3_BUCKET"],
         "endpoint_url": required["BIG_APPLE_OCI_S3_ENDPOINT_URL"],
@@ -422,21 +424,30 @@ def _avatar_storage_options(*, temporary: bool) -> tuple[str, dict[str, object]]
         "secret_key": required["BIG_APPLE_OCI_S3_SECRET_KEY"],
         "default_acl": None,
         "querystring_auth": True,
-        "signature_version": "s3v4",
-        "addressing_style": "path",
+        "client_config": Config(
+            signature_version="s3v4",
+            request_checksum_calculation="when_required",
+            response_checksum_validation="when_required",
+            s3={"addressing_style": "path"},
+        ),
         "file_overwrite": False,
-        "location": "temporary" if temporary else "current",
     }
+    if legacy:
+        options["location"] = "temporary" if temporary else "current"
     return "storages.backends.s3.S3Storage", options
 
 
 _avatar_backend, _avatar_options = _avatar_storage_options(temporary=False)
 _avatar_temp_backend, _avatar_temp_options = _avatar_storage_options(temporary=True)
+_avatar_legacy_backend, _avatar_legacy_options = _avatar_storage_options(temporary=False, legacy=True)
+_avatar_legacy_temp_backend, _avatar_legacy_temp_options = _avatar_storage_options(temporary=True, legacy=True)
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
     "avatars": {"BACKEND": _avatar_backend, "OPTIONS": _avatar_options},
     "avatar_temporary": {"BACKEND": _avatar_temp_backend, "OPTIONS": _avatar_temp_options},
+    "avatar_legacy_current": {"BACKEND": _avatar_legacy_backend, "OPTIONS": _avatar_legacy_options},
+    "avatar_legacy_temporary": {"BACKEND": _avatar_legacy_temp_backend, "OPTIONS": _avatar_legacy_temp_options},
 }
 TAILWIND_APP_NAME = "theme"
 NPM_BIN_PATH = os.environ.get("NPM_BIN_PATH", "npm.cmd" if os.name == "nt" else "npm")

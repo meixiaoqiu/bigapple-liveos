@@ -7,6 +7,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.management.base import CommandError
 from django.db import connection
 from django.test import TestCase, override_settings
 from django.utils import timezone
@@ -1295,6 +1296,32 @@ class SimulationLabResetWorldTests(TestCase):
             "confirm_text": "确认重置",
             "force_reset": "on" if force else "",
         }
+
+    @patch(
+        "simulation.world_reset.clean_simulation_world_runtime",
+        side_effect=CommandError("storage unavailable"),
+    )
+    def test_runtime_cleanup_failure_prevents_database_flush(self, _cleanup) -> None:
+        from simulation.world_reset import reset_simulation_world_to_zero_start
+        from worlds.models import WorldMaintenanceLog
+
+        world = self._create_simulation_world()
+        Member.objects.create(
+            member_no="runtime-cleanup-guard",
+            display_name="保留成员",
+            status=Member.Status.ACTIVE,
+            batch_id="test-batch",
+            joined_simulation_day=0,
+            credit_floor=-100,
+            profile={},
+            created_at=timezone.now(),
+        )
+
+        with self.assertRaises(CommandError):
+            reset_simulation_world_to_zero_start(world, actor="test", force=True)
+
+        self.assertTrue(Member.objects.filter(member_no="runtime-cleanup-guard").exists())
+        self.assertEqual(WorldMaintenanceLog.objects.latest("created_at").status, "failed")
 
     def test_reset_world_requires_superuser(self) -> None:
         """Non-superuser should get 403 for POST to reset-world."""
