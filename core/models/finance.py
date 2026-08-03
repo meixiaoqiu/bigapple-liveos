@@ -24,6 +24,11 @@ def _new_transaction_id() -> str:
     return f"finance-tx-{uuid4().hex[:12]}"
 
 
+def _new_payment_execution_id() -> str:
+    from uuid import uuid4
+    return f"payment-execution-{uuid4().hex[:12]}"
+
+
 class ExpenseClaim(models.Model):
     """A reimbursement / expense request submitted by a registered member."""
 
@@ -109,6 +114,43 @@ class FinanceReview(models.Model):
 
     def __str__(self):
         return f"{self.get_decision_display()} — {self.claim}"
+
+
+class PaymentExecution(models.Model):
+    """Immutable normalized result from one configured payment backend."""
+
+    class Status(models.TextChoices):
+        SUCCEEDED = "succeeded", "成功"
+        FAILED = "failed", "失败"
+
+    class SyncStatus(models.TextChoices):
+        LOCAL = "local", "本地"
+        SYNCED = "synced", "已同步"
+        FAILED = "failed", "同步失败"
+
+    execution_id = models.CharField("付款执行 ID", max_length=64, unique=True, default=_new_payment_execution_id)
+    claim = models.OneToOneField(ExpenseClaim, on_delete=models.PROTECT, related_name="payment_execution", verbose_name="报销申请")
+    backend_type = models.CharField("执行后端", max_length=64, help_text="产生付款结果的已注册能力后端标识。")
+    status = models.CharField("执行状态", max_length=16, choices=Status.choices)
+    payment_date = models.DateField("付款日期")
+    payment_method = models.CharField("付款方式", max_length=64)
+    payer_member = models.ForeignKey(Member, on_delete=models.PROTECT, related_name="payment_executions", verbose_name="付款确认人")
+    note = models.TextField("内部备注", blank=True)
+    external_system = models.CharField("外部系统", max_length=64, blank=True)
+    external_object_id = models.CharField("外部对象 ID", max_length=255, blank=True)
+    sync_status = models.CharField("同步状态", max_length=16, choices=SyncStatus.choices, default=SyncStatus.LOCAL)
+    result_snapshot = models.JSONField("结果快照", default=dict, blank=True, help_text="经过字段白名单过滤的后端结果副本。")
+    finance_transaction = models.OneToOneField("core.FinanceTransaction", on_delete=models.PROTECT, null=True, blank=True, related_name="payment_execution", verbose_name="财务流水")
+    executed_at = models.DateTimeField("执行时间", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "付款执行"
+        verbose_name_plural = "付款执行"
+
+    def save(self, *args, **kwargs):
+        if self.pk and type(self).objects.filter(pk=self.pk).exists():
+            raise ValueError("PaymentExecution is immutable.")
+        return super().save(*args, **kwargs)
 
 
 class FinanceTransaction(models.Model):

@@ -39,7 +39,8 @@ from .operations import LedgerEntry, Resource, ResourceTransaction, SupplierQuot
 from .events import Event, SystemEvent
 from .disputes import CapacityAssessment, Dispute
 from .feedback import CommunityFeedback
-from .finance import ExpenseClaim, FinanceReview, FinanceTransaction
+from .finance import ExpenseClaim, FinanceReview, FinanceTransaction, PaymentExecution
+from .attachments import Attachment, ExpenseClaimAttachment
 
 __all__ = [
     "TimestampedModel",
@@ -95,6 +96,9 @@ __all__ = [
     "ExpenseClaim",
     "FinanceReview",
     "FinanceTransaction",
+    "PaymentExecution",
+    "Attachment",
+    "ExpenseClaimAttachment",
     "CreditAccount",
     "CreditTransaction",
     "RedemptionOrder",

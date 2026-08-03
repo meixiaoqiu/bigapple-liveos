@@ -30,6 +30,25 @@ def world_runtime_prefix(world_id: str) -> str:
     return f"{require_safe_world_id(world_id)}/runtime/"
 
 
+def business_attachment_prefix(world_id: str) -> str:
+    return f"{require_safe_world_id(world_id)}/runtime/permanent-attachments/"
+
+
+def new_business_attachment_key(world_id: str) -> str:
+    return f"{business_attachment_prefix(world_id)}{uuid4().hex}"
+
+
+def require_business_attachment_key(key: str, *, world_id: str) -> str:
+    expected = business_attachment_prefix(world_id)
+    value = str(key or "")
+    if not value.startswith(expected) or ".." in value or "\\" in value:
+        raise DomainError("附件 key 不属于当前 world 的业务附件生命周期。")
+    suffix = value.removeprefix(expected)
+    if not suffix or "/" in suffix:
+        raise DomainError("无效的业务附件对象 key。")
+    return value
+
+
 def legacy_avatar_prefix(world_id: str) -> str:
     return f"worlds/{require_safe_world_id(world_id)}/current-assets/avatars/"
 

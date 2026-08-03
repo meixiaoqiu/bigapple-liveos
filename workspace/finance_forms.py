@@ -7,6 +7,18 @@ from django import forms
 from core.models import ExpenseClaim, FinanceReview
 
 
+class MultipleFileInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+
+class MultipleFileField(forms.FileField):
+    widget = MultipleFileInput
+
+    def clean(self, data, initial=None):
+        single_clean = super().clean
+        return [single_clean(item, initial) for item in (data or [])]
+
+
 class ExpenseClaimForm(forms.Form):
     title = forms.CharField(
         max_length=120,
@@ -46,6 +58,15 @@ class ExpenseClaimForm(forms.Form):
         widget=forms.Textarea(attrs={"class": "textarea textarea-bordered", "rows": 4}),
         label="支出说明",
     )
+    public_note = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"class": "textarea textarea-bordered", "rows": 2}),
+        label="公开说明",
+    )
+    evidence_files = MultipleFileField(
+        widget=MultipleFileInput(attrs={"class": "file-input file-input-primary w-full", "accept": ".pdf,.jpg,.jpeg,.png,.webp,.csv"}),
+        label="支出凭证",
+    )
 
 
 class FinanceReviewForm(forms.Form):
@@ -59,3 +80,18 @@ class FinanceReviewForm(forms.Form):
         widget=forms.Textarea(attrs={"class": "textarea textarea-bordered", "rows": 2}),
         label="理由",
     )
+
+
+class FinancePaymentForm(forms.Form):
+    payment_date = forms.DateField(widget=forms.DateInput(attrs={"class": "input input-bordered", "type": "date"}), label="付款日期")
+    payment_method = forms.CharField(max_length=64, widget=forms.TextInput(attrs={"class": "input input-bordered", "placeholder": "银行转账、支付宝等"}), label="付款方式")
+    note = forms.CharField(required=False, widget=forms.Textarea(attrs={"class": "textarea textarea-bordered", "rows": 2}), label="内部备注")
+    evidence_files = MultipleFileField(
+        widget=MultipleFileInput(attrs={"class": "file-input file-input-primary w-full", "accept": ".pdf,.jpg,.jpeg,.png,.webp,.csv"}),
+        label="付款凭证",
+    )
+
+
+class PublicAttachmentForm(forms.Form):
+    source_attachment_id = forms.CharField(widget=forms.HiddenInput())
+    public_file = forms.FileField(widget=forms.ClearableFileInput(attrs={"class": "file-input file-input-primary w-full", "accept": ".pdf,.jpg,.jpeg,.png,.webp,.csv"}), label="已脱敏公开副本")

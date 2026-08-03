@@ -391,6 +391,22 @@ AVATAR_TEMPORARY_RETENTION_HOURS = parse_positive_int_setting(
     key="BIG_APPLE_AVATAR_TEMPORARY_RETENTION_HOURS",
 )
 
+ATTACHMENT_MAX_UPLOAD_BYTES = parse_positive_int_setting(
+    config_value("BIG_APPLE_ATTACHMENT_MAX_UPLOAD_BYTES") or None, default=10 * 1024 * 1024,
+    key="BIG_APPLE_ATTACHMENT_MAX_UPLOAD_BYTES",
+)
+ATTACHMENT_MAX_FILES = parse_positive_int_setting(
+    config_value("BIG_APPLE_ATTACHMENT_MAX_FILES") or None, default=10,
+    key="BIG_APPLE_ATTACHMENT_MAX_FILES",
+)
+ATTACHMENT_MAX_TOTAL_BYTES = parse_positive_int_setting(
+    config_value("BIG_APPLE_ATTACHMENT_MAX_TOTAL_BYTES") or None, default=30 * 1024 * 1024,
+    key="BIG_APPLE_ATTACHMENT_MAX_TOTAL_BYTES",
+)
+ATTACHMENT_MAX_EDGE_PIXELS = AVATAR_MAX_EDGE_PIXELS
+ATTACHMENT_MAX_TOTAL_PIXELS = AVATAR_MAX_TOTAL_PIXELS
+FINANCE_PAYMENT_BACKEND = config_value("BIG_APPLE_FINANCE_PAYMENT_BACKEND", "liveos_manual").strip().lower()
+
 AVATAR_STORAGE_BACKEND = config_value("BIG_APPLE_AVATAR_STORAGE_BACKEND", "filesystem").lower()
 if AVATAR_STORAGE_BACKEND not in {"filesystem", "oci_s3"}:
     raise ImproperlyConfigured("BIG_APPLE_AVATAR_STORAGE_BACKEND 只允许 filesystem 或 oci_s3。")
@@ -446,6 +462,7 @@ STORAGES = {
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
     "avatars": {"BACKEND": _avatar_backend, "OPTIONS": _avatar_options},
     "avatar_temporary": {"BACKEND": _avatar_temp_backend, "OPTIONS": _avatar_temp_options},
+    "business_attachments": {"BACKEND": _avatar_backend, "OPTIONS": _avatar_options},
     "avatar_legacy_current": {"BACKEND": _avatar_legacy_backend, "OPTIONS": _avatar_legacy_options},
     "avatar_legacy_temporary": {"BACKEND": _avatar_legacy_temp_backend, "OPTIONS": _avatar_legacy_temp_options},
 }

@@ -129,6 +129,16 @@ urlpatterns = [
         name="workspace-finance-withdraw",
     ),
     path(
+        "finance/claims/<str:claim_id>/attachments/<str:attachment_id>/",
+        world_scoped_view(finance_views.finance_attachment_download),
+        name="workspace-finance-attachment",
+    ),
+    path(
+        "finance/claims/<str:claim_id>/attachments/publish/",
+        world_scoped_view(finance_views.finance_attachment_publish),
+        name="workspace-finance-attachment-publish",
+    ),
+    path(
         "recruitment/",
         world_scoped_view(views.workspace_recruitment),
         name="workspace-recruitment",

@@ -165,6 +165,7 @@ class FinanceServiceTests(TestCase):
         self.assertTrue(Permission.objects.filter(code=FINANCE_PAY_PERMISSION).exists())
         self.assertEqual(setup["review_role"].role_permissions.count(), 2)
         self.assertEqual(setup["pay_role"].role_permissions.count(), 2)
+        self.assertEqual(setup["publish_role"].role_permissions.count(), 2)
 
     def test_finance_event_semantic_summary(self):
         c = self._submit(title="语义财务", amount=42, category="ai_usage")

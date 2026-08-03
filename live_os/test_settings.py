@@ -42,6 +42,7 @@ STORAGES = {
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
     "avatars": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
     "avatar_temporary": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
+    "business_attachments": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
     "avatar_legacy_current": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
     "avatar_legacy_temporary": {"BACKEND": "django.core.files.storage.InMemoryStorage"},
 }

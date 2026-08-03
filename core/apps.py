@@ -14,3 +14,4 @@ class CoreConfig(AppConfig):
 
     def ready(self) -> None:
         from . import governance_signals  # noqa: F401
+        from . import checks  # noqa: F401

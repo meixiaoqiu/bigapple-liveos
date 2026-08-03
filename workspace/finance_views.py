@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from django.contrib import messages
 from django.contrib.auth.views import redirect_to_login
-from django.http import HttpRequest, HttpResponse
+from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
@@ -14,11 +14,12 @@ from core.finance_services import (
     mark_expense_claim_paid, review_expense_claim, submit_expense_claim,
     withdraw_expense_claim,
 )
-from core.models import ExpenseClaim, Member
-from core.access import is_finance_payer, is_finance_reviewer
+from core.models import Attachment, ExpenseClaim, ExpenseClaimAttachment, Member
+from core.attachment_services import can_read_private_claim_attachment, publish_expense_attachment_copy
+from core.access import is_finance_payer, is_finance_public_attachment_publisher, is_finance_reviewer
 from live_os.access import is_authenticated, page_forbidden
 
-from .finance_forms import ExpenseClaimForm, FinanceReviewForm
+from .finance_forms import ExpenseClaimForm, FinancePaymentForm, FinanceReviewForm, PublicAttachmentForm
 from .access import require_full_workspace_member
 
 
@@ -40,7 +41,11 @@ def _check_permission(member: Member, code: str) -> bool:
 
 
 def _is_finance_operator(member: Member) -> bool:
-    return _check_permission(member, FINANCE_REVIEW_PERMISSION) or _check_permission(member, FINANCE_PAY_PERMISSION)
+    return (
+        _check_permission(member, FINANCE_REVIEW_PERMISSION)
+        or _check_permission(member, FINANCE_PAY_PERMISSION)
+        or is_finance_public_attachment_publisher(member)
+    )
 
 
 def _can_view_claim(member: Member, claim: ExpenseClaim) -> bool:
@@ -68,7 +73,7 @@ def finance_claim_form(request: HttpRequest) -> HttpResponse:
     if isinstance(member, HttpResponse):
         return member
     if request.method == "POST":
-        form = ExpenseClaimForm(request.POST)
+        form = ExpenseClaimForm(request.POST, request.FILES)
         if form.is_valid():
             try:
                 claim = submit_expense_claim(
@@ -80,6 +85,10 @@ def finance_claim_form(request: HttpRequest) -> HttpResponse:
                     expense_date=form.cleaned_data["expense_date"],
                     vendor=form.cleaned_data["vendor"],
                     category=form.cleaned_data["category"],
+                    public_note=form.cleaned_data["public_note"],
+                    evidence_uploads=form.cleaned_data["evidence_files"],
+                    world_id=request.world_id,
+                    require_evidence=True,
                 )
             except DomainError as e:
                 messages.error(request, str(e))
@@ -108,10 +117,25 @@ def finance_claim_detail(request: HttpRequest, claim_id: str) -> HttpResponse:
     can_pay = is_payer and not is_owner and claim.status == ExpenseClaim.Status.APPROVED
     can_withdraw = is_owner and claim.status in {ExpenseClaim.Status.SUBMITTED, ExpenseClaim.Status.UNDER_REVIEW}
     reviews = claim.reviews.select_related("reviewer_member").all()
+    attachment_links = claim.attachment_links.select_related("attachment", "payment_execution").all()
+    private_links = [link for link in attachment_links if link.attachment.audience == Attachment.Audience.PRIVATE]
+    public_links = [link for link in attachment_links if link.attachment.audience == Attachment.Audience.PUBLIC]
+    payment_execution = getattr(claim, "payment_execution", None)
+    timeline = [{"at": claim.created_at, "label": "提交报销", "actor": claim.claimant_member.member_no}]
+    timeline.extend({"at": review.reviewed_at, "label": review.get_decision_display(), "actor": review.reviewer_member.member_no} for review in reviews)
+    timeline.extend({"at": link.created_at, "label": link.get_purpose_display(), "actor": link.attachment.uploaded_by.member_no} for link in attachment_links)
+    if payment_execution is not None:
+        timeline.append({"at": payment_execution.executed_at, "label": "确认付款", "actor": payment_execution.payer_member.member_no})
+    timeline.sort(key=lambda item: item["at"])
     return render(request, "workspace/finance_claim_detail.html", {
         "claim": claim, "member": member, "reviews": reviews,
         "can_review": can_review, "can_pay": can_pay, "can_withdraw": can_withdraw,
-        "review_form": FinanceReviewForm(),
+        "review_form": FinanceReviewForm(), "payment_form": FinancePaymentForm(),
+        "private_attachment_links": private_links, "public_attachment_links": public_links,
+        "payment_execution": payment_execution,
+        "can_publish": is_finance_public_attachment_publisher(member),
+        "public_attachment_form": PublicAttachmentForm(),
+        "timeline": timeline,
     })
 
 
@@ -145,12 +169,62 @@ def finance_claim_pay(request: HttpRequest, claim_id: str) -> HttpResponse:
     if isinstance(member, HttpResponse):
         return member
     claim = get_object_or_404(ExpenseClaim, claim_id=claim_id)
+    form = FinancePaymentForm(request.POST, request.FILES)
+    if not form.is_valid():
+        messages.error(request, "请填写完整付款信息并上传付款凭证。")
+        return redirect("workspace-finance-detail", claim_id=claim_id)
     try:
-        mark_expense_claim_paid(claim=claim, payer_member=member)
+        mark_expense_claim_paid(
+            claim=claim, payer_member=member,
+            payment_date=form.cleaned_data["payment_date"],
+            payment_method=form.cleaned_data["payment_method"],
+            note=form.cleaned_data["note"],
+            evidence_uploads=form.cleaned_data["evidence_files"],
+            world_id=request.world_id, require_evidence=True,
+        )
     except DomainError as e:
         messages.error(request, str(e))
     else:
         messages.success(request, "已标记为已付款。")
+    return redirect("workspace-finance-detail", claim_id=claim_id)
+
+
+@require_GET
+def finance_attachment_download(request: HttpRequest, claim_id: str, attachment_id: str) -> HttpResponse:
+    member = _current_member(request)
+    if isinstance(member, HttpResponse):
+        return member
+    claim = get_object_or_404(ExpenseClaim, claim_id=claim_id)
+    if not can_read_private_claim_attachment(member=member, claim=claim):
+        raise Http404
+    link = get_object_or_404(ExpenseClaimAttachment.objects.select_related("attachment"), claim=claim, attachment__attachment_id=attachment_id)
+    if link.attachment.audience != Attachment.Audience.PRIVATE:
+        raise Http404
+    from core.file_storage.business_gateway import BusinessAttachmentStorageGateway
+    stream = BusinessAttachmentStorageGateway().open(link.attachment.object_key, world_id=request.world_id)
+    return FileResponse(stream, as_attachment=True, filename=link.attachment.display_filename, content_type=link.attachment.detected_media_type)
+
+
+@require_POST
+def finance_attachment_publish(request: HttpRequest, claim_id: str) -> HttpResponse:
+    member = _current_member(request)
+    if isinstance(member, HttpResponse):
+        return member
+    claim = get_object_or_404(ExpenseClaim, claim_id=claim_id)
+    form = PublicAttachmentForm(request.POST, request.FILES)
+    if form.is_valid():
+        source = get_object_or_404(Attachment, attachment_id=form.cleaned_data["source_attachment_id"])
+        try:
+            publish_expense_attachment_copy(
+                claim=claim, source_attachment=source, uploaded_by=member,
+                upload=form.cleaned_data["public_file"], world_id=request.world_id,
+            )
+        except DomainError as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, "公开脱敏副本已发布。")
+    else:
+        messages.error(request, "请选择有效的公开副本。")
     return redirect("workspace-finance-detail", claim_id=claim_id)
 
 

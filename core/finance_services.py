@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
 
+from django.db import router, transaction
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 
@@ -12,7 +13,7 @@ from .exceptions import DomainError
 from .event_ledger import append_event
 from .finance_setup import FINANCE_PAY_PERMISSION, FINANCE_REVIEW_PERMISSION, FINANCE_VIEW_PRIVATE_PERMISSION
 from .models import (
-    ExpenseClaim, FinanceReview, FinanceTransaction,
+    ExpenseClaim, FinanceReview, FinanceTransaction, ExpenseClaimAttachment, PaymentExecution,
     Member, SystemEvent,
 )
 from .models.events import Event
@@ -67,11 +68,12 @@ def _normalise_currency(currency: str) -> str:
     return value
 
 
-@atomic_for_model(ExpenseClaim)
-def submit_expense_claim(
+def _submit_expense_claim(
     *, claimant_member: Member, title: str, description: str,
     amount, currency: str = "CNY", expense_date, vendor: str = "",
-    category: str = "other",
+    category: str = "other", public_note: str = "", evidence_uploads=None,
+    world_id: str = "realworld", require_evidence: bool = False,
+    _created_attachment_links: list[ExpenseClaimAttachment] | None = None,
 ) -> ExpenseClaim:
     """Submit a new reimbursement claim.
 
@@ -87,8 +89,16 @@ def submit_expense_claim(
     claim = ExpenseClaim.objects.create(
         claimant_member=claimant_member, title=title, description=description,
         amount=amount_value, currency=currency_value, expense_date=expense_date_value,
-        vendor=vendor, category=category,
+        vendor=vendor, category=category, public_note=public_note,
     )
+    if require_evidence or evidence_uploads is not None:
+        from .attachment_services import create_expense_attachments
+        links = create_expense_attachments(
+            claim=claim, uploaded_by=claimant_member, uploads=evidence_uploads or [],
+            purpose=ExpenseClaimAttachment.Purpose.EXPENSE_EVIDENCE, world_id=world_id,
+        )
+        if _created_attachment_links is not None:
+            _created_attachment_links.extend(links)
     from .event_payloads import expense_claim_payload
     payload = expense_claim_payload(claim)
     _write_public_event(
@@ -103,6 +113,31 @@ def submit_expense_claim(
         payload_json=payload,
     )
     return claim
+
+
+def submit_expense_claim(
+    *, claimant_member: Member, title: str, description: str,
+    amount, currency: str = "CNY", expense_date, vendor: str = "",
+    category: str = "other", public_note: str = "", evidence_uploads=None,
+    world_id: str = "realworld", require_evidence: bool = False,
+) -> ExpenseClaim:
+    """Submit a claim atomically and compensate object writes if it rolls back."""
+    created_links: list[ExpenseClaimAttachment] = []
+    try:
+        with transaction.atomic(using=router.db_for_write(ExpenseClaim)):
+            return _submit_expense_claim(
+                claimant_member=claimant_member, title=title, description=description,
+                amount=amount, currency=currency, expense_date=expense_date,
+                vendor=vendor, category=category, public_note=public_note,
+                evidence_uploads=evidence_uploads, world_id=world_id,
+                require_evidence=require_evidence,
+                _created_attachment_links=created_links,
+            )
+    except Exception:
+        if created_links:
+            from .attachment_services import cleanup_uncommitted_expense_attachments
+            cleanup_uncommitted_expense_attachments(created_links, world_id=world_id)
+        raise
 
 
 @atomic_for_model(FinanceReview)
@@ -152,9 +187,11 @@ def review_expense_claim(
     return review
 
 
-@atomic_for_model(FinanceTransaction)
-def mark_expense_claim_paid(
-    *, claim: ExpenseClaim, payer_member: Member,
+def _mark_expense_claim_paid(
+    *, claim: ExpenseClaim, payer_member: Member, payment_date=None,
+    payment_method: str = "legacy_manual", note: str = "", evidence_uploads=None,
+    world_id: str = "realworld", require_evidence: bool = False,
+    _created_attachment_links: list[ExpenseClaimAttachment] | None = None,
 ) -> FinanceTransaction:
     """Mark an approved claim as paid and record a transaction.
 
@@ -169,8 +206,15 @@ def mark_expense_claim_paid(
     if claim.status != ExpenseClaim.Status.APPROVED:
         raise DomainError("只有已批准的报销才能标记付款。")
 
-    claim.status = ExpenseClaim.Status.PAID
-    claim.save(update_fields=["status", "updated_at"])
+    payment_date_value = _normalise_expense_date(payment_date or timezone.localdate())
+    from .payment_backends import PaymentRequest, get_payment_backend
+    backend = get_payment_backend()
+    result = backend.execute(PaymentRequest(
+        claim_id=claim.claim_id, amount=str(claim.amount), currency=claim.currency,
+        payment_date=payment_date_value, payment_method=payment_method,
+    ))
+    if not result.succeeded:
+        raise DomainError("付款执行未成功。")
     txn = FinanceTransaction.objects.create(
         transaction_type=FinanceTransaction.TransactionType.REIMBURSEMENT,
         amount=claim.amount, currency=claim.currency,
@@ -178,6 +222,28 @@ def mark_expense_claim_paid(
         summary=f"报销：{claim.title}", occurred_at=timezone.now(),
         recorded_by=payer_member, claim=claim,
     )
+    execution = PaymentExecution.objects.create(
+        claim=claim, backend_type=backend.backend_type,
+        status=PaymentExecution.Status.SUCCEEDED,
+        payment_date=payment_date_value, payment_method=payment_method,
+        payer_member=payer_member, note=note,
+        external_system=result.external_system,
+        external_object_id=result.external_object_id,
+        sync_status=(PaymentExecution.SyncStatus.SYNCED if result.external_system else PaymentExecution.SyncStatus.LOCAL),
+        result_snapshot={key: result.snapshot[key] for key in ("mode", "reference") if key in result.snapshot},
+        finance_transaction=txn,
+    )
+    if require_evidence or evidence_uploads is not None:
+        from .attachment_services import create_expense_attachments
+        links = create_expense_attachments(
+            claim=claim, uploaded_by=payer_member, uploads=evidence_uploads or [],
+            purpose=ExpenseClaimAttachment.Purpose.PAYMENT_EVIDENCE,
+            payment_execution=execution, world_id=world_id,
+        )
+        if _created_attachment_links is not None:
+            _created_attachment_links.extend(links)
+    claim.status = ExpenseClaim.Status.PAID
+    claim.save(update_fields=["status", "updated_at"])
     from .event_payloads import finance_transaction_payload
     payload = finance_transaction_payload(txn)
     _write_public_event(
@@ -192,6 +258,29 @@ def mark_expense_claim_paid(
         payload_json=payload,
     )
     return txn
+
+
+def mark_expense_claim_paid(
+    *, claim: ExpenseClaim, payer_member: Member, payment_date=None,
+    payment_method: str = "legacy_manual", note: str = "", evidence_uploads=None,
+    world_id: str = "realworld", require_evidence: bool = False,
+) -> FinanceTransaction:
+    """Record payment atomically and compensate evidence objects on rollback."""
+    created_links: list[ExpenseClaimAttachment] = []
+    try:
+        with transaction.atomic(using=router.db_for_write(FinanceTransaction)):
+            return _mark_expense_claim_paid(
+                claim=claim, payer_member=payer_member, payment_date=payment_date,
+                payment_method=payment_method, note=note,
+                evidence_uploads=evidence_uploads, world_id=world_id,
+                require_evidence=require_evidence,
+                _created_attachment_links=created_links,
+            )
+    except Exception:
+        if created_links:
+            from .attachment_services import cleanup_uncommitted_expense_attachments
+            cleanup_uncommitted_expense_attachments(created_links, world_id=world_id)
+        raise
 
 
 @atomic_for_model(ExpenseClaim)

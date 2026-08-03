@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from .governance_setup import MAINTENANCE_VIEW_ADMIN_PERMISSION
-from .finance_setup import FINANCE_PAY_PERMISSION, FINANCE_REVIEW_PERMISSION
+from .finance_setup import (
+    FINANCE_PAY_PERMISSION,
+    FINANCE_PUBLISH_PUBLIC_ATTACHMENTS_PERMISSION,
+    FINANCE_REVIEW_PERMISSION,
+)
 from .models import Member, Resource
 from .authorization_services import AuthorizationService
 
@@ -79,3 +83,10 @@ def is_finance_reviewer(member: Member) -> bool:
 def is_finance_payer(member: Member) -> bool:
     """Return True when *member* can record finance payments."""
     return AuthorizationService().member_has_permission(member, FINANCE_PAY_PERMISSION)
+
+
+def is_finance_public_attachment_publisher(member: Member) -> bool:
+    """Return True when *member* can publish public finance derivatives."""
+    return AuthorizationService().member_has_permission(
+        member, FINANCE_PUBLISH_PUBLIC_ATTACHMENTS_PERMISSION,
+    )

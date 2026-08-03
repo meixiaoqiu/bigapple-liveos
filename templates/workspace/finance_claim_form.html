@@ -5,7 +5,7 @@
 <main class="mx-auto grid w-full max-w-xl gap-6 p-4 lg:p-8">
 <h1 class="text-2xl font-bold">提交报销</h1>
 {% if messages %}<div class="grid gap-2">{% for msg in messages %}<div class="alert alert-{{ msg.tags|default:'info' }}">{{ msg }}</div>{% endfor %}</div>{% endif %}
-<form method="post" class="card bg-base-100 shadow"><div class="card-body gap-4">{% csrf_token %}
+<form method="post" enctype="multipart/form-data" class="card bg-base-100 shadow"><div class="card-body gap-4">{% csrf_token %}
 {% if form.non_field_errors %}<div class="alert alert-error text-sm">{{ form.non_field_errors }}</div>{% endif %}
 <div class="form-control"><label class="label"><span class="label-text">{{ form.title.label }}</span></label>{{ form.title }}{% for error in form.title.errors %}<span class="text-sm text-error">{{ error }}</span>{% endfor %}</div>
 <div class="grid grid-cols-2 gap-4">
@@ -16,6 +16,8 @@
 <div class="form-control"><label class="label"><span class="label-text">{{ form.vendor.label }}</span></label>{{ form.vendor }}{% for error in form.vendor.errors %}<span class="text-sm text-error">{{ error }}</span>{% endfor %}</div>
 <div class="form-control"><label class="label"><span class="label-text">{{ form.category.label }}</span></label>{{ form.category }}{% for error in form.category.errors %}<span class="text-sm text-error">{{ error }}</span>{% endfor %}</div>
 <div class="form-control"><label class="label"><span class="label-text">{{ form.description.label }}</span></label>{{ form.description }}{% for error in form.description.errors %}<span class="text-sm text-error">{{ error }}</span>{% endfor %}</div>
+<div class="form-control"><label class="label"><span class="label-text">{{ form.public_note.label }}</span></label>{{ form.public_note }}{% for error in form.public_note.errors %}<span class="text-sm text-error">{{ error }}</span>{% endfor %}</div>
+<div class="form-control"><label class="label"><span class="label-text">{{ form.evidence_files.label }}</span></label>{{ form.evidence_files }}<span class="text-xs text-base-content/60">支持 PDF、JPEG、PNG、WebP、CSV；原件默认私有。</span>{% for error in form.evidence_files.errors %}<span class="text-sm text-error">{{ error }}</span>{% endfor %}</div>
 <div class="card-actions"><button class="btn btn-primary" type="submit">提交申请</button><a class="btn btn-ghost" href="{% world_url 'workspace-finance-list' %}">返回</a></div>
 </div></form>
 </main></body></html>

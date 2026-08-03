@@ -10,10 +10,12 @@ from .models import Organization, Permission, Role, RolePermission
 FINANCE_REVIEW_PERMISSION = "finance.review"
 FINANCE_PAY_PERMISSION = "finance.pay"
 FINANCE_VIEW_PRIVATE_PERMISSION = "finance.view_private"
+FINANCE_PUBLISH_PUBLIC_ATTACHMENTS_PERMISSION = "finance.publish_public_attachments"
 
 FINANCE_ORGANIZATION_NAME = "大苹果财务组"
 FINANCE_REVIEW_ROLE_NAME = "财务审核者"
 FINANCE_PAY_ROLE_NAME = "财务付款者"
+FINANCE_PUBLIC_ATTACHMENT_PUBLISH_ROLE_NAME = "财务公开发布者"
 
 BASE_FINANCE_PERMISSIONS = (
     {
@@ -33,6 +35,12 @@ BASE_FINANCE_PERMISSIONS = (
         "name": "查看私密财务材料",
         "category": "finance",
         "description": "预留权限：允许查看非公开财务凭证或隐私材料。",
+    },
+    {
+        "code": FINANCE_PUBLISH_PUBLIC_ATTACHMENTS_PERMISSION,
+        "name": "发布公开财务材料",
+        "category": "finance",
+        "description": "允许从私有财务原件发布独立的公开脱敏副本。",
     },
 )
 
@@ -78,7 +86,15 @@ def ensure_finance_roles() -> dict[str, Any]:
             "status": Role.Status.ACTIVE,
         },
     )
-    for role in (review_role, pay_role):
+    publish_role, publish_role_created = Role.objects.get_or_create(
+        organization=organization,
+        name=FINANCE_PUBLIC_ATTACHMENT_PUBLISH_ROLE_NAME,
+        defaults={
+            "description": "负责检查并发布财务公开脱敏材料的高信任角色。",
+            "status": Role.Status.ACTIVE,
+        },
+    )
+    for role in (review_role, pay_role, publish_role):
         if role.status != Role.Status.ACTIVE:
             role.status = Role.Status.ACTIVE
             role.save(update_fields=["status", "updated_at"])
@@ -100,6 +116,17 @@ def ensure_finance_roles() -> dict[str, Any]:
             defaults={"constraints_json": {}},
         )
         created_bindings += int(created)
+    for permission_code in (
+        FINANCE_VIEW_PRIVATE_PERMISSION,
+        FINANCE_PUBLISH_PUBLIC_ATTACHMENTS_PERMISSION,
+    ):
+        _binding, created = RolePermission.objects.get_or_create(
+            role=publish_role,
+            permission=permissions[permission_code],
+            scope="global",
+            defaults={"constraints_json": {}},
+        )
+        created_bindings += int(created)
 
     return {
         "permissions_created": created_permissions,
@@ -109,5 +136,7 @@ def ensure_finance_roles() -> dict[str, Any]:
         "review_role_created": review_role_created,
         "pay_role": pay_role,
         "pay_role_created": pay_role_created,
+        "publish_role": publish_role,
+        "publish_role_created": publish_role_created,
         "role_permissions_created": created_bindings,
     }

@@ -32,7 +32,7 @@ def clean_simulation_world_runtime(world: WorldRegistry) -> int:
         # Test/local aliases may be separate storage instances; OCI aliases share
         # one bucket. Repeating the safe prefix scan is harmless and keeps both
         # configurations correct.
-        for alias in ("avatars", "avatar_temporary"):
+        for alias in ("avatars", "avatar_temporary", "business_attachments"):
             storage = storages[alias]
             for key in _list_keys(storage, prefix):
                 if not key.startswith(prefix) or ".." in key or "\\" in key:
