@@ -1,0 +1,10 @@
+{% load tailwind_tags world_urls %}
+<!doctype html><html lang="zh-Hans" data-theme="bumblebee"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>申请执衡者</title>{% tailwind_css %}</head>
+<body class="min-h-screen bg-base-200 text-base-content">{% include "partials/runtime_header.html" %}<main class="mx-auto grid w-full max-w-3xl gap-6 p-4 lg:p-8">
+<section class="card bg-base-100 shadow-xl"><div class="card-body gap-4"><div><p class="text-sm font-semibold text-primary">成员资格与职责</p><h1 class="card-title text-2xl">申请执衡者</h1></div>
+<p>有效守约者通过资格考试后，将立即取得一年执衡者任期。执衡者可以按选民规则参与守约者准入申请等提案表决。</p>
+{% if messages %}{% for message in messages %}<div class="alert {% if message.tags == 'success' %}alert-success{% else %}alert-error{% endif %}"><span>{{ message }}</span></div>{% endfor %}{% endif %}
+{% if has_active_term %}<div class="alert alert-success"><span>你当前已有有效执衡者任期，无需重复申请。</span></div>
+{% else %}<form method="post">{% csrf_token %}<button class="btn btn-primary" type="submit">开始资格考试</button></form>{% endif %}
+{% if latest_attempt %}<div class="rounded-lg border border-base-300 p-4"><p>最近考试：{{ latest_attempt.get_status_display }}</p>{% if latest_attempt.score != None %}<p>得分 {{ latest_attempt.score }} / {{ latest_attempt.total_points }}，及格线 {{ latest_attempt.passing_score }}</p>{% endif %}<a class="link link-primary" href="{% world_url 'workspace-deliberator-exam-attempt' latest_attempt.attempt_id %}">查看考试</a></div>{% endif %}
+<a class="btn btn-ghost" href="{% world_url 'workspace-page' %}">返回成员工作台</a></div></section></main></body></html>

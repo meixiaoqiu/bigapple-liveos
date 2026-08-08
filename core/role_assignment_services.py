@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.db import transaction
 from django.utils import timezone
 
 from .db import atomic_for_model
@@ -67,18 +68,29 @@ def create_role_assignment(
 ) -> RoleAssignment:
     """创建或复用当前角色任命；不隐式创建其他职责或资格。"""
 
+    member = Member.objects.select_for_update().get(pk=member.pk)
     if role_definition_for_name(role.name) is not None and catalog_role_definition_for_role(role) is None:
         raise DomainError("内置角色只能从规范成员资格与职责目录授予。")
     if not skip_validation:
         validate_role_assignment_prerequisites(member, role)
     starts_at = start_at or timezone.now()
     effective_end_at = end_at or default_role_assignment_end_at(starts_at)
-    RoleAssignment.objects.filter(
+    expired_assignments = list(RoleAssignment.objects.filter(
         member=member,
         role=role,
         status=RoleAssignment.Status.ACTIVE,
         end_at__lte=starts_at,
-    ).update(status=RoleAssignment.Status.EXPIRED)
+    ))
+    RoleAssignment.objects.filter(pk__in=[item.pk for item in expired_assignments]).update(
+        status=RoleAssignment.Status.EXPIRED,
+    )
+    if expired_assignments:
+        from .openfga_projection_services import remove_role_assignment_projection
+
+        for expired_assignment in expired_assignments:
+            transaction.on_commit(
+                lambda assignment=expired_assignment: remove_role_assignment_projection(assignment),
+            )
     assignment = (
         RoleAssignment.objects.filter(
             member=member,
@@ -89,7 +101,8 @@ def create_role_assignment(
         .order_by("-start_at", "-pk")
         .first()
     )
-    if assignment is None:
+    created = assignment is None
+    if created:
         assignment = RoleAssignment.objects.create(
             member=member,
             role=role,
@@ -111,9 +124,14 @@ def create_role_assignment(
             source_proposal_execution=source_proposal_execution,
             issued_by=granted_by,
         )
+    if created:
+        from .openfga_projection_services import project_role_assignment
+
+        transaction.on_commit(lambda: project_role_assignment(assignment))
     return assignment
 
 
+@atomic_for_model(RoleAssignment)
 def revoke_role_assignment(
     *,
     assignment: RoleAssignment,
@@ -122,11 +140,15 @@ def revoke_role_assignment(
 ) -> RoleAssignment:
     """撤销一项角色任命而不删除其事实记录。"""
 
-    assignment.status = RoleAssignment.Status.REVOKED
-    assignment.revoked_by = revoked_by
-    assignment.end_at = end_at or timezone.now()
-    assignment.save(update_fields=["status", "revoked_by", "end_at", "updated_at"])
-    return assignment
+    locked = RoleAssignment.objects.select_for_update().get(pk=assignment.pk)
+    locked.status = RoleAssignment.Status.REVOKED
+    locked.revoked_by = revoked_by
+    locked.end_at = end_at or timezone.now()
+    locked.save(update_fields=["status", "revoked_by", "end_at", "updated_at"])
+    from .openfga_projection_services import remove_role_assignment_projection
+
+    transaction.on_commit(lambda: remove_role_assignment_projection(locked))
+    return locked
 
 
 @atomic_for_model(RoleAssignment)

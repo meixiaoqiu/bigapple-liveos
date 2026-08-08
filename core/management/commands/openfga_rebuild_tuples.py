@@ -29,6 +29,12 @@ from core.models import (
     RoleAssignment,
     RolePermission,
 )
+from core.finance_setup import (
+    FINANCE_ORGANIZATION_NAME,
+    FINANCE_REVIEW_ROLE_NAME,
+    FINANCE_PAY_ROLE_NAME,
+    FINANCE_PUBLIC_ATTACHMENT_PUBLISH_ROLE_NAME,
+)
 from core.role_catalog import ROLE_CATALOG_ORGANIZATION_KEY
 from core.openfga_client import OpenFGAClient, OpenFGARequestError
 from core.permission_services import MEMBER_PERMISSION_STATUSES, permission_requires_covenanter
@@ -131,12 +137,53 @@ def _project_authorization_tuples(*, platform_object: str):
             "object": openfga_role_object(assignment.role_id),
         }
 
+    finance_role_names = {
+        FINANCE_REVIEW_ROLE_NAME,
+        FINANCE_PAY_ROLE_NAME,
+        FINANCE_PUBLIC_ATTACHMENT_PUBLISH_ROLE_NAME,
+    }
+    finance_assignments = RoleAssignment.objects.select_related("member", "role").filter(
+        member__in=Member.objects.filter(member_role_filter(ROLE_COVENANTER, checked_at=checked_at)),
+        status=RoleAssignment.Status.ACTIVE,
+        role__status=Role.Status.ACTIVE,
+        role__organization__name=FINANCE_ORGANIZATION_NAME,
+        role__name__in=finance_role_names,
+        start_at__lte=checked_at,
+        end_at__gt=checked_at,
+    )
+    for assignment in finance_assignments:
+        yield {
+            "user": openfga_member_user(assignment.member),
+            "relation": "assignee",
+            "object": openfga_role_object(assignment.role_id),
+        }
+
     role_permissions = RolePermission.objects.select_related("permission").filter(
         role__organization__role_catalog_key=ROLE_CATALOG_ORGANIZATION_KEY,
         role__name=ROLE_MAINTAINER,
         role__status=Role.Status.ACTIVE,
     )
     for role_permission in role_permissions:
+        for permission_object in _permission_objects_for_role_permission(role_permission):
+            yield {
+                "user": openfga_role_object(role_permission.role_id),
+                "relation": "role",
+                "object": permission_object,
+            }
+            if permission_requires_covenanter(role_permission.permission.code):
+                yield {
+                    "user": platform_object,
+                    "relation": "platform",
+                    "object": permission_object,
+                }
+
+    finance_role_permissions = RolePermission.objects.select_related("permission").filter(
+        role__organization__name=FINANCE_ORGANIZATION_NAME,
+        role__name__in=finance_role_names,
+        role__status=Role.Status.ACTIVE,
+        permission__code__startswith="finance.",
+    )
+    for role_permission in finance_role_permissions:
         for permission_object in _permission_objects_for_role_permission(role_permission):
             yield {
                 "user": openfga_role_object(role_permission.role_id),

@@ -94,6 +94,23 @@ def _public_event_payload(
     }
 
 
+def deliberator_exam_change_payload(
+    *, subject_type: str, subject_ref: str, action: str, stage: str,
+    summary: str, public_facts: dict[str, Any],
+) -> dict[str, Any]:
+    """Build answer-free public metadata for an exam bank or policy change."""
+    return _public_event_payload(
+        subject_type=subject_type,
+        subject_ref=subject_ref,
+        subject_label="执衡者资格考试配置",
+        action=action,
+        stage=stage,
+        summary=summary,
+        public_facts=public_facts,
+        private_commitments=[_private("exam_content", reason="题目全文、选项、答案和解析不进入公开事件账本")],
+    )
+
+
 # =========================================================================
 # Payload builders
 # =========================================================================

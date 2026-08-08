@@ -19,7 +19,7 @@ from worlds.state import get_current_world
 logger = logging.getLogger(__name__)
 
 
-OPENFGA_AUTHORIZATION_MODEL_VERSION = "2026-08-01-electorate-rules-v1"
+OPENFGA_AUTHORIZATION_MODEL_VERSION = "2026-08-04-finance-roles-v2"
 
 
 @dataclass(frozen=True)
@@ -167,6 +167,21 @@ class AuthorizationService:
                 at_time=at_time,
             )
 
+        # OpenFGA may contain an incrementally projected tuple whose assignment
+        # has since expired, been revoked, or has not started yet. Django remains
+        # the lifecycle authority, so a stale tuple can only narrow access and
+        # can never revive a non-current authority fact.
+        if not legacy_member_has_permission(
+            member,
+            permission_code,
+            resource=resource,
+            at_time=at_time,
+        ):
+            from .openfga_projection_services import remove_non_current_role_assignment_projections
+
+            remove_non_current_role_assignment_projections(member)
+            return False
+
         openfga_allowed = self._openfga_member_has_permission(member, permission_code, resource=resource)
         if backend == "openfga":
             return bool(openfga_allowed)
@@ -209,6 +224,16 @@ class AuthorizationService:
         if backend != "openfga":
             logger.error("Unknown authorization backend %s; denying workspace access", backend)
             return WorkspaceAccessDecision(allowed=False, reason="authorization_unavailable")
+        from .member_roles import ROLE_COVENANTER, member_has_role
+
+        if member.status not in {Member.Status.ACTIVE, Member.Status.ADMITTED} or not member_has_role(
+            member,
+            ROLE_COVENANTER,
+        ):
+            from .openfga_projection_services import remove_non_current_role_assignment_projections
+
+            remove_non_current_role_assignment_projections(member)
+            return WorkspaceAccessDecision(allowed=False, reason="not_authorized")
         context = openfga_context_for_world_kind()
         if not context.store_id:
             logger.warning("%s OpenFGA store id is not configured; workspace access denied", context.world_kind)

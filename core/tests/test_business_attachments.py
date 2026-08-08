@@ -401,6 +401,44 @@ class BusinessAttachmentViewTests(TestCase):
         self.assertNotIn("private-account-123.png", content)
         self.assertNotIn("token-secret", content)
 
+    def test_public_page_attaches_public_derivative_to_its_claim_card(self):
+        publisher = _finance_member(
+            "attach-view-card-publisher",
+            FINANCE_PUBLISH_PUBLIC_ATTACHMENTS_PERMISSION,
+        )
+        published_claim = submit_expense_claim(
+            claimant_member=self.claimant, title="带公开材料的报销", description="", amount=10,
+            expense_date="2026-08-03", evidence_uploads=[_png_upload("published-private.png")],
+            world_id="realworld", require_evidence=True,
+        )
+        other_claim = submit_expense_claim(
+            claimant_member=self.claimant, title="没有公开材料的报销", description="", amount=20,
+            expense_date="2026-08-03", evidence_uploads=[_png_upload("other-private.png")],
+            world_id="realworld", require_evidence=True,
+        )
+        public_link = publish_expense_attachment_copy(
+            claim=published_claim,
+            source_attachment=published_claim.attachment_links.get().attachment,
+            uploaded_by=publisher,
+            upload=_png_upload("published-redacted.png"),
+            world_id="realworld",
+        )
+
+        response = self.client.get("/finance/")
+
+        self.assertEqual(response.status_code, 200)
+        claims_by_pk = {claim.pk: claim for claim in response.context["claims"]}
+        self.assertEqual(
+            [link.pk for link in claims_by_pk[published_claim.pk].public_attachment_links],
+            [public_link.pk],
+        )
+        self.assertEqual(claims_by_pk[other_claim.pk].public_attachment_links, [])
+        self.assertContains(
+            response,
+            f'/finance/attachments/{public_link.attachment.attachment_id}/',
+            count=1,
+        )
+
     def test_public_derivative_download_is_separate(self):
         publisher = _finance_member("attach-view-publisher", FINANCE_PUBLISH_PUBLIC_ATTACHMENTS_PERMISSION)
         claim = submit_expense_claim(

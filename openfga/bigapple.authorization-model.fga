@@ -1,4 +1,4 @@
-# 大苹果正式命名与通用选民规则授权模型 v2026-08-01
+# 大苹果正式命名、通用选民规则与财务职责授权模型 v2026-08-04
 model
   schema 1.1
 
@@ -34,7 +34,7 @@ type guarded_permission
   relations
     define role: [role]
     define platform: [platform]
-    define holder: (assignee from role and covenanter from platform and maintainer from platform) but not frozen_member from platform
+    define holder: (assignee from role and covenanter from platform) but not frozen_member from platform
 
 type resource_permission
   relations
@@ -45,4 +45,4 @@ type guarded_resource_permission
   relations
     define role: [role]
     define platform: [platform]
-    define holder: (assignee from role and covenanter from platform and maintainer from platform) but not frozen_member from platform
+    define holder: (assignee from role and covenanter from platform) but not frozen_member from platform

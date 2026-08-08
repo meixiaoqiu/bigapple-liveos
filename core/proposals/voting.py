@@ -8,6 +8,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from core.authorization_services import AuthorizationService
+from core.db import atomic_for_model
 from core.event_ledger import append_event
 from core.event_payloads import proposal_payload, proposal_vote_payload
 from core.member_roles import ROLE_DELIBERATOR, ensure_catalog_role
@@ -147,6 +148,7 @@ def fail_expired_proposal(proposal: Proposal, *, at_time=None) -> Proposal:
     return evaluate_proposal(proposal, at_time=at_time or timezone.now())
 
 
+@atomic_for_model(ProposalVote)
 def cast_proposal_vote(
     *,
     proposal: Proposal,
@@ -157,7 +159,7 @@ def cast_proposal_vote(
     at_time=None,
 ) -> ProposalVote:
     checked_at = at_time or timezone.now()
-    proposal.refresh_from_db()
+    proposal = Proposal.objects.select_for_update().get(pk=proposal.pk)
     evaluate_proposal(proposal, at_time=checked_at)
     proposal.refresh_from_db()
     if proposal.status != Proposal.Status.VOTING:

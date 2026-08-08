@@ -52,10 +52,14 @@ ROLE_ASSIGNMENT_CREATION_PATHS: tuple[dict[str, Any], ...] = (
     },
     {
         "id": "deliberator-self-application",
-        "entry_points": ("core.deliberation_services.apply_for_deliberator_term",),
+        "entry_points": (
+            "core.deliberator_exam_services._assert_exam_candidate",
+            "core.deliberator_exam_services.submit_deliberator_exam",
+            "workspace.deliberator_exam_views.deliberator_exam_home",
+        ),
         "category": "执衡者申请",
         "direct_role_facts": ("执衡者",),
-        "assessment": "有效守约者的自助申请创建独立一年期职责。",
+        "assessment": "有效守约者通过资格考试后创建独立一年期职责；旧直接申请入口已关闭。",
         "follow_up_task": "3.1",
     },
     {

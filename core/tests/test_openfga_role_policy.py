@@ -76,7 +76,7 @@ class OpenFGARolePolicyTests(TestCase):
             for item in _unique_tuples(_project_authorization_tuples(platform_object="platform:test"))
         }
 
-        self.assertEqual(OPENFGA_AUTHORIZATION_MODEL_VERSION, "2026-08-01-electorate-rules-v1")
+        self.assertEqual(OPENFGA_AUTHORIZATION_MODEL_VERSION, "2026-08-04-finance-roles-v2")
         self.assertIn((f"member:{self.deliberator.pk}", "covenanter", "platform:test"), tuples)
         self.assertIn((f"member:{self.deliberator.pk}", "deliberator", "platform:test"), tuples)
         self.assertNotIn((f"member:{self.deliberator.pk}", "maintainer", "platform:test"), tuples)

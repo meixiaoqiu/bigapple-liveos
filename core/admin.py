@@ -42,6 +42,11 @@ from .admin_finance import (
     FinanceTransactionAdmin,
     PaymentExecutionAdmin,
 )
+from .admin_deliberator_exams import (
+    DeliberatorExamAttemptAdmin,
+    DeliberatorExamPolicyAdmin,
+    DeliberatorExamQuestionAdmin,
+)
 
 
 TECHNICAL_ADMIN_OBJECTS = {

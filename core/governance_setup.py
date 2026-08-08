@@ -14,6 +14,8 @@ from .member_roles import ensure_catalog_role
 
 MAINTENANCE_VIEW_ADMIN_PERMISSION = "governance.view_admin"
 PROFESSIONAL_QUALIFICATION_MANAGE_PERMISSION = "governance.manage_professional_qualifications"
+DELIBERATOR_EXAM_MANAGE_PERMISSION = "governance.manage_deliberator_exam"
+MANAGE_ROLES_PERMISSION = "governance.manage_roles"
 DEFAULT_ROLE_ASSIGNMENT_DAYS = 36500
 
 BASE_MAINTENANCE_PERMISSIONS = (
@@ -36,7 +38,7 @@ BASE_MAINTENANCE_PERMISSIONS = (
         "description": "允许维护组织容器。",
     },
     {
-        "code": "governance.manage_roles",
+        "code": MANAGE_ROLES_PERMISSION,
         "name": "维护角色",
         "category": "governance",
         "description": "允许维护角色和任命。",
@@ -52,6 +54,12 @@ BASE_MAINTENANCE_PERMISSIONS = (
         "name": "维护专业资格",
         "category": "governance",
         "description": "允许录入或撤销成员的专业资格权威事实。",
+    },
+    {
+        "code": DELIBERATOR_EXAM_MANAGE_PERMISSION,
+        "name": "维护执衡者考试",
+        "category": "governance",
+        "description": "允许维护执衡者题库和考试政策。",
     },
     {
         "code": "governance.view_event_ledger",

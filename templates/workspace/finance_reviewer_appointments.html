@@ -1,0 +1,95 @@
+{% load tailwind_tags world_urls %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="bumblebee">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>财务审核职责任命</title>
+  {% tailwind_css %}
+</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+  {% include "partials/runtime_header.html" %}
+  <main class="mx-auto grid w-full max-w-6xl gap-6 p-4 lg:p-8">
+    <header class="card bg-base-100 shadow-xl">
+      <div class="card-body">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="text-sm font-semibold text-primary">治理任命</p>
+            <h1 class="card-title text-2xl">财务审核职责</h1>
+            <p>提名不会立即授权；提案须由合格执衡者表决通过，再由有权典守者执行。</p>
+          </div>
+          <a class="btn btn-outline" href="{% world_url 'workspace-page' %}">返回工作台</a>
+        </div>
+      </div>
+    </header>
+
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}"><span>{{ message }}</span></div>
+      {% endfor %}
+    {% endif %}
+
+    {% if can_manage %}
+      <section class="card bg-base-100 shadow" aria-labelledby="nominate-title">
+        <form method="post" class="card-body gap-4">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="nominate">
+          <h2 class="card-title" id="nominate-title">提名财务审核者</h2>
+          <label class="form-control">
+            <span class="label-text">当前有效守约者</span>
+            <select class="select select-bordered" name="target_member_id" required>
+              <option value="">请选择</option>
+              {% for candidate in candidates %}<option value="{{ candidate.pk }}">{{ candidate.display_name|default:candidate.member_no }}（{{ candidate.member_no }}）</option>{% endfor %}
+            </select>
+          </label>
+          <label class="form-control">
+            <span class="label-text">提名理由</span>
+            <textarea class="textarea textarea-bordered" name="reason" required></textarea>
+          </label>
+          <button class="btn btn-primary" type="submit">创建任命提案</button>
+        </form>
+      </section>
+    {% endif %}
+
+    <section class="card bg-base-100 shadow" aria-labelledby="proposals-title">
+      <div class="card-body gap-4">
+        <h2 class="card-title" id="proposals-title">任命提案</h2>
+        {% for item in proposals %}
+          <article class="rounded-box border border-base-300 p-4">
+            <div class="flex flex-wrap justify-between gap-2">
+              <strong>{{ item.target_name }}</strong>
+              <span class="badge">{{ item.proposal.get_status_display }}</span>
+            </div>
+            <p class="mt-2 text-sm">{{ item.proposal.body|default:"未填写理由" }}</p>
+            {% if item.can_vote %}
+              <form method="post" class="mt-3 flex flex-wrap gap-2">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="vote">
+                <input type="hidden" name="proposal_id" value="{{ item.proposal.pk }}">
+                <button class="btn btn-sm btn-success" name="choice" value="yes" type="submit">赞成</button>
+                <button class="btn btn-sm btn-error btn-outline" name="choice" value="no" type="submit">反对</button>
+                <button class="btn btn-sm btn-ghost" name="choice" value="abstain" type="submit">弃权</button>
+              </form>
+            {% endif %}
+            {% if item.can_execute %}
+              <form method="post" class="mt-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="execute">
+                <input type="hidden" name="proposal_id" value="{{ item.proposal.pk }}">
+                <button class="btn btn-sm btn-primary" type="submit">执行任命</button>
+              </form>
+            {% endif %}
+          </article>
+        {% empty %}<p class="opacity-70">尚无财务审核职责任命提案。</p>{% endfor %}
+      </div>
+    </section>
+
+    <section class="card bg-base-100 shadow">
+      <div class="card-body">
+        <h2 class="card-title">当前财务审核者</h2>
+        <ul class="list-disc pl-5">{% for reviewer in reviewers %}<li>{{ reviewer.display_name|default:reviewer.member_no }}（{{ reviewer.member_no }}）</li>{% empty %}<li>暂无</li>{% endfor %}</ul>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

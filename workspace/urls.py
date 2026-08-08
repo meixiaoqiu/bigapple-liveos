@@ -3,11 +3,13 @@
 from django.urls import path
 from worlds.routing import world_scoped_view
 
-from . import credit_views, task_views, views, finance_views, inventory_views, procurement_views, proposal_views, risk_views
+from . import credit_views, deliberator_exam_views, task_views, views, finance_views, finance_role_views, inventory_views, procurement_views, proposal_views, risk_views
 
 
 urlpatterns = [
     path("", world_scoped_view(views.workspace_page), name="workspace-page"),
+    path("deliberator-exam/", world_scoped_view(deliberator_exam_views.deliberator_exam_home), name="workspace-deliberator-exam"),
+    path("deliberator-exam/<str:attempt_id>/", world_scoped_view(deliberator_exam_views.deliberator_exam_attempt), name="workspace-deliberator-exam-attempt"),
     path(
         "credits/transfer/",
         world_scoped_view(credit_views.credit_transfer_page),
@@ -102,6 +104,11 @@ urlpatterns = [
         "finance/claims/",
         world_scoped_view(finance_views.finance_claims_list),
         name="workspace-finance-list",
+    ),
+    path(
+        "finance/reviewer-appointments/",
+        world_scoped_view(finance_role_views.finance_reviewer_appointments),
+        name="workspace-finance-reviewer-appointments",
     ),
     path(
         "finance/claims/new/",

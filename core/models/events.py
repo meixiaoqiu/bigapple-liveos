@@ -18,6 +18,8 @@ class SystemEvent(models.Model):
         ROLE_CREATED = "role_created", "角色已创建"
         ROLE_ASSIGNED = "role_assigned", "任命"
         ROLE_REVOKED = "role_revoked", "卸任"
+        DELIBERATOR_EXAM_QUESTION_CHANGED = "deliberator_exam_question_changed", "执衡者题库已变更"
+        DELIBERATOR_EXAM_POLICY_CHANGED = "deliberator_exam_policy_changed", "执衡者考试政策已变更"
         PROPOSAL_CREATED = "proposal_created", "提案已创建"
         PROPOSAL_VOTE_CAST = "proposal_vote_cast", "提案已投票"
         PROPOSAL_VOTE_CHANGED = "proposal_vote_changed", "提案已改票"

@@ -83,8 +83,7 @@
               "intersection": {
                 "child": [
                   {"tupleToUserset": {"tupleset": {"relation": "role"}, "computedUserset": {"relation": "assignee"}}},
-                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "covenanter"}}},
-                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "maintainer"}}}
+                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "covenanter"}}}
                 ]
               }
             },
@@ -122,8 +121,7 @@
               "intersection": {
                 "child": [
                   {"tupleToUserset": {"tupleset": {"relation": "role"}, "computedUserset": {"relation": "assignee"}}},
-                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "covenanter"}}},
-                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "maintainer"}}}
+                  {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "covenanter"}}}
                 ]
               }
             },

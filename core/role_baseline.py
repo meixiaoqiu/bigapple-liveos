@@ -5,7 +5,7 @@ from __future__ import annotations
 from django.db import transaction
 from django.utils import timezone
 
-from .deliberation_services import apply_for_deliberator_term
+from .deliberator_exam_services import start_deliberator_exam, submit_deliberator_exam
 from .electorate_rules import ensure_electorate_rule_baseline
 from .governance_setup import ensure_maintainer_role
 from .member_roles import ROLE_COVENANTER, ensure_catalog_role
@@ -22,6 +22,9 @@ from .models import (
     RoleAssignment,
     RolePermission,
     SystemEvent,
+    DeliberatorExamAttempt,
+    DeliberatorExamPolicy,
+    DeliberatorExamQuestion,
 )
 from .professional_qualification_services import (
     ensure_professional_domain,
@@ -46,6 +49,9 @@ def clear_role_permission_baseline() -> dict[str, int]:
     """
 
     with transaction.atomic():
+        DeliberatorExamAttempt.objects.all().delete()
+        DeliberatorExamPolicy.objects.all().delete()
+        DeliberatorExamQuestion.objects.all().delete()
         ProposalVote.objects.all().delete()
         ProposalExecution.objects.all().delete()
         Proposal.objects.all().delete()
@@ -93,8 +99,9 @@ def load_role_permission_baseline() -> dict[str, int]:
     create_role_assignment(member=deliberator, role=covenanter_role, start_at=now)
     bootstrap_initial_maintainer(maintainer)
     create_role_assignment(member=qualified_deliberator, role=covenanter_role, start_at=now)
-    apply_for_deliberator_term(member=deliberator, at_time=now)
-    apply_for_deliberator_term(member=qualified_deliberator, at_time=now)
+    _ensure_baseline_exam()
+    _pass_baseline_exam(deliberator, at_time=now)
+    _pass_baseline_exam(qualified_deliberator, at_time=now)
     if not MemberProfessionalQualification.objects.filter(
         member=qualified_deliberator,
         domain=domains["finance"],
@@ -132,3 +139,32 @@ def _ensure_baseline_member(member_no: str, display_name: str) -> Member:
         },
     )
     return member
+
+
+def _ensure_baseline_exam() -> None:
+    DeliberatorExamQuestion.objects.get_or_create(
+        question_id="delib-question-governance-baseline", version=1,
+        defaults={
+            "prompt": "谁可以参与守约者准入申请的表决？",
+            "options_json": [
+                {"id": "a", "text": "同时具有有效守约者资格和执衡者任期的成员"},
+                {"id": "b", "text": "任何已注册账号"},
+            ],
+            "correct_option_id": "a", "points": 1,
+            "status": DeliberatorExamQuestion.Status.PUBLISHED,
+            "published_at": timezone.now(),
+        },
+    )
+    DeliberatorExamPolicy.objects.get_or_create(
+        version=1,
+        defaults={
+            "question_count": 1, "passing_percent": 100,
+            "status": DeliberatorExamPolicy.Status.ACTIVE,
+            "published_at": timezone.now(),
+        },
+    )
+
+
+def _pass_baseline_exam(member: Member, *, at_time) -> None:
+    attempt = start_deliberator_exam(member=member)
+    submit_deliberator_exam(member=member, attempt=attempt, answers={"q1": "a"}, at_time=at_time)

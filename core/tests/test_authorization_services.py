@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from io import StringIO
 from unittest.mock import patch
 
 from django.core.management import call_command
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from core.authorization_services import (
     OpenFGACheck,
@@ -16,10 +18,11 @@ from core.authorization_services import (
     openfga_resource_permission_object,
 )
 from core.governance_setup import MAINTENANCE_VIEW_ADMIN_PERMISSION, ensure_maintainer_role
+from core.finance_setup import FINANCE_REVIEW_PERMISSION, ensure_finance_roles
 from core.member_roles import ROLE_COVENANTER, ROLE_MAINTAINER
 from core.models import Organization, Permission, Role, RoleAssignment, RolePermission
 from core.permission_services import member_has_permission
-from core.role_assignment_services import revoke_role_assignment
+from core.role_assignment_services import create_role_assignment, revoke_role_assignment
 from core.tests.helpers import create_maintainer_member, create_member
 from core.management.commands.openfga_rebuild_tuples import _project_authorization_tuples, _unique_tuples
 
@@ -175,6 +178,76 @@ class AuthorizationServiceTests(TestCase):
         OPENFGA_SIM_STORE_ID="store-id",
         OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
     )
+    def test_incremental_projection_deletes_tuple_after_revocation(self) -> None:
+        member = create_maintainer_member("auth-fga-delete-revoked")
+        assignment = RoleAssignment.objects.get(member=member, role__name=ROLE_MAINTAINER)
+
+        with patch("core.openfga_projection_services.OpenFGAClient") as client_class:
+            with self.captureOnCommitCallbacks(execute=True):
+                revoke_role_assignment(assignment=assignment)
+
+        client_class.return_value.delete_tuples.assert_called_once()
+        deleted = client_class.return_value.delete_tuples.call_args.kwargs["deletes"]
+        self.assertIn(
+            {
+                "user": f"member:{member.pk}",
+                "relation": "assignee",
+                "object": f"role:{assignment.role_id}",
+            },
+            deleted,
+        )
+
+    @override_settings(
+        BIG_APPLE_AUTHORIZATION_BACKEND="openfga",
+        OPENFGA_SIM_STORE_ID="store-id",
+        OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
+    )
+    def test_future_assignment_is_not_incrementally_written(self) -> None:
+        member = create_member("auth-fga-future", role_name=ROLE_COVENANTER)
+        role = ensure_finance_roles()["review_role"]
+        now = timezone.now()
+
+        with patch("core.openfga_projection_services.OpenFGAClient") as client_class:
+            with self.captureOnCommitCallbacks(execute=True):
+                create_role_assignment(
+                    member=member,
+                    role=role,
+                    start_at=now + timedelta(days=1),
+                    end_at=now + timedelta(days=2),
+                )
+
+        client_class.return_value.write_tuples.assert_not_called()
+
+    @override_settings(
+        BIG_APPLE_AUTHORIZATION_BACKEND="openfga",
+        OPENFGA_SIM_STORE_ID="store-id",
+        OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
+    )
+    def test_stale_openfga_tuple_cannot_restore_expired_permission(self) -> None:
+        member = create_member("auth-fga-expired", role_name=ROLE_COVENANTER)
+        role = ensure_finance_roles()["review_role"]
+        assignment = create_role_assignment(member=member, role=role)
+        now = timezone.now()
+        RoleAssignment.objects.filter(pk=assignment.pk).update(
+            start_at=now - timedelta(days=2),
+            end_at=now - timedelta(days=1),
+        )
+
+        with patch("core.authorization_services.OpenFGAClient") as client_class, patch(
+            "core.openfga_projection_services.OpenFGAClient",
+        ) as projection_client_class:
+            client_class.return_value.check.return_value = True
+            allowed = AuthorizationService().member_has_permission(member, FINANCE_REVIEW_PERMISSION)
+
+        self.assertFalse(allowed)
+        client_class.return_value.check.assert_not_called()
+        projection_client_class.return_value.delete_tuples.assert_called_once()
+
+    @override_settings(
+        BIG_APPLE_AUTHORIZATION_BACKEND="openfga",
+        OPENFGA_SIM_STORE_ID="store-id",
+        OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
+    )
     def test_openfga_backend_rejects_governance_permission_when_openfga_denies(self) -> None:
         member = create_maintainer_member("auth-fga-denied-covenanter")
 
@@ -296,6 +369,27 @@ class AuthorizationServiceTests(TestCase):
 
         self.assertNotIn((f"role:{role.pk}", "role", permission_object), tuples)
         self.assertNotIn(("platform:test", "platform", permission_object), tuples)
+
+    def test_openfga_projection_includes_canonical_finance_reviewer(self) -> None:
+        from core.finance_setup import FINANCE_REVIEW_PERMISSION, ensure_finance_roles
+
+        member = create_member("auth-fga-finance-reviewer", role_name=ROLE_COVENANTER)
+        role = ensure_finance_roles()["review_role"]
+        create_role_assignment(member=member, role=role)
+        tuples = {
+            (item["user"], item["relation"], item["object"])
+            for item in _unique_tuples(_project_authorization_tuples(platform_object="platform:test"))
+        }
+
+        self.assertIn((f"member:{member.pk}", "assignee", f"role:{role.pk}"), tuples)
+        self.assertIn(
+            (f"role:{role.pk}", "role", openfga_permission_object(FINANCE_REVIEW_PERMISSION)),
+            tuples,
+        )
+        self.assertIn(
+            ("platform:test", "platform", openfga_global_resource_permission_object(FINANCE_REVIEW_PERMISSION)),
+            tuples,
+        )
 
     @override_settings(
         BIG_APPLE_AUTHORIZATION_BACKEND="openfga",

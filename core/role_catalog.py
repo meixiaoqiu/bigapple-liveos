@@ -133,6 +133,7 @@ MAINTAINER_PERMISSION_CODES: tuple[str, ...] = (
     "governance.manage_roles",
     "governance.manage_permissions",
     "governance.manage_professional_qualifications",
+    "governance.manage_deliberator_exam",
     "governance.view_event_ledger",
 )
 

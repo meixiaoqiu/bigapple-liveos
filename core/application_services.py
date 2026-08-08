@@ -507,6 +507,32 @@ def create_member_application_admission_proposal(
 
 
 @atomic_for_model(MemberApplication)
+def reopen_zero_electorate_member_admissions(*, proposer_member: Member) -> int:
+    """Replace stuck zero-electorate admission proposals after governance is bootstrapped."""
+    from core.proposals.lifecycle import cancel_proposal
+
+    repaired = 0
+    applications = MemberApplication.objects.select_related("admission_proposal", "linked_member").filter(
+        status=MemberApplication.Status.ADMISSION_VOTING,
+        admission_proposal__status=Proposal.Status.VOTING,
+    )
+    for application in applications:
+        old_proposal = application.admission_proposal
+        if old_proposal.eligible_voters_snapshot_json:
+            continue
+        cancel_proposal(proposal=old_proposal, actor_member=proposer_member)
+        application.admission_proposal = None
+        application.save(update_fields=("admission_proposal",))
+        create_member_application_admission_proposal(
+            application=application,
+            proposer_member=proposer_member,
+            reason="首位执衡者产生后重新开启此前无合格选民的准入表决。",
+        )
+        repaired += 1
+    return repaired
+
+
+@atomic_for_model(MemberApplication)
 def admit_member_application_from_proposal(
     *,
     application: MemberApplication,

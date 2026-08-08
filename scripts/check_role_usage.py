@@ -45,13 +45,21 @@ ROLE_USAGE_CATALOG: dict[str, dict[str, str]] = {
         "category": "权威事实查询",
         "reason": "阻止已具守约者资格的账号重复提交成员报名。",
     },
-    "core/authorization_services.py:204": {
+    "core/authorization_services.py:219": {
         "category": "授权查询",
         "reason": "兼容授权后端下的完整工作台访问判定。",
     },
-    "core/deliberation_services.py:32": {
+    "core/authorization_services.py:229": {
+        "category": "授权查询",
+        "reason": "OpenFGA 工作台授权前以 Django 当前守约者任命否决陈旧 tuple。",
+    },
+    "core/deliberator_exam_services.py:30": {
         "category": "权威事实查询",
-        "reason": "执衡者本人申请前确认当前守约者资格。",
+        "reason": "开始或提交执衡者考试时确认当前守约者资格。",
+    },
+    "core/deliberator_exam_services.py:32": {
+        "category": "权威事实查询",
+        "reason": "阻止已有有效任期的成员重复参加执衡者考试。",
     },
     "core/identity_display.py:24": {
         "category": "显示查询",
@@ -61,19 +69,19 @@ ROLE_USAGE_CATALOG: dict[str, dict[str, str]] = {
         "category": "显示查询",
         "reason": "身份展示投影读取规范角色对应的当前任命。",
     },
-    "core/management/commands/openfga_rebuild_tuples.py:99": {
+    "core/management/commands/openfga_rebuild_tuples.py:105": {
         "category": "权威事实查询",
         "reason": "从当前守约者资格、议事职责和维护职责重建 OpenFGA 关系。",
     },
-    "core/management/commands/openfga_rebuild_tuples.py:119": {
+    "core/management/commands/openfga_rebuild_tuples.py:125": {
         "category": "授权查询",
         "reason": "投影当前有效典守者任命，不读取任意角色任命。",
     },
-    "core/management/commands/openfga_rebuild_tuples.py:118": {
+    "core/management/commands/openfga_rebuild_tuples.py:124": {
         "category": "授权查询",
         "reason": "典守者 tuple 仅接受同时满足前置资格的当前职责事实。",
     },
-    "core/management/commands/openfga_rebuild_tuples.py:134": {
+    "core/management/commands/openfga_rebuild_tuples.py:161": {
         "category": "授权查询",
         "reason": "只投影典守者的显式权限绑定。",
     },
@@ -129,17 +137,41 @@ ROLE_USAGE_CATALOG: dict[str, dict[str, str]] = {
         "category": "授权查询",
         "reason": "通用 catalog_role 选择器按目录角色事实计算选民集合。",
     },
-    "core/role_assignment_services.py:44": {
+    "core/management/commands/openfga_rebuild_tuples.py:145": {
+        "category": "授权查询",
+        "reason": "只投影规范财务组织中的基线财务角色任命。",
+    },
+    "core/management/commands/openfga_rebuild_tuples.py:146": {
+        "category": "授权查询",
+        "reason": "财务职责 tuple 持有人必须持续具备守约者资格。",
+    },
+    "core/management/commands/openfga_rebuild_tuples.py:180": {
+        "category": "授权查询",
+        "reason": "只投影规范财务角色的 finance 权限绑定。",
+    },
+    "core/role_assignment_services.py:45": {
         "category": "权威事实查询",
         "reason": "校验目录角色是否需要当前守约者资格。",
     },
-    "core/role_assignment_services.py:51": {
+    "core/role_assignment_services.py:52": {
         "category": "权威事实查询",
         "reason": "校验动态角色的守约者资格前置条件。",
     },
-    "core/role_audit.py:304": {
+    "core/role_audit.py:308": {
         "category": "权威事实查询",
         "reason": "盘点角色是否满足守约者资格前置条件。",
+    },
+    "workspace/deliberator_exam_views.py:33": {
+        "category": "显示查询",
+        "reason": "执衡者考试首页显示当前成员是否已有有效任期。",
+    },
+    "core/openfga_projection_services.py:140": {
+        "category": "授权查询",
+        "reason": "增量投影仅为持续满足守约者前置条件的当前任命写入 tuple。",
+    },
+    "workspace/finance_role_views.py:49": {
+        "category": "显示查询",
+        "reason": "财务职责任命页面只列出当前有效守约者候选人。",
     },
 }
 

@@ -41,6 +41,7 @@ from .disputes import CapacityAssessment, Dispute
 from .feedback import CommunityFeedback
 from .finance import ExpenseClaim, FinanceReview, FinanceTransaction, PaymentExecution
 from .attachments import Attachment, ExpenseClaimAttachment
+from .deliberator_exams import DeliberatorExamAttempt, DeliberatorExamPolicy, DeliberatorExamQuestion
 
 __all__ = [
     "TimestampedModel",
@@ -99,6 +100,9 @@ __all__ = [
     "PaymentExecution",
     "Attachment",
     "ExpenseClaimAttachment",
+    "DeliberatorExamAttempt",
+    "DeliberatorExamPolicy",
+    "DeliberatorExamQuestion",
     "CreditAccount",
     "CreditTransaction",
     "RedemptionOrder",
