@@ -1,8 +1,10 @@
+# deliberator-qualification-exam 规格
+
 ## Purpose
 
 为守约者提供可实际使用、由题库驱动并可审计的执衡者资格考试，使执衡者任期只在服务端确认达到当前及格标准后产生，同时允许典守者持续维护题目与考试政策。
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: 典守者必须能够维护版本化执衡者题库
 系统 SHALL 允许具备明确题库维护权限的当前有效典守者创建、修改草稿、发布和停用单选题；已发布题目发生内容变化时 MUST 产生新版本或保留足以还原既有考试的不可变快照。Django `is_staff` 或 `is_superuser` 本身不得成为维护题库的充分条件。

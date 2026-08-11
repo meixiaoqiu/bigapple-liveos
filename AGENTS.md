@@ -58,17 +58,32 @@
 
 公开项目文档、架构说明、产品规划、路线图、运行入口边界、产品功能说明、API 文档、数据库表结构、治理交互边界和开发文档已迁移到 sibling 仓库 `../bigapple-docs/`。修改这些公开文档时进入 `../bigapple-docs/`，不要在本仓库重新创建 `docs/` 下的 Markdown 文档。
 
-## 验证提醒
+## 验证规则
+
+### 验证原则
 
 - 修改后优先运行最小相关检查或测试。
 - Live OS 行为变更按 `../bigapple-docs/docs/development/ai-guide.md` 中的测试建议验证。
-- 常用完整本地回归：
+- 测试必须使用隔离的测试设置或测试数据库，不得向开发数据库写入测试数据。
+- 无法运行某项检查时，明确记录未验证项和原因，不要把“未运行”写成“已通过”。
+
+### Docker 测试环境
+
+- 运行 Docker 测试或项目检查前，先使用 `docker compose -f docker-compose.dev.yml ps` 确认当前运行的服务及实际测试容器名称。
+- 若测试容器已经运行，优先使用 `docker compose -f docker-compose.dev.yml exec -T <service> ...` 在现有容器中执行。
+- 不要仅因某个预设服务名未运行，就判断整个测试环境不可用；应先检查全部 Compose 服务，并确认实际可用的测试服务。
+- 未经用户明确允许，不要使用 `docker compose run` 创建一次性测试容器，也不要为测试额外启动依赖服务。
+- 现有容器不可用时，先报告限制；只有得到用户允许后，才可使用带 `--rm --no-deps` 的一次性容器。
+
+### 常用验证命令
+
+完整本地回归：
 
 ```powershell
 .\.venv\Scripts\python.exe manage.py test core live_os observer workspace simulation simulation_lab worlds --settings=live_os.test_settings
 ```
 
-- 常用基础检查：
+基础检查：
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\check_project.py

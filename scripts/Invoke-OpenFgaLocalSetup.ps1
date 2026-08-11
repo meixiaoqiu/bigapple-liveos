@@ -1,4 +1,4 @@
-param(
+﻿param(
     [int]$OpenFgaTimeoutSeconds = 60
 )
 
@@ -242,7 +242,7 @@ function Get-OpenFgaConfigurationErrors {
     $errors = @()
 
     if ([string]::IsNullOrWhiteSpace($storeId)) {
-        $errors += "OPENFGA_${Prefix}_STORE_ID is missing."
+        $errors += ".env 缺少 OPENFGA_${Prefix}_STORE_ID。"
     }
     else {
         $storeError = Get-OpenFgaResourceError `
@@ -254,23 +254,23 @@ function Get-OpenFgaConfigurationErrors {
     }
 
     if ([string]::IsNullOrWhiteSpace($modelId)) {
-        $errors += "OPENFGA_${Prefix}_AUTHORIZATION_MODEL_ID is missing."
+        $errors += ".env 缺少 OPENFGA_${Prefix}_AUTHORIZATION_MODEL_ID。"
     }
     elseif (-not [string]::IsNullOrWhiteSpace($storeId)) {
         $modelUrl = "$HostApiUrl/stores/$storeId/authorization-models/$modelId"
         try {
             $modelResponse = Invoke-RestMethod -UseBasicParsing -Uri $modelUrl -TimeoutSec 5
             if ($null -eq $modelResponse.authorization_model) {
-                $errors += "$Name OpenFGA authorization model '$modelId' returned an invalid response at $modelUrl."
+                $errors += "$Name OpenFGA 授权模型 '$modelId' 返回了无效响应：$modelUrl。"
             }
             else {
                 $remoteModelJson = ConvertTo-CanonicalAuthorizationModelJson $modelResponse.authorization_model
                 if ($remoteModelJson -ne $ExpectedModelJson) {
                     $remoteModelContentHash = Get-StringSha256 $remoteModelJson
                     $errors += (
-                        "$Name OpenFGA authorization model '$modelId' does not match the current model file. " +
-                        "Remote normalized SHA-256: $remoteModelContentHash. " +
-                        "Expected normalized SHA-256: $ExpectedModelContentHash."
+                        "$Name OpenFGA 授权模型 '$modelId' 与当前模型文件不一致。" +
+                        "远端规范化 SHA-256：$remoteModelContentHash；" +
+                        "当前文件规范化 SHA-256：$ExpectedModelContentHash。"
                     )
                 }
             }
@@ -280,7 +280,7 @@ function Get-OpenFgaConfigurationErrors {
             if ($null -ne $_.Exception.Response) {
                 $statusCode = " HTTP $([int]$_.Exception.Response.StatusCode)."
             }
-            $errors += "$Name OpenFGA authorization model '$modelId' is not available at $modelUrl.$statusCode"
+            $errors += "$Name OpenFGA 授权模型 '$modelId' 无法访问：$modelUrl。$statusCode"
         }
     }
 
@@ -325,43 +325,51 @@ try {
             $expectedModelContentHash
     )
     if ([string]::IsNullOrWhiteSpace($configuredModelHash)) {
-        $configurationErrors += "OPENFGA_AUTHORIZATION_MODEL_SHA256 is missing."
+        $configurationErrors += ".env 缺少 OPENFGA_AUTHORIZATION_MODEL_SHA256。"
     }
     elseif ($configuredModelHash -ne $modelHash) {
         $configurationErrors += (
-            "OPENFGA_AUTHORIZATION_MODEL_SHA256 does not match the current model file. " +
-            "Configured: $configuredModelHash. Expected: $modelHash."
+            ".env 中的 OPENFGA_AUTHORIZATION_MODEL_SHA256 与当前模型文件不一致。" +
+            "当前配置：$configuredModelHash；应为：$modelHash。"
         )
     }
 
     if ($configurationErrors.Count -gt 0) {
         Write-Host ""
-        Write-Host "OpenFGA configuration validation failed."
+        Write-Host "OpenFGA 配置校验失败，启动已停止。"
         foreach ($configurationError in $configurationErrors) {
             Write-Host " - $configurationError"
         }
         Write-Host ""
-        Write-Host "The startup script does not modify .env."
-        Write-Host "Create or refresh the required OpenFGA models with:"
-        Write-Host "docker compose -f docker-compose.dev.yml run --rm --no-deps big-apple-admin python manage.py openfga_bootstrap --world-kind real --api-url http://openfga-real:8080"
-        Write-Host "docker compose -f docker-compose.dev.yml run --rm --no-deps big-apple-admin python manage.py openfga_bootstrap --world-kind sim --api-url http://openfga-sim:8082"
+        Write-Host "这是本机 .env 与当前 OpenFGA 模型不一致导致的配置问题；启动脚本不会自动修改 .env。"
+        Write-Host "请按以下步骤处理："
+        Write-Host "1. 依次运行下面两条命令，为真实世界和仿真世界创建或刷新授权模型："
+        Write-Host "docker compose -f docker-compose.dev.yml run --interactive=false --rm --no-deps big-apple-admin python manage.py openfga_bootstrap --world-kind real --api-url http://openfga-real:8080"
+        Write-Host "docker compose -f docker-compose.dev.yml run --interactive=false --rm --no-deps big-apple-admin python manage.py openfga_bootstrap --world-kind sim --api-url http://openfga-sim:8082"
         Write-Host ""
-        Write-Host "Review the command output, update the matching OPENFGA_* values in .env, then rerun start.bat."
-        Write-Host "Deployment and troubleshooting guide:"
+        Write-Host "2. 将命令输出中的以下配置复制到项目根目录的 .env，并替换对应旧值："
+        Write-Host "   OPENFGA_REAL_STORE_ID"
+        Write-Host "   OPENFGA_REAL_AUTHORIZATION_MODEL_ID"
+        Write-Host "   OPENFGA_SIM_STORE_ID"
+        Write-Host "   OPENFGA_SIM_AUTHORIZATION_MODEL_ID"
+        Write-Host "   OPENFGA_AUTHORIZATION_MODEL_SHA256"
+        Write-Host "3. 保存 .env 后重新运行 start.bat。"
+        Write-Host ""
+        Write-Host "部署与故障排查文档："
         Write-Host "https://bigapple-docs.vercel.app/development/setup"
         Write-Host ""
-        throw "OpenFGA configuration is invalid. Update .env manually before restarting."
+        throw "OpenFGA 配置无效。请按上方步骤更新 .env 后重新启动。"
     }
 
     Write-Host "Rebuilding OpenFGA tuples from Django authority data..."
     Invoke-Checked "docker" @(
-        "compose", "-f", $composeFile, "run", "--rm", "--no-deps", "big-apple-real",
+        "compose", "-f", $composeFile, "run", "--interactive=false", "--rm", "--no-deps", "big-apple-real",
         "python", "manage.py", "openfga_rebuild_tuples",
         "--settings=live_os.settings_real",
         "--world-kind", "real"
     )
     Invoke-Checked "docker" @(
-        "compose", "-f", $composeFile, "run", "--rm", "--no-deps", "big-apple-sim",
+        "compose", "-f", $composeFile, "run", "--interactive=false", "--rm", "--no-deps", "big-apple-sim",
         "python", "manage.py", "openfga_rebuild_tuples",
         "--settings=live_os.settings_sim",
         "--world-kind", "sim"
@@ -369,13 +377,13 @@ try {
 
     Write-Host "Probing current OpenFGA authorization..."
     Invoke-Checked "docker" @(
-        "compose", "-f", $composeFile, "run", "--rm", "--no-deps", "big-apple-real",
+        "compose", "-f", $composeFile, "run", "--interactive=false", "--rm", "--no-deps", "big-apple-real",
         "python", "manage.py", "openfga_authorization_probe",
         "--settings=live_os.settings_real",
         "--world-kind", "real"
     )
     Invoke-Checked "docker" @(
-        "compose", "-f", $composeFile, "run", "--rm", "--no-deps", "big-apple-sim",
+        "compose", "-f", $composeFile, "run", "--interactive=false", "--rm", "--no-deps", "big-apple-sim",
         "python", "manage.py", "openfga_authorization_probe",
         "--settings=live_os.settings_sim",
         "--world-kind", "sim"

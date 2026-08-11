@@ -21,6 +21,44 @@ jobs:
       - name: Django tests
         run: python manage.py test applications core live_os observer simulation simulation_lab workspace worlds --settings=live_os.test_settings
 
+  mysql-concurrency:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: dev_big_real
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      DATABASE_URL: mysql://root:root@127.0.0.1:3306/dev_big_real?charset=utf8mb4
+      BIG_APPLE_REALWORLD_DATABASE_URL: mysql://root:root@127.0.0.1:3306/dev_big_real?charset=utf8mb4
+      BIG_APPLE_CONTROL_DATABASE_URL: mysql://root:root@127.0.0.1:3306/dev_big_real?charset=utf8mb4
+      BIG_APPLE_AUTHORIZATION_BACKEND: legacy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install Python and MySQL dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes pkg-config default-libmysqlclient-dev build-essential
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,mysql]"
+      - name: MySQL finance appointment concurrency test
+        run: >-
+          python manage.py test
+          core.tests.test_finance_role_appointments.FinanceReviewerAppointmentConcurrencyTests
+          --settings=live_os.settings_real
+          --verbosity=2
+
   frontend:
     runs-on: ubuntu-latest
     defaults:

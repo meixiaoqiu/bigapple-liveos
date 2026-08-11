@@ -174,7 +174,7 @@ echo.
 echo Applying database migrations...
 
 echo Migrating admin/control database...
-docker compose -f docker-compose.dev.yml run --rm --no-deps big-apple-admin python manage.py migrate --noinput --settings=live_os.settings_admin
+docker compose -f docker-compose.dev.yml run --interactive=false --rm --no-deps big-apple-admin python manage.py migrate --noinput --settings=live_os.settings_admin
 if errorlevel 1 (
 echo Failed to migrate admin/control database.
 set "EXIT_CODE=1"
@@ -182,7 +182,7 @@ goto END
 )
 
 echo Migrating real world database...
-docker compose -f docker-compose.dev.yml run --rm --no-deps big-apple-real python manage.py migrate --database realworld --noinput --settings=live_os.settings_real
+docker compose -f docker-compose.dev.yml run --interactive=false --rm --no-deps big-apple-real python manage.py migrate --noinput --settings=live_os.settings_real
 if errorlevel 1 (
 echo Failed to migrate real world database.
 set "EXIT_CODE=1"
@@ -190,7 +190,7 @@ goto END
 )
 
 echo Migrating simulation world database...
-docker compose -f docker-compose.dev.yml run --rm --no-deps big-apple-sim python manage.py migrate --database simulation0001 --noinput --settings=live_os.settings_sim
+docker compose -f docker-compose.dev.yml run --interactive=false --rm --no-deps big-apple-sim python manage.py migrate --noinput --settings=live_os.settings_sim
 if errorlevel 1 (
 echo Failed to migrate simulation world database.
 set "EXIT_CODE=1"
