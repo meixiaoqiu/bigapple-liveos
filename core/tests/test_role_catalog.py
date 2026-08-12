@@ -9,13 +9,13 @@ from django.contrib.auth import get_user_model
 from core.exceptions import DomainError
 from core.role_catalog import (
     DERIVED_CONCEPT_DEFINITIONS,
-    MAINTAINER_PERMISSION_CODES,
+    ADMINISTRATOR_PERMISSION_CODES,
     ROLE_CATALOG_ORGANIZATION_NAME,
     ROLE_CATALOG_ORGANIZATION_KEY,
     ROLE_DEFINITIONS,
     ROLE_DELIBERATOR,
     ROLE_COVENANTER,
-    ROLE_MAINTAINER,
+    ROLE_ADMINISTRATOR,
     RoleDimension,
     TermRule,
     catalog_role_definition_for_role,
@@ -35,7 +35,7 @@ class RoleCatalogTests(TestCase):
             {
                 ("covenanter", ROLE_COVENANTER),
                 ("deliberator", ROLE_DELIBERATOR),
-                ("maintainer", ROLE_MAINTAINER),
+                ("administrator", ROLE_ADMINISTRATOR),
             },
         )
         self.assertEqual(validate_role_catalog(), [])
@@ -43,19 +43,19 @@ class RoleCatalogTests(TestCase):
     def test_direct_facts_are_independent_dimensions_with_expected_prerequisites(self):
         covenanter = role_definition_for_name(ROLE_COVENANTER)
         deliberator = role_definition_for_name(ROLE_DELIBERATOR)
-        maintainer = role_definition_for_name(ROLE_MAINTAINER)
+        administrator = role_definition_for_name(ROLE_ADMINISTRATOR)
 
         self.assertIsNotNone(covenanter)
         self.assertIsNotNone(deliberator)
-        self.assertIsNotNone(maintainer)
+        self.assertIsNotNone(administrator)
         self.assertEqual(covenanter.dimension, RoleDimension.MEMBER_QUALIFICATION)
         self.assertFalse(covenanter.requires_covenanter)
         self.assertEqual(deliberator.dimension, RoleDimension.DELIBERATION_DUTY)
         self.assertTrue(deliberator.requires_covenanter)
         self.assertEqual(deliberator.term_rule, TermRule.ONE_YEAR_SELF_APPLICATION)
-        self.assertEqual(maintainer.dimension, RoleDimension.MAINTENANCE_DUTY)
-        self.assertTrue(maintainer.requires_covenanter)
-        self.assertNotEqual(deliberator.dimension, maintainer.dimension)
+        self.assertEqual(administrator.dimension, RoleDimension.ADMINISTRATION_DUTY)
+        self.assertTrue(administrator.requires_covenanter)
+        self.assertNotEqual(deliberator.dimension, administrator.dimension)
 
     def test_derived_concepts_are_not_direct_roles(self):
         direct_codes = {item.code for item in ROLE_DEFINITIONS}
@@ -72,15 +72,15 @@ class RoleCatalogTests(TestCase):
     def test_catalog_setup_creates_only_direct_role_definitions(self):
         roles = ensure_catalog_roles()
 
-        self.assertEqual(set(roles), {"covenanter", "deliberator", "maintainer"})
+        self.assertEqual(set(roles), {"covenanter", "deliberator", "administrator"})
         self.assertEqual(
             set(
                 Role.objects.filter(organization__role_catalog_key=ROLE_CATALOG_ORGANIZATION_KEY)
                 .values_list("name", flat=True)
             ),
-            {ROLE_COVENANTER, ROLE_DELIBERATOR, ROLE_MAINTAINER},
+            {ROLE_COVENANTER, ROLE_DELIBERATOR, ROLE_ADMINISTRATOR},
         )
-        self.assertTrue(MAINTAINER_PERMISSION_CODES)
+        self.assertTrue(ADMINISTRATOR_PERMISSION_CODES)
         self.assertEqual(
             roles["covenanter"].organization.role_catalog_key,
             ROLE_CATALOG_ORGANIZATION_KEY,
@@ -139,7 +139,7 @@ class RoleCatalogTests(TestCase):
         member.refresh_from_db()
         self.assertFalse(member_has_role(member, ROLE_COVENANTER))
 
-    def test_deliberator_and_maintainer_are_independent_current_facts(self):
+    def test_deliberator_and_administrator_are_independent_current_facts(self):
         member = Member.objects.create(
             member_no="catalog-independent-duties",
             status=Member.Status.ACTIVE,
@@ -148,11 +148,11 @@ class RoleCatalogTests(TestCase):
         )
         create_role_assignment(member=member, role=ensure_catalog_role(ROLE_COVENANTER))
         create_role_assignment(member=member, role=ensure_catalog_role(ROLE_DELIBERATOR))
-        create_role_assignment(member=member, role=ensure_catalog_role(ROLE_MAINTAINER))
+        create_role_assignment(member=member, role=ensure_catalog_role(ROLE_ADMINISTRATOR))
 
         self.assertTrue(member_has_role(member, ROLE_COVENANTER))
         self.assertTrue(member_has_role(member, ROLE_DELIBERATOR))
-        self.assertTrue(member_has_role(member, ROLE_MAINTAINER))
+        self.assertTrue(member_has_role(member, ROLE_ADMINISTRATOR))
 
     def test_expired_and_revoked_assignments_are_not_current_facts(self):
         member = Member.objects.create(

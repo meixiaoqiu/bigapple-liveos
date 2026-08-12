@@ -294,6 +294,25 @@ if (-not (Test-Path -LiteralPath $modelPath)) {
     throw "Missing OpenFGA authorization model: $modelPath"
 }
 
+$legacyBootstrapRoleToken = "MAIN" + "TAINER"
+$legacyBootstrapKeys = @()
+foreach ($line in Get-Content -Encoding UTF8 -LiteralPath $envPath) {
+    $trimmed = $line.Trim()
+    if ($trimmed.StartsWith("BIG_APPLE_SIMULATION_BOOTSTRAP_") -and $trimmed.Contains($legacyBootstrapRoleToken)) {
+        $separatorIndex = $trimmed.IndexOf("=")
+        if ($separatorIndex -gt 0) {
+            $legacyBootstrapKeys += $trimmed.Substring(0, $separatorIndex)
+        }
+    }
+}
+if ($legacyBootstrapKeys.Count -gt 0) {
+    throw (
+        "检测到旧仿真管理员环境变量：" +
+        ($legacyBootstrapKeys -join "、") +
+        "。请改用 BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_*。"
+    )
+}
+
 Push-Location $repoRoot
 try {
     Write-Host "Starting OpenFGA services..."

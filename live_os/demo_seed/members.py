@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.governance_setup import ensure_maintainer_role
+from core.governance_setup import ensure_administrator_role
 from core.member_roles import (
     ROLE_COVENANTER,
     ensure_catalog_role,
@@ -13,7 +13,7 @@ from .helpers import upsert
 
 
 def seed_members(*, now, mark) -> dict[str, Member]:
-    maintainer_setup = ensure_maintainer_role()
+    administrator_setup = ensure_administrator_role()
     admin_member = mark(
         upsert(
             Member,
@@ -29,7 +29,7 @@ def seed_members(*, now, mark) -> dict[str, Member]:
                     "skills": {"治理": 88, "安全": 74, "电工": 68, "给排水": 65, "卫生": 64},
                 },
                 "created_at": now,
-                "metadata": {"seed": True, "note": "演示典守者"},
+                "metadata": {"seed": True, "note": "演示管理员"},
             },
         )
     )
@@ -156,7 +156,7 @@ def seed_members(*, now, mark) -> dict[str, Member]:
     _assign(admin_member, ROLE_COVENANTER)
     create_role_assignment(
         member=admin_member,
-        role=maintainer_setup["role"],
+        role=administrator_setup["role"],
         source_type="system",
     )
     return {

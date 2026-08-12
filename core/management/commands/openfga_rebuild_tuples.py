@@ -19,7 +19,7 @@ from core.authorization_services import (
     openfga_role_object,
 )
 from core.proposals.voters import eligible_voters_for_rule_snapshot
-from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ROLE_MAINTAINER, member_role_filter
+from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ROLE_ADMINISTRATOR, member_role_filter
 from core.models import (
     Member,
     MemberProfessionalQualification,
@@ -100,7 +100,7 @@ def _project_authorization_tuples(*, platform_object: str):
     for role_name, relation in (
         (ROLE_COVENANTER, "covenanter"),
         (ROLE_DELIBERATOR, "deliberator"),
-        (ROLE_MAINTAINER, "maintainer"),
+        (ROLE_ADMINISTRATOR, "administrator"),
     ):
         members = Member.objects.filter(member_role_filter(role_name, checked_at=checked_at)).distinct()
         for member in members:
@@ -121,16 +121,16 @@ def _project_authorization_tuples(*, platform_object: str):
             "object": platform_object,
         }
 
-    maintainer_assignments = RoleAssignment.objects.select_related("member", "role").filter(
-        member__in=Member.objects.filter(member_role_filter(ROLE_MAINTAINER, checked_at=checked_at)),
+    administrator_assignments = RoleAssignment.objects.select_related("member", "role").filter(
+        member__in=Member.objects.filter(member_role_filter(ROLE_ADMINISTRATOR, checked_at=checked_at)),
         status=RoleAssignment.Status.ACTIVE,
         role__status=Role.Status.ACTIVE,
         role__organization__role_catalog_key=ROLE_CATALOG_ORGANIZATION_KEY,
-        role__name=ROLE_MAINTAINER,
+        role__name=ROLE_ADMINISTRATOR,
         start_at__lte=checked_at,
         end_at__gt=checked_at,
     )
-    for assignment in maintainer_assignments:
+    for assignment in administrator_assignments:
         yield {
             "user": openfga_member_user(assignment.member),
             "relation": "assignee",
@@ -160,7 +160,7 @@ def _project_authorization_tuples(*, platform_object: str):
 
     role_permissions = RolePermission.objects.select_related("permission").filter(
         role__organization__role_catalog_key=ROLE_CATALOG_ORGANIZATION_KEY,
-        role__name=ROLE_MAINTAINER,
+        role__name=ROLE_ADMINISTRATOR,
         role__status=Role.Status.ACTIVE,
     )
     for role_permission in role_permissions:

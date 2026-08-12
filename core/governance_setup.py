@@ -1,4 +1,4 @@
-"""典守者的基础维护权限初始化。"""
+"""管理员的基础维护权限初始化。"""
 
 from __future__ import annotations
 
@@ -8,19 +8,19 @@ from typing import Any
 from django.utils import timezone
 
 from .models import Permission, Role, RolePermission
-from .role_catalog import MAINTAINER_PERMISSION_CODES, ROLE_CATALOG_ORGANIZATION_KEY, ROLE_MAINTAINER
+from .role_catalog import ADMINISTRATOR_PERMISSION_CODES, ROLE_CATALOG_ORGANIZATION_KEY, ROLE_ADMINISTRATOR
 from .member_roles import ensure_catalog_role
 
 
-MAINTENANCE_VIEW_ADMIN_PERMISSION = "governance.view_admin"
+ADMINISTRATION_VIEW_ADMIN_PERMISSION = "governance.view_admin"
 PROFESSIONAL_QUALIFICATION_MANAGE_PERMISSION = "governance.manage_professional_qualifications"
 DELIBERATOR_EXAM_MANAGE_PERMISSION = "governance.manage_deliberator_exam"
 MANAGE_ROLES_PERMISSION = "governance.manage_roles"
 DEFAULT_ROLE_ASSIGNMENT_DAYS = 36500
 
-BASE_MAINTENANCE_PERMISSIONS = (
+BASE_ADMINISTRATION_PERMISSIONS = (
     {
-        "code": MAINTENANCE_VIEW_ADMIN_PERMISSION,
+        "code": ADMINISTRATION_VIEW_ADMIN_PERMISSION,
         "name": "查看维护后台",
         "category": "governance",
         "description": "允许访问治理和运营维护入口。",
@@ -74,11 +74,11 @@ def default_role_assignment_end_at(start_at=None):
     return (start_at or timezone.now()) + timedelta(days=DEFAULT_ROLE_ASSIGNMENT_DAYS)
 
 
-def ensure_maintainer_role() -> dict[str, Any]:
-    """幂等初始化典守者及其明确的通用维护权限。"""
+def ensure_administrator_role() -> dict[str, Any]:
+    """幂等初始化管理员及其明确的通用维护权限。"""
 
     created_permissions = 0
-    for item in BASE_MAINTENANCE_PERMISSIONS:
+    for item in BASE_ADMINISTRATION_PERMISSIONS:
         _permission, created = Permission.objects.get_or_create(
             code=item["code"],
             defaults={
@@ -91,11 +91,11 @@ def ensure_maintainer_role() -> dict[str, Any]:
 
     role_exists = Role.objects.filter(
         organization__role_catalog_key=ROLE_CATALOG_ORGANIZATION_KEY,
-        name=ROLE_MAINTAINER,
+        name=ROLE_ADMINISTRATOR,
     ).exists()
-    role = ensure_catalog_role(ROLE_MAINTAINER)
+    role = ensure_catalog_role(ROLE_ADMINISTRATOR)
     created_bindings = 0
-    for permission in Permission.objects.filter(code__in=MAINTAINER_PERMISSION_CODES):
+    for permission in Permission.objects.filter(code__in=ADMINISTRATOR_PERMISSION_CODES):
         _binding, created = RolePermission.objects.get_or_create(
             role=role,
             permission=permission,

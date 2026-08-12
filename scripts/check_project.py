@@ -79,6 +79,10 @@ def check_legacy_role_names() -> list[str]:
         "正式" + "成员",
         "议事" + "者",
         "维护" + "者",
+        "\u5178\u5b88\u8005",
+        "Main" + "tainer",
+        "main" + "tainer",
+        "MAIN" + "TAINER",
         "治理" + "成员",
         "治理" + "管理员",
     )

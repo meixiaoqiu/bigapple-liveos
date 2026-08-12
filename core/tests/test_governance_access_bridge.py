@@ -9,10 +9,10 @@ from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from core.access import member_can_maintain, user_can_maintain, user_has_permission
-from core.governance_setup import BASE_MAINTENANCE_PERMISSIONS, MAINTENANCE_VIEW_ADMIN_PERMISSION
+from core.access import member_can_administer, user_can_administer, user_has_permission
+from core.governance_setup import BASE_ADMINISTRATION_PERMISSIONS, ADMINISTRATION_VIEW_ADMIN_PERMISSION
 from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER
-from core.role_catalog import ROLE_CATALOG_ORGANIZATION_NAME, ROLE_MAINTAINER
+from core.role_catalog import ROLE_CATALOG_ORGANIZATION_NAME, ROLE_ADMINISTRATOR
 from core.models import Organization, Permission, Role, RoleAssignment, RolePermission
 from core.role_assignment_services import create_role_assignment
 from core.tests.helpers import create_member
@@ -22,7 +22,7 @@ class GovernanceAccessBridgeTests(TestCase):
     def create_user(self, username: str):
         return get_user_model().objects.create_user(username=username, password="test-password")
 
-    def create_maintenance_role_permission(self, user, permission_code=MAINTENANCE_VIEW_ADMIN_PERMISSION):
+    def create_administrator_role_permission(self, user, permission_code=ADMINISTRATION_VIEW_ADMIN_PERMISSION):
         organization = Organization.objects.create(
             name=f"Governance Bridge {user.username}",
         )
@@ -49,8 +49,8 @@ class GovernanceAccessBridgeTests(TestCase):
         )
         user = self.create_user(member.member_no)
 
-        self.assertFalse(user_has_permission(user, MAINTENANCE_VIEW_ADMIN_PERMISSION))
-        self.assertFalse(user_can_maintain(user))
+        self.assertFalse(user_has_permission(user, ADMINISTRATION_VIEW_ADMIN_PERMISSION))
+        self.assertFalse(user_can_administer(user))
 
     def test_staff_without_governance_permission_is_denied(self):
         user = self.create_user("staff-without-governance")
@@ -58,8 +58,8 @@ class GovernanceAccessBridgeTests(TestCase):
         user.save(update_fields=["is_staff"])
         create_member(user.username, user=user, display_name=user.username)
 
-        self.assertFalse(user_has_permission(user, MAINTENANCE_VIEW_ADMIN_PERMISSION))
-        self.assertFalse(user_can_maintain(user))
+        self.assertFalse(user_has_permission(user, ADMINISTRATION_VIEW_ADMIN_PERMISSION))
+        self.assertFalse(user_can_administer(user))
 
     def test_superuser_without_governance_permission_is_denied(self):
         user = self.create_user("superuser-without-governance")
@@ -67,15 +67,15 @@ class GovernanceAccessBridgeTests(TestCase):
         user.is_superuser = True
         user.save(update_fields=["is_staff", "is_superuser"])
 
-        self.assertFalse(user_has_permission(user, MAINTENANCE_VIEW_ADMIN_PERMISSION))
-        self.assertFalse(user_can_maintain(user))
+        self.assertFalse(user_has_permission(user, ADMINISTRATION_VIEW_ADMIN_PERMISSION))
+        self.assertFalse(user_can_administer(user))
 
     def test_role_permission_allows_maintenance_access_without_deliberator_duty(self):
         user = self.create_user("new-governance-user")
-        self.create_maintenance_role_permission(user)
+        self.create_administrator_role_permission(user)
 
-        self.assertTrue(user_has_permission(user, MAINTENANCE_VIEW_ADMIN_PERMISSION))
-        self.assertTrue(user_can_maintain(user))
+        self.assertTrue(user_has_permission(user, ADMINISTRATION_VIEW_ADMIN_PERMISSION))
+        self.assertTrue(user_can_administer(user))
 
     @override_settings(
         BIG_APPLE_AUTHORIZATION_BACKEND="openfga",
@@ -85,20 +85,20 @@ class GovernanceAccessBridgeTests(TestCase):
     )
     def test_governance_access_bridge_denies_when_openfga_denies(self):
         user = self.create_user("openfga-denied-governance-user")
-        member, _assignment, _permission = self.create_maintenance_role_permission(user)
+        member, _assignment, _permission = self.create_administrator_role_permission(user)
 
         with patch("core.authorization_services.OpenFGAClient") as client_class:
             client_class.return_value.check.return_value = False
 
-            self.assertFalse(user_has_permission(user, MAINTENANCE_VIEW_ADMIN_PERMISSION))
-            self.assertFalse(member_can_maintain(member))
+            self.assertFalse(user_has_permission(user, ADMINISTRATION_VIEW_ADMIN_PERMISSION))
+            self.assertFalse(member_can_administer(member))
 
         client_class.return_value.check.assert_any_call(
             store_id="store-id",
             authorization_model_id="model-id",
             user=f"member:{member.pk}",
             relation="holder",
-            object_=f"guarded_permission:{MAINTENANCE_VIEW_ADMIN_PERMISSION}",
+            object_=f"guarded_permission:{ADMINISTRATION_VIEW_ADMIN_PERMISSION}",
         )
 
     def test_member_principal_can_use_role_permission(self):
@@ -112,7 +112,7 @@ class GovernanceAccessBridgeTests(TestCase):
         )
         role = Role.objects.create(organization=organization, name="Member Principal Admin")
         permission, _created = Permission.objects.get_or_create(
-            code=MAINTENANCE_VIEW_ADMIN_PERMISSION,
+            code=ADMINISTRATION_VIEW_ADMIN_PERMISSION,
             defaults={
                 "name": "Governance view",
                 "category": "governance",
@@ -121,14 +121,14 @@ class GovernanceAccessBridgeTests(TestCase):
         create_role_assignment(member=member, role=role)
         RolePermission.objects.create(role=role, permission=permission, scope="global")
 
-        self.assertTrue(member_can_maintain(member))
+        self.assertTrue(member_can_administer(member))
 
-    def test_user_without_maintainer_member_role_or_role_permission_is_denied(self):
+    def test_user_without_administrator_member_role_or_role_permission_is_denied(self):
         user = self.create_user("plain-user")
         create_member(user.username, profile={"display_name": user.username})
 
-        self.assertFalse(user_has_permission(user, MAINTENANCE_VIEW_ADMIN_PERMISSION))
-        self.assertFalse(user_can_maintain(user))
+        self.assertFalse(user_has_permission(user, ADMINISTRATION_VIEW_ADMIN_PERMISSION))
+        self.assertFalse(user_can_administer(user))
 
     def test_inactive_role_assignments_do_not_grant_governance_access(self):
         for status in [
@@ -138,33 +138,33 @@ class GovernanceAccessBridgeTests(TestCase):
         ]:
             with self.subTest(status=status):
                 user = self.create_user(f"user-{status}")
-                _member, assignment, _permission = self.create_maintenance_role_permission(user)
+                _member, assignment, _permission = self.create_administrator_role_permission(user)
                 assignment.status = status
                 assignment.save(update_fields=["status", "updated_at"])
 
-                self.assertFalse(user_has_permission(user, MAINTENANCE_VIEW_ADMIN_PERMISSION))
+                self.assertFalse(user_has_permission(user, ADMINISTRATION_VIEW_ADMIN_PERMISSION))
 
-    def test_init_maintainer_permissions_command_is_idempotent(self):
+    def test_init_administrator_permissions_command_is_idempotent(self):
         output = StringIO()
-        call_command("init_maintainer_permissions", stdout=output)
-        call_command("init_maintainer_permissions", stdout=output)
+        call_command("init_administrator_permissions", stdout=output)
+        call_command("init_administrator_permissions", stdout=output)
 
-        codes = [item["code"] for item in BASE_MAINTENANCE_PERMISSIONS]
+        codes = [item["code"] for item in BASE_ADMINISTRATION_PERMISSIONS]
         self.assertEqual(Permission.objects.filter(code__in=codes).count(), len(codes))
         organization = Organization.objects.get(name=ROLE_CATALOG_ORGANIZATION_NAME)
-        role = Role.objects.get(organization=organization, name=ROLE_MAINTAINER)
+        role = Role.objects.get(organization=organization, name=ROLE_ADMINISTRATOR)
         self.assertEqual(RolePermission.objects.filter(role=role, permission__code__in=codes).count(), len(codes))
 
-    def test_init_maintainer_permissions_reports_explicit_world_id(self):
+    def test_init_administrator_permissions_reports_explicit_world_id(self):
         output = StringIO()
 
-        call_command("init_maintainer_permissions", "--world-id", "simulation0001", stdout=output)
+        call_command("init_administrator_permissions", "--world-id", "simulation0001", stdout=output)
 
         self.assertIn("world_id=simulation0001", output.getvalue())
 
     @override_settings(WORLD_DATABASE_ROUTING_ENABLED=True)
-    def test_init_maintainer_permissions_requires_world_when_routing_is_enabled(self):
+    def test_init_administrator_permissions_requires_world_when_routing_is_enabled(self):
         with self.assertRaises(CommandError) as captured:
-            call_command("init_maintainer_permissions", stdout=StringIO())
+            call_command("init_administrator_permissions", stdout=StringIO())
 
         self.assertIn("requires --world-id", str(captured.exception))

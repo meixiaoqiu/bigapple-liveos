@@ -1,16 +1,16 @@
-"""初始化典守者的基础权限与角色。"""
+"""初始化管理员的基础权限与角色。"""
 
 from __future__ import annotations
 
 from django.core.management.base import BaseCommand
 
 from core.finance_setup import ensure_finance_roles
-from core.governance_setup import ensure_maintainer_role
+from core.governance_setup import ensure_administrator_role
 from worlds.command_context import command_world_context, command_world_label
 
 
 class Command(BaseCommand):
-    help = "创建典守者的基础权限、角色和角色权限绑定。"
+    help = "创建管理员的基础权限、角色和角色权限绑定。"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -19,13 +19,13 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        with command_world_context(options.get("world_id"), command_name="init_maintainer_permissions") as world:
-            result = ensure_maintainer_role()
+        with command_world_context(options.get("world_id"), command_name="init_administrator_permissions") as world:
+            result = ensure_administrator_role()
             finance_result = ensure_finance_roles()
 
             self.stdout.write(
                 self.style.SUCCESS(
-                    "已初始化典守者权限："
+                    "已初始化管理员权限："
                     f"world_id={command_world_label(world)}, "
                     f"permissions_created={result['permissions_created']}, "
                     f"role_created={result['role_created']}, "

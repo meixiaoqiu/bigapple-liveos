@@ -20,7 +20,7 @@ from core.deliberator_exam_services import (
     submit_deliberator_exam,
 )
 from core.exceptions import DomainError
-from core.governance_setup import ensure_maintainer_role
+from core.governance_setup import ensure_administrator_role
 from core.member_roles import ROLE_COVENANTER, ROLE_DELIBERATOR, ensure_catalog_role, member_has_role
 from core.models import DeliberatorExamAttempt, DeliberatorExamPolicy, DeliberatorExamQuestion, SystemEvent
 from core.models import Proposal, ProposalVote
@@ -94,21 +94,21 @@ class DeliberatorExamTests(TestCase):
         with self.assertRaises(DomainError):
             start_deliberator_exam(member=self.member)
 
-    def test_only_exam_maintainer_can_create_and_replace_question(self):
+    def test_only_exam_administrator_can_create_and_replace_question(self):
         with self.assertRaises(DomainError):
             create_exam_question(
                 actor=self.member, prompt="题目", options=[{"id": "a", "text": "A"}, {"id": "b", "text": "B"}],
                 correct_option_id="a", publish=True,
             )
-        maintainer = create_member("exam-maintainer", role_name=ROLE_COVENANTER)
-        create_role_assignment(member=maintainer, role=ensure_maintainer_role()["role"])
+        administrator = create_member("exam-administrator", role_name=ROLE_COVENANTER)
+        create_role_assignment(member=administrator, role=ensure_administrator_role()["role"])
         created = create_exam_question(
-            actor=maintainer, prompt="新题", options=[{"id": "a", "text": "A"}, {"id": "b", "text": "B"}],
+            actor=administrator, prompt="新题", options=[{"id": "a", "text": "A"}, {"id": "b", "text": "B"}],
             correct_option_id="a", publish=True,
         )
         attempt = start_deliberator_exam(member=self.member, sampler=lambda items, count: [created])
         replacement = replace_exam_question(
-            actor=maintainer, question=created, prompt="新版题",
+            actor=administrator, question=created, prompt="新版题",
             options=[{"id": "a", "text": "A2"}, {"id": "b", "text": "B2"}], correct_option_id="b",
         )
         attempt.refresh_from_db()
@@ -116,9 +116,9 @@ class DeliberatorExamTests(TestCase):
         self.assertEqual(replacement.version, 2)
 
     def test_published_question_is_edited_through_new_draft_version(self):
-        maintainer = create_member("exam-version-maintainer", role_name=ROLE_COVENANTER)
-        create_role_assignment(member=maintainer, role=ensure_maintainer_role()["role"])
-        draft = copy_exam_question_to_draft(actor=maintainer, question=self.question)
+        administrator = create_member("exam-version-administrator", role_name=ROLE_COVENANTER)
+        create_role_assignment(member=administrator, role=ensure_administrator_role()["role"])
+        draft = copy_exam_question_to_draft(actor=administrator, question=self.question)
         self.assertEqual(draft.question_id, self.question.question_id)
         self.assertEqual(draft.version, 2)
         self.assertEqual(draft.status, DeliberatorExamQuestion.Status.DRAFT)
@@ -140,24 +140,24 @@ class DeliberatorExamTests(TestCase):
         )
 
     def test_policy_unique_conflict_is_a_domain_error_and_rolls_back(self):
-        maintainer = create_member("exam-policy-conflict-maintainer", role_name=ROLE_COVENANTER)
-        create_role_assignment(member=maintainer, role=ensure_maintainer_role()["role"])
+        administrator = create_member("exam-policy-conflict-administrator", role_name=ROLE_COVENANTER)
+        create_role_assignment(member=administrator, role=ensure_administrator_role()["role"])
 
         with patch.object(DeliberatorExamPolicy, "save", side_effect=IntegrityError("duplicate active")):
             with self.assertRaisesRegex(DomainError, "另一项考试政策同时生效"):
-                publish_exam_policy(actor=maintainer, question_count=1, passing_percent=100)
+                publish_exam_policy(actor=administrator, question_count=1, passing_percent=100)
 
         self.policy.refresh_from_db()
         self.assertEqual(self.policy.status, DeliberatorExamPolicy.Status.ACTIVE)
         self.assertEqual(self.policy.active_slot, 1)
 
     def test_question_change_event_is_safe_and_question_can_be_retired(self):
-        maintainer = create_member("exam-event-maintainer", role_name=ROLE_COVENANTER)
-        create_role_assignment(member=maintainer, role=ensure_maintainer_role()["role"])
+        administrator = create_member("exam-event-administrator", role_name=ROLE_COVENANTER)
+        create_role_assignment(member=administrator, role=ensure_administrator_role()["role"])
         secret_prompt = "仅应出现在私有题库中的题目"
         secret_explanation = "私有解析"
         created = create_exam_question(
-            actor=maintainer,
+            actor=administrator,
             prompt=secret_prompt,
             options=[{"id": "a", "text": "私有正确项"}, {"id": "b", "text": "私有错误项"}],
             correct_option_id="a",
@@ -165,7 +165,7 @@ class DeliberatorExamTests(TestCase):
             publish=True,
         )
 
-        retire_exam_question(actor=maintainer, question=created)
+        retire_exam_question(actor=administrator, question=created)
 
         created.refresh_from_db()
         self.assertEqual(created.status, DeliberatorExamQuestion.Status.RETIRED)
@@ -193,9 +193,9 @@ class DeliberatorExamTests(TestCase):
         question_admin = DeliberatorExamQuestionAdmin(DeliberatorExamQuestion, admin.site)
         self.assertFalse(question_admin.has_module_permission(request))
 
-        maintainer = create_member("exam-admin-maintainer", role_name=ROLE_COVENANTER)
-        create_role_assignment(member=maintainer, role=ensure_maintainer_role()["role"])
-        request.user = ensure_login_user_for_member(maintainer, is_staff=True)
+        administrator = create_member("exam-admin-administrator", role_name=ROLE_COVENANTER)
+        create_role_assignment(member=administrator, role=ensure_administrator_role()["role"])
+        request.user = ensure_login_user_for_member(administrator, is_staff=True)
         self.assertTrue(question_admin.has_module_permission(request))
         attempt_admin = DeliberatorExamAttemptAdmin(DeliberatorExamAttempt, admin.site)
         self.assertFalse(attempt_admin.has_add_permission(request))

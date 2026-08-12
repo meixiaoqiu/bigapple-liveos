@@ -128,7 +128,7 @@ class Proposal(models.Model):
         PROJECT = "project", "项目"
         STATEMENT = "statement", "声明"
         COMMUNITY = "community", "社区共议"
-        MAINTENANCE = "maintenance", "典守事务"
+        ADMINISTRATION = "administration", "管理事务"
 
     class Status(models.TextChoices):
         DRAFT = "draft", "草稿"

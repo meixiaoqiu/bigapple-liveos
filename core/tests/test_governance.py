@@ -41,10 +41,10 @@ class GovernanceKernelTests(TestCase):
             name="大苹果运营委员会",
         )
         member = create_member("mem-governance-1", display_name="张三")
-        grantor = create_member("mem-maintainer", display_name="典守者")
+        grantor = create_member("mem-administrator", display_name="管理员")
         role = Role.objects.create(
             organization=organization,
-            name="仓库典守者",
+            name="仓库管理员",
             description="负责仓库出入和工具间管理。",
         )
         permission = Permission.objects.create(

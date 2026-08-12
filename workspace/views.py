@@ -19,7 +19,7 @@ from live_os.access import (
 )
 from applications.forms import MemberApplicationForm, apply_daisyui_widgets
 from applications.simulation_metadata import metadata_from_signed_form_post
-from core.access import member_can_maintain
+from core.access import member_can_administer
 from core.authorization_services import AuthorizationService
 from core.application_services import submit_member_application
 from core.dispute_services import submit_dispute
@@ -317,7 +317,7 @@ def workspace_create_dispute(request: HttpRequest):
 
 
 # --- Member-application review module -------------------------------------------------
-# 典守者专用界面，提供报名列表以及提案、表决和执行流程。
+# 管理员专用界面，提供报名列表以及提案、表决和执行流程。
 # proposal/voting/execution pipeline through the workspace. Views stay thin:
 # every state change goes through the service layer so the invariants around
 # proposal-driven admission are preserved.
@@ -327,7 +327,7 @@ def workspace_create_dispute(request: HttpRequest):
 # execute). Applications are auto-rejected when their admission proposal fails.
 
 
-def current_maintainer_or_forbidden(request: HttpRequest) -> Member | HttpResponse:
+def current_administrator_or_forbidden(request: HttpRequest) -> Member | HttpResponse:
     """Resolve the governance viewer for a review action.
 
     Requires an authenticated, governance-permissioned Member. A Django
@@ -340,8 +340,8 @@ def current_maintainer_or_forbidden(request: HttpRequest) -> Member | HttpRespon
     member = member_for_request(request)
     if member is None:
         return page_forbidden("需要登录并绑定成员身份。")
-    if not member_can_maintain(member):
-        return page_forbidden("需要典守者权限。")
+    if not member_can_administer(member):
+        return page_forbidden("需要管理员权限。")
     return member
 
 
@@ -382,7 +382,7 @@ def _admission_application_redirect(request: HttpRequest, application: MemberApp
 
 @require_GET
 def workspace_applications_review(request: HttpRequest):
-    member = current_maintainer_or_forbidden(request)
+    member = current_administrator_or_forbidden(request)
     if isinstance(member, HttpResponse):
         return member
     status_filter = str(request.GET.get("status", "pending")).strip() or "pending"
@@ -395,7 +395,7 @@ def workspace_applications_review(request: HttpRequest):
 
 @require_GET
 def workspace_application_detail(request: HttpRequest, application_id: str):
-    member = current_maintainer_or_forbidden(request)
+    member = current_administrator_or_forbidden(request)
     if isinstance(member, HttpResponse):
         return member
     application = _application_for_review(application_id)
@@ -408,7 +408,7 @@ def workspace_application_detail(request: HttpRequest, application_id: str):
 
 @require_POST
 def workspace_proposal_vote(request: HttpRequest, proposal_id: str):
-    member = current_maintainer_or_forbidden(request)
+    member = current_administrator_or_forbidden(request)
     if isinstance(member, HttpResponse):
         return member
     proposal, application = _member_admission_proposal_and_application_or_404(proposal_id)
@@ -436,7 +436,7 @@ def workspace_proposal_vote(request: HttpRequest, proposal_id: str):
 
 @require_POST
 def workspace_proposal_execute(request: HttpRequest, proposal_id: str):
-    member = current_maintainer_or_forbidden(request)
+    member = current_administrator_or_forbidden(request)
     if isinstance(member, HttpResponse):
         return member
     proposal, application = _member_admission_proposal_and_application_or_404(proposal_id)
@@ -454,7 +454,7 @@ def workspace_proposal_execute(request: HttpRequest, proposal_id: str):
 
 
 # --- Recruitment-direction maintenance -----------------------------------------
-# 典守者专用界面，用于更新报名页的招募方向元数据。
+# 管理员专用界面，用于更新报名页的招募方向元数据。
 # metadata (show_on_application, public_label, required_count, etc.) stored in
 # CredentialTemplate.metadata["recruitment"].  No CredentialGrant issuance,
 # no CredentialTemplate CRUD, no new database tables.
@@ -462,7 +462,7 @@ def workspace_proposal_execute(request: HttpRequest, proposal_id: str):
 
 @require_http_methods(["GET", "POST"])
 def workspace_recruitment(request: HttpRequest):
-    member = current_maintainer_or_forbidden(request)
+    member = current_administrator_or_forbidden(request)
     if isinstance(member, HttpResponse):
         return member
 

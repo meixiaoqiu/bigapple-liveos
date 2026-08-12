@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .governance_setup import MAINTENANCE_VIEW_ADMIN_PERMISSION
+from .governance_setup import ADMINISTRATION_VIEW_ADMIN_PERMISSION
 from .finance_setup import (
     FINANCE_PAY_PERMISSION,
     FINANCE_PUBLISH_PUBLIC_ATTACHMENTS_PERMISSION,
@@ -51,28 +51,28 @@ def user_has_permission(
     return False
 
 
-def member_can_maintain(
+def member_can_administer(
     member: Member,
-    permission_code: str = MAINTENANCE_VIEW_ADMIN_PERMISSION,
+    permission_code: str = ADMINISTRATION_VIEW_ADMIN_PERMISSION,
 ) -> bool:
     """判断成员是否具备一项明确的维护能力。"""
 
-    return AuthorizationService().member_can_maintain(
+    return AuthorizationService().member_can_administer(
         member=member,
         permission_code=permission_code,
     )
 
 
-def user_can_maintain(
+def user_can_administer(
     user,
-    permission_code: str = MAINTENANCE_VIEW_ADMIN_PERMISSION,
+    permission_code: str = ADMINISTRATION_VIEW_ADMIN_PERMISSION,
 ) -> bool:
     """判断已登录用户绑定的成员是否具备一项明确的维护能力。"""
 
     if not user or not getattr(user, "is_authenticated", False):
         return False
     member = member_for_user(user)
-    return bool(member and member_can_maintain(member, permission_code))
+    return bool(member and member_can_administer(member, permission_code))
 
 
 def is_finance_reviewer(member: Member) -> bool:

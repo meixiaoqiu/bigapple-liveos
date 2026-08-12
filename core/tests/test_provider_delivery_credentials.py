@@ -90,8 +90,8 @@ class ProcurementWorkflowTests(TestCase):
             rule_version="v1",
         )
         self.supplier = create_member("mem-supplier-1", role_name=ROLE_COVENANTER)
-        from core.tests.helpers import create_maintainer_member
-        self.governor = create_maintainer_member("maintainer-proc-1")
+        from core.tests.helpers import create_administrator_member
+        self.governor = create_administrator_member("administrator-proc-1")
 
     def _exec_proposal(self, quote):
         """Approve + execute auto-created PROCUREMENT_ACCEPTANCE proposal."""
@@ -559,8 +559,8 @@ class ProcurementWorkflowTests(TestCase):
     def test_credential_does_not_grant_workspace_access(self):
         """凭证不会授予 workspace 权限。"""
         self._full_quote_workflow()
-        from core.access import member_can_maintain
-        self.assertFalse(member_can_maintain(self.supplier))
+        from core.access import member_can_administer
+        self.assertFalse(member_can_administer(self.supplier))
 
     def test_receipt_triggers_resource_transaction_with_quote_link(self):
         """验收入库产生的 ResourceTransaction.related_supplier_quote 指向报价。"""

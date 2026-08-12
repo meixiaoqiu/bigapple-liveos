@@ -25,8 +25,8 @@ _v2 = lambda action="manual": {
     "private_commitments": [],
 }
 from core.event_ledger import append_event
-from core.governance_setup import MAINTENANCE_VIEW_ADMIN_PERMISSION
-from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ROLE_MAINTAINER, ensure_catalog_role
+from core.governance_setup import ADMINISTRATION_VIEW_ADMIN_PERMISSION
+from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ROLE_ADMINISTRATOR, ensure_catalog_role
 from core.role_catalog import ROLE_CATALOG_ORGANIZATION_NAME
 from core.models import Permission, SystemEvent, Member, Organization, Proposal, Role, RoleAssignment, RolePermission
 from core.role_assignment_services import create_role_assignment
@@ -75,7 +75,7 @@ class GovernanceAdminUsabilityTests(TestCase):
 
     def test_proposal_admin_uses_chinese_role_identity_label_and_filters_by_proposer(self):
         role = ensure_catalog_role(ROLE_DELIBERATOR)
-        other_role = ensure_catalog_role(ROLE_MAINTAINER)
+        other_role = ensure_catalog_role(ROLE_ADMINISTRATOR)
         proposer = create_member("member-proposer", role_name=ROLE_COVENANTER)
         other_member = create_member("member-other", role_name=ROLE_COVENANTER)
         proposer_assignment = create_role_assignment(member=proposer, role=role)
@@ -101,7 +101,7 @@ class GovernanceAdminUsabilityTests(TestCase):
 
     def test_proposal_admin_role_identity_options_are_limited_to_selected_proposer(self):
         proposer_role = ensure_catalog_role(ROLE_DELIBERATOR)
-        other_role = ensure_catalog_role(ROLE_MAINTAINER)
+        other_role = ensure_catalog_role(ROLE_ADMINISTRATOR)
         proposer = create_member("member-proposer-options", role_name=ROLE_COVENANTER)
         other_member = create_member("member-other-options", role_name=ROLE_COVENANTER)
         proposer_assignment = create_role_assignment(member=proposer, role=proposer_role)
@@ -139,23 +139,23 @@ class GovernanceAdminUsabilityTests(TestCase):
         self.assertIn('$(document).on("change select2:select"', script)
 
 
-class GrantMaintainerCommandTests(TestCase):
+class GrantAdministratorCommandTests(TestCase):
     def _covenanter(self, member_no: str, user=None):
         return create_member(member_no, role_name=ROLE_COVENANTER, user=user)
 
-    def test_grant_maintainer_assigns_role_and_permission(self):
+    def test_grant_administrator_assigns_role_and_permission(self):
         user = get_user_model().objects.create_user(
-            username="maintainer-target",
+            username="administrator-target",
             email="target@example.com",
             password="test-password",
         )
-        member = self._covenanter("member-maintainer-target", user=user)
+        member = self._covenanter("member-administrator-target", user=user)
         output = StringIO()
 
-        call_command("grant_maintainer", username=user.username, stdout=output)
+        call_command("grant_administrator", username=user.username, stdout=output)
 
         organization = Organization.objects.get(name=ROLE_CATALOG_ORGANIZATION_NAME)
-        role = Role.objects.get(organization=organization, name=ROLE_MAINTAINER)
+        role = Role.objects.get(organization=organization, name=ROLE_ADMINISTRATOR)
         assignment = RoleAssignment.objects.get(member=member, role=role, status=RoleAssignment.Status.ACTIVE)
         self.assertTrue(
             SystemEvent.objects.filter(
@@ -164,22 +164,22 @@ class GrantMaintainerCommandTests(TestCase):
                 aggregate_id=str(assignment.pk),
             ).exists()
         )
-        self.assertTrue(user_has_permission(user, MAINTENANCE_VIEW_ADMIN_PERMISSION))
+        self.assertTrue(user_has_permission(user, ADMINISTRATION_VIEW_ADMIN_PERMISSION))
         user.refresh_from_db()
         self.assertFalse(user.is_staff)
         self.assertFalse(user.is_superuser)
         self.assertIn("world_id=default", output.getvalue())
 
-    def test_grant_maintainer_is_idempotent_for_active_assignment(self):
+    def test_grant_administrator_is_idempotent_for_active_assignment(self):
         user = get_user_model().objects.create_user(username="repeat-admin", password="test-password")
         member = self._covenanter("member-repeat-admin", user=user)
         output = StringIO()
 
-        call_command("grant_maintainer", username=user.username, stdout=output)
-        call_command("grant_maintainer", username=user.username, stdout=output)
+        call_command("grant_administrator", username=user.username, stdout=output)
+        call_command("grant_administrator", username=user.username, stdout=output)
 
         organization = Organization.objects.get(name=ROLE_CATALOG_ORGANIZATION_NAME)
-        role = Role.objects.get(organization=organization, name=ROLE_MAINTAINER)
+        role = Role.objects.get(organization=organization, name=ROLE_ADMINISTRATOR)
         assignments = RoleAssignment.objects.filter(member=member, role=role, status=RoleAssignment.Status.ACTIVE)
         self.assertEqual(assignments.count(), 1)
         self.assertEqual(
@@ -191,26 +191,26 @@ class GrantMaintainerCommandTests(TestCase):
             1,
         )
 
-    def test_grant_maintainer_fails_without_covenanter(self):
+    def test_grant_administrator_fails_without_covenanter(self):
         user = get_user_model().objects.create_user(username="no-covenanter-admin", password="test-password")
         create_member("member-no-covenanter", user=user)
         with self.assertRaises(CommandError) as captured:
-            call_command("grant_maintainer", username=user.username, stdout=StringIO())
+            call_command("grant_administrator", username=user.username, stdout=StringIO())
         self.assertIn("守约者", str(captured.exception))
 
-    def test_grant_maintainer_reports_explicit_world_id(self):
+    def test_grant_administrator_reports_explicit_world_id(self):
         user = get_user_model().objects.create_user(username="world-admin-target", password="test-password")
         self._covenanter("member-world-admin-target", user=user)
         output = StringIO()
 
-        call_command("grant_maintainer", "--world-id", "simulation0001", username=user.username, stdout=output)
+        call_command("grant_administrator", "--world-id", "simulation0001", username=user.username, stdout=output)
 
         self.assertIn("world_id=simulation0001", output.getvalue())
 
     @override_settings(WORLD_DATABASE_ROUTING_ENABLED=True)
-    def test_grant_maintainer_requires_world_when_routing_is_enabled(self):
+    def test_grant_administrator_requires_world_when_routing_is_enabled(self):
         with self.assertRaises(CommandError) as captured:
-            call_command("grant_maintainer", username="requires-world", stdout=StringIO())
+            call_command("grant_administrator", username="requires-world", stdout=StringIO())
 
         self.assertIn("requires --world-id", str(captured.exception))
 
@@ -228,22 +228,22 @@ class GrantMaintainerCommandTests(TestCase):
             create_role_assignment(member=member, role=gov_role, source_type="direct")
         self.assertIn("守约者", str(ctx.exception))
 
-    def test_bootstrap_initial_maintainer_fails_for_suspended_member(self):
+    def test_bootstrap_initial_administrator_fails_for_suspended_member(self):
         from core.exceptions import DomainError
-        from core.role_assignment_services import bootstrap_initial_maintainer
+        from core.role_assignment_services import bootstrap_initial_administrator
 
         member = create_member("susp-bootstrap-test", status=Member.Status.SUSPENDED, skip_role_validation=True)
         ra_count_before = RoleAssignment.objects.filter(member=member).count()
         with self.assertRaises(DomainError):
-            bootstrap_initial_maintainer(member)
+            bootstrap_initial_administrator(member)
         self.assertEqual(RoleAssignment.objects.filter(member=member).count(), ra_count_before)
 
-    def test_bootstrap_initial_maintainer_fails_for_exited_member(self):
+    def test_bootstrap_initial_administrator_fails_for_exited_member(self):
         from core.exceptions import DomainError
-        from core.role_assignment_services import bootstrap_initial_maintainer
+        from core.role_assignment_services import bootstrap_initial_administrator
 
         member = create_member("exit-bootstrap-test", status=Member.Status.EXITED, skip_role_validation=True)
         ra_count_before = RoleAssignment.objects.filter(member=member).count()
         with self.assertRaises(DomainError):
-            bootstrap_initial_maintainer(member)
+            bootstrap_initial_administrator(member)
         self.assertEqual(RoleAssignment.objects.filter(member=member).count(), ra_count_before)

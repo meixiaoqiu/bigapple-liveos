@@ -86,7 +86,7 @@ def remove_own_avatar(
     return _remove_avatar(member=member, world_id=world_id, gateway=gateway)
 
 
-def remove_avatar_as_maintainer(
+def remove_avatar_as_administrator(
     *, actor: Member, target: Member, world_id: str, gateway: AvatarStorageGateway | None = None
 ) -> MemberPublicProfile:
     """Remove a policy-violating avatar when the actor has people-maintenance permission."""
@@ -114,7 +114,7 @@ def remove_avatar_as_maintainer(
             },
         )
     logger.warning(
-        "avatar_removed_by_maintainer actor=%s target=%s occurred_at=%s",
+        "avatar_removed_by_administrator actor=%s target=%s occurred_at=%s",
         actor.member_no,
         target.member_no,
         timezone.now().isoformat(),

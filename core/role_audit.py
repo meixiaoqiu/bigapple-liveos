@@ -63,14 +63,14 @@ ROLE_ASSIGNMENT_CREATION_PATHS: tuple[dict[str, Any], ...] = (
         "follow_up_task": "3.1",
     },
     {
-        "id": "initial-maintainer-bootstrap",
+        "id": "initial-administrator-bootstrap",
         "entry_points": (
-            "core.role_assignment_services.bootstrap_initial_maintainer",
+            "core.role_assignment_services.bootstrap_initial_administrator",
             "worlds.management.commands.bootstrap_world",
         ),
         "category": "世界初始化",
-        "direct_role_facts": ("守约者", "典守者"),
-        "assessment": "初始化只使用可复用的守约者和典守者事实，不创建执衡者任期。",
+        "direct_role_facts": ("守约者", "管理员"),
+        "assessment": "初始化只使用可复用的守约者和管理员事实，不创建执衡者任期。",
         "follow_up_task": "3.3",
     },
     {

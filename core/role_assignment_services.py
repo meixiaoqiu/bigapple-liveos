@@ -9,10 +9,10 @@ from django.utils import timezone
 
 from .db import atomic_for_model
 from .exceptions import DomainError
-from .governance_setup import default_role_assignment_end_at, ensure_maintainer_role
+from .governance_setup import default_role_assignment_end_at, ensure_administrator_role
 from .member_roles import (
     ROLE_COVENANTER,
-    ROLE_MAINTAINER,
+    ROLE_ADMINISTRATOR,
     ensure_catalog_role,
     member_has_role,
 )
@@ -152,12 +152,12 @@ def revoke_role_assignment(
 
 
 @atomic_for_model(RoleAssignment)
-def bootstrap_initial_maintainer(
+def bootstrap_initial_administrator(
     member: Member,
     *,
     granted_by: Member | None = None,
 ) -> dict[str, Any]:
-    """初始化一个通用典守者，不创建执衡者任期或个人专属授权。"""
+    """初始化一个通用管理员，不创建执衡者任期或个人专属授权。"""
 
     assignments: dict[str, RoleAssignment] = {}
     assignments["covenanter"] = create_role_assignment(
@@ -166,9 +166,9 @@ def bootstrap_initial_maintainer(
         granted_by=granted_by,
         source_type=RoleAssignment.SourceType.INITIALIZATION,
     )
-    assignments["maintainer"] = create_role_assignment(
+    assignments["administrator"] = create_role_assignment(
         member=member,
-        role=ensure_maintainer_role()["role"],
+        role=ensure_administrator_role()["role"],
         granted_by=granted_by,
         source_type=RoleAssignment.SourceType.INITIALIZATION,
     )

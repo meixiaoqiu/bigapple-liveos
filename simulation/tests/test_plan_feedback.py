@@ -26,7 +26,7 @@ from core.models import (
 )
 from simulation.engine import run_active_plan_until_failure
 from simulation.responsibility_closure import RESPONSIBILITY_DOCUMENTS_KEY, photovoltaic_responsibility_closure_requirements
-from core.tests.helpers import create_maintainer_member, create_member, login_as_member
+from core.tests.helpers import create_administrator_member, create_member, login_as_member
 
 
 class SimulationPlanFeedbackTests(TestCase):
@@ -34,12 +34,12 @@ class SimulationPlanFeedbackTests(TestCase):
 
     def setUp(self) -> None:
         now = timezone.now()
-        self.maintainer_member = create_maintainer_member(
+        self.administrator_member = create_administrator_member(
             member_no="member-admin-0001",
             status=Member.Status.ACTIVE,
             joined_simulation_day=1,
             credit_floor=-500,
-            profile={"display_name": "开荒队典守者"},
+            profile={"display_name": "开荒队管理员"},
             created_at=now,
         )
         create_member(
@@ -257,7 +257,7 @@ class SimulationPlanFeedbackTests(TestCase):
             )
 
     def test_admin_simulation_lab_can_start_auto_run_without_redirecting_to_observer(self) -> None:
-        user = login_as_member(self.client, self.maintainer_member, is_staff=True)
+        user = login_as_member(self.client, self.administrator_member, is_staff=True)
         user.is_superuser = True
         user.save(update_fields=["is_superuser"])
         response = self.client.post("/admin/simulation-lab/run-until-failure/", {"max_turns": "5"}, follow=True)

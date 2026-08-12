@@ -20,7 +20,7 @@ from core.proposal_services import (
     reject_proposal,
 )
 from core.tests.helpers import (
-    create_maintainer_member,
+    create_administrator_member,
     create_member,
     login_as_member,
 )
@@ -43,12 +43,12 @@ class WorkspaceApplicationsReviewTests(TestCase):
     """成员报名审核模块：ApprovalProposal 准入审批。"""
 
     def setUp(self) -> None:
-        self.governance = create_maintainer_member("maintainer-review-0001")
+        self.governance = create_administrator_member("administrator-review-0001")
         login_as_member(self.client, self.governance)
 
     # --- 入口与权限 ------------------------------------------------
 
-    def test_maintainer_member_sees_review_entry_and_list(self) -> None:
+    def test_administrator_member_sees_review_entry_and_list(self) -> None:
         _submit_application()
         workspace = self.client.get("/workspace/")
         self.assertEqual(workspace.status_code, 200)

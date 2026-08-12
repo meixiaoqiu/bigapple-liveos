@@ -33,7 +33,7 @@ def _assert_exam_candidate(member: Member, *, at_time=None) -> None:
         raise DomainError("当前执衡者任期尚未结束，不能重复申请。")
 
 
-def _assert_exam_maintainer(member: Member) -> None:
+def _assert_exam_administrator(member: Member) -> None:
     if not AuthorizationService().member_has_permission(member, DELIBERATOR_EXAM_MANAGE_PERMISSION):
         raise DomainError("没有维护执衡者题库的权限。")
 
@@ -80,7 +80,7 @@ def _append_policy_event(policy: DeliberatorExamPolicy, *, actor: Member, action
 @atomic_for_model(DeliberatorExamPolicy)
 def publish_exam_policy(*, actor: Member, question_count: int, passing_percent: int) -> DeliberatorExamPolicy:
     """Publish a new policy version and retire the previously active version."""
-    _assert_exam_maintainer(actor)
+    _assert_exam_administrator(actor)
     now = timezone.now()
     active_questions = DeliberatorExamQuestion.objects.filter(status=DeliberatorExamQuestion.Status.PUBLISHED).count()
     if question_count < 1 or active_questions < question_count:
@@ -113,7 +113,7 @@ def create_exam_question(
     points: int = 1, explanation: str = "", publish: bool = False,
 ) -> DeliberatorExamQuestion:
     """Create and optionally publish a validated first question version."""
-    _assert_exam_maintainer(actor)
+    _assert_exam_administrator(actor)
     now = timezone.now()
     question = DeliberatorExamQuestion(
         prompt=prompt.strip(), options_json=options, correct_option_id=correct_option_id,
@@ -130,7 +130,7 @@ def create_exam_question(
 @atomic_for_model(DeliberatorExamQuestion)
 def publish_exam_question(*, actor: Member, question: DeliberatorExamQuestion) -> DeliberatorExamQuestion:
     """Publish one validated draft question without changing its content."""
-    _assert_exam_maintainer(actor)
+    _assert_exam_administrator(actor)
     if question.status != DeliberatorExamQuestion.Status.DRAFT:
         raise DomainError("只有草稿题目可以发布。")
     question.full_clean()
@@ -151,7 +151,7 @@ def copy_exam_question_to_draft(
     *, actor: Member, question: DeliberatorExamQuestion,
 ) -> DeliberatorExamQuestion:
     """Create the next editable version while preserving the published version."""
-    _assert_exam_maintainer(actor)
+    _assert_exam_administrator(actor)
     latest = DeliberatorExamQuestion.objects.filter(question_id=question.question_id).order_by("-version").first()
     if latest is None or latest.pk != question.pk or question.status == DeliberatorExamQuestion.Status.DRAFT:
         raise DomainError("只能从题目的最新已发布或已停用版本创建新草稿。")
@@ -176,7 +176,7 @@ def replace_exam_question(
     options: list[dict], correct_option_id: str, points: int = 1, explanation: str = "",
 ) -> DeliberatorExamQuestion:
     """Publish a replacement version while retaining the previous question."""
-    _assert_exam_maintainer(actor)
+    _assert_exam_administrator(actor)
     now = timezone.now()
     question.status = DeliberatorExamQuestion.Status.RETIRED
     question.save(update_fields=("status", "updated_at"))
@@ -196,7 +196,7 @@ def replace_exam_question(
 @atomic_for_model(DeliberatorExamQuestion)
 def retire_exam_question(*, actor: Member, question: DeliberatorExamQuestion) -> DeliberatorExamQuestion:
     """Retire the latest published or draft question version without deleting history."""
-    _assert_exam_maintainer(actor)
+    _assert_exam_administrator(actor)
     if question.status == DeliberatorExamQuestion.Status.RETIRED:
         return question
     question.status = DeliberatorExamQuestion.Status.RETIRED
@@ -217,7 +217,7 @@ def start_deliberator_exam(
         raise DomainError("执衡者考试政策尚未发布。")
     questions = list(DeliberatorExamQuestion.objects.filter(status=DeliberatorExamQuestion.Status.PUBLISHED).order_by("question_id", "-version"))
     if len(questions) < policy.question_count:
-        raise DomainError("执衡者考试题库暂不可用，请联系典守者维护。")
+        raise DomainError("执衡者考试题库暂不可用，请联系管理员维护。")
     selected = list((sampler or secrets.SystemRandom().sample)(questions, policy.question_count))
     snapshot = [{
         "snapshot_id": f"q{index + 1}", "question_id": item.question_id,

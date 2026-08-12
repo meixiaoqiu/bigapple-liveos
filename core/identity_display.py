@@ -8,7 +8,7 @@ from django.utils import timezone
 from .member_roles import (
     ROLE_DELIBERATOR,
     ROLE_COVENANTER,
-    ROLE_MAINTAINER,
+    ROLE_ADMINISTRATOR,
     member_allows_role_facts,
     member_has_role,
     participation_status,
@@ -69,7 +69,7 @@ def member_identity_display(member: Member, *, at_time=None) -> dict[str, object
         item
         for item in (
             _current_role_display(member, ROLE_DELIBERATOR, at_time=checked_at),
-            _current_role_display(member, ROLE_MAINTAINER, at_time=checked_at),
+            _current_role_display(member, ROLE_ADMINISTRATOR, at_time=checked_at),
         )
         if item is not None
     ]

@@ -16,7 +16,7 @@ ROLE_CATALOG_ORGANIZATION_KEY = "member-role-catalog"
 CONTRIBUTOR_DISPLAY_NAME = "贡献者"
 ROLE_COVENANTER = "守约者"
 ROLE_DELIBERATOR = "执衡者"
-ROLE_MAINTAINER = "典守者"
+ROLE_ADMINISTRATOR = "管理员"
 
 
 class RoleDimension(str, Enum):
@@ -24,7 +24,7 @@ class RoleDimension(str, Enum):
 
     MEMBER_QUALIFICATION = "member_qualification"
     DELIBERATION_DUTY = "deliberation_duty"
-    MAINTENANCE_DUTY = "maintenance_duty"
+    ADMINISTRATION_DUTY = "administration_duty"
 
 
 class TermRule(str, Enum):
@@ -85,15 +85,15 @@ ROLE_DEFINITIONS: tuple[RoleDefinition, ...] = (
         openfga_relation="deliberator",
     ),
     RoleDefinition(
-        code="maintainer",
-        display_name=ROLE_MAINTAINER,
-        description="通过正常程序取得、只包含明确典守权限的独立职责。",
-        dimension=RoleDimension.MAINTENANCE_DUTY,
+        code="administrator",
+        display_name=ROLE_ADMINISTRATOR,
+        description="通过正常程序取得、只包含明确管理权限的独立职责。",
+        dimension=RoleDimension.ADMINISTRATION_DUTY,
         direct_assignable=True,
         electorate_selectable=True,
         requires_covenanter=True,
         term_rule=TermRule.APPOINTMENT_DEFINED,
-        openfga_relation="maintainer",
+        openfga_relation="administrator",
     ),
 )
 
@@ -124,9 +124,9 @@ DERIVED_CONCEPT_DEFINITIONS: tuple[DerivedConceptDefinition, ...] = (
     ),
 )
 
-# 初始化典守者时可复用的具体权限。角色目录只说明初始集合；实际授权仍由
+# 初始化管理员时可复用的具体权限。角色目录只说明初始集合；实际授权仍由
 # ``RolePermission`` 和 ``AuthorizationService`` 决定。
-MAINTAINER_PERMISSION_CODES: tuple[str, ...] = (
+ADMINISTRATOR_PERMISSION_CODES: tuple[str, ...] = (
     "governance.view_admin",
     "governance.manage_people",
     "governance.manage_organizations",
@@ -213,8 +213,8 @@ def validate_role_catalog() -> list[str]:
         errors.append("派生概念不能与直接角色共用稳定代码。")
     if set(role_names).intersection(derived_names):
         errors.append("派生概念不能与直接角色共用显示名称。")
-    if not MAINTAINER_PERMISSION_CODES:
-        errors.append("典守者必须至少具有一项初始化典守权限。")
+    if not ADMINISTRATOR_PERMISSION_CODES:
+        errors.append("管理员必须至少具有一项初始化管理权限。")
     return errors
 
 

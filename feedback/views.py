@@ -8,7 +8,7 @@ from django.http import Http404, HttpRequest, HttpResponse, HttpResponseForbidde
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
-from core.access import member_can_maintain
+from core.access import member_can_administer
 from core.exceptions import DomainError
 from core.feedback_services import (
     hide_feedback,
@@ -76,12 +76,12 @@ def feedback_detail(request: HttpRequest, feedback_id: str) -> HttpResponse:
     if feedback.status == CommunityFeedback.Status.HIDDEN:
         # 隐藏反馈仅向具备维护能力的成员开放。
         member = member_for_request(request)
-        if member is None or not member_can_maintain(member):
+        if member is None or not member_can_administer(member):
             raise Http404("反馈不存在。")
 
     is_gov = False
     member = member_for_request(request)
-    if member is not None and member_can_maintain(member):
+    if member is not None and member_can_administer(member):
         is_gov = True
 
     return render(request, "feedback/detail.html", {
@@ -96,8 +96,8 @@ def feedback_detail(request: HttpRequest, feedback_id: str) -> HttpResponse:
 def feedback_respond(request: HttpRequest, feedback_id: str) -> HttpResponse:
     feedback = get_object_or_404(CommunityFeedback, feedback_id=feedback_id)
     member = member_for_request(request)
-    if member is None or not member_can_maintain(member):
-        return HttpResponseForbidden("只有典守者才能回应反馈。")
+    if member is None or not member_can_administer(member):
+        return HttpResponseForbidden("只有管理员才能回应反馈。")
 
     action = request.POST.get("action", "respond")
     try:

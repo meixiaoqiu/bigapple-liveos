@@ -8,7 +8,7 @@ from typing import Callable, ParamSpec, TypeVar
 from django.contrib.auth.views import redirect_to_login
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden, JsonResponse
 
-from core.access import member_for_user, user_can_maintain
+from core.access import member_for_user, user_can_administer
 from core.service_utils import actor_ref
 
 
@@ -31,7 +31,7 @@ def member_for_request(request: HttpRequest):
 
 def can_access_member(request: HttpRequest, member_no: str) -> bool:
     user = request_user(request)
-    if user_can_maintain(user):
+    if user_can_administer(user):
         return True
     member = member_for_request(request)
     return bool(member and member.member_no == member_no)
@@ -70,22 +70,22 @@ def world_login_url_for_request(request: HttpRequest) -> str:
     return "/login/"
 
 
-def require_maintainer_page(view_func: Callable[P, R]) -> Callable[P, R | HttpResponse]:
+def require_administrator_page(view_func: Callable[P, R]) -> Callable[P, R | HttpResponse]:
     @wraps(view_func)
     def wrapper(request: HttpRequest, *args: P.args, **kwargs: P.kwargs):
         if not is_authenticated(request):
             return redirect_to_login(request.get_full_path(), login_url=world_login_url_for_request(request))
-        if not user_can_maintain(request_user(request)):
-            return page_forbidden("需要典守者权限。")
+        if not user_can_administer(request_user(request)):
+            return page_forbidden("需要管理员权限。")
         return view_func(request, *args, **kwargs)
 
     return wrapper
 
 
-def require_maintainer_json(request: HttpRequest) -> JsonResponse | None:
+def require_administrator_json(request: HttpRequest) -> JsonResponse | None:
     if not is_authenticated(request):
         return json_auth_required()
-    if not user_can_maintain(request_user(request)):
+    if not user_can_administer(request_user(request)):
         return json_forbidden("Governance permission is required.")
     return None
 
@@ -137,5 +137,5 @@ def require_full_workspace_member_json(request: HttpRequest, member_no: str) -> 
 
 def require_member_page(request: HttpRequest, member_no: str) -> HttpResponseForbidden | None:
     if not is_authenticated(request) or not can_access_member(request, member_no):
-        return page_forbidden("需要当前成员或典守者权限。")
+        return page_forbidden("需要当前成员或管理员权限。")
     return None

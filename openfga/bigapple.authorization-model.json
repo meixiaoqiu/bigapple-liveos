@@ -11,14 +11,14 @@
       "relations": {
         "covenanter": {"this": {}},
         "deliberator": {"this": {}},
-        "maintainer": {"this": {}},
+        "administrator": {"this": {}},
         "frozen_member": {"this": {}}
       },
       "metadata": {
         "relations": {
           "covenanter": {"directly_related_user_types": [{"type": "member"}]},
           "deliberator": {"directly_related_user_types": [{"type": "member"}]},
-          "maintainer": {"directly_related_user_types": [{"type": "member"}]},
+          "administrator": {"directly_related_user_types": [{"type": "member"}]},
           "frozen_member": {"directly_related_user_types": [{"type": "member"}]}
         }
       }

@@ -10,15 +10,15 @@ from django.db import transaction
 from django.utils import timezone
 
 from core.finance_setup import ensure_finance_roles
-from core.governance_setup import default_role_assignment_end_at, ensure_maintainer_role
+from core.governance_setup import default_role_assignment_end_at, ensure_administrator_role
 from core.models import Member, RoleAssignment
-from core.role_assignment_services import bootstrap_initial_maintainer
+from core.role_assignment_services import bootstrap_initial_administrator
 from worlds.context import DEFAULT_REALWORLD_ID, WorldContext, context_from_registry
 from worlds.models import WorldRegistry
 from worlds.state import reset_current_world, set_current_world
 
 
-DEFAULT_WORLD_MAINTAINER_MEMBER_NO = "member-maintainer-0001"
+DEFAULT_WORLD_ADMINISTRATOR_MEMBER_NO = "member-administrator-0001"
 DEFAULT_CONTROL_USERNAME = "wzy"
 
 
@@ -30,27 +30,27 @@ class BootstrapResult:
 
 
 class Command(BaseCommand):
-    help = "Bootstrap control admin and one world maintainer."
+    help = "Bootstrap control admin and one world administrator."
 
     def add_arguments(self, parser):
         parser.add_argument("--world-id", default=DEFAULT_REALWORLD_ID)
         parser.add_argument("--skip-control-admin", action="store_true")
-        parser.add_argument("--skip-world-maintainer", action="store_true")
+        parser.add_argument("--skip-world-administrator", action="store_true")
         parser.add_argument("--control-username", default=os.environ.get("BIG_APPLE_CONTROL_ADMIN_USERNAME", DEFAULT_CONTROL_USERNAME))
         parser.add_argument("--control-password", default=os.environ.get("BIG_APPLE_CONTROL_ADMIN_PASSWORD", ""))
         parser.add_argument("--control-email", default=os.environ.get("BIG_APPLE_CONTROL_ADMIN_EMAIL", ""))
-        parser.add_argument("--world-maintainer-username", default=os.environ.get("BIG_APPLE_WORLD_MAINTAINER_USERNAME", ""))
-        parser.add_argument("--world-maintainer-password", default=os.environ.get("BIG_APPLE_WORLD_MAINTAINER_PASSWORD", ""))
-        parser.add_argument("--world-maintainer-email", default=os.environ.get("BIG_APPLE_WORLD_MAINTAINER_EMAIL", ""))
-        parser.add_argument("--world-maintainer-member-no", default=os.environ.get("BIG_APPLE_WORLD_MAINTAINER_MEMBER_NO", DEFAULT_WORLD_MAINTAINER_MEMBER_NO))
-        parser.add_argument("--world-maintainer-display-name", default=os.environ.get("BIG_APPLE_WORLD_MAINTAINER_DISPLAY_NAME", "World maintainer"))
+        parser.add_argument("--world-administrator-username", default=os.environ.get("BIG_APPLE_WORLD_ADMINISTRATOR_USERNAME", ""))
+        parser.add_argument("--world-administrator-password", default=os.environ.get("BIG_APPLE_WORLD_ADMINISTRATOR_PASSWORD", ""))
+        parser.add_argument("--world-administrator-email", default=os.environ.get("BIG_APPLE_WORLD_ADMINISTRATOR_EMAIL", ""))
+        parser.add_argument("--world-administrator-member-no", default=os.environ.get("BIG_APPLE_WORLD_ADMINISTRATOR_MEMBER_NO", DEFAULT_WORLD_ADMINISTRATOR_MEMBER_NO))
+        parser.add_argument("--world-administrator-display-name", default=os.environ.get("BIG_APPLE_WORLD_ADMINISTRATOR_DISPLAY_NAME", "World administrator"))
 
     def handle(self, *args, **options):
         world = self._get_world(str(options["world_id"]).strip())
         world_context = context_from_registry(world)
 
-        if options["skip_control_admin"] and options["skip_world_maintainer"]:
-            raise CommandError("Nothing to bootstrap: both --skip-control-admin and --skip-world-maintainer were provided.")
+        if options["skip_control_admin"] and options["skip_world_administrator"]:
+            raise CommandError("Nothing to bootstrap: both --skip-control-admin and --skip-world-administrator were provided.")
 
         if not options["skip_control_admin"]:
             control_result = self._ensure_control_admin(
@@ -60,15 +60,15 @@ class Command(BaseCommand):
             )
             self.stdout.write(self.style.SUCCESS(self._format_result(control_result)))
 
-        if not options["skip_world_maintainer"]:
-            username = str(options["world_maintainer_username"] or options["world_maintainer_member_no"]).strip()
-            world_result = self._ensure_world_maintainer(
+        if not options["skip_world_administrator"]:
+            username = str(options["world_administrator_username"] or options["world_administrator_member_no"]).strip()
+            world_result = self._ensure_world_administrator(
                 world_context,
                 username=username,
-                password=str(options["world_maintainer_password"] or ""),
-                email=str(options["world_maintainer_email"] or "").strip(),
-                member_no=str(options["world_maintainer_member_no"]).strip(),
-                display_name=str(options["world_maintainer_display_name"]).strip(),
+                password=str(options["world_administrator_password"] or ""),
+                email=str(options["world_administrator_email"] or "").strip(),
+                member_no=str(options["world_administrator_member_no"]).strip(),
+                display_name=str(options["world_administrator_display_name"]).strip(),
             )
             self.stdout.write(self.style.SUCCESS(self._format_result(world_result)))
 
@@ -125,7 +125,7 @@ class Command(BaseCommand):
             user.save(using="default")
         return BootstrapResult(created=False, updated=changed, label=f"control_admin username={username}")
 
-    def _ensure_world_maintainer(
+    def _ensure_world_administrator(
         self,
         world: WorldContext,
         *,
@@ -136,9 +136,9 @@ class Command(BaseCommand):
         display_name: str,
     ) -> BootstrapResult:
         if not username:
-            raise CommandError("--world-maintainer-username cannot be empty.")
+            raise CommandError("--world-administrator-username cannot be empty.")
         if not member_no:
-            raise CommandError("--world-maintainer-member-no cannot be empty.")
+            raise CommandError("--world-administrator-member-no cannot be empty.")
 
         database_alias = self._effective_world_alias(world)
         token = set_current_world(world)
@@ -154,13 +154,13 @@ class Command(BaseCommand):
                     display_name=display_name,
                     database_alias=database_alias,
                 )
-                maintainer_role = ensure_maintainer_role()["role"]
-                maintainer_assignment_before = RoleAssignment.objects.filter(
-                    member=member, role=maintainer_role, status=RoleAssignment.Status.ACTIVE
+                administrator_role = ensure_administrator_role()["role"]
+                administrator_assignment_before = RoleAssignment.objects.filter(
+                    member=member, role=administrator_role, status=RoleAssignment.Status.ACTIVE
                 ).first()
-                result = bootstrap_initial_maintainer(member)
-                assignment = result["maintainer"]
-                created_assignment = maintainer_assignment_before is None
+                result = bootstrap_initial_administrator(member)
+                assignment = result["administrator"]
+                created_assignment = administrator_assignment_before is None
                 assignment_updated = self._ensure_assignment_window(assignment)
         finally:
             reset_current_world(token)
@@ -169,7 +169,7 @@ class Command(BaseCommand):
             created=created_assignment,
             updated=assignment_updated if not created_assignment else False,
             label=(
-                f"world_maintainer world_id={world.world_id}, username={username}, "
+                f"world_administrator world_id={world.world_id}, username={username}, "
                 f"member_no={member.member_no}, role_assignment_id={assignment.pk}"
             ),
         )
@@ -181,7 +181,7 @@ class Command(BaseCommand):
         created = user is None
         if created:
             if not password:
-                raise CommandError("A new world maintainer requires --world-maintainer-password or BIG_APPLE_WORLD_MAINTAINER_PASSWORD.")
+                raise CommandError("A new world administrator requires --world-administrator-password or BIG_APPLE_WORLD_ADMINISTRATOR_PASSWORD.")
             user = user_model(username=username, email=email, is_active=True, is_staff=False, is_superuser=False)
             user.set_password(password)
             user.save(using=database_alias)

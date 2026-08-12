@@ -5,7 +5,7 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from core.models import Member
-from core.tests.helpers import create_maintainer_member, create_member, login_as_member
+from core.tests.helpers import create_administrator_member, create_member, login_as_member
 from worlds.models import WorldRegistry
 from worlds.views import SESSION_WORLD_DATABASE_ALIAS, SESSION_WORLD_ID
 
@@ -33,13 +33,13 @@ class WorldRouteTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_realworld_live_admin_route_is_not_exposed(self) -> None:
-        operator = create_maintainer_member(
-            member_no="member-maintainer-0001",
+        operator = create_administrator_member(
+            member_no="member-administrator-0001",
             status=Member.Status.ACTIVE,
             batch_id="batch-opening",
             joined_simulation_day=1,
             credit_floor=-500,
-            profile={"display_name": "典守者"},
+            profile={"display_name": "管理员"},
             created_at=timezone.now(),
         )
         login_as_member(self.client, operator)
@@ -98,22 +98,22 @@ class WorldRouteTests(TestCase):
         self.assertEqual(response["Location"], "/workspace/")
         self.assertEqual(self.client.session[SESSION_WORLD_ID], "realworld")
 
-    def test_world_login_redirects_maintainer_to_workspace(self) -> None:
-        user = get_user_model().objects.create_user(username="member-maintainer-0001", password="test-password")
-        create_maintainer_member(
-            member_no="member-maintainer-0001",
+    def test_world_login_redirects_administrator_to_workspace(self) -> None:
+        user = get_user_model().objects.create_user(username="member-administrator-0001", password="test-password")
+        create_administrator_member(
+            member_no="member-administrator-0001",
             user=user,
             status=Member.Status.ACTIVE,
             batch_id="batch-opening",
             joined_simulation_day=1,
             credit_floor=-500,
-            profile={"display_name": "典守者"},
+            profile={"display_name": "管理员"},
             created_at=timezone.now(),
         )
 
         response = self.client.post(
             "/login/",
-            {"world_id": "realworld", "username": "member-maintainer-0001", "password": "test-password"},
+            {"world_id": "realworld", "username": "member-administrator-0001", "password": "test-password"},
         )
 
         self.assertEqual(response.status_code, 302)

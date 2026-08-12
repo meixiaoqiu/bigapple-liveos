@@ -15,14 +15,14 @@ from core.credit_services import ensure_system_accounts, issue_credits_to_pool, 
 from core.member_roles import ROLE_COVENANTER
 from core.openfga_client import OpenFGARequestError
 from core.models import CapacityAssessment, Dispute, Event, LedgerEntry, Member, Resource, Task
-from core.tests.helpers import create_maintainer_member, create_member, login_as_member
+from core.tests.helpers import create_administrator_member, create_member, login_as_member
 
 
 def actor(actor_id: str = "member-admin-0001") -> dict[str, str]:
     return {
         "actor_id": actor_id,
         "actor_type": "human_member",
-        "display_name": "开荒队典守者",
+        "display_name": "开荒队管理员",
     }
 
 
@@ -44,7 +44,7 @@ class ApiWorkflowTests(TestCase):
             profile={"satisfaction": 64, "fatigue": 18},
             created_at=now,
         )
-        self.reviewer = create_maintainer_member(
+        self.reviewer = create_administrator_member(
             member_no="member-admin-0001",
             status=Member.Status.ACTIVE,
             batch_id="batch-opening",
@@ -764,9 +764,9 @@ class CreditTransferApiTests(TestCase):
         self.assertEqual(resp.status_code, 400)
 
     def test_governance_cannot_transfer_as_other_member(self):
-        """典守者不能通过成员转账 API 代别人转出。"""
-        from core.tests.helpers import create_maintainer_member
-        gov = create_maintainer_member("maintainer-transfer-hack")
+        """管理员不能通过成员转账 API 代别人转出。"""
+        from core.tests.helpers import create_administrator_member
+        gov = create_administrator_member("administrator-transfer-hack")
         login_as_member(self.client, gov)
         bal_before_a = self._balance(self.member_a)
         bal_before_b = self._balance(self.member_b)
@@ -868,7 +868,7 @@ class RedemptionOrderApiTests(TestCase):
         from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account
         ensure_system_accounts()
         self.member = create_member("ro-api-member", role_name=ROLE_COVENANTER)
-        self.governor = create_maintainer_member("maintainer-ro-api")
+        self.governor = create_administrator_member("administrator-ro-api")
         get_or_create_member_credit_account(self.member)
         # Give member enough credits
         from core.models import CreditTransaction
@@ -1154,7 +1154,7 @@ class MerchantSettlementApiTests(TestCase):
     def setUp(self):
         from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account
         ensure_system_accounts()
-        self.governor = create_maintainer_member("maintainer-settle-api")
+        self.governor = create_administrator_member("administrator-settle-api")
         self.operator = create_member("settle-op-api", role_name=ROLE_COVENANTER)
         self.unrelated = create_member("settle-unrel-api", role_name=ROLE_COVENANTER)
         acct = get_or_create_member_credit_account(self.operator)
@@ -1383,11 +1383,11 @@ class RedemptionOrderPageTest(TestCase):
 
     def test_workspace_shows_fulfill_link_for_governance(self):
         """Governance member sees 兑换履约 and 商户结算 nav entries."""
-        from core.tests.helpers import create_maintainer_member
+        from core.tests.helpers import create_administrator_member
         from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account, post_credit_transaction
         from core.models import CreditAccount, CreditTransaction
         ensure_system_accounts()
-        gov = create_maintainer_member("review-test-maintainer")
+        gov = create_administrator_member("review-test-administrator")
         acct = get_or_create_member_credit_account(gov)
         post_credit_transaction(transaction_type=CreditTransaction.Type.ISSUANCE, amount=100, target_account=acct)
         login_as_member(self.client, gov)
@@ -1409,10 +1409,10 @@ class GovernanceReviewPageTests(TestCase):
     def setUp(self):
         from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account, post_credit_transaction
         from core.models import CreditAccount, CreditTransaction
-        from core.tests.helpers import create_maintainer_member
+        from core.tests.helpers import create_administrator_member
         from core.member_roles import ROLE_COVENANTER
         ensure_system_accounts()
-        self.gov = create_maintainer_member("review-maintainer-page")
+        self.gov = create_administrator_member("review-administrator-page")
         self.member = create_member("review-normal", role_name=ROLE_COVENANTER)
         acct = get_or_create_member_credit_account(self.member)
         get_or_create_member_credit_account(self.gov)
@@ -1466,10 +1466,10 @@ class MerchantSettlementsPageTests(TestCase):
     def setUp(self):
         from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account, post_credit_transaction, create_redemption_order as _cro, fulfill_redemption_order
         from core.models import CreditAccount, CreditTransaction, MerchantProfile
-        from core.tests.helpers import create_maintainer_member
+        from core.tests.helpers import create_administrator_member
         from core.member_roles import ROLE_COVENANTER
         ensure_system_accounts()
-        self.gov = create_maintainer_member("settle-maintainer-page")
+        self.gov = create_administrator_member("settle-administrator-page")
         self.operator = create_member("settle-op-page", role_name=ROLE_COVENANTER)
         self.unrelated = create_member("settle-urel-page", role_name=ROLE_COVENANTER)
         op_acct = get_or_create_member_credit_account(self.operator)
@@ -1664,16 +1664,16 @@ class SeedCreditsQaCommandTests(TestCase):
         user_model = get_user_model()
         user_a = user_model.objects.get(username="qa-a")
         user_b = user_model.objects.get(username="qa-b")
-        user_maintainer = user_model.objects.get(username="qa-maintainer")
+        user_administrator = user_model.objects.get(username="qa-administrator")
         self.assertTrue(user_a.check_password("test-password"))
         self.assertTrue(user_b.check_password("test-password"))
-        self.assertTrue(user_maintainer.check_password("test-password"))
+        self.assertTrue(user_administrator.check_password("test-password"))
 
         member_a = Member.objects.get(member_no="qa-a")
         self.assertEqual(member_a.user_id, user_a.pk)
-        member_maintainer = Member.objects.get(member_no="qa-maintainer")
-        from core.access import member_can_maintain
-        self.assertTrue(member_can_maintain(member_maintainer))
+        member_administrator = Member.objects.get(member_no="qa-administrator")
+        from core.access import member_can_administer
+        self.assertTrue(member_can_administer(member_administrator))
 
         from core.credit_services import member_credit_balance
         self.assertEqual(member_credit_balance(member_a), 500)
@@ -1695,10 +1695,10 @@ class CreditBudgetsPageTests(TestCase):
     def setUp(self):
         from core.credit_services import ensure_system_accounts, issue_credits_to_pool, get_or_create_member_credit_account, post_credit_transaction
         from core.models import CreditAccount, CreditTransaction
-        from core.tests.helpers import create_maintainer_member
+        from core.tests.helpers import create_administrator_member
         from core.member_roles import ROLE_COVENANTER
         ensure_system_accounts()
-        self.gov = create_maintainer_member("budget-maintainer-page")
+        self.gov = create_administrator_member("budget-administrator-page")
         self.normal = create_member("budget-normal", role_name=ROLE_COVENANTER)
         get_or_create_member_credit_account(self.gov)
         get_or_create_member_credit_account(self.normal)
@@ -1864,11 +1864,11 @@ class TaskManagePageTests(TestCase):
     def setUp(self):
         from core.credit_services import ensure_system_accounts, issue_credits_to_pool, get_or_create_member_credit_account, post_credit_transaction
         from core.models import CreditAccount, CreditTransaction
-        from core.tests.helpers import create_maintainer_member
+        from core.tests.helpers import create_administrator_member
         from core.member_roles import ROLE_COVENANTER
         from django.utils import timezone
         ensure_system_accounts()
-        self.gov = create_maintainer_member("task-mgmt-maintainer")
+        self.gov = create_administrator_member("task-mgmt-administrator")
         self.normal = create_member("task-mgmt-normal", role_name=ROLE_COVENANTER)
         get_or_create_member_credit_account(self.gov)
         get_or_create_member_credit_account(self.normal)
@@ -2043,14 +2043,14 @@ class TaskReviewPageTests(TestCase):
     def setUp(self):
         from core.credit_services import ensure_system_accounts, lock_task_credit_budget, get_or_create_member_credit_account, post_credit_transaction, issue_credits_to_pool
         from core.models import CreditAccount, CreditTransaction
-        from core.tests.helpers import create_maintainer_member
+        from core.tests.helpers import create_administrator_member
         from core.member_roles import ROLE_COVENANTER
         from core.tasks.member_workflow import claim_task, submit_labor
         from core.tasks.authoring import create_task_draft, publish_task
         from decimal import Decimal
         from django.utils import timezone
         ensure_system_accounts()
-        self.gov = create_maintainer_member("task-review-maintainer")
+        self.gov = create_administrator_member("task-review-administrator")
         self.worker = create_member("task-review-worker", role_name=ROLE_COVENANTER)
         self.normal = create_member("task-review-normal", role_name=ROLE_COVENANTER)
         get_or_create_member_credit_account(self.gov)
@@ -2283,10 +2283,10 @@ class BudgetIdempotencyTests(TestCase):
     def setUp(self):
         from core.credit_services import ensure_system_accounts, get_or_create_member_credit_account, post_credit_transaction
         from core.models import CreditAccount, CreditTransaction
-        from core.tests.helpers import create_maintainer_member
+        from core.tests.helpers import create_administrator_member
         from django.utils import timezone
         ensure_system_accounts()
-        self.gov = create_maintainer_member("budget-idem-maintainer")
+        self.gov = create_administrator_member("budget-idem-administrator")
         get_or_create_member_credit_account(self.gov)
         pool = CreditAccount.objects.get(account_type=CreditAccount.Type.ISSUANCE_POOL)
         post_credit_transaction(

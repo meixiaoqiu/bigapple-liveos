@@ -8,7 +8,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 
-from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ROLE_MAINTAINER, member_has_role
+from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ROLE_ADMINISTRATOR, member_has_role
 from core.models import Member, MemberProfessionalQualification, Organization, ProfessionalDomain, Role, RoleAssignment
 from core.openfga_client import OpenFGARequestError
 from core.role_baseline import clear_role_permission_baseline, load_role_permission_baseline
@@ -27,18 +27,18 @@ class RolePermissionBaselineServiceTests(TestCase):
             {
                 (ROLE_CATALOG_ORGANIZATION_NAME, ROLE_COVENANTER),
                 (ROLE_CATALOG_ORGANIZATION_NAME, ROLE_DELIBERATOR),
-                (ROLE_CATALOG_ORGANIZATION_NAME, ROLE_MAINTAINER),
+                (ROLE_CATALOG_ORGANIZATION_NAME, ROLE_ADMINISTRATOR),
             },
         )
         contributor = Member.objects.get(member_no="role-baseline-contributor")
         deliberator = Member.objects.get(member_no="role-baseline-deliberator")
-        maintainer = Member.objects.get(member_no="role-baseline-maintainer")
+        administrator = Member.objects.get(member_no="role-baseline-administrator")
         qualified = Member.objects.get(member_no="role-baseline-finance")
         self.assertFalse(RoleAssignment.objects.filter(member=contributor).exists())
         self.assertTrue(member_has_role(deliberator, ROLE_COVENANTER))
         self.assertTrue(member_has_role(deliberator, ROLE_DELIBERATOR))
-        self.assertTrue(member_has_role(maintainer, ROLE_MAINTAINER))
-        self.assertFalse(member_has_role(maintainer, ROLE_DELIBERATOR))
+        self.assertTrue(member_has_role(administrator, ROLE_ADMINISTRATOR))
+        self.assertFalse(member_has_role(administrator, ROLE_DELIBERATOR))
         self.assertTrue(
             MemberProfessionalQualification.objects.filter(member=qualified, domain__code="finance").exists()
         )

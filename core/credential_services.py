@@ -540,10 +540,10 @@ def create_recruitment_template(
     - *public_description* exceeds 500 characters.
     - *required_count* or *sort_order* is not a valid integer.
     """
-    from core.access import member_can_maintain
+    from core.access import member_can_administer
 
-    if not member_can_maintain(actor_member):
-        raise DomainError("只有典守者可以新增招募方向。")
+    if not member_can_administer(actor_member):
+        raise DomainError("只有管理员可以新增招募方向。")
 
     norm_code = normalize_recruitment_template_code(code)
     if norm_code == "covenanter_number":
@@ -664,10 +664,10 @@ def update_recruitment_template_config(
     Returns the full recruitment gap dict after the update so callers can
     re-render with fresh data.
     """
-    from core.access import member_can_maintain
+    from core.access import member_can_administer
 
-    if not member_can_maintain(actor_member):
-        raise DomainError("只有典守者可以维护招募方向配置。")
+    if not member_can_administer(actor_member):
+        raise DomainError("只有管理员可以维护招募方向配置。")
 
     if template_code == "covenanter_number":
         raise DomainError("守约者编号不是招募方向，不能修改。")

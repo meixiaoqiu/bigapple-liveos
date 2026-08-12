@@ -12,7 +12,7 @@ from datetime import timedelta
 from django.utils import timezone as dj_timezone
 from django.db.models import Exists, OuterRef, Q, Subquery
 
-from core.access import is_finance_reviewer, member_can_maintain
+from core.access import is_finance_reviewer, member_can_administer
 from core.models import (
     ApprovalDecision,
     ApprovalProposal,
@@ -307,7 +307,7 @@ def build_member_matters(
             updated_at=quote.updated_at or quote.created_at,
         ))
 
-    is_gov = member_can_maintain(member) if is_gov is None else is_gov
+    is_gov = member_can_administer(member) if is_gov is None else is_gov
     is_fin = is_finance_reviewer(member) if is_fin is None else is_fin
     if is_gov or is_fin:
         if any(items is None for items in [
@@ -384,7 +384,7 @@ def build_member_matters(
 
 
 def build_member_work_items(member: Member) -> dict:
-    is_gov = member_can_maintain(member)
+    is_gov = member_can_administer(member)
     is_fin = is_finance_reviewer(member)
     actionable_proposals: list[ApprovalProposal] = []
     executable_proposals: list[ApprovalProposal] = []

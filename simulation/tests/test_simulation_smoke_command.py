@@ -94,12 +94,12 @@ class SimulationSmokeCommandTests(TestCase):
 
         self.assertIn("Refusing to run simulation smoke for non-simulation world", str(captured.exception))
 
-    def test_seed_world_zero_start_without_bootstrap_maintainer_creates_virtual_founder_baseline(self) -> None:
+    def test_seed_world_zero_start_without_bootstrap_administrator_creates_virtual_founder_baseline(self) -> None:
         output = StringIO()
 
         # Local .env may enable a bootstrap admin for manual bigsim login; this
         # baseline test verifies the zero_start template itself.
-        with patch.dict("os.environ", {"BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_ENABLED": "false"}):
+        with patch.dict("os.environ", {"BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_ENABLED": "false"}):
             call_command("seed_world", "simulation0001", "--template", "zero_start", stdout=output)
 
         self.assertTrue(Member.objects.filter(member_no="founder-0001", status=Member.Status.ACTIVE).exists())
@@ -118,14 +118,14 @@ class SimulationSmokeCommandTests(TestCase):
         self.assertEqual(ResourceTransaction.objects.count(), 0)
         self.assertIn("template=zero_start", output.getvalue())
 
-    def test_seed_world_zero_start_uses_bootstrap_maintainer_as_only_initial_member(self) -> None:
+    def test_seed_world_zero_start_uses_bootstrap_administrator_as_only_initial_member(self) -> None:
         output = StringIO()
         env = {
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_ENABLED": "true",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_USERNAME": "solo-founder",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_PASSWORD": "test-password",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_MEMBER_NO": "solo-founder",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_DISPLAY_NAME": "Solo founder",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_ENABLED": "true",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_USERNAME": "solo-founder",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_PASSWORD": "test-password",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_MEMBER_NO": "solo-founder",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_DISPLAY_NAME": "Solo founder",
         }
 
         with patch.dict("os.environ", env):

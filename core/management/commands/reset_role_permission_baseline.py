@@ -37,7 +37,7 @@ class Command(BaseCommand):
             openfga_status = self._preflight_openfga()
             cleared = clear_role_permission_baseline()
             # OpenFGA tuple 只能在完整 Django 权威基线建立后重建。此处仅在受控
-            # 初始化阶段依据新建的 Django 事实校验典守能力，避免专业资格装载
+            # 初始化阶段依据新建的 Django 事实校验管理能力，避免专业资格装载
             # 依赖尚未重建的旧 tuple。
             with override_settings(BIG_APPLE_AUTHORIZATION_BACKEND="legacy"):
                 seeded = load_role_permission_baseline()

@@ -10,11 +10,11 @@
 系统与开发流程 MUST 要求所有受项目维护的文档使用中文编写标题、正文、表格说明、列表说明、需求名称、场景名称、任务说明、风险说明和迁移说明。
 
 #### Scenario: 生成新的 OpenSpec 产物
-- **WHEN** AI 或典守人员创建 proposal、spec、design 或 tasks
+- **WHEN** AI 或管理人员创建 proposal、spec、design 或 tasks
 - **THEN** 除允许保留原文的内容外，所有说明性文字均使用中文
 
 #### Scenario: 创建或修改项目文档
-- **WHEN** 典守人员在 Live OS 仓库或 sibling 文档仓库中创建或修改 Markdown 文档
+- **WHEN** 管理人员在 Live OS 仓库或 sibling 文档仓库中创建或修改 Markdown 文档
 - **THEN** 新增或修改的说明性内容使用中文
 
 ### Requirement: 技术语义原文可以保留

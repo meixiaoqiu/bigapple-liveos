@@ -629,7 +629,7 @@ def reject_member_application_from_failed_proposal(
     Called from the voting lifecycle when a MEMBER_ADMISSION proposal
     transitions to FAILED (deadline expired without sufficient yes votes).
     This is the ONLY path that sets an application to REJECTED — there is
-    典守者不能直接执行独立的“拒绝”操作。
+    管理员不能直接执行独立的“拒绝”操作。
     """
 
     if proposal.proposal_type != Proposal.ProposalType.MEMBER_ADMISSION:

@@ -26,7 +26,7 @@ from core.finance_setup import (
     FINANCE_REVIEW_PERMISSION,
     FINANCE_VIEW_PRIVATE_PERMISSION,
 )
-from core.governance_setup import ensure_maintainer_role
+from core.governance_setup import ensure_administrator_role
 from core.member_roles import ROLE_COVENANTER, ROLE_DELIBERATOR, ensure_catalog_role, member_has_role
 from core.models import (
     DeliberatorExamPolicy,
@@ -53,7 +53,7 @@ def _png_upload():
 class FinanceReviewerAppointmentTests(TestCase):
     def setUp(self):
         self.manager = create_member("finance-role-manager", role_name=ROLE_COVENANTER)
-        create_role_assignment(member=self.manager, role=ensure_maintainer_role()["role"])
+        create_role_assignment(member=self.manager, role=ensure_administrator_role()["role"])
         create_role_assignment(member=self.manager, role=ensure_catalog_role(ROLE_DELIBERATOR))
         self.target = create_member("finance-role-target", role_name=ROLE_COVENANTER)
         self.outsider = create_member("finance-role-outsider", role_name=ROLE_COVENANTER)
@@ -90,7 +90,7 @@ class FinanceReviewerAppointmentTests(TestCase):
             execute_finance_reviewer_appointment(actor=self.manager, proposal=proposal)
         wrong = create_role_appointment_proposal(
             target_member=self.target,
-            target_role=ensure_maintainer_role()["role"],
+            target_role=ensure_administrator_role()["role"],
             proposer_member=self.manager,
         )
         with self.assertRaises(DomainError):
@@ -98,7 +98,7 @@ class FinanceReviewerAppointmentTests(TestCase):
 
     def test_non_deliberator_manager_cannot_vote(self):
         manager_only = create_member("finance-manager-only", role_name=ROLE_COVENANTER)
-        create_role_assignment(member=manager_only, role=ensure_maintainer_role()["role"])
+        create_role_assignment(member=manager_only, role=ensure_administrator_role()["role"])
         proposal = nominate_finance_reviewer(actor=manager_only, target_member=self.target)
         with self.assertRaises(DomainError):
             vote_on_finance_reviewer_appointment(
@@ -150,7 +150,7 @@ class FinanceReviewerAppointmentConcurrencyTests(TransactionTestCase):
     @skipUnlessDBFeature("has_select_for_update")
     def test_concurrent_nominations_create_only_one_open_proposal(self):
         manager = create_member("finance-concurrent-manager", role_name=ROLE_COVENANTER)
-        create_role_assignment(member=manager, role=ensure_maintainer_role()["role"])
+        create_role_assignment(member=manager, role=ensure_administrator_role()["role"])
         target = create_member("finance-concurrent-target", role_name=ROLE_COVENANTER)
         barrier = Barrier(2)
         outcomes = []
@@ -197,7 +197,7 @@ class FinanceReviewerEndToEndTests(TestCase):
             correct_option_id="a", status="published",
         )
         self.bootstrap = create_member("finance-e2e-bootstrap", role_name=ROLE_COVENANTER)
-        create_role_assignment(member=self.bootstrap, role=ensure_maintainer_role()["role"])
+        create_role_assignment(member=self.bootstrap, role=ensure_administrator_role()["role"])
 
     def test_exam_admission_finance_appointment_and_expense_review(self):
         attempt = start_deliberator_exam(member=self.bootstrap)

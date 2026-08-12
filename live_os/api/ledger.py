@@ -5,7 +5,7 @@ from __future__ import annotations
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_GET
 
-from live_os.access import require_full_workspace_member_json, require_maintainer_json
+from live_os.access import require_full_workspace_member_json, require_administrator_json
 from core.models import LedgerEntry
 
 from .serializers import ledger_entry_to_contract
@@ -21,7 +21,7 @@ def list_ledger_entries(request: HttpRequest, **_kwargs) -> JsonResponse:
             return denied
         entries = entries.filter(member__member_no=member_no)
     else:
-        denied = require_maintainer_json(request)
+        denied = require_administrator_json(request)
         if denied:
             return denied
     return JsonResponse([ledger_entry_to_contract(entry) for entry in entries], safe=False)

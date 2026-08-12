@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from django.test import TestCase
 
-from core.governance_setup import ensure_maintainer_role
+from core.governance_setup import ensure_administrator_role
 from core.identity_display import member_identity_display
-from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ROLE_MAINTAINER, ensure_catalog_role
+from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ROLE_ADMINISTRATOR, ensure_catalog_role
 from core.models import Organization, Role
 from core.professional_qualification_services import (
     ensure_professional_domain,
@@ -18,11 +18,11 @@ class MemberIdentityDisplayTests(TestCase):
     def setUp(self) -> None:
         self.covenanter_role = ensure_catalog_role(ROLE_COVENANTER)
         self.deliberator_role = ensure_catalog_role(ROLE_DELIBERATOR)
-        self.maintainer_role = ensure_maintainer_role()["role"]
+        self.administrator_role = ensure_administrator_role()["role"]
         self.member = create_member("display-member")
         self.confirmed_by = create_member("display-confirmed-by")
         create_role_assignment(member=self.confirmed_by, role=self.covenanter_role)
-        create_role_assignment(member=self.confirmed_by, role=self.maintainer_role)
+        create_role_assignment(member=self.confirmed_by, role=self.administrator_role)
 
     def test_contributor_is_a_derived_status_not_a_role(self) -> None:
         display = member_identity_display(self.member)
@@ -31,15 +31,15 @@ class MemberIdentityDisplayTests(TestCase):
         self.assertIsNone(display["membership"])
         self.assertEqual(display["duties"], [])
 
-    def test_independent_deliberator_and_maintainer_duties_are_displayed_together(self) -> None:
+    def test_independent_deliberator_and_administrator_duties_are_displayed_together(self) -> None:
         create_role_assignment(member=self.member, role=self.covenanter_role)
         create_role_assignment(member=self.member, role=self.deliberator_role)
-        create_role_assignment(member=self.member, role=self.maintainer_role)
+        create_role_assignment(member=self.member, role=self.administrator_role)
 
         display = member_identity_display(self.member)
 
         self.assertEqual(display["membership"]["name"], "守约者")
-        self.assertEqual({item["name"] for item in display["duties"]}, {"执衡者", "典守者"})
+        self.assertEqual({item["name"] for item in display["duties"]}, {"执衡者", "管理员"})
         self.assertIsNone(display["derived_status"])
 
     def test_current_professional_qualification_is_separate_from_duties(self) -> None:
@@ -60,7 +60,7 @@ class MemberIdentityDisplayTests(TestCase):
     def test_lost_covenantership_hides_dependent_duties_but_preserves_records(self) -> None:
         covenanter_assignment = create_role_assignment(member=self.member, role=self.covenanter_role)
         deliberator_assignment = create_role_assignment(member=self.member, role=self.deliberator_role)
-        maintainer_assignment = create_role_assignment(member=self.member, role=self.maintainer_role)
+        administrator_assignment = create_role_assignment(member=self.member, role=self.administrator_role)
         revoke_role_assignment(assignment=covenanter_assignment, revoked_by=self.confirmed_by)
 
         display = member_identity_display(self.member)
@@ -69,7 +69,7 @@ class MemberIdentityDisplayTests(TestCase):
         self.assertEqual(display["duties"], [])
         self.assertEqual(display["restriction_reason"], "尚未取得当前有效的守约者资格。")
         self.assertTrue(type(deliberator_assignment).objects.filter(pk=deliberator_assignment.pk).exists())
-        self.assertTrue(type(maintainer_assignment).objects.filter(pk=maintainer_assignment.pk).exists())
+        self.assertTrue(type(administrator_assignment).objects.filter(pk=administrator_assignment.pk).exists())
 
     def test_unknown_dynamic_role_never_becomes_an_identity_label(self) -> None:
         create_role_assignment(member=self.member, role=self.covenanter_role)

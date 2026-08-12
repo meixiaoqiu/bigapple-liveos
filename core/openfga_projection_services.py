@@ -17,7 +17,7 @@ from .authorization_services import (
 from .member_roles import (
     ROLE_COVENANTER,
     ROLE_DELIBERATOR,
-    ROLE_MAINTAINER,
+    ROLE_ADMINISTRATOR,
     member_allows_role_facts,
     member_has_role,
 )
@@ -94,7 +94,7 @@ def _role_assignment_tuples(assignment: RoleAssignment) -> list[dict[str, str]]:
         relation = {
             ROLE_COVENANTER: "covenanter",
             ROLE_DELIBERATOR: "deliberator",
-            ROLE_MAINTAINER: "maintainer",
+            ROLE_ADMINISTRATOR: "administrator",
         }.get(definition.display_name)
         if relation:
             tuples.append({
@@ -102,7 +102,7 @@ def _role_assignment_tuples(assignment: RoleAssignment) -> list[dict[str, str]]:
                 "relation": relation,
                 "object": context.platform_object,
             })
-        if definition.display_name == ROLE_MAINTAINER:
+        if definition.display_name == ROLE_ADMINISTRATOR:
             tuples.append({
                 "user": openfga_member_user(assignment.member),
                 "relation": "assignee",

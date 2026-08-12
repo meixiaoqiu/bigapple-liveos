@@ -22,7 +22,7 @@ from core.resource_services import record_resource_adjustment
 from core.service_utils import actor_ref
 from core.tasks.member_workflow import claim_task, submit_labor
 from core.tasks.review import review_task
-from core.tests.helpers import create_maintainer_member, create_member
+from core.tests.helpers import create_administrator_member, create_member
 
 
 class ServiceConcurrencyGuardTests(TestCase):
@@ -48,13 +48,13 @@ class ServiceConcurrencyGuardTests(TestCase):
             profile={"display_name": "成员二号"},
             created_at=now,
         )
-        self.reviewer = create_maintainer_member(
+        self.reviewer = create_administrator_member(
             member_no="member-admin-0001",
             status=Member.Status.ACTIVE,
             batch_id="batch-opening",
             joined_simulation_day=1,
             credit_floor=-500,
-            profile={"display_name": "开荒队典守者"},
+            profile={"display_name": "开荒队管理员"},
             created_at=now,
         )
         # Fund the issuance pool so task rewards can flow through

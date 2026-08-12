@@ -118,7 +118,7 @@ class MemberApplication(models.Model):
         on_delete=models.PROTECT,
         related_name="decided_member_applications",
         verbose_name="决议人",
-        help_text="执行准入提案或拒绝的典守者；不再表示单人审核。",
+        help_text="执行准入提案或拒绝的管理员；不再表示单人审核。",
     )
     submitted_at = models.DateTimeField("提交时间")
     decided_at = models.DateTimeField("决议时间", null=True, blank=True, help_text="准入执行或拒绝的时间。")

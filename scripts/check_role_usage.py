@@ -75,15 +75,15 @@ ROLE_USAGE_CATALOG: dict[str, dict[str, str]] = {
     },
     "core/management/commands/openfga_rebuild_tuples.py:125": {
         "category": "授权查询",
-        "reason": "投影当前有效典守者任命，不读取任意角色任命。",
+        "reason": "投影当前有效管理员任命，不读取任意角色任命。",
     },
     "core/management/commands/openfga_rebuild_tuples.py:124": {
         "category": "授权查询",
-        "reason": "典守者 tuple 仅接受同时满足前置资格的当前职责事实。",
+        "reason": "管理员 tuple 仅接受同时满足前置资格的当前职责事实。",
     },
     "core/management/commands/openfga_rebuild_tuples.py:161": {
         "category": "授权查询",
-        "reason": "只投影典守者的显式权限绑定。",
+        "reason": "只投影管理员的显式权限绑定。",
     },
     "core/management/commands/repair_covenanter_credentials.py:34": {
         "category": "权威事实查询",

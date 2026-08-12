@@ -31,7 +31,7 @@ from core.models import (
     SimulationTurn,
     Task,
 )
-from core.tests.helpers import create_maintainer_member, create_member, login_as_member
+from core.tests.helpers import create_administrator_member, create_member, login_as_member
 from core.exceptions import DomainError
 from simulation.boundary import run_simulation_turn
 from worlds.models import WorldRegistry
@@ -50,13 +50,13 @@ class ObserverSimulationConsoleTests(TestCase):
             profile={"display_name": "成员一号"},
             created_at=timezone.now(),
         )
-        self.reviewer = create_maintainer_member(
+        self.reviewer = create_administrator_member(
             member_no="member-admin-0001",
             status=Member.Status.ACTIVE,
             batch_id="batch-opening",
             joined_simulation_day=1,
             credit_floor=-500,
-            profile={"display_name": "开荒队典守者"},
+            profile={"display_name": "开荒队管理员"},
             created_at=timezone.now(),
         )
         self.task = Task.objects.create(
@@ -1263,6 +1263,10 @@ class ObserverSimulationConsoleTests(TestCase):
         self.assertFalse(Event.objects.filter(generated_by=Event.GeneratedBy.SIMULATION_ENGINE).exists())
 
 
+@override_settings(
+    OPENFGA_SIM_STORE_ID="",
+    OPENFGA_SIM_AUTHORIZATION_MODEL_ID="",
+)
 class SimulationLabResetWorldTests(TestCase):
     """Tests for the reset-world-to-zero-start maintenance feature."""
 
@@ -1565,7 +1569,7 @@ class SimulationLabResetWorldTests(TestCase):
             occurred_at=timezone.now(),
         )
 
-        with patch.dict("os.environ", {"BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_ENABLED": "false"}):
+        with patch.dict("os.environ", {"BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_ENABLED": "false"}):
             response = self.client.post(
                 "/admin/simulation-lab/reset-world/",
                 self._reset_post_data(world, force=True),
@@ -1622,8 +1626,8 @@ class SimulationLabResetWorldTests(TestCase):
         self.assertContains(response, "force_reset")
         self.assertContains(response, "当前记录数")
 
-    def test_reset_world_with_bootstrap_maintainer_uses_configured_initial_member(self) -> None:
-        """启用首个典守者后，零起点使用该成员作为唯一初始成员。"""
+    def test_reset_world_with_bootstrap_administrator_uses_configured_initial_member(self) -> None:
+        """启用首个管理员后，零起点使用该成员作为唯一初始成员。"""
         import os
         from unittest import mock
 
@@ -1641,12 +1645,12 @@ class SimulationLabResetWorldTests(TestCase):
         )
 
         bootstrap_env = {
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_ENABLED": "true",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_USERNAME": self.user.username,
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_PASSWORD": "not-change-me-pls",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_EMAIL": "admin@test.dev",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_MEMBER_NO": self.user.username,
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_DISPLAY_NAME": "Bootstrap Maintainer",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_ENABLED": "true",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_USERNAME": self.user.username,
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_PASSWORD": "not-change-me-pls",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_EMAIL": "admin@test.dev",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_MEMBER_NO": self.user.username,
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_DISPLAY_NAME": "Bootstrap Administrator",
         }
 
         with mock.patch.dict(os.environ, bootstrap_env, clear=False):
@@ -1659,10 +1663,10 @@ class SimulationLabResetWorldTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "已成功重置到 zero_start 基线")
 
-        # Reset should have created the bootstrap maintainer member
+        # Reset should have created the bootstrap administrator member
         self.assertTrue(Member.objects.filter(member_no=self.user.username).exists())
         bootstrap_member = Member.objects.get(member_no=self.user.username)
-        self.assertEqual(bootstrap_member.display_name, "Bootstrap Maintainer")
+        self.assertEqual(bootstrap_member.display_name, "Bootstrap Administrator")
 
         # Founder-0001 should NOT have been created as an extra member
         self.assertFalse(Member.objects.filter(member_no="founder-0001").exists())

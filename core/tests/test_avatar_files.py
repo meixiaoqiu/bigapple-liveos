@@ -187,12 +187,12 @@ class AvatarServiceTests(TransactionTestCase):
         self.assertTrue(profile.avatar_key.endswith("old.webp"))
 
     @patch("core.avatar_services.member_has_permission", return_value=False)
-    def test_maintainer_removal_fails_closed_without_permission(self, _permission):
-        from core.avatar_services import remove_avatar_as_maintainer
+    def test_administrator_removal_fails_closed_without_permission(self, _permission):
+        from core.avatar_services import remove_avatar_as_administrator
 
         target = create_member(member_no="mem-avatar-target")
         with self.assertRaises(DomainError):
-            remove_avatar_as_maintainer(
+            remove_avatar_as_administrator(
                 actor=self.member,
                 target=target,
                 world_id="realworld",
@@ -200,8 +200,8 @@ class AvatarServiceTests(TransactionTestCase):
             )
 
     @patch("core.avatar_services.member_has_permission", return_value=True)
-    def test_authorized_maintainer_removal_records_current_state(self, _permission):
-        from core.avatar_services import remove_avatar_as_maintainer
+    def test_authorized_administrator_removal_records_current_state(self, _permission):
+        from core.avatar_services import remove_avatar_as_administrator
 
         target = create_member(member_no="mem-avatar-target-authorized")
         profile = MemberPublicProfile.objects.create(
@@ -211,7 +211,7 @@ class AvatarServiceTests(TransactionTestCase):
             avatar_size=3,
         )
         gateway = _FakeGateway()
-        remove_avatar_as_maintainer(
+        remove_avatar_as_administrator(
             actor=self.member,
             target=target,
             world_id="realworld",

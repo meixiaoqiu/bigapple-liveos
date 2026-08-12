@@ -13,7 +13,7 @@ from core.electorate_rules import (
     current_electorate_rule_version,
     ensure_electorate_rule_baseline,
 )
-from core.governance_setup import ensure_maintainer_role
+from core.governance_setup import ensure_administrator_role
 from core.proposals.execution import execute_proposal
 from core.proposals.lifecycle import create_proposal, create_role_appointment_proposal
 from core.proposals.voting import cast_proposal_vote
@@ -34,11 +34,11 @@ class ProposalVotingPolicyTests(TestCase):
     def setUp(self) -> None:
         self.covenanter_role = ensure_catalog_role(ROLE_COVENANTER)
         self.deliberator_role = ensure_catalog_role(ROLE_DELIBERATOR)
-        self.maintainer_role = ensure_maintainer_role()["role"]
+        self.administrator_role = ensure_administrator_role()["role"]
         self.deliberator_1 = self._member("policy-deliberator-1")
         self.deliberator_2 = self._member("policy-deliberator-2")
         self.covenanter_only = self._member("policy-covenanter-only")
-        self.maintainer_only = self._member("policy-maintainer-only")
+        self.administrator_only = self._member("policy-administrator-only")
         self.target = self._member("policy-target")
         self.finance_domain = ensure_professional_domain(code="finance", name="财务")
         self.construction_domain = ensure_professional_domain(code="construction", name="建设")
@@ -47,8 +47,8 @@ class ProposalVotingPolicyTests(TestCase):
         for member in (self.deliberator_1, self.deliberator_2):
             self._grant_covenanter_and_deliberator(member)
         create_role_assignment(member=self.covenanter_only, role=self.covenanter_role)
-        create_role_assignment(member=self.maintainer_only, role=self.covenanter_role)
-        create_role_assignment(member=self.maintainer_only, role=self.maintainer_role)
+        create_role_assignment(member=self.administrator_only, role=self.covenanter_role)
+        create_role_assignment(member=self.administrator_only, role=self.administrator_role)
         create_role_assignment(member=self.target, role=self.covenanter_role)
 
     def _member(self, member_no: str):
@@ -97,13 +97,13 @@ class ProposalVotingPolicyTests(TestCase):
         record_external_professional_qualification(
             member=self.deliberator_1,
             domain=self.finance_domain,
-            confirmed_by=self.maintainer_only,
+            confirmed_by=self.administrator_only,
             external_confirmation_source="外部财务资格核验",
         )
         record_external_professional_qualification(
             member=self.deliberator_2,
             domain=self.construction_domain,
-            confirmed_by=self.maintainer_only,
+            confirmed_by=self.administrator_only,
             external_confirmation_source="外部建设资格核验",
         )
 
@@ -139,18 +139,18 @@ class ProposalVotingPolicyTests(TestCase):
         with self.assertRaises(ValidationError):
             self._professional_proposal(domain=self.finance_domain)
 
-    def test_covenanter_or_maintainer_without_deliberator_term_cannot_vote(self) -> None:
+    def test_covenanter_or_administrator_without_deliberator_term_cannot_vote(self) -> None:
         proposal = self._general_proposal()
 
         with self.assertRaises(ValidationError):
             cast_proposal_vote(proposal=proposal, voter_member=self.covenanter_only, choice=ProposalVote.Choice.YES)
         with self.assertRaises(ValidationError):
-            cast_proposal_vote(proposal=proposal, voter_member=self.maintainer_only, choice=ProposalVote.Choice.YES)
+            cast_proposal_vote(proposal=proposal, voter_member=self.administrator_only, choice=ProposalVote.Choice.YES)
 
     def test_current_deliberator_term_is_rechecked_after_snapshot(self) -> None:
         proposal = self._general_proposal()
         assignment = self.deliberator_1.role_assignments.get(role=self.deliberator_role)
-        revoke_role_assignment(assignment=assignment, revoked_by=self.maintainer_only)
+        revoke_role_assignment(assignment=assignment, revoked_by=self.administrator_only)
 
         self.assertIn(self.deliberator_1.pk, proposal.eligible_voters_snapshot_json)
         with self.assertRaises(ValidationError):
@@ -160,11 +160,11 @@ class ProposalVotingPolicyTests(TestCase):
         qualification = record_external_professional_qualification(
             member=self.deliberator_1,
             domain=self.finance_domain,
-            confirmed_by=self.maintainer_only,
+            confirmed_by=self.administrator_only,
             external_confirmation_source="外部财务资格核验",
         )
         proposal = self._professional_proposal()
-        revoke_professional_qualification(qualification=qualification, revoked_by=self.maintainer_only)
+        revoke_professional_qualification(qualification=qualification, revoked_by=self.administrator_only)
 
         self.assertIn(self.deliberator_1.pk, proposal.eligible_voters_snapshot_json)
         with self.assertRaises(ValidationError):
@@ -174,7 +174,7 @@ class ProposalVotingPolicyTests(TestCase):
         record_external_professional_qualification(
             member=self.deliberator_1,
             domain=self.finance_domain,
-            confirmed_by=self.maintainer_only,
+            confirmed_by=self.administrator_only,
             external_confirmation_source="外部财务资格核验",
         )
         proposal = self._professional_proposal()
@@ -187,7 +187,7 @@ class ProposalVotingPolicyTests(TestCase):
     def test_role_appointment_proposal_uses_covenanter_rule(self) -> None:
         proposal = create_role_appointment_proposal(
             target_member=self.target,
-            target_role=self.maintainer_role,
+            target_role=self.administrator_role,
             proposer_member=self.deliberator_1,
         )
 
@@ -218,5 +218,5 @@ class ProposalVotingPolicyTests(TestCase):
         cast_proposal_vote(proposal=proposal, voter_member=self.deliberator_2, choice=ProposalVote.Choice.YES)
         proposal.refresh_from_db()
         self.assertEqual(proposal.status, Proposal.Status.PASSED)
-        execution = execute_proposal(proposal=proposal, executor_member=self.maintainer_only)
+        execution = execute_proposal(proposal=proposal, executor_member=self.administrator_only)
         self.assertEqual(execution.status, execution.Status.SUCCEEDED)

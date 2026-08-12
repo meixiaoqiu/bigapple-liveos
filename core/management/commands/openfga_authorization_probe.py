@@ -9,7 +9,7 @@ from core.authorization_services import (
     AuthorizationService,
     openfga_context_for_world_kind,
 )
-from core.governance_setup import MAINTENANCE_VIEW_ADMIN_PERMISSION
+from core.governance_setup import ADMINISTRATION_VIEW_ADMIN_PERMISSION
 from core.models import Member, Proposal
 from worlds.command_context import command_world_context
 
@@ -20,8 +20,8 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--world-id", default="")
         parser.add_argument("--world-kind", choices=("real", "sim"), default=None)
-        parser.add_argument("--capability", choices=("maintenance", "proposal_vote"), default="maintenance")
-        parser.add_argument("--permission-code", default=MAINTENANCE_VIEW_ADMIN_PERMISSION)
+        parser.add_argument("--capability", choices=("administration", "proposal_vote"), default="administration")
+        parser.add_argument("--permission-code", default=ADMINISTRATION_VIEW_ADMIN_PERMISSION)
         parser.add_argument("--proposal-id", type=int, default=None)
         parser.add_argument("--member-no", default="")
         parser.add_argument("--limit", type=int, default=20)
@@ -47,8 +47,8 @@ class Command(BaseCommand):
                 )
             )
             for member in members:
-                if capability == "maintenance":
-                    allowed = authorization.member_can_maintain(
+                if capability == "administration":
+                    allowed = authorization.member_can_administer(
                         member=member,
                         permission_code=options["permission_code"],
                     )

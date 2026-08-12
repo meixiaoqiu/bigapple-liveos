@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from core.finance_role_services import nominate_finance_reviewer
 from core.finance_setup import ensure_finance_roles
-from core.governance_setup import ensure_maintainer_role
+from core.governance_setup import ensure_administrator_role
 from core.member_roles import ROLE_COVENANTER, ROLE_DELIBERATOR, ensure_catalog_role
 from core.models import Proposal
 from core.proposals.lifecycle import create_role_appointment_proposal
@@ -22,7 +22,7 @@ from core.tests.helpers import create_member, login_as_member
 class FinanceRoleWorkspaceTests(TestCase):
     def setUp(self):
         self.manager = create_member("finance-role-view-manager", role_name=ROLE_COVENANTER)
-        create_role_assignment(member=self.manager, role=ensure_maintainer_role()["role"])
+        create_role_assignment(member=self.manager, role=ensure_administrator_role()["role"])
         create_role_assignment(member=self.manager, role=ensure_catalog_role(ROLE_DELIBERATOR))
         self.target = create_member("finance-role-view-target", role_name=ROLE_COVENANTER)
         login_as_member(self.client, self.manager)
@@ -65,7 +65,7 @@ class FinanceRoleWorkspaceTests(TestCase):
     def test_wrong_proposal_type_cannot_be_executed(self):
         wrong = create_role_appointment_proposal(
             target_member=self.target,
-            target_role=ensure_maintainer_role()["role"],
+            target_role=ensure_administrator_role()["role"],
             proposer_member=self.manager,
         )
         Proposal.objects.filter(pk=wrong.pk).update(status=Proposal.Status.PASSED)
@@ -80,7 +80,7 @@ class FinanceRoleWorkspaceTests(TestCase):
 
     def test_non_deliberator_manager_sees_page_but_vote_fails(self):
         manager_only = create_member("finance-role-view-manager-only", role_name=ROLE_COVENANTER)
-        create_role_assignment(member=manager_only, role=ensure_maintainer_role()["role"])
+        create_role_assignment(member=manager_only, role=ensure_administrator_role()["role"])
         proposal = nominate_finance_reviewer(actor=self.manager, target_member=self.target)
         login_as_member(self.client, manager_only)
         response = self.client.post(

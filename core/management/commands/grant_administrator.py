@@ -1,4 +1,4 @@
-"""向已有成员授予典守者职责。"""
+"""向已有成员授予管理员职责。"""
 
 from __future__ import annotations
 
@@ -6,14 +6,14 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 
 from core.exceptions import DomainError
-from core.governance_setup import ensure_maintainer_role
+from core.governance_setup import ensure_administrator_role
 from core.models import Member
 from core.role_assignment_services import create_role_assignment
 from worlds.command_context import command_world_context, command_world_label
 
 
 class Command(BaseCommand):
-    help = "向一名已有成员授予典守者职责，不修改 Django User 标志。"
+    help = "向一名已有成员授予管理员职责，不修改 Django User 标志。"
 
     def add_arguments(self, parser):
         parser.add_argument("--username", help="与目标成员关联的 Django User 用户名。")
@@ -29,20 +29,20 @@ class Command(BaseCommand):
         if len(provided) != 1:
             raise CommandError("必须且只能提供 --username 或 --member-no 其中之一。")
 
-        with command_world_context(options.get("world_id"), command_name="grant_maintainer") as world:
+        with command_world_context(options.get("world_id"), command_name="grant_administrator") as world:
             member = self._resolve_member(provided)
-            role = ensure_maintainer_role()["role"]
+            role = ensure_administrator_role()["role"]
             try:
                 assignment = create_role_assignment(member=member, role=role, source_type="direct")
             except DomainError as exc:
                 raise CommandError(
-                    f"授予典守者职责失败：{exc}\n"
+                    f"授予管理员职责失败：{exc}\n"
                     "目标成员必须先通过守约者准入；本命令不会自动授予守约者资格。"
                 ) from exc
 
             self.stdout.write(
                 self.style.SUCCESS(
-                    "典守者任命已创建："
+                    "管理员任命已创建："
                     f"world_id={command_world_label(world)}，member_no={member.member_no}，"
                     f"role_id={role.pk}，role_assignment_id={assignment.pk}。"
                     "Django User.is_staff 和 User.is_superuser 未改变。"

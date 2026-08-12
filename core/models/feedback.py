@@ -64,7 +64,7 @@ class CommunityFeedback(models.Model):
         help_text="反馈的当前处理状态。",
     )
     official_response = models.TextField(
-        "官方回应", blank=True, help_text="典守者的公开回应。"
+        "官方回应", blank=True, help_text="管理员的公开回应。"
     )
     responded_by = models.ForeignKey(
         Member,
@@ -73,7 +73,7 @@ class CommunityFeedback(models.Model):
         blank=True,
         related_name="responded_community_feedbacks",
         verbose_name="回应人",
-        help_text="最近回应该反馈的典守者。",
+        help_text="最近回应该反馈的管理员。",
     )
     responded_at = models.DateTimeField(
         "回应时间", null=True, blank=True, help_text="最近一次回应的发生时间。"

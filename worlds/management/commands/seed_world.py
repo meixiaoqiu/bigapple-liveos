@@ -13,12 +13,12 @@ from worlds.models import WorldRegistry
 from worlds.state import reset_current_world, set_current_world
 
 
-SIMULATION_BOOTSTRAP_MAINTAINER_ENABLED = "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_ENABLED"
-SIMULATION_BOOTSTRAP_MAINTAINER_USERNAME = "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_USERNAME"
-SIMULATION_BOOTSTRAP_MAINTAINER_PASSWORD = "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_PASSWORD"
-SIMULATION_BOOTSTRAP_MAINTAINER_EMAIL = "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_EMAIL"
-SIMULATION_BOOTSTRAP_MAINTAINER_MEMBER_NO = "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_MEMBER_NO"
-SIMULATION_BOOTSTRAP_MAINTAINER_DISPLAY_NAME = "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_DISPLAY_NAME"
+SIMULATION_BOOTSTRAP_ADMINISTRATOR_ENABLED = "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_ENABLED"
+SIMULATION_BOOTSTRAP_ADMINISTRATOR_USERNAME = "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_USERNAME"
+SIMULATION_BOOTSTRAP_ADMINISTRATOR_PASSWORD = "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_PASSWORD"
+SIMULATION_BOOTSTRAP_ADMINISTRATOR_EMAIL = "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_EMAIL"
+SIMULATION_BOOTSTRAP_ADMINISTRATOR_MEMBER_NO = "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_MEMBER_NO"
+SIMULATION_BOOTSTRAP_ADMINISTRATOR_DISPLAY_NAME = "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_DISPLAY_NAME"
 
 
 class Command(BaseCommand):
@@ -43,25 +43,25 @@ class Command(BaseCommand):
         template = options["template"]
         world_context = context_from_registry(world)
         database_alias = self._effective_world_alias(world_context.database_alias)
-        bootstrap_maintainer = self._simulation_bootstrap_maintainer_config()
+        bootstrap_administrator = self._simulation_bootstrap_administrator_config()
 
         token = set_current_world(world_context)
         try:
             if template == "demo":
                 call_command("seed_demo", stdout=self.stdout, stderr=self.stderr)
             elif template == "zero_start":
-                if bootstrap_maintainer is not None:
-                    self._ensure_simulation_bootstrap_maintainer(world, bootstrap_maintainer)
+                if bootstrap_administrator is not None:
+                    self._ensure_simulation_bootstrap_administrator(world, bootstrap_administrator)
                     seed_zero_start(
-                        founder_member_no=bootstrap_maintainer["member_no"],
-                        founder_display_name=bootstrap_maintainer["display_name"],
+                        founder_member_no=bootstrap_administrator["member_no"],
+                        founder_display_name=bootstrap_administrator["display_name"],
                     )
                 else:
                     seed_zero_start()
             else:  # pragma: no cover - argparse choices prevent this.
                 raise CommandError(f"Unsupported world seed template: {template}")
-            if bootstrap_maintainer is not None and template != "zero_start":
-                self._ensure_simulation_bootstrap_maintainer(world, bootstrap_maintainer)
+            if bootstrap_administrator is not None and template != "zero_start":
+                self._ensure_simulation_bootstrap_administrator(world, bootstrap_administrator)
         finally:
             reset_current_world(token)
 
@@ -78,8 +78,8 @@ class Command(BaseCommand):
             raise CommandError(f"World database alias is not configured: {database_alias}")
         return database_alias
 
-    def _simulation_bootstrap_maintainer_config(self) -> dict[str, str] | None:
-        """Return validated simulation bootstrap maintainer config from env.
+    def _simulation_bootstrap_administrator_config(self) -> dict[str, str] | None:
+        """Return validated simulation bootstrap administrator config from env.
 
         The account is opt-in through env variables so public and CI runs do
         not silently create a user. When explicitly enabled, missing or
@@ -87,29 +87,29 @@ class Command(BaseCommand):
         seed data is written.
         """
 
-        if not self._env_bool(SIMULATION_BOOTSTRAP_MAINTAINER_ENABLED, default=False):
+        if not self._env_bool(SIMULATION_BOOTSTRAP_ADMINISTRATOR_ENABLED, default=False):
             return None
 
-        username = os.environ.get(SIMULATION_BOOTSTRAP_MAINTAINER_USERNAME, "").strip()
-        password = os.environ.get(SIMULATION_BOOTSTRAP_MAINTAINER_PASSWORD, "").strip()
+        username = os.environ.get(SIMULATION_BOOTSTRAP_ADMINISTRATOR_USERNAME, "").strip()
+        password = os.environ.get(SIMULATION_BOOTSTRAP_ADMINISTRATOR_PASSWORD, "").strip()
         if not username:
             raise CommandError(
-                f"{SIMULATION_BOOTSTRAP_MAINTAINER_USERNAME} must be set when "
-                f"{SIMULATION_BOOTSTRAP_MAINTAINER_ENABLED}=true."
+                f"{SIMULATION_BOOTSTRAP_ADMINISTRATOR_USERNAME} must be set when "
+                f"{SIMULATION_BOOTSTRAP_ADMINISTRATOR_ENABLED}=true."
             )
         if not password:
             raise CommandError(
-                f"{SIMULATION_BOOTSTRAP_MAINTAINER_PASSWORD} must be set when "
-                f"{SIMULATION_BOOTSTRAP_MAINTAINER_ENABLED}=true."
+                f"{SIMULATION_BOOTSTRAP_ADMINISTRATOR_PASSWORD} must be set when "
+                f"{SIMULATION_BOOTSTRAP_ADMINISTRATOR_ENABLED}=true."
             )
         if password == "CHANGE_ME":
             raise CommandError(
-                f"{SIMULATION_BOOTSTRAP_MAINTAINER_PASSWORD} must be changed before bootstrap maintainer creation."
+                f"{SIMULATION_BOOTSTRAP_ADMINISTRATOR_PASSWORD} must be changed before bootstrap administrator creation."
             )
 
-        member_no = os.environ.get(SIMULATION_BOOTSTRAP_MAINTAINER_MEMBER_NO, username).strip() or username
-        display_name = os.environ.get(SIMULATION_BOOTSTRAP_MAINTAINER_DISPLAY_NAME, username).strip() or username
-        email = os.environ.get(SIMULATION_BOOTSTRAP_MAINTAINER_EMAIL, "").strip()
+        member_no = os.environ.get(SIMULATION_BOOTSTRAP_ADMINISTRATOR_MEMBER_NO, username).strip() or username
+        display_name = os.environ.get(SIMULATION_BOOTSTRAP_ADMINISTRATOR_DISPLAY_NAME, username).strip() or username
+        email = os.environ.get(SIMULATION_BOOTSTRAP_ADMINISTRATOR_EMAIL, "").strip()
         return {
             "username": username,
             "password": password,
@@ -118,8 +118,8 @@ class Command(BaseCommand):
             "email": email,
         }
 
-    def _ensure_simulation_bootstrap_maintainer(self, world: WorldRegistry, config: dict[str, str]) -> None:
-        """Ensure the configured simulation maintainer exists.
+    def _ensure_simulation_bootstrap_administrator(self, world: WorldRegistry, config: dict[str, str]) -> None:
+        """Ensure the configured simulation administrator exists.
 
         It delegates to bootstrap_world with skip_control_admin=True because
         simulation runtime login belongs to the target world database, not the
@@ -133,11 +133,11 @@ class Command(BaseCommand):
             "bootstrap_world",
             world_id=world.world_id,
             skip_control_admin=True,
-            world_maintainer_username=config["username"],
-            world_maintainer_password=config["password"],
-            world_maintainer_email=config["email"],
-            world_maintainer_member_no=config["member_no"],
-            world_maintainer_display_name=config["display_name"],
+            world_administrator_username=config["username"],
+            world_administrator_password=config["password"],
+            world_administrator_email=config["email"],
+            world_administrator_member_no=config["member_no"],
+            world_administrator_display_name=config["display_name"],
             stdout=self.stdout,
             stderr=self.stderr,
         )

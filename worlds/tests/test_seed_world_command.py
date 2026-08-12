@@ -10,7 +10,7 @@ from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 
 from core.access import user_has_permission
-from core.governance_setup import MAINTENANCE_VIEW_ADMIN_PERMISSION
+from core.governance_setup import ADMINISTRATION_VIEW_ADMIN_PERMISSION
 from core.models import Member, Task
 from worlds.models import WorldRegistry
 from worlds.state import get_current_world
@@ -31,53 +31,53 @@ class SeedWorldCommandTests(TestCase):
             self.assertEqual(current_world.world_id, "simulation0001")
             self.assertEqual(args[0], "seed_demo")
 
-        with patch.dict(os.environ, {"BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_ENABLED": "false"}):
+        with patch.dict(os.environ, {"BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_ENABLED": "false"}):
             with patch("worlds.management.commands.seed_world.call_command", side_effect=assert_seed_demo_context):
                 call_command("seed_world", "simulation0001", stdout=output)
 
         self.assertIsNone(get_current_world())
         self.assertIn("seeded: world_id=simulation0001", output.getvalue())
 
-    def test_seed_world_ensures_configured_simulation_maintainer(self) -> None:
+    def test_seed_world_ensures_configured_simulation_administrator(self) -> None:
         output = StringIO()
         env = {
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_ENABLED": "true",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_USERNAME": "sim-maintainer",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_PASSWORD": "test-password",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_MEMBER_NO": "sim-maintainer",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_DISPLAY_NAME": "Simulation maintainer",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_ENABLED": "true",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_USERNAME": "sim-administrator",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_PASSWORD": "test-password",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_MEMBER_NO": "sim-administrator",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_DISPLAY_NAME": "Simulation administrator",
         }
 
         with patch.dict(os.environ, env):
             call_command("seed_world", "simulation0001", stdout=output)
 
-        user = get_user_model().objects.get(username="sim-maintainer")
-        member = Member.objects.get(member_no="sim-maintainer")
+        user = get_user_model().objects.get(username="sim-administrator")
+        member = Member.objects.get(member_no="sim-administrator")
 
         self.assertTrue(user.check_password("test-password"))
         self.assertFalse(user.is_staff)
         self.assertFalse(user.is_superuser)
         self.assertEqual(member.user, user)
-        self.assertTrue(user_has_permission(user, MAINTENANCE_VIEW_ADMIN_PERMISSION))
-        self.assertIn("world_maintainer world_id=simulation0001, username=sim-maintainer", output.getvalue())
+        self.assertTrue(user_has_permission(user, ADMINISTRATION_VIEW_ADMIN_PERMISSION))
+        self.assertIn("world_administrator world_id=simulation0001, username=sim-administrator", output.getvalue())
 
-    def test_seed_world_skips_simulation_maintainer_when_disabled(self) -> None:
+    def test_seed_world_skips_simulation_administrator_when_disabled(self) -> None:
         env = {
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_ENABLED": "false",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_USERNAME": "sim-maintainer",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_PASSWORD": "test-password",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_ENABLED": "false",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_USERNAME": "sim-administrator",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_PASSWORD": "test-password",
         }
 
         with patch.dict(os.environ, env):
             call_command("seed_world", "simulation0001", stdout=StringIO())
 
-        self.assertFalse(get_user_model().objects.filter(username="sim-maintainer").exists())
+        self.assertFalse(get_user_model().objects.filter(username="sim-administrator").exists())
 
-    def test_seed_world_rejects_simulation_maintainer_without_password(self) -> None:
+    def test_seed_world_rejects_simulation_administrator_without_password(self) -> None:
         env = {
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_ENABLED": "true",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_USERNAME": "sim-maintainer",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_PASSWORD": "",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_ENABLED": "true",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_USERNAME": "sim-administrator",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_PASSWORD": "",
         }
 
         with patch.dict(os.environ, env):
@@ -85,13 +85,13 @@ class SeedWorldCommandTests(TestCase):
                 call_command("seed_world", "simulation0001", stdout=StringIO())
 
         self.assertIn("must be set when", str(captured.exception))
-        self.assertFalse(get_user_model().objects.filter(username="sim-maintainer").exists())
+        self.assertFalse(get_user_model().objects.filter(username="sim-administrator").exists())
 
-    def test_seed_world_rejects_simulation_maintainer_without_username(self) -> None:
+    def test_seed_world_rejects_simulation_administrator_without_username(self) -> None:
         env = {
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_ENABLED": "true",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_USERNAME": "",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_PASSWORD": "test-password",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_ENABLED": "true",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_USERNAME": "",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_PASSWORD": "test-password",
         }
 
         with patch.dict(os.environ, env):
@@ -99,37 +99,37 @@ class SeedWorldCommandTests(TestCase):
                 call_command("seed_world", "simulation0001", stdout=StringIO())
 
         self.assertIn("must be set when", str(captured.exception))
-        self.assertFalse(get_user_model().objects.filter(username="sim-maintainer").exists())
+        self.assertFalse(get_user_model().objects.filter(username="sim-administrator").exists())
 
-    def test_seed_world_rejects_placeholder_simulation_maintainer_password(self) -> None:
+    def test_seed_world_rejects_placeholder_simulation_administrator_password(self) -> None:
         env = {
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_ENABLED": "true",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_USERNAME": "sim-maintainer",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_PASSWORD": "CHANGE_ME",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_ENABLED": "true",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_USERNAME": "sim-administrator",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_PASSWORD": "CHANGE_ME",
         }
 
         with patch.dict(os.environ, env):
             with self.assertRaises(CommandError) as captured:
                 call_command("seed_world", "simulation0001", stdout=StringIO())
 
-        self.assertIn("must be changed before bootstrap maintainer creation", str(captured.exception))
-        self.assertFalse(get_user_model().objects.filter(username="sim-maintainer").exists())
+        self.assertIn("must be changed before bootstrap administrator creation", str(captured.exception))
+        self.assertFalse(get_user_model().objects.filter(username="sim-administrator").exists())
 
-    def test_seed_world_simulation_maintainer_is_idempotent(self) -> None:
+    def test_seed_world_simulation_administrator_is_idempotent(self) -> None:
         env = {
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_ENABLED": "true",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_USERNAME": "sim-maintainer",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_PASSWORD": "test-password",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_MEMBER_NO": "sim-maintainer",
-            "BIG_APPLE_SIMULATION_BOOTSTRAP_MAINTAINER_DISPLAY_NAME": "Simulation maintainer",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_ENABLED": "true",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_USERNAME": "sim-administrator",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_PASSWORD": "test-password",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_MEMBER_NO": "sim-administrator",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_DISPLAY_NAME": "Simulation administrator",
         }
 
         with patch.dict(os.environ, env):
             call_command("seed_world", "simulation0001", stdout=StringIO())
             call_command("seed_world", "simulation0001", stdout=StringIO())
 
-        self.assertEqual(get_user_model().objects.filter(username="sim-maintainer").count(), 1)
-        self.assertEqual(Member.objects.filter(member_no="sim-maintainer").count(), 1)
+        self.assertEqual(get_user_model().objects.filter(username="sim-administrator").count(), 1)
+        self.assertEqual(Member.objects.filter(member_no="sim-administrator").count(), 1)
 
     def test_seed_world_rejects_realworld(self) -> None:
         with self.assertRaises(CommandError) as captured:
@@ -146,13 +146,14 @@ class SeedWorldCommandTests(TestCase):
         self.assertIn("World is not active", str(captured.exception))
 
     def test_seed_world_demo_template_is_idempotent(self) -> None:
-        call_command("seed_world", "simulation0001", stdout=StringIO())
-        counts_after_first_run = {
-            "members": Member.objects.count(),
-            "tasks": Task.objects.count(),
-        }
+        with patch.dict(os.environ, {"BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_ENABLED": "false"}):
+            call_command("seed_world", "simulation0001", stdout=StringIO())
+            counts_after_first_run = {
+                "members": Member.objects.count(),
+                "tasks": Task.objects.count(),
+            }
 
-        call_command("seed_world", "simulation0001", stdout=StringIO())
+            call_command("seed_world", "simulation0001", stdout=StringIO())
 
         self.assertEqual(Member.objects.count(), counts_after_first_run["members"])
         self.assertEqual(Task.objects.count(), counts_after_first_run["tasks"])

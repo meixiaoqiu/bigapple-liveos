@@ -10,7 +10,7 @@ from django.views.decorators.http import require_http_methods
 
 from worlds.routing import world_redirect
 from live_os.access import page_forbidden
-from core.access import member_can_maintain
+from core.access import member_can_administer
 from core.credit_services import ensure_system_accounts, task_locked_credit_balance
 from core.exceptions import DomainError
 from core.models import Member, Task
@@ -22,8 +22,8 @@ def _require_governance(request: HttpRequest) -> Member | HttpResponseForbidden:
     member = require_full_workspace_member(request)
     if isinstance(member, HttpResponseForbidden):
         return member
-    if not member_can_maintain(member):
-        return page_forbidden("仅典守者可访问。")
+    if not member_can_administer(member):
+        return page_forbidden("仅管理员可访问。")
     return member
 
 

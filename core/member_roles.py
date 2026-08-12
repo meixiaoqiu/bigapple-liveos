@@ -13,7 +13,7 @@ from .role_catalog import (
     ROLE_CATALOG_ORGANIZATION_NAME,
     ROLE_DELIBERATOR,
     ROLE_COVENANTER,
-    ROLE_MAINTAINER,
+    ROLE_ADMINISTRATOR,
     ensure_catalog_roles,
     role_definition_for_name,
 )
@@ -148,7 +148,7 @@ def ensure_role_assignment(member, role, *, granted_by=None, start_at=None, end_
 __all__ = [
     "ROLE_DELIBERATOR",
     "ROLE_COVENANTER",
-    "ROLE_MAINTAINER",
+    "ROLE_ADMINISTRATOR",
     "ROLE_CATALOG_ORGANIZATION_NAME",
     "active_member_role_names",
     "actor_type_for_current_world",

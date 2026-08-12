@@ -12,7 +12,7 @@ from django.utils import timezone
 
 from worlds.routing import world_redirect
 
-from core.access import member_can_maintain
+from core.access import member_can_administer
 from core.exceptions import DomainError
 from core.models import Member, Resource
 from core.resource_services import record_resource_adjustment
@@ -27,7 +27,7 @@ def _check_member(request: HttpRequest) -> Member | HttpResponseForbidden:
 
 
 def _governance_or_forbidden(member: Member) -> bool:
-    return not member_can_maintain(member)
+    return not member_can_administer(member)
 
 
 _RESOURCE_LIST_LIMIT = 50
@@ -182,7 +182,7 @@ def inventory_list(request: HttpRequest) -> HttpResponse:
     if isinstance(member, HttpResponseForbidden):
         return member
     if _governance_or_forbidden(member):
-        return page_forbidden("仅典守者可访问。")
+        return page_forbidden("仅管理员可访问。")
 
     resources = list(Resource.objects.order_by("resource_type", "resource_id")[:_RESOURCE_LIST_LIMIT])
     low_stock = [r for r in resources if r.current_stock <= r.warning_threshold]
@@ -204,7 +204,7 @@ def inventory_adjust(request: HttpRequest, resource_id: str) -> HttpResponse:
     if isinstance(member, HttpResponseForbidden):
         return member
     if _governance_or_forbidden(member):
-        return page_forbidden("仅典守者可访问。")
+        return page_forbidden("仅管理员可访问。")
 
     resource = get_object_or_404(Resource, resource_id=resource_id)
 
@@ -299,7 +299,7 @@ def inventory_new(request: HttpRequest) -> HttpResponse:
     if isinstance(member, HttpResponseForbidden):
         return member
     if _governance_or_forbidden(member):
-        return page_forbidden("仅典守者可访问。")
+        return page_forbidden("仅管理员可访问。")
 
     choices = _inventory_choices()
 
@@ -381,7 +381,7 @@ def inventory_edit(request: HttpRequest, resource_id: str) -> HttpResponse:
     if isinstance(member, HttpResponseForbidden):
         return member
     if _governance_or_forbidden(member):
-        return page_forbidden("仅典守者可访问。")
+        return page_forbidden("仅管理员可访问。")
 
     resource = get_object_or_404(Resource, resource_id=resource_id)
     choices = _inventory_choices()

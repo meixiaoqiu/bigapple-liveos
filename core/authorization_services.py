@@ -19,7 +19,7 @@ from worlds.state import get_current_world
 logger = logging.getLogger(__name__)
 
 
-OPENFGA_AUTHORIZATION_MODEL_VERSION = "2026-08-04-finance-roles-v2"
+OPENFGA_AUTHORIZATION_MODEL_VERSION = "2026-08-12-administrator-role-v1"
 
 
 @dataclass(frozen=True)
@@ -192,7 +192,7 @@ class AuthorizationService:
     def member_has_full_workspace_access(self, member: Member) -> bool:
         return self.full_workspace_access_decision(member).allowed
 
-    def member_can_maintain(
+    def member_can_administer(
         self,
         *,
         member: Member,

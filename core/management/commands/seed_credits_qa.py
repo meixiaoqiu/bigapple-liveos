@@ -16,7 +16,7 @@ from core.credit_services import (
     issue_credits_to_pool,
     post_credit_transaction,
 )
-from core.governance_setup import ensure_maintainer_role
+from core.governance_setup import ensure_administrator_role
 from core.member_roles import (
     ROLE_COVENANTER,
     ensure_catalog_role,
@@ -57,17 +57,17 @@ class Command(BaseCommand):
                 )
 
             covenanter_role = ensure_catalog_role(ROLE_COVENANTER)
-            maintainer_role = ensure_maintainer_role()["role"]
+            administrator_role = ensure_administrator_role()["role"]
 
             mem_a = self._ensure_member("qa-a", "QA Member A")
             mem_b = self._ensure_member("qa-b", "QA Member B")
-            maintainer = self._ensure_member("qa-maintainer", "QA Maintainer")
-            for member in [mem_a, mem_b, maintainer]:
+            administrator = self._ensure_member("qa-administrator", "QA Administrator")
+            for member in [mem_a, mem_b, administrator]:
                 ensure_role_assignment(member, covenanter_role)
-            ensure_role_assignment(maintainer, maintainer_role)
+            ensure_role_assignment(administrator, administrator_role)
 
             user_model = get_user_model()
-            for member in [mem_a, mem_b, maintainer]:
+            for member in [mem_a, mem_b, administrator]:
                 user, _ = user_model.objects.get_or_create(username=member.member_no)
                 user.set_password("test-password")
                 user.is_active = True
@@ -77,16 +77,16 @@ class Command(BaseCommand):
                     member.save(update_fields=["user"])
 
             ensure_system_accounts()
-            for member in [mem_a, mem_b, maintainer]:
+            for member in [mem_a, mem_b, administrator]:
                 get_or_create_member_credit_account(member)
             acct_a = get_or_create_member_credit_account(mem_a)
-            acct_maintainer = get_or_create_member_credit_account(maintainer)
+            acct_administrator = get_or_create_member_credit_account(administrator)
 
             issue_credits_to_pool(
                 amount=2000,
                 reason="QA credit seed",
-                initiated_by=maintainer,
-                reviewed_by=maintainer,
+                initiated_by=administrator,
+                reviewed_by=administrator,
                 idempotency_key="qa-credit-seed-pool",
             )
             post_credit_transaction(
@@ -99,9 +99,9 @@ class Command(BaseCommand):
             post_credit_transaction(
                 transaction_type=CreditTransaction.Type.ISSUANCE,
                 amount=500,
-                target_account=acct_maintainer,
+                target_account=acct_administrator,
                 reason="QA initial governance balance",
-                idempotency_key="qa-credit-seed-member-maintainer",
+                idempotency_key="qa-credit-seed-member-administrator",
             )
 
             MerchantProfile.objects.get_or_create(
@@ -128,7 +128,7 @@ class Command(BaseCommand):
                 self.style.SUCCESS(
                     "QA credit data seeded: "
                     f"world_id={command_world_label(world)}, "
-                    "members=qa-a/qa-b/qa-maintainer, password=test-password, "
+                    "members=qa-a/qa-b/qa-administrator, password=test-password, "
                     "cash_merchant=qa-canteen, micro_merchant=qa-coffee."
                 )
             )

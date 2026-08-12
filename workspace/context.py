@@ -12,7 +12,7 @@ from typing import Any
 from django.db.models import Count, F, Q, Sum
 from django.shortcuts import get_object_or_404
 
-from core.access import is_finance_reviewer, member_can_maintain
+from core.access import is_finance_reviewer, member_can_administer
 from core.authorization_services import AuthorizationService
 from core.application_services import _application_role_gap_label
 from core.identity_display import member_identity_display
@@ -189,7 +189,7 @@ def workspace_context(member_no: str) -> dict[str, Any]:
         "simulation_day": latest.simulation_day if latest else 1,
         "member": member,
         "identity_display": member_identity_display(member),
-        "is_governance": member_can_maintain(member),
+        "is_governance": member_can_administer(member),
         "is_finance": is_finance_reviewer(member),
         "is_merchant_operator": MerchantProfile.objects.filter(
             operator_member=member,
@@ -255,7 +255,7 @@ def _application_summary(application: MemberApplication) -> dict[str, Any]:
 
 
 def applications_review_list_context(*, member: Member, status_filter: str) -> dict[str, Any]:
-    """为典守者组装成员报名复核列表。
+    """为管理员组装成员报名复核列表。
 
     ``status_filter`` is one of ``voting`` / ``passed_pending`` / ``admitted`` /
     ``rejected`` / ``all``, derived from the linked admission proposal lifecycle.
@@ -289,7 +289,7 @@ def applications_review_list_context(*, member: Member, status_filter: str) -> d
     return {
         "member": member,
         "identity_display": member_identity_display(member),
-        "is_governance": member_can_maintain(member),
+        "is_governance": member_can_administer(member),
         "is_finance": is_finance_reviewer(member),
         "status_filter": status_filter,
         "applications": applications,
@@ -371,7 +371,7 @@ def application_review_detail_context(*, member: Member, application: MemberAppl
     role_motivation_answers = list(application.dynamic_answers or [])
     return {
         "member": member,
-        "is_governance": member_can_maintain(member),
+        "is_governance": member_can_administer(member),
         "is_finance": is_finance_reviewer(member),
         "application": application,
         "role_gap_label": _application_role_gap_label(application),

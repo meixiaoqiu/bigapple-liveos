@@ -5,7 +5,7 @@ from django.test import TestCase
 
 from core.credential_services import ensure_builtin_credential_templates
 from core.models import CredentialGrant, CredentialTemplate, Member
-from core.tests.helpers import create_maintainer_member, create_member, login_as_member
+from core.tests.helpers import create_administrator_member, create_member, login_as_member
 
 
 class WorkspaceRecruitmentTests(TestCase):
@@ -16,7 +16,7 @@ class WorkspaceRecruitmentTests(TestCase):
         ensure_builtin_credential_templates()
 
     def setUp(self):
-        self.gov = create_maintainer_member("rec-maintainer")
+        self.gov = create_administrator_member("rec-administrator")
         self.ordinary = create_member("rec-ord", display_name="普通成员")
         self.applicant = create_member("rec-app", display_name="报名测试者")
         login_as_member(self.client, self.gov)
@@ -30,12 +30,12 @@ class WorkspaceRecruitmentTests(TestCase):
         self.assertIn("/login/", response["Location"])
         self.assertIn("/workspace/recruitment/", response["Location"])
 
-    def test_recruitment_page_requires_maintainer_member(self):
+    def test_recruitment_page_requires_administrator_member(self):
         login_as_member(self.client, self.ordinary)
         response = self.client.get("/workspace/recruitment/")
         self.assertEqual(response.status_code, 403)
 
-    def test_maintainer_member_can_view_recruitment_page(self):
+    def test_administrator_member_can_view_recruitment_page(self):
         response = self.client.get("/workspace/recruitment/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "招募方向维护")
@@ -260,7 +260,7 @@ class WorkspaceRecruitmentTests(TestCase):
 
     # --- 5. nav entry -----------------------------------------------------------
 
-    def test_workspace_nav_shows_recruitment_for_maintainer_member(self):
+    def test_workspace_nav_shows_recruitment_for_administrator_member(self):
         response = self.client.get("/workspace/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "招募方向")
@@ -274,7 +274,7 @@ class WorkspaceRecruitmentTests(TestCase):
 
     # --- 6. create recruitment template ------------------------------------------
 
-    def test_maintainer_member_can_create_recruitment_template(self):
+    def test_administrator_member_can_create_recruitment_template(self):
         response = self.client.post(
             "/workspace/recruitment/",
             {
@@ -332,7 +332,7 @@ class WorkspaceRecruitmentTests(TestCase):
         )
         self.assertEqual(CredentialGrant.objects.count(), grant_count)
 
-    def test_create_recruitment_template_requires_maintainer_member(self):
+    def test_create_recruitment_template_requires_administrator_member(self):
         login_as_member(self.client, self.ordinary)
         response = self.client.post(
             "/workspace/recruitment/",

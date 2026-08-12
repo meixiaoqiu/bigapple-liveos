@@ -11,12 +11,12 @@ from core.exceptions import DomainError
 from core.member_roles import (
     ROLE_DELIBERATOR,
     ROLE_COVENANTER,
-    ROLE_MAINTAINER,
+    ROLE_ADMINISTRATOR,
     ensure_catalog_role,
     member_has_role,
 )
 from core.models import DeliberatorExamPolicy, DeliberatorExamQuestion, Member, RoleAssignment
-from core.role_assignment_services import bootstrap_initial_maintainer, create_role_assignment
+from core.role_assignment_services import bootstrap_initial_administrator, create_role_assignment
 
 
 class DeliberationServiceTests(TestCase):
@@ -95,10 +95,10 @@ class DeliberationServiceTests(TestCase):
 
         self.assertEqual(deliberator_term_end_at(starts_at), timezone.make_aware(datetime(2025, 2, 28, 12, 0, 0)))
 
-    def test_bootstrap_maintainer_does_not_create_deliberator_term(self):
-        member = self.create_member("deliberation-maintainer")
+    def test_bootstrap_administrator_does_not_create_deliberator_term(self):
+        member = self.create_member("deliberation-administrator")
 
-        bootstrap_initial_maintainer(member)
+        bootstrap_initial_administrator(member)
 
-        self.assertTrue(member_has_role(member, ROLE_MAINTAINER))
+        self.assertTrue(member_has_role(member, ROLE_ADMINISTRATOR))
         self.assertFalse(member_has_role(member, ROLE_DELIBERATOR))

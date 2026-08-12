@@ -12,7 +12,7 @@ from core.authorization_services import (
     openfga_professional_domain_object,
     openfga_proposal_object,
 )
-from core.governance_setup import ensure_maintainer_role
+from core.governance_setup import ensure_administrator_role
 from core.electorate_rules import (
     TEMPLATE_COVENANTER,
     TEMPLATE_PROFESSIONAL,
@@ -20,7 +20,7 @@ from core.electorate_rules import (
     ensure_electorate_rule_baseline,
 )
 from core.management.commands.openfga_rebuild_tuples import _project_authorization_tuples, _unique_tuples
-from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ROLE_MAINTAINER, ensure_catalog_role
+from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ROLE_ADMINISTRATOR, ensure_catalog_role
 from core.models import Proposal
 from core.professional_qualification_services import (
     ensure_professional_domain,
@@ -35,19 +35,19 @@ class OpenFGARolePolicyTests(TestCase):
     def setUp(self) -> None:
         self.covenanter_role = ensure_catalog_role(ROLE_COVENANTER)
         self.deliberator_role = ensure_catalog_role(ROLE_DELIBERATOR)
-        self.maintainer_role = ensure_maintainer_role()["role"]
+        self.administrator_role = ensure_administrator_role()["role"]
         self.deliberator = create_member("fga-deliberator")
-        self.maintainer = create_member("fga-maintainer")
+        self.administrator = create_member("fga-administrator")
         self.finance_domain = ensure_professional_domain(code="finance", name="财务")
         ensure_electorate_rule_baseline()
         self._assign(self.deliberator, self.covenanter_role)
         self._assign(self.deliberator, self.deliberator_role)
-        self._assign(self.maintainer, self.covenanter_role)
-        self._assign(self.maintainer, self.maintainer_role)
+        self._assign(self.administrator, self.covenanter_role)
+        self._assign(self.administrator, self.administrator_role)
         self.qualification = record_external_professional_qualification(
             member=self.deliberator,
             domain=self.finance_domain,
-            confirmed_by=self.maintainer,
+            confirmed_by=self.administrator,
             external_confirmation_source="外部财务资格核验",
         )
         now = timezone.now()
@@ -76,12 +76,12 @@ class OpenFGARolePolicyTests(TestCase):
             for item in _unique_tuples(_project_authorization_tuples(platform_object="platform:test"))
         }
 
-        self.assertEqual(OPENFGA_AUTHORIZATION_MODEL_VERSION, "2026-08-04-finance-roles-v2")
+        self.assertEqual(OPENFGA_AUTHORIZATION_MODEL_VERSION, "2026-08-12-administrator-role-v1")
         self.assertIn((f"member:{self.deliberator.pk}", "covenanter", "platform:test"), tuples)
         self.assertIn((f"member:{self.deliberator.pk}", "deliberator", "platform:test"), tuples)
-        self.assertNotIn((f"member:{self.deliberator.pk}", "maintainer", "platform:test"), tuples)
-        self.assertIn((f"member:{self.maintainer.pk}", "maintainer", "platform:test"), tuples)
-        self.assertNotIn((f"member:{self.maintainer.pk}", "deliberator", "platform:test"), tuples)
+        self.assertNotIn((f"member:{self.deliberator.pk}", "administrator", "platform:test"), tuples)
+        self.assertIn((f"member:{self.administrator.pk}", "administrator", "platform:test"), tuples)
+        self.assertNotIn((f"member:{self.administrator.pk}", "deliberator", "platform:test"), tuples)
         self.assertIn(
             (f"member:{self.deliberator.pk}", "qualified_member", openfga_professional_domain_object(self.finance_domain)),
             tuples,
@@ -131,7 +131,7 @@ class OpenFGARolePolicyTests(TestCase):
 
     def test_expired_or_revoked_direct_facts_are_not_projected(self) -> None:
         deliberator_assignment = self.deliberator.role_assignments.get(role=self.deliberator_role)
-        revoke_role_assignment(assignment=deliberator_assignment, revoked_by=self.maintainer)
+        revoke_role_assignment(assignment=deliberator_assignment, revoked_by=self.administrator)
         self.qualification.status = self.qualification.Status.REVOKED
         self.qualification.save(update_fields=["status", "updated_at"])
 

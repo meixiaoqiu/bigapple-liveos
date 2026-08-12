@@ -27,10 +27,10 @@ def electorate_rule_fields(proposal_type: str, *, template_code: str = "covenant
     return {"electorate_rule_version": version, "electorate_rule_snapshot_json": snapshot}
 
 
-def grant_maintainer_role(member: Member):
+def grant_administrator_role(member: Member):
     from core.role_assignment_services import create_role_assignment
 
-    setup = _ensure_maintainer_setup()
+    setup = _ensure_administrator_setup()
     return create_role_assignment(
         member=member,
         role=setup["role"],
@@ -38,18 +38,18 @@ def grant_maintainer_role(member: Member):
     )
 
 
-def _ensure_maintainer_setup():
-    from core.governance_setup import ensure_maintainer_role
+def _ensure_administrator_setup():
+    from core.governance_setup import ensure_administrator_role
 
-    return ensure_maintainer_role()
+    return ensure_administrator_role()
 
 
-def create_maintainer_member(member_no: str, **overrides) -> Member:
-    """创建一名守约者并授予独立典守者职责。"""
-    from core.role_assignment_services import bootstrap_initial_maintainer
+def create_administrator_member(member_no: str, **overrides) -> Member:
+    """创建一名守约者并授予独立管理员职责。"""
+    from core.role_assignment_services import bootstrap_initial_administrator
 
     member = create_member(member_no, role_name=ROLE_COVENANTER, **overrides)
-    bootstrap_initial_maintainer(member)
+    bootstrap_initial_administrator(member)
     return member
 
 

@@ -12,13 +12,13 @@ from .deliberator_exam_services import (
 from .exceptions import DomainError
 from .governance_setup import DELIBERATOR_EXAM_MANAGE_PERMISSION
 from .models import DeliberatorExamAttempt, DeliberatorExamPolicy, DeliberatorExamQuestion
-from .access import member_can_maintain
+from .access import member_can_administer
 
 
 class ExamMaintenanceAdminMixin:
     def _allowed(self, request) -> bool:
         member = member_for_user(request.user)
-        return bool(member and member_can_maintain(member, DELIBERATOR_EXAM_MANAGE_PERMISSION))
+        return bool(member and member_can_administer(member, DELIBERATOR_EXAM_MANAGE_PERMISSION))
 
     def has_module_permission(self, request):
         return self._allowed(request)

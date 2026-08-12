@@ -85,7 +85,7 @@ class Command(BaseCommand):
         if member is None:
             raise CommandError(f"缺少演示成员：{member_no}。请先为目标 world 运行 seed_demo 或 seed_world。")
         if reviewer is None:
-            raise CommandError(f"缺少演示典守者：{reviewer_id}。请先为目标 world 运行 seed_demo 或 seed_world。")
+            raise CommandError(f"缺少演示管理员：{reviewer_id}。请先为目标 world 运行 seed_demo 或 seed_world。")
         if Task.objects.filter(task_id=task_id).exists():
             raise CommandError(f"任务 {task_id} 已存在。请换一个 --task-id 或使用默认自动生成。")
 
@@ -162,7 +162,7 @@ class Command(BaseCommand):
             client,
             f"{api_base}/tasks/{task_id}/review",
             {
-                "reviewer": actor(reviewer_id, "开荒队典守者"),
+                "reviewer": actor(reviewer_id, "开荒队管理员"),
                 "accepted": True,
                 "reason": "Smoke 流程验收通过。",
             },

@@ -5,7 +5,7 @@ from __future__ import annotations
 from django.db.models import Q
 from django.utils import timezone
 
-from .access import member_can_maintain
+from .access import member_can_administer
 from .db import atomic_for_model
 from .exceptions import DomainError
 from .governance_setup import PROFESSIONAL_QUALIFICATION_MANAGE_PERMISSION
@@ -56,13 +56,13 @@ def _require_qualification_subject(member: Member, *, at_time) -> None:
         raise DomainError("只有当前有效的守约者可以录入专业资格。")
 
 
-def _require_qualification_maintainer(member: Member, *, action: str) -> None:
+def _require_qualification_administrator(member: Member, *, action: str) -> None:
     """校验写入专业资格权威事实所需的明确维护能力。"""
 
     if not member_allows_role_facts(member):
         raise DomainError(f"{action}人当前不可用。")
-    if not member_can_maintain(member, PROFESSIONAL_QUALIFICATION_MANAGE_PERMISSION):
-        raise DomainError(f"只有具备专业资格维护权限的典守者可以{action}专业资格。")
+    if not member_can_administer(member, PROFESSIONAL_QUALIFICATION_MANAGE_PERMISSION):
+        raise DomainError(f"只有具备专业资格维护权限的管理员可以{action}专业资格。")
 
 
 @atomic_for_model(MemberProfessionalQualification)
@@ -85,7 +85,7 @@ def record_external_professional_qualification(
     if domain.status != ProfessionalDomain.Status.ACTIVE:
         raise DomainError("专业领域未启用，不能录入资格。")
     _require_qualification_subject(member, at_time=starts_at)
-    _require_qualification_maintainer(confirmed_by, action="确认")
+    _require_qualification_administrator(confirmed_by, action="确认")
     if not source:
         raise DomainError("必须记录外部确认来源。")
     if valid_until is not None and valid_until <= starts_at:
@@ -195,7 +195,7 @@ def revoke_professional_qualification(
 ) -> MemberProfessionalQualification:
     """撤销一项专业资格；记录保留并立即不再参与授权判断。"""
 
-    _require_qualification_maintainer(revoked_by, action="撤销")
+    _require_qualification_administrator(revoked_by, action="撤销")
     qualification.status = MemberProfessionalQualification.Status.REVOKED
     qualification.revoked_by = revoked_by
     qualification.revoked_at = at_time or timezone.now()

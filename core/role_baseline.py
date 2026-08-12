@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from .deliberator_exam_services import start_deliberator_exam, submit_deliberator_exam
 from .electorate_rules import ensure_electorate_rule_baseline
-from .governance_setup import ensure_maintainer_role
+from .governance_setup import ensure_administrator_role
 from .member_roles import ROLE_COVENANTER, ensure_catalog_role
 from .models import (
     Member,
@@ -30,7 +30,7 @@ from .professional_qualification_services import (
     ensure_professional_domain,
     record_external_professional_qualification,
 )
-from .role_assignment_services import bootstrap_initial_maintainer, create_role_assignment
+from .role_assignment_services import bootstrap_initial_administrator, create_role_assignment
 from .role_catalog import ensure_catalog_roles
 
 
@@ -82,7 +82,7 @@ def load_role_permission_baseline() -> dict[str, int]:
     now = timezone.now()
     ensure_catalog_roles()
     ensure_electorate_rule_baseline()
-    ensure_maintainer_role()
+    ensure_administrator_role()
     domains = {
         code: ensure_professional_domain(code=code, name=name, description=description)
         for code, name, description in BASELINE_DOMAINS
@@ -91,13 +91,13 @@ def load_role_permission_baseline() -> dict[str, int]:
     contributor = _ensure_baseline_member("role-baseline-contributor", "基线贡献者")
     covenanter = _ensure_baseline_member("role-baseline-covenanter", "基线守约者")
     deliberator = _ensure_baseline_member("role-baseline-deliberator", "基线执衡者")
-    maintainer = _ensure_baseline_member("role-baseline-maintainer", "基线典守者")
+    administrator = _ensure_baseline_member("role-baseline-administrator", "基线管理员")
     qualified_deliberator = _ensure_baseline_member("role-baseline-finance", "基线财务执衡者")
 
     covenanter_role = ensure_catalog_role(ROLE_COVENANTER)
     create_role_assignment(member=covenanter, role=covenanter_role, start_at=now)
     create_role_assignment(member=deliberator, role=covenanter_role, start_at=now)
-    bootstrap_initial_maintainer(maintainer)
+    bootstrap_initial_administrator(administrator)
     create_role_assignment(member=qualified_deliberator, role=covenanter_role, start_at=now)
     _ensure_baseline_exam()
     _pass_baseline_exam(deliberator, at_time=now)
@@ -110,7 +110,7 @@ def load_role_permission_baseline() -> dict[str, int]:
         record_external_professional_qualification(
             member=qualified_deliberator,
             domain=domains["finance"],
-            confirmed_by=maintainer,
+            confirmed_by=administrator,
             external_confirmation_source="仿真基线外部确认",
             valid_from=now,
         )

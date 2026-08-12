@@ -1,4 +1,4 @@
-# 大苹果正式命名、通用选民规则与财务职责授权模型 v2026-08-04
+# 大苹果管理员正式命名、通用选民规则与财务职责授权模型 v2026-08-12
 model
   schema 1.1
 
@@ -8,7 +8,7 @@ type platform
   relations
     define covenanter: [member]
     define deliberator: [member]
-    define maintainer: [member]
+    define administrator: [member]
     define frozen_member: [member]
 
 type professional_domain

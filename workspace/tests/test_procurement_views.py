@@ -22,7 +22,7 @@ from core.procurement_services import (
     submit_resource_offer,
 )
 from core.tests.helpers import (
-    create_maintainer_member,
+    create_administrator_member,
     create_member,
     login_as_member,
 )
@@ -50,7 +50,7 @@ class WorkspaceProcurementTests(TestCase):
             updated_at=now,
             rule_version="v1",
         )
-        self.governor = create_maintainer_member("maintainer-proc-1")
+        self.governor = create_administrator_member("administrator-proc-1")
         login_as_member(self.client, self.governor)
 
         self.supplier = create_member("sup-proc-1", role_name=ROLE_COVENANTER)

@@ -11,11 +11,11 @@ from core.application_services import (
 )
 from core.event_payloads import public_member_label
 from core.models import Event, MemberApplication, Proposal, ProposalVote
-from core.tests.helpers import create_maintainer_member, login_as_member
+from core.tests.helpers import create_administrator_member, login_as_member
 
 
-def _submit(maintainer_member, **overrides):
-    """使用已登录的典守者提交并返回报名记录。"""
+def _submit(administrator_member, **overrides):
+    """使用已登录的管理员提交并返回报名记录。"""
     defaults = {
         "applicant_name": "测试公开事件报名者",
         "contact": "pub-event@example.test",
@@ -31,7 +31,7 @@ def _submit(maintainer_member, **overrides):
     application = submit_member_application(**defaults)
     # Ensure governance can vote by setting eligible voters
     proposal = application.admission_proposal
-    governance_pk = str(maintainer_member.pk)
+    governance_pk = str(administrator_member.pk)
     proposal.eligible_voters_snapshot_json = [governance_pk]
     proposal.save(update_fields=["eligible_voters_snapshot_json"])
     return application
@@ -41,7 +41,7 @@ class MemberApplicationPublicEventsTests(TestCase):
     """Public Event creation for submitted / admitted / rejected stages."""
 
     def setUp(self) -> None:
-        self.governance = create_maintainer_member("pub-event-maintainer")
+        self.governance = create_administrator_member("pub-event-administrator")
         login_as_member(self.client, self.governance)
 
     # --- desensitization -------------------------------------------------------

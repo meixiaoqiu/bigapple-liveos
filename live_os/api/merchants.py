@@ -5,7 +5,7 @@ from __future__ import annotations
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_GET
 
-from core.access import member_can_maintain
+from core.access import member_can_administer
 from core.models import Member, MerchantSettlementRecord
 from live_os.access import require_current_full_workspace_member_json
 
@@ -22,7 +22,7 @@ def list_settlements(request: HttpRequest, **_kwargs) -> JsonResponse:
     if merchant_id:
         qs = qs.filter(merchant_id=merchant_id)
 
-    if member_can_maintain(current):
+    if member_can_administer(current):
         pass
     else:
         qs = qs.filter(merchant__operator_member=current)

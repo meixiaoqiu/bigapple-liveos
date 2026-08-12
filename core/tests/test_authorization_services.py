@@ -17,21 +17,21 @@ from core.authorization_services import (
     openfga_permission_object,
     openfga_resource_permission_object,
 )
-from core.governance_setup import MAINTENANCE_VIEW_ADMIN_PERMISSION, ensure_maintainer_role
+from core.governance_setup import ADMINISTRATION_VIEW_ADMIN_PERMISSION, ensure_administrator_role
 from core.finance_setup import FINANCE_REVIEW_PERMISSION, ensure_finance_roles
-from core.member_roles import ROLE_COVENANTER, ROLE_MAINTAINER
+from core.member_roles import ROLE_COVENANTER, ROLE_ADMINISTRATOR
 from core.models import Organization, Permission, Role, RoleAssignment, RolePermission
 from core.permission_services import member_has_permission
 from core.role_assignment_services import create_role_assignment, revoke_role_assignment
-from core.tests.helpers import create_maintainer_member, create_member
+from core.tests.helpers import create_administrator_member, create_member
 from core.management.commands.openfga_rebuild_tuples import _project_authorization_tuples, _unique_tuples
 
 
 class AuthorizationServiceTests(TestCase):
     def test_governance_permission_requires_covenanter_to_remain_active(self) -> None:
-        member = create_maintainer_member("auth-gov")
+        member = create_administrator_member("auth-gov")
 
-        self.assertTrue(member_has_permission(member, MAINTENANCE_VIEW_ADMIN_PERMISSION))
+        self.assertTrue(member_has_permission(member, ADMINISTRATION_VIEW_ADMIN_PERMISSION))
 
         covenanter_assignment = RoleAssignment.objects.get(
             member=member,
@@ -40,19 +40,19 @@ class AuthorizationServiceTests(TestCase):
         )
         revoke_role_assignment(assignment=covenanter_assignment)
 
-        self.assertFalse(member_has_permission(member, MAINTENANCE_VIEW_ADMIN_PERMISSION))
+        self.assertFalse(member_has_permission(member, ADMINISTRATION_VIEW_ADMIN_PERMISSION))
 
     def test_openfga_check_uses_guarded_permission_for_governance_codes(self) -> None:
-        member = create_maintainer_member("auth-fga-object")
+        member = create_administrator_member("auth-fga-object")
 
-        check = openfga_check_for_member_permission(member, MAINTENANCE_VIEW_ADMIN_PERMISSION)
+        check = openfga_check_for_member_permission(member, ADMINISTRATION_VIEW_ADMIN_PERMISSION)
 
         self.assertEqual(
             check,
             OpenFGACheck(
                 user=f"member:{member.pk}",
                 relation="holder",
-                object_=f"guarded_permission:{MAINTENANCE_VIEW_ADMIN_PERMISSION}",
+                object_=f"guarded_permission:{ADMINISTRATION_VIEW_ADMIN_PERMISSION}",
             ),
         )
 
@@ -61,9 +61,9 @@ class AuthorizationServiceTests(TestCase):
 
     @override_settings(BIG_APPLE_AUTHORIZATION_BACKEND="openfga", OPENFGA_SIM_STORE_ID="")
     def test_openfga_backend_fails_closed_without_store(self) -> None:
-        member = create_maintainer_member("auth-fga-no-store")
+        member = create_administrator_member("auth-fga-no-store")
 
-        self.assertFalse(AuthorizationService().member_has_permission(member, MAINTENANCE_VIEW_ADMIN_PERMISSION))
+        self.assertFalse(AuthorizationService().member_has_permission(member, ADMINISTRATION_VIEW_ADMIN_PERMISSION))
 
     @override_settings(
         OPENFGA_REAL_API_URL="http://real-fga:8080",
@@ -89,7 +89,7 @@ class AuthorizationServiceTests(TestCase):
         self.assertEqual(sim_context.platform_object, "platform:sim")
 
     def test_openfga_rebuild_tuples_dry_run_does_not_require_store_id(self) -> None:
-        create_maintainer_member("auth-fga-dry-run")
+        create_administrator_member("auth-fga-dry-run")
         output = StringIO()
 
         call_command("openfga_rebuild_tuples", "--world-kind", "sim", "--dry-run", stdout=output)
@@ -98,7 +98,7 @@ class AuthorizationServiceTests(TestCase):
 
     @override_settings(OPENFGA_SIM_STORE_ID="store-id", OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id")
     def test_openfga_rebuild_tuples_deletes_all_existing_tuples_before_rebuild(self) -> None:
-        create_maintainer_member("auth-fga-stale")
+        create_administrator_member("auth-fga-stale")
 
         with patch("core.management.commands.openfga_rebuild_tuples.OpenFGAClient") as client_class:
             client = client_class.return_value
@@ -136,7 +136,7 @@ class AuthorizationServiceTests(TestCase):
         OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
     )
     def test_openfga_authorization_probe_reports_new_policy_result(self) -> None:
-        member = create_maintainer_member("auth-fga-probe")
+        member = create_administrator_member("auth-fga-probe")
         output = StringIO()
 
         with patch("core.authorization_services.OpenFGAClient") as client_class:
@@ -151,17 +151,17 @@ class AuthorizationServiceTests(TestCase):
             )
 
         probe_output = output.getvalue()
-        self.assertIn("capability=maintenance", probe_output)
+        self.assertIn("capability=administration", probe_output)
         self.assertIn("allowed=true", probe_output)
 
     def test_openfga_projection_removes_covenanter_after_revocation(self) -> None:
-        member = create_maintainer_member("auth-fga-revoked-covenanter")
+        member = create_administrator_member("auth-fga-revoked-covenanter")
         covenanter_assignment = RoleAssignment.objects.get(
             member=member,
             role__name=ROLE_COVENANTER,
             status=RoleAssignment.Status.ACTIVE,
         )
-        maintainer_assignment = RoleAssignment.objects.get(member=member, role__name=ROLE_MAINTAINER)
+        administrator_assignment = RoleAssignment.objects.get(member=member, role__name=ROLE_ADMINISTRATOR)
 
         revoke_role_assignment(assignment=covenanter_assignment)
 
@@ -170,8 +170,8 @@ class AuthorizationServiceTests(TestCase):
             for item in _unique_tuples(_project_authorization_tuples(platform_object="platform:test"))
         )
         self.assertNotIn((f"member:{member.pk}", "covenanter", "platform:test"), tuples)
-        self.assertNotIn((f"member:{member.pk}", "maintainer", "platform:test"), tuples)
-        self.assertNotIn((f"member:{member.pk}", "assignee", f"role:{maintainer_assignment.role_id}"), tuples)
+        self.assertNotIn((f"member:{member.pk}", "administrator", "platform:test"), tuples)
+        self.assertNotIn((f"member:{member.pk}", "assignee", f"role:{administrator_assignment.role_id}"), tuples)
 
     @override_settings(
         BIG_APPLE_AUTHORIZATION_BACKEND="openfga",
@@ -179,8 +179,8 @@ class AuthorizationServiceTests(TestCase):
         OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
     )
     def test_incremental_projection_deletes_tuple_after_revocation(self) -> None:
-        member = create_maintainer_member("auth-fga-delete-revoked")
-        assignment = RoleAssignment.objects.get(member=member, role__name=ROLE_MAINTAINER)
+        member = create_administrator_member("auth-fga-delete-revoked")
+        assignment = RoleAssignment.objects.get(member=member, role__name=ROLE_ADMINISTRATOR)
 
         with patch("core.openfga_projection_services.OpenFGAClient") as client_class:
             with self.captureOnCommitCallbacks(execute=True):
@@ -249,12 +249,12 @@ class AuthorizationServiceTests(TestCase):
         OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
     )
     def test_openfga_backend_rejects_governance_permission_when_openfga_denies(self) -> None:
-        member = create_maintainer_member("auth-fga-denied-covenanter")
+        member = create_administrator_member("auth-fga-denied-covenanter")
 
         with patch("core.authorization_services.OpenFGAClient") as client_class:
             client_class.return_value.check.return_value = False
 
-            self.assertFalse(member_has_permission(member, MAINTENANCE_VIEW_ADMIN_PERMISSION))
+            self.assertFalse(member_has_permission(member, ADMINISTRATION_VIEW_ADMIN_PERMISSION))
 
     @override_settings(
         BIG_APPLE_AUTHORIZATION_BACKEND="openfga",
@@ -263,19 +263,19 @@ class AuthorizationServiceTests(TestCase):
         OPENFGA_SIM_PLATFORM_OBJECT="platform:sim",
     )
     def test_openfga_backend_allows_permission_only_from_openfga_check(self) -> None:
-        member = create_maintainer_member("auth-fga-allowed")
+        member = create_administrator_member("auth-fga-allowed")
 
         with patch("core.authorization_services.OpenFGAClient") as client_class:
             client_class.return_value.check.return_value = True
 
-            self.assertTrue(member_has_permission(member, MAINTENANCE_VIEW_ADMIN_PERMISSION))
+            self.assertTrue(member_has_permission(member, ADMINISTRATION_VIEW_ADMIN_PERMISSION))
 
         client_class.return_value.check.assert_called_once_with(
             store_id="store-id",
             authorization_model_id="model-id",
             user=f"member:{member.pk}",
             relation="holder",
-            object_=f"guarded_permission:{MAINTENANCE_VIEW_ADMIN_PERMISSION}",
+            object_=f"guarded_permission:{ADMINISTRATION_VIEW_ADMIN_PERMISSION}",
         )
 
     @override_settings(
@@ -284,7 +284,7 @@ class AuthorizationServiceTests(TestCase):
         OPENFGA_SIM_AUTHORIZATION_MODEL_ID="model-id",
     )
     def test_openfga_backend_checks_resource_scoped_permission_objects(self) -> None:
-        member = create_maintainer_member("auth-fga-resource-denied")
+        member = create_administrator_member("auth-fga-resource-denied")
         resource = type("ResourceStub", (), {"pk": "resource-auth-fga"})()
 
         with patch("core.authorization_services.OpenFGAClient") as client_class:
@@ -293,7 +293,7 @@ class AuthorizationServiceTests(TestCase):
             self.assertTrue(
                 AuthorizationService().member_has_permission(
                     member,
-                    MAINTENANCE_VIEW_ADMIN_PERMISSION,
+                    ADMINISTRATION_VIEW_ADMIN_PERMISSION,
                     resource=resource,
                 )
             )
@@ -303,18 +303,18 @@ class AuthorizationServiceTests(TestCase):
             authorization_model_id="model-id",
             user=f"member:{member.pk}",
             relation="holder",
-            object_=openfga_global_resource_permission_object(MAINTENANCE_VIEW_ADMIN_PERMISSION),
+            object_=openfga_global_resource_permission_object(ADMINISTRATION_VIEW_ADMIN_PERMISSION),
         )
         client_class.return_value.check.assert_any_call(
             store_id="store-id",
             authorization_model_id="model-id",
             user=f"member:{member.pk}",
             relation="holder",
-            object_=openfga_resource_permission_object(MAINTENANCE_VIEW_ADMIN_PERMISSION, resource.pk),
+            object_=openfga_resource_permission_object(ADMINISTRATION_VIEW_ADMIN_PERMISSION, resource.pk),
         )
 
     def test_openfga_projection_includes_global_resource_permission_object(self) -> None:
-        role = ensure_maintainer_role()["role"]
+        role = ensure_administrator_role()["role"]
 
         tuples = set(
             (item["user"], item["relation"], item["object"])
@@ -322,11 +322,11 @@ class AuthorizationServiceTests(TestCase):
         )
 
         self.assertIn(
-            (f"role:{role.pk}", "role", openfga_permission_object(MAINTENANCE_VIEW_ADMIN_PERMISSION)),
+            (f"role:{role.pk}", "role", openfga_permission_object(ADMINISTRATION_VIEW_ADMIN_PERMISSION)),
             tuples,
         )
         self.assertIn(
-            (f"role:{role.pk}", "role", openfga_global_resource_permission_object(MAINTENANCE_VIEW_ADMIN_PERMISSION)),
+            (f"role:{role.pk}", "role", openfga_global_resource_permission_object(ADMINISTRATION_VIEW_ADMIN_PERMISSION)),
             tuples,
         )
 
@@ -398,7 +398,7 @@ class AuthorizationServiceTests(TestCase):
         OPENFGA_SIM_PLATFORM_OBJECT="platform:sim",
     )
     def test_full_workspace_access_uses_openfga_covenanter_relation(self) -> None:
-        member = create_maintainer_member("auth-fga-workspace")
+        member = create_administrator_member("auth-fga-workspace")
 
         with patch("core.authorization_services.OpenFGAClient") as client_class:
             client_class.return_value.check.return_value = True

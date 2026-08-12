@@ -553,7 +553,7 @@ def _feedback_semantic_summary(event: Event) -> list[dict[str, str]]:
     if action == "submitted":
         entries.append({"label": "事项", "value": event.title or "收到公开反馈"})
     elif action == "answered":
-        entries.append({"label": "事项", "value": event.title or "典守者回应反馈"})
+        entries.append({"label": "事项", "value": event.title or "管理员回应反馈"})
     elif action == "linked":
         entries.append({"label": "事项", "value": event.title or "反馈已转入治理流程"})
     else:

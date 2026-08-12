@@ -11,7 +11,7 @@ from django.utils import timezone
 from core.member_roles import ROLE_COVENANTER
 from core.models import Member, Resource, ResourceTransaction
 from core.openfga_client import OpenFGARequestError
-from core.tests.helpers import create_maintainer_member, create_member, login_as_member
+from core.tests.helpers import create_administrator_member, create_member, login_as_member
 
 
 FIXED_WORLD_SETTINGS = dict(
@@ -106,7 +106,7 @@ class InventoryGovernanceTests(TestCase):
 
     def setUp(self) -> None:
         now = timezone.now()
-        self.member = create_maintainer_member("mem-maintainer-001")
+        self.member = create_administrator_member("mem-administrator-001")
         login_as_member(self.client, self.member)
         self.resource = Resource.objects.create(
             resource_id="res-gov-001",

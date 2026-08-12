@@ -19,13 +19,13 @@ from .models import (
     ProposalTypeElectorateRule,
 )
 from .professional_qualification_services import members_with_current_professional_qualification
-from .role_catalog import ROLE_COVENANTER, ROLE_DELIBERATOR, ROLE_MAINTAINER, role_definition_for_code
+from .role_catalog import ROLE_COVENANTER, ROLE_DELIBERATOR, ROLE_ADMINISTRATOR, role_definition_for_code
 
 
 TEMPLATE_COMMUNITY = "community_deliberation"
 TEMPLATE_COVENANTER = "covenanter_matter"
 TEMPLATE_PROFESSIONAL = "professional_matter"
-TEMPLATE_MAINTAINER = "maintainer_matter"
+TEMPLATE_ADMINISTRATOR = "administrator_matter"
 
 SELECTOR_TYPES = frozenset(
     {"registered_member", "derived_status", "catalog_role", "professional_qualification"}
@@ -169,7 +169,7 @@ def ensure_electorate_rule_baseline() -> dict[str, ElectorateRuleVersion]:
             {"op": "ANY", "conditions": [
                 selector("derived_status", "contributor"),
                 selector("catalog_role", "covenanter"),
-                selector("catalog_role", "maintainer"),
+                selector("catalog_role", "administrator"),
                 selector("catalog_role", "deliberator"),
             ]},
             {},
@@ -188,9 +188,9 @@ def ensure_electorate_rule_baseline() -> dict[str, ElectorateRuleVersion]:
             ]},
             {"professional_domain": {"type": "professional_domain", "required": True}},
         ),
-        TEMPLATE_MAINTAINER: (
-            "典守事务",
-            selector("catalog_role", "maintainer"),
+        TEMPLATE_ADMINISTRATOR: (
+            "管理事务",
+            selector("catalog_role", "administrator"),
             {},
         ),
     }
@@ -225,7 +225,7 @@ def ensure_electorate_rule_baseline() -> dict[str, ElectorateRuleVersion]:
     for proposal_type, template_code in (
         (Proposal.ProposalType.COMMUNITY, TEMPLATE_COMMUNITY),
         (Proposal.ProposalType.BUDGET, TEMPLATE_PROFESSIONAL),
-        (Proposal.ProposalType.MAINTENANCE, TEMPLATE_MAINTAINER),
+        (Proposal.ProposalType.ADMINISTRATION, TEMPLATE_ADMINISTRATOR),
     ):
         ProposalTypeElectorateRule.objects.get_or_create(
             proposal_type=proposal_type,
@@ -263,11 +263,11 @@ def publish_electorate_rule_version(
 
     from .authorization_services import AuthorizationService
 
-    if not AuthorizationService().member_can_maintain(
+    if not AuthorizationService().member_can_administer(
         member=actor_member,
         permission_code="governance.manage_roles",
     ):
-        raise ValidationError("只有具备制度维护权限的典守者可以发布选民规则版本。")
+        raise ValidationError("只有具备制度维护权限的管理员可以发布选民规则版本。")
     normalized = validate_condition_tree(condition)
     latest = template.versions.order_by("-version").first()
     return ElectorateRuleVersion.objects.create(
