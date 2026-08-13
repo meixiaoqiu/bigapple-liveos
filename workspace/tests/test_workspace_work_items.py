@@ -169,6 +169,10 @@ class WorkItemContextTests(TestCase):
         all_ids = {item["id"] for group in matters.values() if isinstance(group, list) for item in group}
         self.assertIn(f"task:{ended.task_id}", all_ids)
         self.assertNotIn("task:task-matter-open", all_ids)
+        ended_matter = next(
+            item for item in matters["recently_ended"] if item["id"] == f"task:{ended.task_id}"
+        )
+        self.assertEqual(ended_matter["target_url"], f"/workspace/tasks/{ended.task_id}/")
 
     def test_governance_proposal_and_procurement_use_unified_shape(self):
         proposal = create_approval_proposal(
@@ -477,7 +481,7 @@ class WorkspaceDashboardTests(TestCase):
         response = self.client.get("/workspace/")
         content = response.content.decode()
         old_modules = [
-            "待处理事项", "个人任务历史", "当前任务", "可领取任务",
+            "待处理事项", "当前任务", "可领取任务",
             "近期积分流水", "资源预警", "相关事件", "申诉状态",
         ]
         matter_position = content.index("我的事务")
@@ -485,4 +489,5 @@ class WorkspaceDashboardTests(TestCase):
             self.assertIn(title, content)
             self.assertLess(matter_position, content.index(title))
         self.assertNotIn("下一步动作", content)
+        self.assertNotIn("个人任务历史", content)
         self.assertContains(response, "迁移期说明")

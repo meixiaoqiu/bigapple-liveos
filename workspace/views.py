@@ -164,6 +164,19 @@ def workspace_page(request: HttpRequest):
     return render(request, "workspace/index.html", workspace_context(member.member_no))
 
 
+@require_GET
+@never_cache
+def workspace_task_detail(request: HttpRequest, task_id: str):
+    member = current_member_or_forbidden(request)
+    if isinstance(member, HttpResponseForbidden):
+        return member
+    decision = workspace_access_decision(member)
+    if not decision.allowed:
+        return page_forbidden("报名审核完成前不能查看任务详情。")
+    task = get_object_or_404(Task, task_id=task_id, assignee_member=member)
+    return render(request, "workspace/task_detail.html", {"member": member, "task": task})
+
+
 def _latest_member_application(*, user=None, member=None):
     queryset = MemberApplication.objects.select_related("linked_member", "account_user")
     if member is not None:

@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
+from django.urls import resolve
 from django.utils import timezone
 
 from core.member_roles import ROLE_COVENANTER
@@ -171,10 +172,30 @@ class WorkspacePageTests(TestCase):
         self.assertContains(response, "成员申请复核任务验收标准")
         self.assertContains(response, "提交劳动")
         self.assertContains(response, "提交申诉")
-        self.assertContains(response, "个人任务历史")
         self.assertContains(response, "清理公共厨房")
         self.assertContains(response, "申诉状态")
         self.assertContains(response, "standard-review-appeal")
+        self.assertNotContains(response, "个人任务历史")
+
+    def test_member_can_open_own_task_detail(self) -> None:
+        response = self.client.get("/workspace/tasks/task-0003/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "清理公共厨房")
+        self.assertContains(response, "任务结果")
+
+    def test_member_cannot_open_another_members_task_detail(self) -> None:
+        other = create_member("other-task-owner", role_name=ROLE_COVENANTER)
+        Task.objects.filter(task_id="task-0003").update(assignee_member=other)
+        response = self.client.get("/workspace/tasks/task-0003/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_fixed_task_routes_are_not_captured_as_task_details(self) -> None:
+        self.assertEqual(resolve("/workspace/tasks/new/").url_name, "workspace-tasks-manage")
+        self.assertEqual(resolve("/workspace/tasks/review/").url_name, "workspace-tasks-review")
+        self.assertEqual(
+            resolve("/workspace/tasks/task-0003/").url_name,
+            "workspace-task-detail",
+        )
 
     def test_pending_applicant_sees_minimal_workspace_and_cannot_post_actions(self) -> None:
         now = timezone.now()

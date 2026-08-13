@@ -46,7 +46,6 @@ def get_workspace_summary(request: HttpRequest, member_no: str, **_kwargs) -> Js
             "lifetime_contribution": context.get("lifetime_contribution", 0),
             "available_tasks": [task_to_contract(task) for task in context["available_tasks"]],
             "active_tasks": [task_to_contract(task) for task in context["active_tasks"]],
-            "task_history": [task_to_contract(task) for task in context["task_history"]],
             "recent_ledger_entries": [
                 ledger_entry_to_contract(entry)
                 for entry in context["recent_ledger_entries"]

@@ -105,15 +105,6 @@ def workspace_context(member_no: str) -> dict[str, Any]:
     active_tasks = list(
         Task.objects.filter(assignee_member=member, status__in=active_task_statuses).order_by("due_at", "task_id")[:10]
     )
-    task_history_statuses = [
-        Task.Status.ACCEPTED,
-        Task.Status.REJECTED,
-        Task.Status.REVERSED,
-    ]
-    task_history = list(
-        Task.objects.filter(assignee_member=member, status__in=task_history_statuses)
-        .order_by("-reviewed_at", "-submitted_at", "-created_at", "task_id")[:10]
-    )
     recent_ledger_entries = list(
         LedgerEntry.objects.filter(member=member).order_by("-system_event__seq", "-created_at", "ledger_entry_id")[:10]
     )
@@ -164,7 +155,6 @@ def workspace_context(member_no: str) -> dict[str, Any]:
         "lifetime_contribution": lifetime_contribution,
         "available_tasks": available_tasks,
         "active_tasks": active_tasks,
-        "task_history": task_history,
         "recent_ledger_entries": recent_ledger_entries,
         "recent_events": recent_events,
         "open_disputes": open_disputes,

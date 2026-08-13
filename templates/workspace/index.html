@@ -175,58 +175,6 @@
       </div>
     </section>
 
-    <section class="card bg-base-100 shadow" id="task-history">
-      <div class="card-body">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <h2 class="card-title">个人任务历史</h2>
-          <span class="badge badge-outline">{{ task_history|length }} 条</span>
-        </div>
-        {% if task_history %}
-          <div class="overflow-x-auto">
-            <table class="table table-zebra">
-              <thead>
-                <tr>
-                  <th>任务</th>
-                  <th>结果</th>
-                  <th>提交</th>
-                  <th>验收</th>
-                  <th>说明</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for task in task_history %}
-                  <tr>
-                    <td>
-                      <div class="font-medium">{{ task.title }}</div>
-                      <div class="text-xs text-base-content/60">{{ task.task_id }}</div>
-                    </td>
-                    <td>
-                      <span class="badge {% if task.status == 'accepted' %}badge-success{% elif task.status == 'rejected' or task.status == 'reversed' %}badge-error{% else %}badge-warning{% endif %} badge-outline">
-                        {{ task.get_status_display }}
-                      </span>
-                    </td>
-                    <td>{% if task.submitted_at %}{{ task.submitted_at|date:"Y-m-d H:i" }}{% else %}未记录{% endif %}</td>
-                    <td>{% if task.reviewed_at %}{{ task.reviewed_at|date:"Y-m-d H:i" }}{% else %}未记录{% endif %}</td>
-                    <td>
-                      {% if task.metadata.labor_note %}
-                        {{ task.metadata.labor_note }}
-                      {% elif task.metadata.review_reason %}
-                        {{ task.metadata.review_reason }}
-                      {% else %}
-                        暂无说明
-                      {% endif %}
-                    </td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        {% else %}
-          <div class="alert">暂无已结束任务</div>
-        {% endif %}
-      </div>
-    </section>
-
     <section class="grid gap-6 lg:grid-cols-2">
       <div class="card bg-base-100 shadow">
         <div class="card-body">

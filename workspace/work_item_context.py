@@ -269,7 +269,7 @@ def build_member_matters(
             matter_id=f"task:{task.task_id}", matter_type="task", type_label="任务",
             title=task.title, status=task.status, status_label=task.get_status_display(),
             responsible=member.member_no, current_handler="已结束",
-            action_label="查看结果", target_url="/workspace/#task-history",
+            action_label="查看结果", target_url=f"/workspace/tasks/{task.task_id}/",
             updated_at=task.reviewed_at or task.created_at,
         ))
 
