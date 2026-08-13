@@ -278,7 +278,8 @@ class WorkspacePageTests(TestCase):
         self.assertEqual(submitted_task.metadata["labor_note"], "已完成今日午餐准备，餐台已清理。")
         self.assertEqual(submitted_task.metadata["evidence_refs"], ["event-0001", "photo-lunch-0001"])
         self.assertContains(response, "待验收")
-        self.assertContains(response, "等待验收结果")
+        self.assertContains(response, "等待验收")
+        self.assertNotContains(response, "下一步动作")
 
     def test_workspace_submit_labor_requires_note(self) -> None:
         response = self.client.post(

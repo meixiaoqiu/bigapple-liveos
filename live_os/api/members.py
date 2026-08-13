@@ -56,7 +56,6 @@ def get_workspace_summary(request: HttpRequest, member_no: str, **_kwargs) -> Js
             "dispute_history": [dispute_to_contract(dispute) for dispute in context["dispute_history"]],
             "resource_warnings": [resource_to_contract(resource) for resource in context["resource_warnings"]],
             "task_counts": context["task_counts"],
-            "next_actions": context["next_actions"],
         }
     )
 

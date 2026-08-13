@@ -175,43 +175,6 @@
       </div>
     </section>
 
-    <section class="card bg-base-100 shadow">
-      <div class="card-body">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <h2 class="card-title">下一步动作</h2>
-          <span class="badge badge-outline">{{ next_action_rows|length }} 项</span>
-        </div>
-        <div class="grid gap-3 md:grid-cols-3">
-          {% for action in next_action_rows %}
-            <article class="card border border-base-300 bg-base-100">
-              <div class="card-body gap-2 p-4">
-                <div>
-                  <span class="badge {% if action.value == 'check_resource_warning' or action.value == 'review_dispute' %}badge-warning{% elif action.value == 'no_action' %}badge-success{% else %}badge-info{% endif %} badge-outline">
-                    {{ action.label }}
-                  </span>
-                </div>
-                <p class="text-sm leading-6 text-base-content/70">
-                  {% if action.value == "claim_task" %}
-                    查看开放任务并选择合适任务领取。
-                  {% elif action.value == "submit_labor" %}
-                    已领取任务需要提交劳动说明和证据。
-                  {% elif action.value == "wait_for_review" %}
-                    已提交任务正在等待验收。
-                  {% elif action.value == "review_dispute" %}
-                    有未关闭申诉需要查看处理进展。
-                  {% elif action.value == "check_resource_warning" %}
-                    当前存在资源低于预警线。
-                  {% else %}
-                    当前没有需要立即处理的动作。
-                  {% endif %}
-                </p>
-              </div>
-            </article>
-          {% endfor %}
-        </div>
-      </div>
-    </section>
-
     <section class="card bg-base-100 shadow" id="task-history">
       <div class="card-body">
         <div class="flex flex-wrap items-center justify-between gap-3">

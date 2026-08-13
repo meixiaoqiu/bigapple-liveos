@@ -628,10 +628,7 @@ class ApiWorkflowTests(TestCase):
         self.assertEqual(payload["task_counts"][Task.Status.OPEN], 1)
         self.assertEqual(payload["task_counts"][Task.Status.CLAIMED], 1)
         self.assertEqual(payload["task_counts"][Task.Status.ACCEPTED], 1)
-        self.assertIn("submit_labor", payload["next_actions"])
-        self.assertIn("claim_task", payload["next_actions"])
-        self.assertIn("review_dispute", payload["next_actions"])
-        self.assertIn("check_resource_warning", payload["next_actions"])
+        self.assertNotIn("next_actions", payload)
 
     def test_basic_member_cannot_read_full_workspace_summary(self) -> None:
         basic = create_member("api-basic-summary")

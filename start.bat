@@ -182,7 +182,7 @@ goto END
 )
 
 echo Migrating real world database...
-docker compose -f docker-compose.dev.yml run --interactive=false --rm --no-deps big-apple-real python manage.py migrate --noinput --settings=live_os.settings_real
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\Invoke-WorldMigration.ps1 -DatabaseAlias realworld -Service big-apple-real -SettingsModule live_os.settings_real
 if errorlevel 1 (
 echo Failed to migrate real world database.
 set "EXIT_CODE=1"
@@ -190,7 +190,7 @@ goto END
 )
 
 echo Migrating simulation world database...
-docker compose -f docker-compose.dev.yml run --interactive=false --rm --no-deps big-apple-sim python manage.py migrate --noinput --settings=live_os.settings_sim
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\Invoke-WorldMigration.ps1 -DatabaseAlias simulation0001 -Service big-apple-sim -SettingsModule live_os.settings_sim
 if errorlevel 1 (
 echo Failed to migrate simulation world database.
 set "EXIT_CODE=1"

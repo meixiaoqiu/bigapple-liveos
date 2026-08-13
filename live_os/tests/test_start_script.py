@@ -6,26 +6,52 @@ class StartScriptMigrationTests(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.script = (Path(__file__).resolve().parents[2] / "start.bat").read_text(encoding="utf-8")
+        cls.root = Path(__file__).resolve().parents[2]
+        cls.script = (cls.root / "start.bat").read_text(encoding="utf-8")
+        cls.helper_path = cls.root / "scripts" / "Invoke-WorldMigration.ps1"
+        cls.helper = cls.helper_path.read_text(encoding="utf-8-sig")
 
-    def test_fixed_world_settings_migrate_their_default_database(self):
-        real_command = (
-            "big-apple-real python manage.py migrate --noinput "
-            "--settings=live_os.settings_real"
+    def test_start_script_passes_each_fixed_world_configuration(self):
+        self.assertIn(
+            "Invoke-WorldMigration.ps1 -DatabaseAlias realworld "
+            "-Service big-apple-real -SettingsModule live_os.settings_real",
+            self.script,
         )
-        simulation_command = (
-            "big-apple-sim python manage.py migrate --noinput "
-            "--settings=live_os.settings_sim"
+        self.assertIn(
+            "Invoke-WorldMigration.ps1 -DatabaseAlias simulation0001 "
+            "-Service big-apple-sim -SettingsModule live_os.settings_sim",
+            self.script,
         )
 
-        self.assertIn(real_command, self.script)
-        self.assertIn(simulation_command, self.script)
-        self.assertNotIn("--database realworld", self.script)
-        self.assertNotIn("--database simulation0001", self.script)
+    def test_helper_runs_migrate_for_the_selected_fixed_world(self):
+        self.assertIn(
+            "$Service python manage.py migrate --noinput \"--settings=$SettingsModule\"",
+            self.helper,
+        )
+        self.assertNotIn("--database realworld", self.helper)
+        self.assertNotIn("--database simulation0001", self.helper)
 
     def test_migration_commands_disable_compose_stdin(self):
-        self.assertEqual(self.script.count("run --interactive=false --rm --no-deps"), 3)
+        self.assertEqual(self.script.count("run --interactive=false --rm --no-deps"), 1)
+        self.assertEqual(self.helper.count("run --interactive=false --rm --no-deps"), 2)
         self.assertNotIn("run --rm --no-deps", self.script)
+        self.assertNotIn("run --rm --no-deps", self.helper)
+
+    def test_helper_rejects_mismatched_world_configuration_before_docker(self):
+        self.assertIn('"realworld" = @{', self.helper)
+        self.assertIn('Service = "big-apple-real"', self.helper)
+        self.assertIn('SettingsModule = "live_os.settings_real"', self.helper)
+        self.assertIn('"simulation0001" = @{', self.helper)
+        self.assertIn('Service = "big-apple-sim"', self.helper)
+        self.assertIn('SettingsModule = "live_os.settings_sim"', self.helper)
+        self.assertIn("参数组合无效", self.helper)
+        self.assertLess(
+            self.helper.index("参数组合无效"),
+            self.helper.index("& docker compose"),
+        )
+
+    def test_helper_has_utf8_bom_for_windows_powershell_compatibility(self):
+        self.assertTrue(self.helper_path.read_bytes().startswith(b"\xef\xbb\xbf"))
 
 
 class OpenFgaStartupGuidanceTests(TestCase):

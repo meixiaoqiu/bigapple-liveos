@@ -33,15 +33,6 @@ from core.models import (
 from core.proposals.voting import proposal_result
 
 
-NEXT_ACTION_LABELS = {
-    "claim_task": "领取开放任务",
-    "submit_labor": "提交劳动记录",
-    "wait_for_review": "等待验收结果",
-    "review_dispute": "查看申诉进展",
-    "check_resource_warning": "关注资源预警",
-    "no_action": "暂无待处理动作",
-}
-
 # Admission filter groups driven by the linked member_admission proposal lifecycle.
 # There is no standalone "review" status — every application that reaches the
 # governance review list already has an auto-created admission proposal.
@@ -101,27 +92,6 @@ def applicant_workspace_context(member_no: str, *, access_denial_reason: str = "
     }
 
 
-def workspace_next_actions(
-    *,
-    available_tasks: list[Task],
-    active_tasks: list[Task],
-    open_disputes: list[Dispute],
-    resource_warnings: list[Resource],
-) -> list[str]:
-    actions = []
-    if any(task.status in {Task.Status.CLAIMED, Task.Status.IN_PROGRESS} for task in active_tasks):
-        actions.append("submit_labor")
-    if any(task.status == Task.Status.PENDING_REVIEW for task in active_tasks):
-        actions.append("wait_for_review")
-    if available_tasks:
-        actions.append("claim_task")
-    if open_disputes:
-        actions.append("review_dispute")
-    if resource_warnings:
-        actions.append("check_resource_warning")
-    return actions or ["no_action"]
-
-
 def workspace_context(member_no: str) -> dict[str, Any]:
     member = get_object_or_404(Member, member_no=member_no)
     latest = CapacityAssessment.objects.order_by("-simulation_day", "-created_at").first()
@@ -179,12 +149,6 @@ def workspace_context(member_no: str) -> dict[str, Any]:
             recent_events.append(event)
         if len(recent_events) >= 10:
             break
-    next_actions = workspace_next_actions(
-        available_tasks=available_tasks,
-        active_tasks=active_tasks,
-        open_disputes=open_disputes,
-        resource_warnings=resource_warnings,
-    )
     return {
         "simulation_day": latest.simulation_day if latest else 1,
         "member": member,
@@ -211,11 +175,6 @@ def workspace_context(member_no: str) -> dict[str, Any]:
         "dispute_type_options": [
             {"value": value, "label": label}
             for value, label in Dispute.DisputeType.choices
-        ],
-        "next_actions": next_actions,
-        "next_action_rows": [
-            {"value": action, "label": NEXT_ACTION_LABELS[action]}
-            for action in next_actions
         ],
         "work_items": _member_work_items(member),
     }
