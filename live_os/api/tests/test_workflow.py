@@ -622,7 +622,7 @@ class ApiWorkflowTests(TestCase):
         self.assertEqual(payload["open_disputes"][0]["dispute_id"], "dispute-0001")
         self.assertEqual(payload["dispute_history"][0]["dispute_id"], "dispute-0001")
         self.assertNotIn("reviewer", payload["dispute_history"][0])
-        self.assertEqual(payload["resource_warnings"][0]["resource_id"], "res-medicine")
+        self.assertNotIn("resource_warnings", payload)
         self.assertEqual(payload["task_counts"][Task.Status.OPEN], 1)
         self.assertEqual(payload["task_counts"][Task.Status.CLAIMED], 1)
         self.assertEqual(payload["task_counts"][Task.Status.ACCEPTED], 1)

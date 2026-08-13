@@ -164,14 +164,9 @@
         <div class="stat-value text-info">{{ lifetime_contribution }}</div>
         <div class="stat-desc">累计任务奖励</div>
       </div>
-      <div class="stat">
-        <div class="stat-title">资源预警</div>
-        <div class="stat-value text-warning">{{ resource_warnings|length }}</div>
-        <div class="stat-desc">低于预警线</div>
-      </div>
     </section>
 
-    <section class="grid gap-6 lg:grid-cols-2">
+    <section class="grid gap-6">
       <div class="card bg-base-100 shadow">
         <div class="card-body">
           <div class="flex flex-wrap items-center justify-between gap-3">
@@ -207,29 +202,6 @@
         </div>
       </div>
 
-      <div class="card bg-base-100 shadow">
-        <div class="card-body">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <h2 class="card-title">资源预警</h2>
-            <span class="badge badge-outline">{{ resource_warnings|length }} 类</span>
-          </div>
-          {% if resource_warnings %}
-            <div class="grid gap-3">
-              {% for resource in resource_warnings %}
-                <article class="alert alert-warning">
-                  <div>
-                    <div class="font-bold">{{ resource.get_resource_type_display }}</div>
-                    <div>{{ resource.current_stock }} {{ resource.get_unit_display }}</div>
-                    <div class="text-sm">预警线：{{ resource.warning_threshold }} {{ resource.get_unit_display }}</div>
-                  </div>
-                </article>
-              {% endfor %}
-            </div>
-          {% else %}
-            <div class="alert alert-success">暂无资源预警</div>
-          {% endif %}
-        </div>
-      </div>
     </section>
 
     <section class="grid gap-6 lg:grid-cols-2">

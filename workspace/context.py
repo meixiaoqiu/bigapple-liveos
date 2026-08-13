@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from django.db.models import Count, F, Q, Sum
+from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404
 
 from core.access import is_finance_reviewer, member_can_administer
@@ -26,7 +26,6 @@ from core.models import (
     MerchantProfile,
     Proposal,
     ProposalVote,
-    Resource,
     Task,
 )
 
@@ -105,9 +104,6 @@ def workspace_context(member_no: str) -> dict[str, Any]:
         .order_by("-submitted_at", "dispute_id")[:10]
     )
     dispute_history = list(all_member_disputes.order_by("-submitted_at", "dispute_id")[:10])
-    resource_warnings = list(
-        Resource.objects.filter(current_stock__lte=F("warning_threshold")).order_by("resource_type", "resource_id")
-    )
     visible_tasks = Task.objects.filter(Q(status=Task.Status.OPEN) | Q(assignee_member=member))
     dispute_task_options = list(visible_tasks.order_by("-created_at", "task_id")[:20])
     task_counts = {
@@ -147,7 +143,6 @@ def workspace_context(member_no: str) -> dict[str, Any]:
         "recent_events": recent_events,
         "open_disputes": open_disputes,
         "dispute_history": dispute_history,
-        "resource_warnings": resource_warnings,
         "task_counts": task_counts,
         "dispute_task_options": dispute_task_options,
         "dispute_type_options": [

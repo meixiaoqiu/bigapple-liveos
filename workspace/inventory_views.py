@@ -5,6 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from django.contrib import messages
+from django.db.models import F
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_GET, require_http_methods
@@ -185,7 +186,11 @@ def inventory_list(request: HttpRequest) -> HttpResponse:
         return page_forbidden("仅管理员可访问。")
 
     resources = list(Resource.objects.order_by("resource_type", "resource_id")[:_RESOURCE_LIST_LIMIT])
-    low_stock = [r for r in resources if r.current_stock <= r.warning_threshold]
+    low_stock = list(
+        Resource.objects.filter(current_stock__lte=F("warning_threshold")).order_by(
+            "resource_type", "resource_id"
+        )
+    )
 
     return render(
         request,

@@ -145,6 +145,59 @@ class InventoryGovernanceTests(TestCase):
         self.assertContains(response, "低库存预警")
         self.assertContains(response, "res-gov-002")
 
+    def test_inventory_warnings_are_not_limited_by_resource_table(self):
+        now = timezone.now()
+        Resource.objects.bulk_create([
+            Resource(
+                resource_id=f"res-a-{index:03d}",
+                resource_type=Resource.ResourceType.GRAIN,
+                unit=Resource.Unit.KG,
+                current_stock=Decimal("50"),
+                daily_consumption_estimate=Decimal("0"),
+                warning_threshold=Decimal("20"),
+                loss_rate=Decimal("0"),
+                replenishment_method=Resource.ReplenishmentMethod.PURCHASE,
+                updated_at=now,
+                rule_version="v1",
+            )
+            for index in range(50)
+        ])
+        Resource.objects.create(
+            resource_id="res-z-warning",
+            resource_type=Resource.ResourceType.WATER,
+            unit=Resource.Unit.LITER,
+            current_stock=Decimal("5"),
+            daily_consumption_estimate=Decimal("0"),
+            warning_threshold=Decimal("10"),
+            loss_rate=Decimal("0"),
+            replenishment_method=Resource.ReplenishmentMethod.PURCHASE,
+            updated_at=now,
+            rule_version="v1",
+        )
+
+        response = self.client.get("/workspace/inventory/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "res-z-warning")
+        self.assertNotIn(
+            "res-z-warning",
+            [resource.resource_id for resource in response.context["resources"]],
+        )
+        self.assertIn(
+            "res-z-warning",
+            [resource.resource_id for resource in response.context["low_stock"]],
+        )
+
+    def test_inventory_list_shows_no_warning_state(self):
+        response = self.client.get("/workspace/inventory/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "当前没有资源预警")
+        self.assertLess(
+            response.content.decode().index("当前没有资源预警"),
+            response.content.decode().index("全部资源"),
+        )
+
     def test_adjust_page_shows_resource_info(self):
         response = self.client.get("/workspace/inventory/res-gov-001/adjust/")
         self.assertEqual(response.status_code, 200)
