@@ -41,6 +41,19 @@ from .context import (
 
 MEMBER_APPLICATION_REAPPLY_STATUSES = {MemberApplication.Status.REJECTED, MemberApplication.Status.WITHDREW}
 DISABLED_MEMBER_STATUSES: frozenset[str] = frozenset({Member.Status.SUSPENDED, Member.Status.EXITED})
+TASK_LIST_LIMIT = 20
+ACTIVE_TASK_STATUSES = (
+    Task.Status.CLAIMED,
+    Task.Status.IN_PROGRESS,
+    Task.Status.PENDING_REVIEW,
+    Task.Status.DISPUTED,
+)
+ENDED_TASK_STATUSES = (
+    Task.Status.ACCEPTED,
+    Task.Status.REJECTED,
+    Task.Status.CLOSED,
+    Task.Status.REVERSED,
+)
 
 
 PROPOSAL_VOTE_CHOICES = {
@@ -166,15 +179,53 @@ def workspace_page(request: HttpRequest):
 
 @require_GET
 @never_cache
-def workspace_task_detail(request: HttpRequest, task_id: str):
-    member = current_member_or_forbidden(request)
+def workspace_tasks(request: HttpRequest):
+    member = current_full_member_or_forbidden(request)
     if isinstance(member, HttpResponseForbidden):
         return member
-    decision = workspace_access_decision(member)
-    if not decision.allowed:
-        return page_forbidden("报名审核完成前不能查看任务详情。")
-    task = get_object_or_404(Task, task_id=task_id, assignee_member=member)
-    return render(request, "workspace/task_detail.html", {"member": member, "task": task})
+    return render(
+        request,
+        "workspace/tasks.html",
+        {
+            "member": member,
+            "active_tasks": Task.objects.filter(
+                assignee_member=member,
+                status__in=ACTIVE_TASK_STATUSES,
+            ).order_by("due_at", "task_id")[:TASK_LIST_LIMIT],
+            "available_tasks": Task.objects.filter(status=Task.Status.OPEN).order_by(
+                "due_at", "task_id"
+            )[:TASK_LIST_LIMIT],
+            "ended_tasks": Task.objects.filter(
+                assignee_member=member,
+                status__in=ENDED_TASK_STATUSES,
+            ).order_by("-reviewed_at", "-created_at", "task_id")[:TASK_LIST_LIMIT],
+        },
+    )
+
+
+@require_GET
+@never_cache
+def workspace_task_detail(request: HttpRequest, task_id: str):
+    member = current_full_member_or_forbidden(request)
+    if isinstance(member, HttpResponseForbidden):
+        return member
+    task = get_object_or_404(
+        Task.objects.filter(Q(status=Task.Status.OPEN) | Q(assignee_member=member)),
+        task_id=task_id,
+    )
+    is_assignee = task.assignee_member_id == member.pk
+    return render(
+        request,
+        "workspace/task_detail.html",
+        {
+            "member": member,
+            "task": task,
+            "is_assignee": is_assignee,
+            "can_claim": task.status == Task.Status.OPEN,
+            "can_submit_labor": is_assignee
+            and task.status in {Task.Status.CLAIMED, Task.Status.IN_PROGRESS},
+        },
+    )
 
 
 def _latest_member_application(*, user=None, member=None):
@@ -260,14 +311,17 @@ def workspace_claim_task(request: HttpRequest, task_id: str):
     member = current_full_member_or_forbidden(request)
     if isinstance(member, HttpResponseForbidden):
         return member
-    task = get_object_or_404(Task, task_id=task_id)
+    task = get_object_or_404(
+        Task.objects.filter(Q(status=Task.Status.OPEN) | Q(assignee_member=member)),
+        task_id=task_id,
+    )
     try:
         claim_task(task=task, member=member)
     except DomainError as exc:
         messages.error(request, f"领取失败：{exc}")
     else:
         messages.success(request, f"已领取任务：{task.title}")
-    return world_redirect(request, "workspace-page")
+    return world_redirect(request, "workspace-task-detail", task.task_id)
 
 
 @require_POST
@@ -275,12 +329,12 @@ def workspace_submit_labor(request: HttpRequest, task_id: str):
     member = current_full_member_or_forbidden(request)
     if isinstance(member, HttpResponseForbidden):
         return member
-    task = get_object_or_404(Task, task_id=task_id)
+    task = get_object_or_404(Task, task_id=task_id, assignee_member=member)
     labor_note = request.POST.get("labor_note", "").strip()
     evidence_refs = parse_evidence_refs(request.POST.get("evidence_refs", ""))
     if not labor_note:
         messages.error(request, "提交失败：劳动说明不能为空。")
-        return world_redirect(request, "workspace-page")
+        return world_redirect(request, "workspace-task-detail", task.task_id)
     try:
         submit_labor(
             task=task,
@@ -292,7 +346,7 @@ def workspace_submit_labor(request: HttpRequest, task_id: str):
         messages.error(request, f"提交失败：{exc}")
     else:
         messages.success(request, f"已提交劳动记录：{task.title}")
-    return world_redirect(request, "workspace-page")
+    return world_redirect(request, "workspace-task-detail", task.task_id)
 
 
 @require_POST

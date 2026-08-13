@@ -165,12 +165,12 @@ class WorkspacePageTests(TestCase):
         self.assertContains(response, "当前积分")
         self.assertContains(response, "10")
         self.assertContains(response, "准备今日午餐")
-        self.assertContains(response, "整理临时仓库货架")
+        self.assertContains(response, "任务中心")
         self.assertContains(response, "历史贡献积分")
         self.assertContains(response, "药品")
         self.assertContains(response, "任务已领取")
         self.assertContains(response, "成员申请复核任务验收标准")
-        self.assertContains(response, "提交劳动")
+        self.assertContains(response, "/workspace/tasks/task-0001/")
         self.assertContains(response, "提交申诉")
         self.assertContains(response, "清理公共厨房")
         self.assertContains(response, "申诉状态")
@@ -181,7 +181,27 @@ class WorkspacePageTests(TestCase):
         response = self.client.get("/workspace/tasks/task-0003/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "清理公共厨房")
-        self.assertContains(response, "任务结果")
+        self.assertContains(response, "任务信息")
+
+    def test_task_center_groups_visible_tasks(self) -> None:
+        response = self.client.get("/workspace/tasks/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "任务中心")
+        self.assertContains(response, "当前任务")
+        self.assertContains(response, "准备今日午餐")
+        self.assertContains(response, "可领取任务")
+        self.assertContains(response, "整理临时仓库货架")
+        self.assertContains(response, "最近结束")
+        self.assertContains(response, "清理公共厨房")
+
+    def test_member_can_open_open_task_detail_without_private_records(self) -> None:
+        response = self.client.get("/workspace/tasks/task-0002/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "整理临时仓库货架")
+        self.assertContains(response, "确认领取")
+        self.assertNotContains(response, "劳动与验收记录")
 
     def test_member_cannot_open_another_members_task_detail(self) -> None:
         other = create_member("other-task-owner", role_name=ROLE_COVENANTER)
@@ -190,6 +210,7 @@ class WorkspacePageTests(TestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_fixed_task_routes_are_not_captured_as_task_details(self) -> None:
+        self.assertEqual(resolve("/workspace/tasks/").url_name, "workspace-tasks")
         self.assertEqual(resolve("/workspace/tasks/new/").url_name, "workspace-tasks-manage")
         self.assertEqual(resolve("/workspace/tasks/review/").url_name, "workspace-tasks-review")
         self.assertEqual(
@@ -244,8 +265,8 @@ class WorkspacePageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.wsgi_request.world_id, "simulation0001")
         self.assertContains(response, "当前世界：simulation0001")
-        self.assertContains(response, "/workspace/tasks/task-0001/submit-labor/")
-        self.assertContains(response, "/workspace/tasks/task-0002/claim/")
+        self.assertContains(response, "/workspace/tasks/")
+        self.assertContains(response, "/workspace/tasks/task-0001/")
         self.assertContains(response, "/workspace/disputes/")
         self.assertNotContains(response, "/world/")
 
@@ -253,7 +274,7 @@ class WorkspacePageTests(TestCase):
         response = self.client.post("/workspace/tasks/task-0002/claim/")
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.headers["Location"], "/workspace/")
+        self.assertEqual(response.headers["Location"], "/workspace/tasks/task-0002/")
         claimed_task = Task.objects.get(task_id="task-0002")
         self.assertEqual(claimed_task.assignee_member, self.member)
         self.assertEqual(claimed_task.status, Task.Status.CLAIMED)
@@ -269,7 +290,7 @@ class WorkspacePageTests(TestCase):
         claimed_task = Task.objects.get(task_id="task-0002")
         self.assertEqual(claimed_task.assignee_member, self.member)
         self.assertEqual(claimed_task.status, Task.Status.CLAIMED)
-        self.assertContains(response, "当前任务")
+        self.assertContains(response, "提交劳动")
         self.assertContains(response, "整理临时仓库货架")
 
     def test_workspace_claim_shows_error_for_non_open_task(self) -> None:
@@ -299,7 +320,7 @@ class WorkspacePageTests(TestCase):
         self.assertEqual(submitted_task.metadata["labor_note"], "已完成今日午餐准备，餐台已清理。")
         self.assertEqual(submitted_task.metadata["evidence_refs"], ["event-0001", "photo-lunch-0001"])
         self.assertContains(response, "待验收")
-        self.assertContains(response, "等待验收")
+        self.assertContains(response, "劳动与验收记录")
         self.assertNotContains(response, "下一步动作")
 
     def test_workspace_submit_labor_requires_note(self) -> None:

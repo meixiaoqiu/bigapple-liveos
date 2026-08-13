@@ -252,7 +252,7 @@ def build_member_matters(
             responsible=member.member_no,
             current_handler=member.member_no if needs_member else "任务验收角色",
             action_label="提交劳动" if needs_member else "等待验收",
-            target_url="/workspace/",
+            target_url=f"/workspace/tasks/{task.task_id}/",
             updated_at=task.submitted_at or task.created_at,
             priority="high" if task.failure_consequence in {
                 Task.FailureConsequence.HIGH, Task.FailureConsequence.CRITICAL

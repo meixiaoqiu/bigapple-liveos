@@ -32,6 +32,7 @@
             </div>
           </div>
           <nav class="flex flex-wrap justify-end gap-2" aria-label="成员工作台导航">
+            <a class="btn btn-sm" href="{% world_url 'workspace-tasks' %}">任务中心</a>
             {% if is_governance %}
               <a class="btn btn-sm" href="{% world_url 'workspace-applications-review' %}">成员报名审核</a>
               <a class="btn btn-sm" href="{% world_url 'workspace-recruitment' %}">招募方向</a>
@@ -91,7 +92,7 @@
         </div>
 
         <div class="alert">
-          <span>迁移期说明：下方原有 Workspace 模块全部保留，后续将逐项确认是否删除或迁移。</span>
+          <span>迁移期说明：未确认的原有 Workspace 模块继续保留，已确认迁移的任务功能请进入任务中心。</span>
         </div>
       </div>
     </section>
@@ -164,104 +165,9 @@
         <div class="stat-desc">累计任务奖励</div>
       </div>
       <div class="stat">
-        <div class="stat-title">可领取任务</div>
-        <div class="stat-value text-info">{{ available_tasks|length }}</div>
-        <div class="stat-desc">开放状态任务</div>
-      </div>
-      <div class="stat">
         <div class="stat-title">资源预警</div>
         <div class="stat-value text-warning">{{ resource_warnings|length }}</div>
         <div class="stat-desc">低于预警线</div>
-      </div>
-    </section>
-
-    <section class="grid gap-6 lg:grid-cols-2">
-      <div class="card bg-base-100 shadow">
-        <div class="card-body">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <h2 class="card-title">当前任务</h2>
-            <span class="badge badge-outline">{{ active_tasks|length }} 个</span>
-          </div>
-          {% if active_tasks %}
-            <div class="overflow-x-auto">
-              <table class="table">
-                <thead>
-                  <tr>
-                    <th>任务</th>
-                    <th>状态</th>
-                    <th>截止</th>
-                    <th>积分</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for task in active_tasks %}
-                    <tr>
-                      <td>
-                        <div class="font-medium">{{ task.title }}</div>
-                        <div class="text-xs text-base-content/60">{{ task.task_id }}</div>
-                      </td>
-                      <td><span class="badge badge-warning badge-outline">{{ task.get_status_display }}</span></td>
-                      <td>{% if task.due_at %}{{ task.due_at|date:"Y-m-d H:i" }}{% else %}未设置{% endif %}</td>
-                      <td>{{ task.base_points }}</td>
-                    </tr>
-                    {% if task.status == "claimed" or task.status == "in_progress" %}
-                      <tr>
-                        <td colspan="4">
-                          <form class="grid gap-3 rounded-box border border-base-300 bg-base-200 p-4" method="post" action="{% world_url 'workspace-submit-labor' task.task_id %}">
-                            {% csrf_token %}
-                            <label class="form-control w-full">
-                              <div class="label"><span class="label-text">劳动说明</span></div>
-                              <textarea class="textarea textarea-bordered w-full" name="labor_note" required></textarea>
-                            </label>
-                            <label class="form-control w-full">
-                              <div class="label"><span class="label-text">证据引用</span></div>
-                              <textarea class="textarea textarea-bordered w-full" name="evidence_refs" placeholder="每行一个事件、图片或文档引用"></textarea>
-                            </label>
-                            <div>
-                              <button class="btn btn-primary" type="submit">提交劳动</button>
-                            </div>
-                          </form>
-                        </td>
-                      </tr>
-                    {% endif %}
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          {% else %}
-            <div class="alert">暂无当前任务</div>
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="card bg-base-100 shadow">
-        <div class="card-body">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <h2 class="card-title">可领取任务</h2>
-            <span class="badge badge-outline">{{ available_tasks|length }} 个</span>
-          </div>
-          {% if available_tasks %}
-            <div class="grid gap-3">
-              {% for task in available_tasks %}
-                <article class="card border border-base-300 bg-base-100">
-                  <div class="card-body gap-3 p-4">
-                    <div>
-                      <h3 class="font-bold">{{ task.title }}</h3>
-                      <p class="text-sm text-base-content/70">{{ task.get_task_type_display }} · {{ task.base_points }} 分 · {{ task.standard_minutes }} 分钟</p>
-                      <p class="text-sm text-base-content/60">截止：{% if task.due_at %}{{ task.due_at|date:"Y-m-d H:i" }}{% else %}未设置{% endif %}</p>
-                    </div>
-                    <form method="post" action="{% world_url 'workspace-claim-task' task.task_id %}">
-                      {% csrf_token %}
-                      <button class="btn btn-outline btn-primary btn-sm" type="submit">领取任务</button>
-                    </form>
-                  </div>
-                </article>
-              {% endfor %}
-            </div>
-          {% else %}
-            <div class="alert">暂无开放任务</div>
-          {% endif %}
-        </div>
       </div>
     </section>
 

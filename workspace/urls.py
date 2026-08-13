@@ -36,6 +36,11 @@ urlpatterns = [
         name="workspace-credits-budgets",
     ),
     path(
+        "tasks/",
+        world_scoped_view(views.workspace_tasks),
+        name="workspace-tasks",
+    ),
+    path(
         "tasks/<str:task_id>/claim/",
         world_scoped_view(views.workspace_claim_task),
         name="workspace-claim-task",

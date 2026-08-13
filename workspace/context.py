@@ -95,16 +95,6 @@ def applicant_workspace_context(member_no: str, *, access_denial_reason: str = "
 def workspace_context(member_no: str) -> dict[str, Any]:
     member = get_object_or_404(Member, member_no=member_no)
     latest = CapacityAssessment.objects.order_by("-simulation_day", "-created_at").first()
-    available_tasks = list(Task.objects.filter(status=Task.Status.OPEN).order_by("due_at", "task_id")[:10])
-    active_task_statuses = [
-        Task.Status.CLAIMED,
-        Task.Status.IN_PROGRESS,
-        Task.Status.PENDING_REVIEW,
-        Task.Status.DISPUTED,
-    ]
-    active_tasks = list(
-        Task.objects.filter(assignee_member=member, status__in=active_task_statuses).order_by("due_at", "task_id")[:10]
-    )
     recent_ledger_entries = list(
         LedgerEntry.objects.filter(member=member).order_by("-system_event__seq", "-created_at", "ledger_entry_id")[:10]
     )
@@ -153,8 +143,6 @@ def workspace_context(member_no: str) -> dict[str, Any]:
         "credit_balance": credit_balance,
         "available_credit_balance": available_credit_balance,
         "lifetime_contribution": lifetime_contribution,
-        "available_tasks": available_tasks,
-        "active_tasks": active_tasks,
         "recent_ledger_entries": recent_ledger_entries,
         "recent_events": recent_events,
         "open_disputes": open_disputes,

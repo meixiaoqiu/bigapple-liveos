@@ -12,18 +12,31 @@
   <main class="mx-auto grid w-full max-w-4xl gap-6 p-4 lg:p-8">
     <header class="card bg-base-100 shadow-xl"><div class="card-body gap-3">
       <div class="flex flex-wrap items-start justify-between gap-3"><div><p class="font-mono text-xs text-base-content/60">{{ task.task_id }}</p><h1 class="card-title text-2xl">{{ task.title }}</h1></div><span class="badge badge-outline">{{ task.get_status_display }}</span></div>
-      <a class="link link-primary text-sm" href="{% world_url 'workspace-page' %}">返回工作台</a>
+      <a class="link link-primary text-sm" href="{% world_url 'workspace-tasks' %}">返回任务中心</a>
     </div></header>
-    <section class="card bg-base-100 shadow"><div class="card-body"><h2 class="card-title">任务结果</h2><dl class="grid gap-3 text-sm sm:grid-cols-2">
+
+    {% if messages %}<section class="grid gap-2" aria-label="操作结果">{% for message in messages %}<div class="alert {% if message.tags == 'success' %}alert-success{% elif message.tags == 'error' %}alert-error{% else %}alert-info{% endif %}"><span>{{ message }}</span></div>{% endfor %}</section>{% endif %}
+
+    <section class="card bg-base-100 shadow"><div class="card-body"><h2 class="card-title">任务信息</h2><dl class="grid gap-3 text-sm sm:grid-cols-2">
       <div><dt class="font-semibold">任务类型</dt><dd>{{ task.get_task_type_display }}</dd></div><div><dt class="font-semibold">状态</dt><dd>{{ task.get_status_display }}</dd></div>
+      <div><dt class="font-semibold">基础积分</dt><dd>{{ task.base_points }}</dd></div><div><dt class="font-semibold">标准工时</dt><dd>{{ task.standard_minutes }} 分钟</dd></div>
       <div><dt class="font-semibold">创建时间</dt><dd>{{ task.created_at|date:"Y-m-d H:i" }}</dd></div><div><dt class="font-semibold">截止时间</dt><dd>{{ task.due_at|date:"Y-m-d H:i"|default:"未记录" }}</dd></div>
-      <div><dt class="font-semibold">提交时间</dt><dd>{{ task.submitted_at|date:"Y-m-d H:i"|default:"未记录" }}</dd></div><div><dt class="font-semibold">验收时间</dt><dd>{{ task.reviewed_at|date:"Y-m-d H:i"|default:"未记录" }}</dd></div>
+      {% if is_assignee %}<div><dt class="font-semibold">提交时间</dt><dd>{{ task.submitted_at|date:"Y-m-d H:i"|default:"未记录" }}</dd></div><div><dt class="font-semibold">验收时间</dt><dd>{{ task.reviewed_at|date:"Y-m-d H:i"|default:"未记录" }}</dd></div>{% endif %}
     </dl></div></section>
-    <section class="card bg-base-100 shadow"><div class="card-body gap-4"><h2 class="card-title">劳动与验收记录</h2>
+
+    {% if can_claim %}<section class="card border border-primary bg-base-100 shadow"><div class="card-body"><h2 class="card-title">领取任务</h2><p>领取后，该任务将进入你的当前任务。</p><form method="post" action="{% world_url 'workspace-claim-task' task.task_id %}">{% csrf_token %}<button class="btn btn-primary" type="submit">确认领取</button></form></div></section>{% endif %}
+
+    {% if can_submit_labor %}<section class="card bg-base-100 shadow"><form class="card-body gap-4" method="post" action="{% world_url 'workspace-submit-labor' task.task_id %}">{% csrf_token %}<h2 class="card-title">提交劳动</h2>
+      <label class="form-control w-full"><div class="label"><span class="label-text">劳动说明</span></div><textarea class="textarea textarea-bordered w-full" name="labor_note" required></textarea></label>
+      <label class="form-control w-full"><div class="label"><span class="label-text">证据引用</span></div><textarea class="textarea textarea-bordered w-full" name="evidence_refs" placeholder="每行一个事件、图片或文档引用"></textarea></label>
+      <div><button class="btn btn-primary" type="submit">提交劳动</button></div>
+    </form></section>{% endif %}
+
+    {% if is_assignee %}<section class="card bg-base-100 shadow"><div class="card-body gap-4"><h2 class="card-title">劳动与验收记录</h2>
       <div><h3 class="font-semibold">劳动说明</h3><p class="mt-1 whitespace-pre-wrap">{{ task.metadata.labor_note|default:"未记录" }}</p></div>
       <div><h3 class="font-semibold">证据</h3>{% if task.metadata.evidence_refs %}<ul class="mt-1 list-inside list-disc">{% for ref in task.metadata.evidence_refs %}<li class="font-mono text-sm">{{ ref }}</li>{% endfor %}</ul>{% else %}<p class="mt-1">未记录</p>{% endif %}</div>
       <div><h3 class="font-semibold">验收说明</h3><p class="mt-1 whitespace-pre-wrap">{{ task.metadata.review_reason|default:"未记录" }}</p></div>
-    </div></section>
+    </div></section>{% endif %}
   </main>
 </body>
 </html>
