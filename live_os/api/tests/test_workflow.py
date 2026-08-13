@@ -618,7 +618,7 @@ class ApiWorkflowTests(TestCase):
         self.assertNotIn("active_tasks", payload)
         self.assertNotIn("task_history", payload)
         self.assertEqual(payload["recent_ledger_entries"][0]["ledger_entry_id"], "ledger-0001")
-        self.assertEqual(payload["recent_events"][0]["event_id"], event.event_id)
+        self.assertNotIn("recent_events", payload)
         self.assertEqual(payload["open_disputes"][0]["dispute_id"], "dispute-0001")
         self.assertEqual(payload["dispute_history"][0]["dispute_id"], "dispute-0001")
         self.assertNotIn("reviewer", payload["dispute_history"][0])

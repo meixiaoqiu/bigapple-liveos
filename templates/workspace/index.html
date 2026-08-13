@@ -204,36 +204,7 @@
 
     </section>
 
-    <section class="grid gap-6 lg:grid-cols-2">
-      <div class="card bg-base-100 shadow">
-        <div class="card-body">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <h2 class="card-title">相关事件</h2>
-            <span class="badge badge-outline">{{ recent_events|length }} 条</span>
-          </div>
-          {% if recent_events %}
-            <div class="grid gap-3">
-              {% for event in recent_events %}
-                <article class="card border border-base-300 bg-base-100">
-                  <div class="card-body gap-2 p-4">
-                    <div>
-                      <span class="badge {% if event.severity == 'warning' %}badge-warning{% elif event.severity == 'critical' %}badge-error{% else %}badge-info{% endif %} badge-outline">
-                        {{ event.get_severity_display }}
-                      </span>
-                    </div>
-                    <h3 class="font-bold">{{ event.title }}</h3>
-                    <p class="text-sm text-base-content/70">{{ event.summary }}</p>
-                    <p class="text-xs text-base-content/60">第 {{ event.simulation_day }} 天 · {{ event.occurred_at|date:"Y-m-d H:i" }}</p>
-                  </div>
-                </article>
-              {% endfor %}
-            </div>
-          {% else %}
-            <div class="alert">暂无相关事件</div>
-          {% endif %}
-        </div>
-      </div>
-
+    <section class="grid gap-6">
       <div class="card bg-base-100 shadow" id="dispute-status">
         <div class="card-body">
           <div class="flex flex-wrap items-center justify-between gap-3">

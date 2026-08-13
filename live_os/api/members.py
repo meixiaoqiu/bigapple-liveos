@@ -14,7 +14,6 @@ from workspace.context import workspace_context
 
 from .serializers import (
     dispute_to_contract,
-    event_to_contract,
     ledger_entry_to_contract,
     member_to_contract,
 )
@@ -46,7 +45,6 @@ def get_workspace_summary(request: HttpRequest, member_no: str, **_kwargs) -> Js
                 ledger_entry_to_contract(entry)
                 for entry in context["recent_ledger_entries"]
             ],
-            "recent_events": [event_to_contract(event) for event in context["recent_events"]],
             "open_disputes": [dispute_to_contract(dispute) for dispute in context["open_disputes"]],
             "dispute_history": [dispute_to_contract(dispute) for dispute in context["dispute_history"]],
             "task_counts": context["task_counts"],

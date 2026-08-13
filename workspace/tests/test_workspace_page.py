@@ -168,7 +168,7 @@ class WorkspacePageTests(TestCase):
         self.assertContains(response, "任务中心")
         self.assertContains(response, "历史贡献积分")
         self.assertNotContains(response, "资源预警")
-        self.assertContains(response, "任务已领取")
+        self.assertNotContains(response, "相关事件")
         self.assertContains(response, "成员申请复核任务验收标准")
         self.assertContains(response, "/workspace/tasks/task-0001/")
         self.assertContains(response, "提交申诉")

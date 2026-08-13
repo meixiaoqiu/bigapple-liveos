@@ -19,7 +19,6 @@ from core.identity_display import member_identity_display
 from core.models import (
     CapacityAssessment,
     Dispute,
-    Event,
     LedgerEntry,
     Member,
     MemberApplication,
@@ -120,12 +119,6 @@ def workspace_context(member_no: str) -> dict[str, Any]:
     available_credit_balance = member_available_credit_balance(member)
     lifetime_contribution = member_lifetime_contribution(member)
 
-    recent_events = []
-    for event in Event.objects.order_by("-occurred_at", "event_id")[:50]:
-        if member.member_no in event.involved_member_ids:
-            recent_events.append(event)
-        if len(recent_events) >= 10:
-            break
     return {
         "simulation_day": latest.simulation_day if latest else 1,
         "member": member,
@@ -140,7 +133,6 @@ def workspace_context(member_no: str) -> dict[str, Any]:
         "available_credit_balance": available_credit_balance,
         "lifetime_contribution": lifetime_contribution,
         "recent_ledger_entries": recent_ledger_entries,
-        "recent_events": recent_events,
         "open_disputes": open_disputes,
         "dispute_history": dispute_history,
         "task_counts": task_counts,
