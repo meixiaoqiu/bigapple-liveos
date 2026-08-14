@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.test import TestCase
 from django.utils import timezone
 
 from core.event_ledger import verify_event_chain
-from core.models import Dispute, SystemEvent, Task
-from core.dispute_services import resolve_dispute, start_dispute_review, submit_dispute
+from core.models import Event, EventFeedback, SystemEvent, Task
+from core.event_feedback_services import conclude_event_feedback, start_event_feedback_verification, submit_event_feedback
 from core.service_utils import actor_ref
 from core.tasks.authoring import assign_task, close_task, create_task_draft, publish_task
 from core.tasks.member_workflow import claim_task, submit_labor
@@ -16,7 +17,7 @@ from core.tests.helpers import create_member
 
 
 class BusinessEventLedgerTests(TestCase):
-    """Task and dispute business actions should append to the unified hash ledger."""
+    """Task and event-feedback business actions append to the unified hash ledger."""
 
     def setUp(self) -> None:
         self.operator = create_member(member_no="member-admin-0001")
@@ -110,7 +111,8 @@ class BusinessEventLedgerTests(TestCase):
         self.assertEqual(created_event.payload_json["public_facts"]["status"], Task.Status.DRAFT)
         self.assertTrue(verify_event_chain())
 
-    def test_dispute_lifecycle_actions_append_system_events(self) -> None:
+    @patch("core.event_feedback_services.member_can_administer", return_value=True)
+    def test_event_feedback_lifecycle_actions_append_system_events(self, _can_administer) -> None:
         task = Task.objects.create(
             task_id="task-dispute-0001",
             title="申诉关联任务",
@@ -127,28 +129,27 @@ class BusinessEventLedgerTests(TestCase):
             created_at=timezone.now(),
         )
 
-        dispute = submit_dispute(
-            claimant=self.worker,
-            dispute_type=Dispute.DisputeType.TASK_REVIEW,
-            facts="认为验收结论需要复核。",
-            evidence_refs=["task-dispute-0001"],
-            related_task=task,
+        event = Event.objects.create(event_id="event-feedback-ledger", event_type=Event.EventType.TASK, simulation_day=1, severity=Event.Severity.INFO, title="验收事件", summary="验收事件", related_task=task, occurred_at=timezone.now(), generated_by=Event.GeneratedBy.LIVE_OS, visibility=Event.Visibility.PUBLIC)
+        feedback = submit_event_feedback(
+            related_event=event, submitted_by=self.worker,
+            feedback_type=EventFeedback.FeedbackType.REVIEW,
+            statement="认为验收结论需要复核。", evidence_refs=["task-dispute-0001"],
         )
-        start_dispute_review(dispute=dispute, handler=self.operator_ref, note="进入复核")
-        dispute.refresh_from_db()
-        resolve_dispute(dispute=dispute, reviewer=self.operator_ref, decision="resolved", resolution="申诉成立")
+        start_event_feedback_verification(feedback=feedback, handler=self.operator)
+        feedback.refresh_from_db()
+        conclude_event_feedback(feedback=feedback, handler=self.operator, conclusion=EventFeedback.Conclusion.CONFIRMED, conclusion_reason="反馈成立")
 
         expected_events = {
-            SystemEvent.EventType.DISPUTE_CREATED,
-            SystemEvent.EventType.DISPUTE_REVIEW_STARTED,
-            SystemEvent.EventType.DISPUTE_RESOLVED,
+            SystemEvent.EventType.EVENT_FEEDBACK_SUBMITTED,
+            SystemEvent.EventType.EVENT_FEEDBACK_VERIFICATION_STARTED,
+            SystemEvent.EventType.EVENT_FEEDBACK_CONCLUDED,
         }
-        actual_events = set(SystemEvent.objects.filter(aggregate_type="Dispute").values_list("event_type", flat=True))
+        actual_events = set(SystemEvent.objects.filter(aggregate_type="EventFeedback").values_list("event_type", flat=True))
 
         self.assertEqual(expected_events, actual_events)
         self.assert_system_event_exists(
-            event_type=SystemEvent.EventType.DISPUTE_RESOLVED,
-            aggregate_type="Dispute",
-            aggregate_id=dispute.pk,
+            event_type=SystemEvent.EventType.EVENT_FEEDBACK_CONCLUDED,
+            aggregate_type="EventFeedback",
+            aggregate_id=feedback.pk,
         )
         self.assertTrue(verify_event_chain())

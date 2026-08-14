@@ -9,7 +9,7 @@ from django.utils import timezone
 from worlds.command_context import command_world_context, command_world_label
 
 from live_os.demo_seed.capacity import seed_capacity
-from live_os.demo_seed.disputes import seed_disputes
+from live_os.demo_seed.event_feedbacks import seed_event_feedbacks
 from live_os.demo_seed.events import seed_events
 from live_os.demo_seed.ledger import seed_ledger
 from live_os.demo_seed.members import seed_members
@@ -50,7 +50,7 @@ class Command(BaseCommand):
             tasks = seed_tasks(now=now, mark=mark, ruleset=ruleset, plan_nodes=plan_nodes, members=members)
             seed_events(now=now, mark=mark, members=members, tasks=tasks)
             ledgers = seed_ledger(now=now, mark=mark, ruleset=ruleset, members=members, tasks=tasks)
-            seed_disputes(now=now, mark=mark, members=members, tasks=tasks, ledgers=ledgers)
+            seed_event_feedbacks(now=now, mark=mark, members=members)
             seed_capacity(now=now, mark=mark, ruleset=ruleset)
 
             self.stdout.write(

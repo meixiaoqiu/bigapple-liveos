@@ -1,6 +1,6 @@
 ## Context
 
-参见 `proposal.md`。当前同一组 `available_tasks`、`active_tasks`、`open_disputes` 和 `resource_warnings` 数据既供领域模块使用，也被额外转换为 `next_actions`。转换结果同时进入 HTML context 与 Workspace Summary API，API 字段已由 sibling docs 仓库中的 JSON Schema 声明为必填。
+参见 `proposal.md`。实施当时同一组任务、旧申诉和资源预警数据既供领域模块使用，也被额外转换为 `next_actions`。该冗余转换已经删除；后续独立 change 又将旧申诉替换为事件反馈，并把资源预警迁入库存页。本段只描述删除 `next_actions` 时的历史输入，不表达当前契约字段。
 
 ## Goals / Non-Goals
 

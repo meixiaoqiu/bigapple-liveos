@@ -20,7 +20,7 @@ def event_to_contract(event: Event) -> dict[str, Any]:
             "summary": event.summary,
             "involved_member_ids": event.involved_member_ids,
             "related_task_id": event.related_task_id,
-            "related_dispute_id": event.related_dispute_id,
+            "related_feedback_id": event.related_feedback_id,
             "occurred_at": encode_value(event.occurred_at),
             "generated_by": event.generated_by,
             "visibility": event.visibility,

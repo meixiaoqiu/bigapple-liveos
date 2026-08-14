@@ -12,7 +12,6 @@ from typing import Any
 from .event_ledger import PUBLIC_LEDGER_SCHEMA
 from .models import (
     ApprovalProposal,
-    Dispute,
     LedgerEntry,
     Member,
     Proposal,
@@ -269,47 +268,6 @@ def resource_adjustment_payload(
             _private("warning_threshold", reason="预警阈值"),
             _private("reason_raw", present=bool(reason), reason="调整原因不公开"),
             _private("actor", present=bool(actor), reason="操作人属于隐私"),
-        ],
-    )
-
-
-def dispute_event_payload(
-    dispute: Dispute,
-    *,
-    action: str,
-    actor: dict[str, Any] | None = None,
-    previous_status: str = "",
-    extra: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    claimant_label = _public_member_label(
-        _member_label(dispute.claimant_member), dispute.claimant_member.member_no
-    ) if dispute.claimant_member_id else ""
-    return _public_event_payload(
-        subject_type="dispute",
-        subject_ref=_public_ref("dispute", dispute.dispute_id),
-        subject_label=dispute.dispute_type,
-        action=action,
-        stage=dispute.status,
-        summary=f"申诉 {dispute.get_dispute_type_display()}（{claimant_label}）{action}。",
-        public_facts={
-            "dispute_type": dispute.dispute_type,
-            "status": dispute.status,
-            "claimant_label": claimant_label,
-        },
-        private_commitments=[
-            _private("claimant_member_no", reason="申诉人编号属于隐私"),
-            _private("claimant_member_id", reason="申诉人内部ID"),
-            _private("respondent_member_no", reason="被申诉人编号属于隐私"),
-            _private("respondent_member_id", reason="被申诉人内部ID"),
-            _private("related_task_id", reason="关联任务内部ID"),
-            _private("related_ledger_entry_id", reason="关联账本内部ID"),
-            _private("facts", reason="详细事实不公开"),
-            _private("evidence_refs", reason="证据引用不公开"),
-            _private("handler", reason="处理人标识"),
-            _private("reviewer", reason="审核人标识"),
-            _private("resolution_raw", present=bool(dispute.resolution), reason="处理结果原文不公开"),
-            _private("actor", present=bool(actor), reason="操作人属于隐私"),
-            _private("metadata", present=bool(dispute.metadata), reason="元数据"),
         ],
     )
 

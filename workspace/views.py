@@ -22,7 +22,6 @@ from applications.simulation_metadata import metadata_from_signed_form_post
 from core.access import member_can_administer
 from core.authorization_services import AuthorizationService
 from core.application_services import submit_member_application
-from core.dispute_services import submit_dispute
 from core.exceptions import DomainError
 from core.identity_services import ensure_basic_member_for_user
 from core.models import Member, MemberApplication, Proposal, ProposalVote, Task
@@ -347,40 +346,6 @@ def workspace_submit_labor(request: HttpRequest, task_id: str):
     else:
         messages.success(request, f"已提交劳动记录：{task.title}")
     return world_redirect(request, "workspace-task-detail", task.task_id)
-
-
-@require_POST
-def workspace_create_dispute(request: HttpRequest):
-    member = current_full_member_or_forbidden(request)
-    if isinstance(member, HttpResponseForbidden):
-        return member
-    dispute_type = request.POST.get("dispute_type", "")
-    facts = request.POST.get("facts", "")
-    evidence_refs = parse_evidence_refs(request.POST.get("evidence_refs", ""))
-    related_task = None
-    related_task_id = request.POST.get("related_task_id", "").strip()
-    if related_task_id:
-        related_task = (
-            Task.objects.filter(task_id=related_task_id)
-            .filter(Q(status=Task.Status.OPEN) | Q(assignee_member=member))
-            .first()
-        )
-        if related_task is None:
-            messages.error(request, "提交失败：关联任务不在当前成员可见范围内。")
-            return world_redirect(request, "workspace-page")
-    try:
-        dispute = submit_dispute(
-            claimant=member,
-            dispute_type=dispute_type,
-            facts=facts,
-            evidence_refs=evidence_refs,
-            related_task=related_task,
-        )
-    except DomainError as exc:
-        messages.error(request, f"提交失败：{exc}")
-    else:
-        messages.success(request, f"已提交申诉：{dispute.dispute_id}")
-    return world_redirect(request, "workspace-page")
 
 
 # --- Member-application review module -------------------------------------------------

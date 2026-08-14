@@ -7,7 +7,7 @@ from typing import Any
 from django.db.models import F
 from django.utils import timezone
 
-from core.models import CapacityAssessment, Dispute, Event, Member, ProjectPlan, Resource, SimulationRun, Task
+from core.models import CapacityAssessment, Event, EventFeedback, Member, ProjectPlan, Resource, SimulationRun, Task
 from live_os.api.serializers.events import public_event_summary
 
 from .event_context import is_member_application_stage_event, public_member_application_rows
@@ -32,10 +32,10 @@ def observer_command_dashboard_context() -> dict[str, Any]:
     recent_events_all = list(Event.objects.filter(visibility=Event.Visibility.PUBLIC).order_by("-occurred_at", "event_id")[:12])
     recent_events = [e for e in recent_events_all if not is_member_application_stage_event(e)][:8]
     warning_resources = Resource.objects.filter(current_stock__lte=F("warning_threshold")).count()
-    open_disputes_queryset = Dispute.objects.exclude(
-        status__in=[Dispute.Status.RESOLVED, Dispute.Status.REJECTED, Dispute.Status.REVERSED]
+    active_feedbacks_queryset = EventFeedback.objects.exclude(
+        status__in=[EventFeedback.Status.CLOSED, EventFeedback.Status.WITHDRAWN]
     )
-    open_disputes_count = open_disputes_queryset.count()
+    active_feedbacks_count = active_feedbacks_queryset.count()
 
     capacity_current = latest.current_covenanters if latest else Member.objects.filter(status=Member.Status.ACTIVE).count()
     capacity_total = latest.maximum_admissible_members if latest else max(capacity_current, 0)
@@ -51,10 +51,10 @@ def observer_command_dashboard_context() -> dict[str, Any]:
             "summary": "近期存在重大公开事件，需要优先处理。",
             "level": "critical",
         }
-    elif warning_resources or open_disputes_count or capacity_usage >= 85:
+    elif warning_resources or active_feedbacks_count or capacity_usage >= 85:
         health = {
             "label": "需要关注",
-            "summary": "当前存在资源、容量或申诉压力，需要运营跟进。",
+            "summary": "当前存在资源、容量或事件反馈压力，需要运营跟进。",
             "level": "warning",
         }
     else:
@@ -121,14 +121,14 @@ def observer_command_dashboard_context() -> dict[str, Any]:
         )[:3]:
             role_pressure.append({"name": RISK_LABELS.get(name, name), "value": value})
 
-    pending_disputes = [
+    active_feedbacks = [
         {
-            "id": dispute.dispute_id,
-            "title": dispute.get_dispute_type_display(),
-            "status": dispute.get_status_display(),
-            "age": relative_age(dispute.submitted_at),
+            "id": feedback.feedback_id,
+            "title": feedback.get_feedback_type_display(),
+            "status": feedback.get_status_display(),
+            "age": relative_age(feedback.submitted_at),
         }
-        for dispute in open_disputes_queryset.order_by("-submitted_at", "dispute_id")[:3]
+        for feedback in active_feedbacks_queryset.order_by("-submitted_at", "feedback_id")[:3]
     ]
 
     status = latest_run.get_status_display() if latest_run else ("运行中" if active_plan else "待初始化")
@@ -167,8 +167,8 @@ def observer_command_dashboard_context() -> dict[str, Any]:
             },
             {
                 "icon": "争",
-                "label": "未关闭申诉",
-                "value": str(open_disputes_count),
+                "label": "核实中反馈",
+                "value": str(active_feedbacks_count),
                 "note": "需要治理跟进",
             },
         ],
@@ -181,5 +181,5 @@ def observer_command_dashboard_context() -> dict[str, Any]:
             "remaining": max(capacity_total - capacity_current, 0),
         },
         "role_pressure": role_pressure,
-        "pending_disputes": pending_disputes,
+        "active_feedbacks": active_feedbacks,
     }

@@ -84,11 +84,10 @@
                     </form>
                   {% endif %}
                   {% if order.status == "pending" %}
-                    <form method="post" class="inline" onsubmit="var r=prompt('申诉原因（可选）：'); if(r!==null){this.dispute_reason.value=r;return true;}return false;">
+                    <form method="post" class="inline" onsubmit="var r=prompt('履约问题说明（可选）：'); if(r!==null){this.issue_reason.value=r;return true;}return false;">
                       {% csrf_token %}
-                      <input type="hidden" name="dispute" value="{{ order.order_id }}">
-                      <input type="hidden" name="dispute_reason" value="">
-                      <button class="btn btn-xs btn-outline btn-warning" type="submit">申诉</button>
+                      <input type="hidden" name="issue_reason" value="">
+                      <button class="btn btn-xs btn-outline btn-warning" name="report_issue" value="{{ order.order_id }}" type="submit">报告问题</button>
                     </form>
                   {% endif %}
                   {% if order.status == "fulfilled" or order.status == "cancelled" %}

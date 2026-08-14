@@ -12,7 +12,7 @@ from core.models import (
     CapacityAssessment,
     CredentialGrant,
     CredentialTemplate,
-    Dispute,
+    EventFeedback,
     Event,
     LedgerEntry,
     PlanCapacityImpact,
@@ -53,9 +53,7 @@ class SeedDemoTests(TestCase):
         self.assertTrue(Resource.objects.filter(resource_type=Resource.ResourceType.VEGETABLES).exists())
         self.assertTrue(Resource.objects.filter(resource_type=Resource.ResourceType.ELECTRICITY).exists())
 
-        self.assertTrue(Dispute.objects.filter(status=Dispute.Status.SUBMITTED).exists())
-        self.assertTrue(Dispute.objects.filter(status=Dispute.Status.IN_REVIEW).exists())
-        self.assertTrue(Dispute.objects.filter(status=Dispute.Status.RESOLVED).exists())
+        self.assertTrue(EventFeedback.objects.filter(status=EventFeedback.Status.VERIFYING).exists())
 
         reversal = LedgerEntry.objects.get(ledger_entry_id="ledger-0003")
         self.assertEqual(reversal.entry_type, LedgerEntry.EntryType.REVERSAL)
@@ -70,7 +68,7 @@ class SeedDemoTests(TestCase):
         self.assertEqual(latest_capacity.recommended_new_members, 0)
 
         self.assertTrue(Event.objects.filter(event_id="event-resource-0001").exists())
-        self.assertTrue(Event.objects.filter(event_type=Event.EventType.DISPUTE).exists())
+        self.assertTrue(Event.objects.filter(event_type=Event.EventType.EVENT_FEEDBACK).exists())
 
         plan = ProjectPlan.objects.get(plan_id="plan-bigapple001")
         self.assertEqual(plan.name, "bigapple001据点执行计划")
@@ -91,7 +89,7 @@ class SeedDemoTests(TestCase):
             "events": Event.objects.count(),
             "ledger_entries": LedgerEntry.objects.count(),
             "system_events": SystemEvent.objects.count(),
-            "disputes": Dispute.objects.count(),
+            "event_feedbacks": EventFeedback.objects.count(),
             "capacity_assessments": CapacityAssessment.objects.count(),
             "project_plans": ProjectPlan.objects.count(),
             "plan_revisions": PlanRevision.objects.count(),
@@ -107,7 +105,7 @@ class SeedDemoTests(TestCase):
         self.assertEqual(Event.objects.count(), counts_after_first_run["events"])
         self.assertEqual(LedgerEntry.objects.count(), counts_after_first_run["ledger_entries"])
         self.assertEqual(SystemEvent.objects.count(), counts_after_first_run["system_events"])
-        self.assertEqual(Dispute.objects.count(), counts_after_first_run["disputes"])
+        self.assertEqual(EventFeedback.objects.count(), counts_after_first_run["event_feedbacks"])
         self.assertEqual(CapacityAssessment.objects.count(), counts_after_first_run["capacity_assessments"])
         self.assertEqual(ProjectPlan.objects.count(), counts_after_first_run["project_plans"])
         self.assertEqual(PlanRevision.objects.count(), counts_after_first_run["plan_revisions"])
@@ -146,7 +144,7 @@ class SeedDemoTests(TestCase):
             patch("core.management.commands.seed_demo.seed_tasks", side_effect=assert_world_and_return({})),
             patch("core.management.commands.seed_demo.seed_events", side_effect=assert_world_and_return(None)),
             patch("core.management.commands.seed_demo.seed_ledger", side_effect=assert_world_and_return({})),
-            patch("core.management.commands.seed_demo.seed_disputes", side_effect=assert_world_and_return(None)),
+            patch("core.management.commands.seed_demo.seed_event_feedbacks", side_effect=assert_world_and_return(None)),
             patch("core.management.commands.seed_demo.seed_capacity", side_effect=assert_world_and_return(None)),
         ):
             call_command("seed_demo", "--world-id", "simulation0001", stdout=output)

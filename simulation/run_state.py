@@ -144,7 +144,7 @@ def create_simulation_turn_and_event(
         summary=summary,
         involved_member_ids=[],
         related_task=None,
-        related_dispute_id="",
+        related_feedback_id="",
         occurred_at=now,
         generated_by=Event.GeneratedBy.SIMULATION_ENGINE,
         visibility=Event.Visibility.PUBLIC,

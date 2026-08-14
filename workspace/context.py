@@ -18,7 +18,7 @@ from core.application_services import _application_role_gap_label
 from core.identity_display import member_identity_display
 from core.models import (
     CapacityAssessment,
-    Dispute,
+    EventFeedback,
     LedgerEntry,
     Member,
     MemberApplication,
@@ -96,15 +96,14 @@ def workspace_context(member_no: str) -> dict[str, Any]:
     recent_ledger_entries = list(
         LedgerEntry.objects.filter(member=member).order_by("-system_event__seq", "-created_at", "ledger_entry_id")[:10]
     )
-    all_member_disputes = Dispute.objects.filter(Q(claimant_member=member) | Q(respondent_member=member))
-    open_disputes = list(
-        all_member_disputes
-        .exclude(status__in=[Dispute.Status.RESOLVED, Dispute.Status.REJECTED, Dispute.Status.REVERSED])
-        .order_by("-submitted_at", "dispute_id")[:10]
-    )
-    dispute_history = list(all_member_disputes.order_by("-submitted_at", "dispute_id")[:10])
+    all_member_feedbacks = EventFeedback.objects.filter(
+        Q(submitted_by=member) | Q(subject_member=member) | Q(assigned_handler=member)
+    ).select_related("related_event", "submitted_by", "subject_member", "assigned_handler", "concluded_by")
+    open_feedbacks = list(all_member_feedbacks.exclude(
+        status__in=[EventFeedback.Status.CLOSED, EventFeedback.Status.WITHDRAWN]
+    ).order_by("-submitted_at", "feedback_id")[:10])
+    feedback_history = list(all_member_feedbacks.order_by("-submitted_at", "feedback_id")[:10])
     visible_tasks = Task.objects.filter(Q(status=Task.Status.OPEN) | Q(assignee_member=member))
-    dispute_task_options = list(visible_tasks.order_by("-created_at", "task_id")[:20])
     task_counts = {
         row["status"]: row["count"]
         for row in visible_tasks.values("status").annotate(count=Count("task_id")).order_by("status")
@@ -133,14 +132,9 @@ def workspace_context(member_no: str) -> dict[str, Any]:
         "available_credit_balance": available_credit_balance,
         "lifetime_contribution": lifetime_contribution,
         "recent_ledger_entries": recent_ledger_entries,
-        "open_disputes": open_disputes,
-        "dispute_history": dispute_history,
+        "open_feedbacks": open_feedbacks,
+        "feedback_history": feedback_history,
         "task_counts": task_counts,
-        "dispute_task_options": dispute_task_options,
-        "dispute_type_options": [
-            {"value": value, "label": label}
-            for value, label in Dispute.DisputeType.choices
-        ],
         "work_items": _member_work_items(member),
     }
 

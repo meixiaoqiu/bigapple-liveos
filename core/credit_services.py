@@ -1010,12 +1010,12 @@ def _generate_settlement_record(order: RedemptionOrder):
 
 
 @atomic_for_model(RedemptionOrder)
-def dispute_redemption_order(
+def report_redemption_order_issue(
     *,
     order: RedemptionOrder,
     reason: str = "",
 ) -> RedemptionOrder:
-    """Mark a pending order as disputed — no credit movement."""
+    """Report a fulfillment issue on a pending order without moving credits."""
     order = RedemptionOrder.objects.select_for_update().get(pk=order.pk)
     if order.status == RedemptionOrder.Status.FULFILLED:
         raise DomainError("已履约订单不能争议。")
@@ -1028,6 +1028,6 @@ def dispute_redemption_order(
 
     order.status = RedemptionOrder.Status.DISPUTED
     order.updated_at = timezone.now()
-    order.metadata = {**(order.metadata or {}), "dispute_reason": reason or ""}
+    order.metadata = {**(order.metadata or {}), "issue_reason": reason or ""}
     order.save(update_fields=["status", "updated_at", "metadata"])
     return order

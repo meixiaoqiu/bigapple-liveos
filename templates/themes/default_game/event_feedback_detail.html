@@ -1,0 +1,28 @@
+{% extends "themes/default_game/base.html" %}
+{% load world_urls %}
+{% block title %}事件反馈 {{ feedback.feedback_id }}{% endblock %}
+{% block body %}
+{% include "partials/runtime_header.html" %}
+<main class="mx-auto grid max-w-3xl gap-5 p-4 lg:p-6">
+  <article class="card bg-base-100 shadow"><div class="card-body gap-3">
+    <div class="flex justify-between"><h1 class="card-title">{{ feedback.get_feedback_type_display }} · {{ feedback.feedback_id }}</h1><span class="badge badge-outline">{{ feedback.get_status_display }}</span></div>
+    {% if show_private_content %}<p class="whitespace-pre-wrap">{{ feedback.statement }}</p>{% else %}<p>详细内容仅相关方和处理人可见。</p>{% endif %}
+    <p class="text-sm"><strong>提交人：</strong>{% if show_submitter %}{{ feedback.submitted_by.member_no }}{% else %}身份受限{% endif %}</p>
+    {% if show_private_content and feedback.requested_outcome %}<p class="text-sm"><strong>期望结果：</strong>{{ feedback.requested_outcome }}</p>{% endif %}
+    {% if show_private_content and feedback.response_statement %}<div class="alert"><span><strong>相关方回应：</strong>{{ feedback.response_statement }}</span></div>{% endif %}
+    {% if feedback.conclusion %}<div class="alert alert-info"><span><strong>结论：</strong>{{ feedback.get_conclusion_display }}。{{ feedback.conclusion_reason }}</span></div>{% endif %}
+    {% if feedback.resolution_event_id %}<a class="link" href="{% world_url 'observer-event-detail' feedback.resolution_event_id %}">查看结果事件</a>{% endif %}
+    <a class="link" href="{% world_url 'observer-event-detail' feedback.related_event_id %}">返回原事件</a>
+  </div></article>
+  {% if member %}<section class="card bg-base-100 shadow"><div class="card-body gap-3"><h2 class="card-title">可执行动作</h2>
+    {% if member.pk == feedback.submitted_by_id and feedback.status == 'submitted' %}<form method="post">{% csrf_token %}<button class="btn btn-outline" name="action" value="withdraw">撤回</button></form>{% endif %}
+    {% if member.pk == feedback.subject_member_id and feedback.status == 'awaiting_response' %}<form method="post" class="grid gap-2">{% csrf_token %}<textarea class="textarea textarea-bordered" name="response_statement" required></textarea><button class="btn btn-primary justify-self-start" name="action" value="respond">正式回应</button></form>{% endif %}
+    {% if is_handler %}
+      {% if feedback.status == 'submitted' %}<form method="post">{% csrf_token %}<button class="btn btn-primary" name="action" value="start">开始核实</button></form>{% endif %}
+      {% if feedback.status == 'verifying' and feedback.subject_member_id %}<form method="post">{% csrf_token %}<button class="btn btn-outline" name="action" value="request_response">请求相关方回应</button></form>{% endif %}
+      {% if feedback.status == 'verifying' or feedback.status == 'awaiting_response' %}<form method="post" class="grid gap-2">{% csrf_token %}<select class="select select-bordered" name="conclusion">{% for value,label in conclusion_options %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select><textarea class="textarea textarea-bordered" name="conclusion_reason" placeholder="结论依据" required></textarea><button class="btn btn-primary justify-self-start" name="action" value="conclude">形成结论</button></form>{% endif %}
+      {% if feedback.status == 'concluded' %}<form method="post">{% csrf_token %}<button class="btn btn-primary" name="action" value="close">结束反馈</button></form>{% endif %}
+    {% endif %}
+  </div></section>{% endif %}
+</main>
+{% endblock %}

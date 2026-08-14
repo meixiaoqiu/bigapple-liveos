@@ -31,7 +31,7 @@ def _default_dashboard_context() -> dict[str, Any]:
         "resources": [],
         "risk_summary": {"high": 0, "medium": 0, "low": 0, "resolved": 0},
         "role_pressure": [],
-        "pending_disputes": [],
+        "active_feedbacks": [],
         "capacity": {"current": 0, "total": 0, "percent": 0, "safe_threshold": 85, "remaining": 0},
         "navigation": [
             {"key": "overview", "label": "总览", "href": "/"},

@@ -15,7 +15,7 @@ from core.credit_services import (
     cancel_redemption_order,
     create_redemption_order,
     credit_balance,
-    dispute_redemption_order,
+    report_redemption_order_issue,
     ensure_system_accounts,
     fulfill_redemption_order,
     get_or_create_member_credit_account,
@@ -762,14 +762,14 @@ class RedemptionOrderTests(TestCase):
         self._give_credits(100)
         order, _ = create_redemption_order(member=self.member, credit_amount=30)
         bal_before = credit_balance(self.acct)
-        disputed = dispute_redemption_order(order=order, reason="wrong item")
+        disputed = report_redemption_order_issue(order=order, reason="wrong item")
         self.assertEqual(disputed.status, RedemptionOrder.Status.DISPUTED)
         self.assertEqual(credit_balance(self.acct), bal_before)
 
     def test_disputed_can_be_fulfilled(self):
         self._give_credits(100)
         order, _ = create_redemption_order(member=self.member, credit_amount=30)
-        dispute_redemption_order(order=order, reason="test")
+        report_redemption_order_issue(order=order, reason="test")
         fulfilled = fulfill_redemption_order(order=order)
         self.assertEqual(fulfilled.status, RedemptionOrder.Status.FULFILLED)
 

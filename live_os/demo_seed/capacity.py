@@ -27,7 +27,7 @@ def seed_capacity(*, now, mark, ruleset: Ruleset) -> None:
                     "task_gap": 18,
                     "average_satisfaction": 61,
                     "average_fatigue": 67,
-                    "open_disputes": 4,
+                    "active_feedbacks": 4,
                     "exit_risk_members": 9,
                 },
                 "reasons": [
@@ -50,7 +50,7 @@ def seed_capacity(*, now, mark, ruleset: Ruleset) -> None:
                 "current_contributors": 900,
                 "maximum_admissible_members": 112,
                 "recommended_new_members": 0,
-                "bottlenecks": ["medicine", "repair_capacity", "open_disputes"],
+                "bottlenecks": ["medicine", "repair_capacity", "active_feedbacks"],
                 "risk_indicators": {
                     "beds_available": 42,
                     "medicine_stock": 18,
@@ -58,7 +58,7 @@ def seed_capacity(*, now, mark, ruleset: Ruleset) -> None:
                     "task_gap": 26,
                     "average_satisfaction": 55,
                     "average_fatigue": 72,
-                    "open_disputes": 2,
+                    "active_feedbacks": 2,
                     "exit_risk_members": 14,
                 },
                 "reasons": [

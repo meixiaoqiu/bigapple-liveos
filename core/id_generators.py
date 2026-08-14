@@ -5,27 +5,27 @@ from __future__ import annotations
 from uuid import uuid4
 
 from .exceptions import DomainError
-from .models import Dispute, Event, ResourceTransaction, Task
+from .models import Event, EventFeedback, ResourceTransaction, Task
 
 
-def generate_dispute_id() -> str:
-    """Allocate a user-created dispute id without relying on database sequences."""
-
-    for _ in range(5):
-        dispute_id = f"dispute-{uuid4().hex[:12]}"
-        if not Dispute.objects.filter(dispute_id=dispute_id).exists():
-            return dispute_id
-    raise DomainError("无法生成申诉 ID，请重试。")
-
-
-def generate_dispute_event_id() -> str:
-    """Allocate a dispute event id without relying on database sequences."""
+def generate_event_feedback_id() -> str:
+    """Allocate an event-feedback id without relying on database sequences."""
 
     for _ in range(5):
-        event_id = f"event-dispute-{uuid4().hex[:12]}"
+        feedback_id = f"feedback-{uuid4().hex[:12]}"
+        if not EventFeedback.objects.filter(feedback_id=feedback_id).exists():
+            return feedback_id
+    raise DomainError("无法生成事件反馈 ID，请重试。")
+
+
+def generate_event_feedback_event_id() -> str:
+    """Allocate an event-feedback Event id without relying on database sequences."""
+
+    for _ in range(5):
+        event_id = f"event-feedback-{uuid4().hex[:12]}"
         if not Event.objects.filter(event_id=event_id).exists():
             return event_id
-    raise DomainError("无法生成申诉事件 ID，请重试。")
+    raise DomainError("无法生成事件反馈事件 ID，请重试。")
 
 
 def generate_task_id() -> str:

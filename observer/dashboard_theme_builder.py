@@ -162,9 +162,9 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
     if role_pressure:
         context["role_pressure"] = role_pressure[:3]
 
-    pending_disputes = []
-    for item in command_dashboard.get("pending_disputes") or []:
-        pending_disputes.append(
+    active_feedbacks = []
+    for item in command_dashboard.get("active_feedbacks") or []:
+        active_feedbacks.append(
             {
                 "id": str(item.get("id") or ""),
                 "title": str(item.get("title") or "未命名争议"),
@@ -172,8 +172,8 @@ def build_dashboard_theme_context(request: HttpRequest, raw_data: dict[str, Any]
                 "age": str(item.get("age") or ""),
             }
         )
-    if pending_disputes:
-        context["pending_disputes"] = pending_disputes[:3]
+    if active_feedbacks:
+        context["active_feedbacks"] = active_feedbacks[:3]
 
     capacity = command_dashboard.get("capacity") or {}
     current_text = str(capacity.get("current") or "0 / 0")

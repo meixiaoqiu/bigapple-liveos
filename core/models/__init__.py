@@ -37,7 +37,8 @@ from .simulation_runs import (
 from .simulation_archives import SimulationRunDisposition, SimulationSnapshot, SimulationSnapshotItem
 from .operations import LedgerEntry, Resource, ResourceTransaction, SupplierQuote, Task
 from .events import Event, SystemEvent
-from .disputes import CapacityAssessment, Dispute
+from .disputes import CapacityAssessment
+from .event_feedback import EventFeedback
 from .feedback import CommunityFeedback
 from .finance import ExpenseClaim, FinanceReview, FinanceTransaction, PaymentExecution
 from .attachments import Attachment, ExpenseClaimAttachment
@@ -91,7 +92,7 @@ __all__ = [
     "ResourceTransaction",
     "SystemEvent",
     "Event",
-    "Dispute",
+    "EventFeedback",
     "CapacityAssessment",
     "CommunityFeedback",
     "ExpenseClaim",

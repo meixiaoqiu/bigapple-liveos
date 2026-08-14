@@ -27,6 +27,7 @@ urlpatterns = [
     ),
     path("events/", page_views.observer_events_list, name="observer-events-list"),
     path("events/<str:event_id>/", page_views.observer_event_detail, name="observer-event-detail"),
+    path("event-feedbacks/<str:feedback_id>/", page_views.observer_event_feedback_detail, name="observer-event-feedback-detail"),
     path("member-applications/<str:application_id>/", page_views.observer_member_application_detail, name="observer-member-application-detail"),
     path("u/<str:member_no>/", page_views.observer_member_profile, name="observer-member-profile"),
     path("u/<str:member_no>/avatar/", page_views.observer_member_avatar, name="observer-member-avatar"),

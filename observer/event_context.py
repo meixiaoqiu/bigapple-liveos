@@ -26,7 +26,7 @@ _PUBLIC_PAYLOAD_WHITELIST: frozenset[str] = frozenset([
     "proposal_no",
     "task_id",
     "resource_id",
-    "dispute_id",
+    "feedback_id",
     "status",
     "action_type",
     "source",
@@ -71,7 +71,7 @@ _GENERIC_LABEL_MAP: dict[str, str] = {
     "proposal_no": "提案编号",
     "task_id": "任务编号",
     "resource_id": "资源编号",
-    "dispute_id": "申诉编号",
+    "feedback_id": "反馈编号",
     "status": "状态",
     "action_type": "操作类型",
     "source": "来源",
@@ -152,7 +152,7 @@ def public_event_row(event: Event) -> dict[str, Any]:
         "generated_by": event.get_generated_by_display(),
         "simulation_day": event.simulation_day,
         "related_task_id": event.related_task_id,
-        "related_dispute_id": event.related_dispute_id,
+        "related_feedback_id": event.related_feedback_id,
         "detail_url": f"/events/{event.event_id}/",
     }
 
@@ -530,8 +530,8 @@ def _generic_semantic_summary(event: Event) -> list[dict[str, str]]:
     ]
     if event.related_task_id:
         entries.append({"label": "关联任务", "value": event.related_task_id})
-    if event.related_dispute_id:
-        entries.append({"label": "关联申诉", "value": event.related_dispute_id})
+    if event.related_feedback_id:
+        entries.append({"label": "关联反馈", "value": event.related_feedback_id})
     for key, value in public_event_payload(event).items():
         label = _GENERIC_LABEL_MAP.get(key, key)
         entries.append({"label": label, "value": str(value)})
@@ -642,9 +642,9 @@ def _system_event_filter_for_public_event(event: Event) -> Q:
     resource_id = str(payload.get("resource_id") or "").strip()
     if resource_id:
         query |= Q(aggregate_type="Resource", aggregate_id=resource_id)
-    dispute_id = str(payload.get("dispute_id") or event.related_dispute_id or "").strip()
-    if dispute_id:
-        query |= Q(aggregate_type="Dispute", aggregate_id=dispute_id)
+    feedback_id = str(payload.get("feedback_id") or event.related_feedback_id or "").strip()
+    if feedback_id:
+        query |= Q(aggregate_type="EventFeedback", aggregate_id=feedback_id)
     claim_id = str(payload.get("claim_id") or "").strip()
     if claim_id:
         query |= Q(aggregate_type="ExpenseClaim", aggregate_id=claim_id)

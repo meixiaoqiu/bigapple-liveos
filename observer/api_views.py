@@ -22,7 +22,7 @@ def observer_summary(request: HttpRequest, **_kwargs) -> JsonResponse:
             "task_completion_rate": context["task_completion_rate"],
             "average_satisfaction": 0,
             "average_fatigue": 0,
-            "open_disputes": context["open_disputes"],
+            "active_feedbacks": context["active_feedbacks"],
             "events": [public_event_to_contract(event) for event in context["events"]],
         }
     )

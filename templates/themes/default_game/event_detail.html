@@ -32,7 +32,7 @@
           <div><span class="text-base-content/60">来源：</span>{{ event.generated_by }}</div>
           <div><span class="text-base-content/60">模拟日：</span>{{ event.simulation_day }}</div>
           {% if event.related_task_id %}<div><span class="text-base-content/60">关联任务：</span>{{ event.related_task_id }}</div>{% endif %}
-          {% if event.related_dispute_id %}<div><span class="text-base-content/60">关联申诉：</span>{{ event.related_dispute_id }}</div>{% endif %}
+          {% if event.related_feedback_id %}<div><span class="text-base-content/60">关联反馈：</span>{{ event.related_feedback_id }}</div>{% endif %}
         </div>
       </div>
     </article>
@@ -58,6 +58,37 @@
         {% else %}
           <div class="text-sm text-base-content/50">暂无语义摘要。</div>
         {% endif %}
+      </div>
+    </section>
+
+    <section class="card bg-base-100 shadow">
+      <div class="card-body gap-4">
+        <h2 class="card-title">事件反馈</h2>
+        {% if member %}
+          <form method="post" class="grid gap-3 rounded-box border border-base-300 p-4">
+            {% csrf_token %}
+            <div class="grid gap-3 sm:grid-cols-2">
+              <select class="select select-bordered" name="feedback_type" required>{% for value,label in feedback_type_options %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+              <select class="select select-bordered" name="submitter_visibility">{% for value,label in visibility_options %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+            </div>
+            <textarea class="textarea textarea-bordered" name="statement" placeholder="事实陈述" required></textarea>
+            <textarea class="textarea textarea-bordered" name="requested_outcome" placeholder="期望结果"></textarea>
+            <textarea class="textarea textarea-bordered" name="evidence_refs" placeholder="证据引用，每行一项"></textarea>
+            <textarea class="textarea textarea-bordered" name="privacy_reason" placeholder="限制身份展示时必须说明理由"></textarea>
+            <button class="btn btn-primary justify-self-start" type="submit">反馈此事件</button>
+          </form>
+        {% else %}
+          <p class="text-sm text-base-content/60">登录后可反馈此事件。</p>
+        {% endif %}
+        <div class="grid gap-2">
+          {% for row in feedback_rows %}
+            <a class="rounded-box border border-base-300 p-3" href="{% world_url 'observer-event-feedback-detail' row.feedback.feedback_id %}">
+              <div class="flex justify-between"><strong>{{ row.feedback.get_feedback_type_display }}</strong><span class="badge badge-outline">{{ row.feedback.get_status_display }}</span></div>
+              <p class="mt-1 text-sm">{% if row.show_private_content %}{{ row.feedback.statement }}{% else %}详细内容仅相关方和处理人可见。{% endif %}</p>
+              <p class="text-xs text-base-content/60">提交人：{% if row.show_submitter %}{{ row.feedback.submitted_by.member_no }}{% else %}身份受限{% endif %}</p>
+            </a>
+          {% empty %}<p class="text-sm text-base-content/50">暂无关联反馈。</p>{% endfor %}
+        </div>
       </div>
     </section>
 

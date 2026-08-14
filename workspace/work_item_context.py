@@ -16,7 +16,7 @@ from core.access import is_finance_reviewer, member_can_administer
 from core.models import (
     ApprovalDecision,
     ApprovalProposal,
-    Dispute,
+    EventFeedback,
     Member,
     ProcurementChallenge,
     SupplierQuote,
@@ -273,22 +273,45 @@ def build_member_matters(
             updated_at=task.reviewed_at or task.created_at,
         ))
 
-    disputes = Dispute.objects.filter(
-        Q(claimant_member=member) | Q(respondent_member=member)
-    ).select_related("claimant_member", "respondent_member").order_by("-submitted_at")[:10]
-    ended_dispute_statuses = {Dispute.Status.RESOLVED, Dispute.Status.REJECTED, Dispute.Status.REVERSED}
-    for dispute in disputes:
-        ended = dispute.status in ended_dispute_statuses
-        target = recently_ended if ended else waiting
-        handler = "已结束" if ended else _actor_label(dispute.handler, "申诉处理角色")
+    feedbacks = EventFeedback.objects.filter(
+        Q(submitted_by=member) | Q(subject_member=member) | Q(assigned_handler=member)
+    ).select_related("submitted_by", "subject_member", "assigned_handler").order_by("-submitted_at")[:10]
+    ended_feedback_statuses = {EventFeedback.Status.CLOSED, EventFeedback.Status.WITHDRAWN}
+    for feedback in feedbacks:
+        ended = feedback.status in ended_feedback_statuses
+        subject_must_respond = (
+            feedback.status == EventFeedback.Status.AWAITING_RESPONSE
+            and feedback.subject_member_id == member.pk
+        )
+        handler_must_act = (
+            feedback.assigned_handler_id == member.pk
+            and feedback.status in {
+                EventFeedback.Status.VERIFYING,
+                EventFeedback.Status.CONCLUDED,
+            }
+        )
+        needs_member = subject_must_respond or handler_must_act
+        target = recently_ended if ended else (action_required if needs_member else waiting)
+        if ended:
+            handler = "已结束"
+            action_label = "查看结果"
+        elif subject_must_respond:
+            handler = member.member_no
+            action_label = "正式回应"
+        elif handler_must_act:
+            handler = member.member_no
+            action_label = "结束反馈" if feedback.status == EventFeedback.Status.CONCLUDED else "继续核实"
+        else:
+            handler = feedback.assigned_handler.member_no if feedback.assigned_handler_id else "反馈处理角色"
+            action_label = "等待处理"
         target.append(_matter(
-            matter_id=f"dispute:{dispute.dispute_id}", matter_type="dispute", type_label="申诉",
-            title=f"{dispute.get_dispute_type_display()} · {dispute.dispute_id}",
-            status=dispute.status, status_label=dispute.get_status_display(),
-            responsible=dispute.claimant_member.member_no, current_handler=handler,
-            action_label="查看结果" if ended else "等待处理",
-            target_url="/workspace/#dispute-status",
-            updated_at=dispute.resolved_at or dispute.submitted_at,
+            matter_id=f"event-feedback:{feedback.feedback_id}", matter_type="event_feedback", type_label="事件反馈",
+            title=f"{feedback.get_feedback_type_display()} · {feedback.feedback_id}",
+            status=feedback.status, status_label=feedback.get_status_display(),
+            responsible=feedback.submitted_by.member_no, current_handler=handler,
+            action_label=action_label,
+            target_url=f"/event-feedbacks/{feedback.feedback_id}/",
+            updated_at=feedback.closed_at or feedback.concluded_at or feedback.submitted_at,
         ))
 
     member_quotes = SupplierQuote.objects.filter(submitted_by=member).exclude(

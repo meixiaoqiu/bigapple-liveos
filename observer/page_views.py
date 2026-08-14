@@ -18,6 +18,7 @@ from core.models import (
     ApprovalProposal,
     CredentialGrant,
     Event,
+    EventFeedback,
     Resource,
     SimulationSnapshot,
     SupplierQuote,
@@ -147,7 +148,7 @@ def observer_events_list(request: HttpRequest, **_kwargs):
 
 
 
-@require_GET
+@require_http_methods(["GET", "POST"])
 def observer_event_detail(request: HttpRequest, event_id: str, **_kwargs):
     """Public community event detail page.
 
@@ -166,12 +167,86 @@ def observer_event_detail(request: HttpRequest, event_id: str, **_kwargs):
     if is_member_application_stage_event(event):
         raise Http404("Member application stage events are no longer standalone pages.")
 
+    from live_os.access import member_for_request
+    member = member_for_request(request)
+    if request.method == "POST":
+        if member is None:
+            return HttpResponseRedirect(f"/login/?next=/events/{event_id}/")
+        from core.event_feedback_services import submit_event_feedback
+        from core.exceptions import DomainError
+        try:
+            feedback = submit_event_feedback(
+                related_event=event, submitted_by=member,
+                feedback_type=request.POST.get("feedback_type", ""),
+                statement=request.POST.get("statement", ""),
+                requested_outcome=request.POST.get("requested_outcome", ""),
+                evidence_refs=[item.strip() for item in request.POST.get("evidence_refs", "").splitlines() if item.strip()],
+                submitter_visibility=request.POST.get("submitter_visibility", EventFeedback.SubmitterVisibility.PUBLIC),
+                privacy_reason=request.POST.get("privacy_reason", ""),
+            )
+        except DomainError as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, f"事件反馈已提交：{feedback.feedback_id}")
+            return HttpResponseRedirect(f"/event-feedbacks/{feedback.feedback_id}/")
+
     detail = public_event_detail(event)
+    feedbacks = list(EventFeedback.objects.filter(related_event=event).select_related(
+        "submitted_by", "subject_member", "assigned_handler", "concluded_by"
+    ).order_by("-submitted_at"))
+    from core.event_feedback_services import can_view_feedback_private_content, can_view_submitter_identity
+    feedback_rows = [{
+        "feedback": item,
+        "show_submitter": can_view_submitter_identity(item, member),
+        "show_private_content": can_view_feedback_private_content(item, member),
+    } for item in feedbacks]
     return render(
         request,
         get_theme_template_path(request, "event_detail.html"),
-        {"event": detail},
+        {"event": detail, "member": member, "feedback_rows": feedback_rows, "feedback_type_options": EventFeedback.FeedbackType.choices, "visibility_options": EventFeedback.SubmitterVisibility.choices},
     )
+
+
+@require_http_methods(["GET", "POST"])
+def observer_event_feedback_detail(request: HttpRequest, feedback_id: str, **_kwargs):
+    """Public feedback detail with member and governance lifecycle actions."""
+    apply_theme_query_override(request)
+    feedback = get_object_or_404(EventFeedback.objects.select_related(
+        "related_event", "submitted_by", "subject_member", "assigned_handler", "responded_by", "concluded_by", "resolution_event"
+    ), feedback_id=feedback_id, related_event__visibility=Event.Visibility.PUBLIC)
+    from core.access import member_can_administer
+    from core.event_feedback_services import (
+        can_view_feedback_private_content, can_view_submitter_identity, close_event_feedback, conclude_event_feedback,
+        request_event_feedback_response, respond_to_event_feedback,
+        start_event_feedback_verification, withdraw_event_feedback,
+    )
+    from core.exceptions import DomainError
+    from live_os.access import member_for_request
+    member = member_for_request(request)
+    is_handler = bool(member and member_can_administer(member))
+    if request.method == "POST":
+        if member is None:
+            return HttpResponseRedirect(f"/login/?next=/event-feedbacks/{feedback_id}/")
+        action = request.POST.get("action", "")
+        try:
+            if action == "start": start_event_feedback_verification(feedback=feedback, handler=member)
+            elif action == "request_response": request_event_feedback_response(feedback=feedback, handler=member)
+            elif action == "respond": respond_to_event_feedback(feedback=feedback, responder=member, response_statement=request.POST.get("response_statement", ""))
+            elif action == "conclude": conclude_event_feedback(feedback=feedback, handler=member, conclusion=request.POST.get("conclusion", ""), conclusion_reason=request.POST.get("conclusion_reason", ""))
+            elif action == "close": close_event_feedback(feedback=feedback, handler=member)
+            elif action == "withdraw": withdraw_event_feedback(feedback=feedback, submitted_by=member)
+            else: raise DomainError("未知反馈动作。")
+        except DomainError as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(request, "反馈状态已更新。")
+        return HttpResponseRedirect(f"/event-feedbacks/{feedback_id}/")
+    return render(request, get_theme_template_path(request, "event_feedback_detail.html"), {
+        "feedback": feedback, "member": member, "is_handler": is_handler,
+        "show_submitter": can_view_submitter_identity(feedback, member),
+        "show_private_content": can_view_feedback_private_content(feedback, member),
+        "conclusion_options": EventFeedback.Conclusion.choices,
+    })
 
 
 @require_GET

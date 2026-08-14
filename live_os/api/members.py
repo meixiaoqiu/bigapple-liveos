@@ -13,7 +13,7 @@ from core.models import Member
 from workspace.context import workspace_context
 
 from .serializers import (
-    dispute_to_contract,
+    event_feedback_to_contract,
     ledger_entry_to_contract,
     member_to_contract,
 )
@@ -45,8 +45,8 @@ def get_workspace_summary(request: HttpRequest, member_no: str, **_kwargs) -> Js
                 ledger_entry_to_contract(entry)
                 for entry in context["recent_ledger_entries"]
             ],
-            "open_disputes": [dispute_to_contract(dispute) for dispute in context["open_disputes"]],
-            "dispute_history": [dispute_to_contract(dispute) for dispute in context["dispute_history"]],
+            "open_feedbacks": [event_feedback_to_contract(feedback, viewer=context["member"]) for feedback in context["open_feedbacks"]],
+            "feedback_history": [event_feedback_to_contract(feedback, viewer=context["member"]) for feedback in context["feedback_history"]],
             "task_counts": context["task_counts"],
         }
     )

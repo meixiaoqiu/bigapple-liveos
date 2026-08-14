@@ -11,7 +11,7 @@ from django.utils import timezone
 from core.member_roles import ROLE_COVENANTER
 from core.models import (
     CapacityAssessment,
-    Dispute,
+    EventFeedback,
     Event,
     LedgerEntry,
     Member,
@@ -126,18 +126,14 @@ class WorkspacePageTests(TestCase):
             created_by={"actor_id": "member-admin-0001", "actor_type": "human_member"},
             status=LedgerEntry.Status.POSTED,
         )
-        Dispute.objects.create(
-            dispute_id="dispute-0001",
-            dispute_type=Dispute.DisputeType.TASK_REVIEW,
-            status=Dispute.Status.IN_REVIEW,
-            claimant_member=self.member,
-            related_task=active_task,
-            facts="成员申请复核任务验收标准。",
+        EventFeedback.objects.create(
+            feedback_id="feedback-0001", related_event=event,
+            feedback_type=EventFeedback.FeedbackType.REVIEW,
+            status=EventFeedback.Status.VERIFYING,
+            submitted_by=self.member,
+            statement="成员申请复核任务验收标准。",
+            requested_outcome="请核实。",
             evidence_refs=[event.event_id],
-            handler={},
-            reviewer={},
-            resolution="",
-            appeal_path="standard-review-appeal",
             submitted_at=now,
         )
         CapacityAssessment.objects.create(
@@ -169,12 +165,11 @@ class WorkspacePageTests(TestCase):
         self.assertContains(response, "历史贡献积分")
         self.assertNotContains(response, "资源预警")
         self.assertNotContains(response, "相关事件")
-        self.assertContains(response, "成员申请复核任务验收标准")
+        self.assertContains(response, "复核 · feedback-0001")
         self.assertContains(response, "/workspace/tasks/task-0001/")
-        self.assertContains(response, "提交申诉")
+        self.assertNotContains(response, "提交申诉")
         self.assertContains(response, "清理公共厨房")
-        self.assertContains(response, "申诉状态")
-        self.assertContains(response, "standard-review-appeal")
+        self.assertNotContains(response, "申诉状态")
         self.assertNotContains(response, "个人任务历史")
 
     def test_member_can_open_own_task_detail(self) -> None:
@@ -267,7 +262,7 @@ class WorkspacePageTests(TestCase):
         self.assertContains(response, "当前世界：simulation0001")
         self.assertContains(response, "/workspace/tasks/")
         self.assertContains(response, "/workspace/tasks/task-0001/")
-        self.assertContains(response, "/workspace/disputes/")
+        self.assertNotContains(response, "/workspace/disputes/")
         self.assertNotContains(response, "/world/")
 
     def test_workspace_post_redirect_keeps_current_world_prefix(self) -> None:
@@ -336,45 +331,13 @@ class WorkspacePageTests(TestCase):
         self.assertEqual(task.status, Task.Status.CLAIMED)
         self.assertNotIn("labor_note", task.metadata)
 
-    def test_member_can_create_dispute_from_workspace(self) -> None:
+    def test_workspace_does_not_expose_event_feedback_creation(self) -> None:
         response = self.client.post(
             "/workspace/disputes/",
-            {
-                "dispute_type": Dispute.DisputeType.TASK_REVIEW,
-                "related_task_id": "task-0001",
-                "facts": "午餐任务验收标准需要复核。",
-                "evidence_refs": "event-0001, photo-dispute-0001",
-            },
-            follow=True,
+            {},
         )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "已提交申诉：")
-        created_dispute = Dispute.objects.exclude(dispute_id="dispute-0001").get()
-        self.assertEqual(created_dispute.status, Dispute.Status.SUBMITTED)
-        self.assertEqual(created_dispute.claimant_member, self.member)
-        self.assertEqual(created_dispute.related_task_id, "task-0001")
-        self.assertEqual(created_dispute.facts, "午餐任务验收标准需要复核。")
-        self.assertEqual(created_dispute.evidence_refs, ["event-0001", "photo-dispute-0001"])
-        self.assertEqual(created_dispute.appeal_path, "workspace-dispute")
-        self.assertContains(response, "午餐任务验收标准需要复核")
-
-    def test_workspace_create_dispute_requires_facts(self) -> None:
-        dispute_count = Dispute.objects.count()
-
-        response = self.client.post(
-            "/workspace/disputes/",
-            {
-                "dispute_type": Dispute.DisputeType.TASK_REVIEW,
-                "related_task_id": "task-0001",
-                "facts": "   ",
-            },
-            follow=True,
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "提交失败：申诉事实不能为空。")
-        self.assertEqual(Dispute.objects.count(), dispute_count)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(EventFeedback.objects.count(), 1)
 
     def test_member_no_workspace_route_is_not_exposed(self) -> None:
         response = self.client.get("/u/mem-0002/workspace/")

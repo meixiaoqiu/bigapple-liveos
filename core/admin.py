@@ -33,7 +33,7 @@ from .admin_proposals import (
     ProposalExecutionAdmin,
     ProposalVoteAdmin,
 )
-from .admin_operations import DisputeAdmin, ResourceAdmin, ResourceTransactionAdmin, SupplierQuoteAdmin, TaskAdmin
+from .admin_operations import EventFeedbackAdmin, ResourceAdmin, ResourceTransactionAdmin, SupplierQuoteAdmin, TaskAdmin
 from .admin_finance import (
     AttachmentAdmin,
     ExpenseClaimAdmin,

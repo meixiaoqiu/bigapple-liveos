@@ -52,10 +52,11 @@ jobs:
           sudo apt-get install --yes pkg-config default-libmysqlclient-dev build-essential
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev,mysql]"
-      - name: MySQL finance appointment concurrency test
+      - name: MySQL authority concurrency tests
         run: >-
           python manage.py test
           core.tests.test_finance_role_appointments.FinanceReviewerAppointmentConcurrencyTests
+          core.tests.test_event_feedback.EventFeedbackConcurrencyTests
           --settings=live_os.settings_real
           --verbosity=2
 

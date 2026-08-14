@@ -12,7 +12,8 @@ from core.member_roles import ROLE_COVENANTER
 from core.models import (
     ApprovalProposal,
     ApprovalDecision,
-    Dispute,
+    Event,
+    EventFeedback,
     Resource,
     SupplierQuote,
     Task,
@@ -121,7 +122,7 @@ class WorkItemContextTests(TestCase):
             self.assertNotIn("metadata", str(item))
             self.assertNotIn("operator", str(item))
 
-    def test_member_task_and_dispute_are_projected_by_action_relation(self):
+    def test_member_task_and_feedback_are_projected_by_action_relation(self):
         now = timezone.now()
         task = Task.objects.create(
             task_id="task-matter-active", title="整理事务投影", task_type=Task.TaskType.ADMINISTRATION,
@@ -130,21 +131,21 @@ class WorkItemContextTests(TestCase):
             failure_consequence=Task.FailureConsequence.LOW, assignee_member=self.regular,
             rule_version="v1", created_at=now,
         )
-        dispute = Dispute.objects.create(
-            dispute_id="dispute-matter-waiting", dispute_type=Dispute.DisputeType.TASK_REVIEW,
-            status=Dispute.Status.IN_REVIEW, claimant_member=self.regular, related_task=task,
-            facts="等待任务验收复核。", handler={}, reviewer={},
-            appeal_path="standard-review-appeal", submitted_at=now,
+        event = Event.objects.create(event_id="event-feedback-matter", event_type=Event.EventType.TASK, simulation_day=1, severity=Event.Severity.INFO, title="事务事件", summary="事务事件", related_task=task, occurred_at=now, generated_by=Event.GeneratedBy.LIVE_OS, visibility=Event.Visibility.PUBLIC)
+        feedback = EventFeedback.objects.create(
+            feedback_id="feedback-matter-waiting", related_event=event,
+            feedback_type=EventFeedback.FeedbackType.REVIEW, status=EventFeedback.Status.VERIFYING,
+            submitted_by=self.regular, statement="等待任务验收复核。", submitted_at=now,
         )
 
         matters = build_member_work_items(self.regular)["matters"]
 
         task_item = next(item for item in matters["action_required"] if item["id"] == f"task:{task.task_id}")
-        dispute_item = next(item for item in matters["waiting"] if item["id"] == f"dispute:{dispute.dispute_id}")
+        feedback_item = next(item for item in matters["waiting"] if item["id"] == f"event-feedback:{feedback.feedback_id}")
         self.assertEqual(task_item["responsible"], self.regular.member_no)
         self.assertEqual(task_item["action_label"], "提交劳动")
-        self.assertEqual(dispute_item["current_handler"], "申诉处理角色")
-        for item in (task_item, dispute_item):
+        self.assertEqual(feedback_item["current_handler"], "反馈处理角色")
+        for item in (task_item, feedback_item):
             self.assertTrue(item["status"])
             self.assertTrue(item["updated_at"])
             self.assertTrue(item["target_url"])
@@ -173,6 +174,41 @@ class WorkItemContextTests(TestCase):
             item for item in matters["recently_ended"] if item["id"] == f"task:{ended.task_id}"
         )
         self.assertEqual(ended_matter["target_url"], f"/workspace/tasks/{ended.task_id}/")
+
+    def test_feedback_action_group_follows_explicit_current_responsibility(self):
+        now = timezone.now()
+        subject = create_member("feedback-workspace-subject")
+        handler = create_member("feedback-workspace-handler")
+        event = Event.objects.create(
+            event_id="event-feedback-actions", event_type=Event.EventType.SYSTEM,
+            simulation_day=1, severity=Event.Severity.INFO, title="反馈责任", summary="反馈责任",
+            occurred_at=now, generated_by=Event.GeneratedBy.LIVE_OS,
+            visibility=Event.Visibility.PUBLIC,
+        )
+        awaiting = EventFeedback.objects.create(
+            feedback_id="feedback-awaiting-subject", related_event=event,
+            feedback_type=EventFeedback.FeedbackType.COMPLAINT,
+            status=EventFeedback.Status.AWAITING_RESPONSE,
+            submitted_by=self.regular, subject_member=subject, assigned_handler=handler,
+            statement="等待回应。", submitted_at=now,
+        )
+        verifying = EventFeedback.objects.create(
+            feedback_id="feedback-handler-verifying", related_event=event,
+            feedback_type=EventFeedback.FeedbackType.RISK,
+            status=EventFeedback.Status.VERIFYING,
+            submitted_by=self.regular, assigned_handler=handler,
+            statement="等待核实。", submitted_at=now,
+        )
+
+        subject_matters = build_member_work_items(subject)["matters"]
+        subject_item = next(item for item in subject_matters["action_required"] if item["id"] == f"event-feedback:{awaiting.feedback_id}")
+        self.assertEqual(subject_item["action_label"], "正式回应")
+
+        handler_matters = build_member_work_items(handler)["matters"]
+        verifying_item = next(item for item in handler_matters["action_required"] if item["id"] == f"event-feedback:{verifying.feedback_id}")
+        waiting_item = next(item for item in handler_matters["waiting"] if item["id"] == f"event-feedback:{awaiting.feedback_id}")
+        self.assertEqual(verifying_item["action_label"], "继续核实")
+        self.assertEqual(waiting_item["action_label"], "等待处理")
 
     def test_governance_proposal_and_procurement_use_unified_shape(self):
         proposal = create_approval_proposal(
@@ -308,14 +344,14 @@ class WorkItemContextTests(TestCase):
             {item["id"] for item in items["matters"]["action_required"]},
         )
 
-    def test_dispute_projection_does_not_lazy_load_claimant_members(self):
+    def test_feedback_projection_does_not_lazy_load_members(self):
         now = timezone.now()
+        event = Event.objects.create(event_id="event-feedback-query", event_type=Event.EventType.SYSTEM, simulation_day=1, severity=Event.Severity.INFO, title="查询", summary="查询", occurred_at=now, generated_by=Event.GeneratedBy.LIVE_OS, visibility=Event.Visibility.PUBLIC)
         for index in range(10):
-            Dispute.objects.create(
-                dispute_id=f"dispute-query-{index}", dispute_type=Dispute.DisputeType.MEMBER_CONFLICT,
-                status=Dispute.Status.IN_REVIEW, claimant_member=self.regular,
-                respondent_member=self.supplier, facts=f"查询测试 {index}",
-                handler={}, reviewer={}, appeal_path="standard-review-appeal", submitted_at=now,
+            EventFeedback.objects.create(
+                feedback_id=f"feedback-query-{index}", related_event=event,
+                feedback_type=EventFeedback.FeedbackType.COMPLAINT, status=EventFeedback.Status.VERIFYING,
+                submitted_by=self.regular, subject_member=self.supplier, statement=f"查询测试 {index}", submitted_at=now,
             )
 
         with CaptureQueriesContext(connection) as queries:
@@ -480,9 +516,7 @@ class WorkspaceDashboardTests(TestCase):
         )
         response = self.client.get("/workspace/")
         content = response.content.decode()
-        old_modules = [
-            "待处理事项", "近期积分流水", "申诉状态",
-        ]
+        old_modules = ["待处理事项", "近期积分流水"]
         matter_position = content.index("我的事务")
         for title in old_modules:
             self.assertIn(title, content)
@@ -491,6 +525,7 @@ class WorkspaceDashboardTests(TestCase):
         self.assertNotIn("个人任务历史", content)
         self.assertNotIn("资源预警", content)
         self.assertNotIn("相关事件", content)
+        self.assertNotIn("申诉状态", content)
         self.assertNotIn("<h2 class=\"card-title\">当前任务</h2>", content)
         self.assertNotIn("<h2 class=\"card-title\">可领取任务</h2>", content)
         self.assertIn("任务中心", content)

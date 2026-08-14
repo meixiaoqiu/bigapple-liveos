@@ -64,7 +64,7 @@ class ThemeSystemTests(TestCase):
         context = build_dashboard_theme_context(request)
 
         self.assertEqual(context["photos"], [])
-        self.assertEqual(context["pending_disputes"], [])
+        self.assertEqual(context["active_feedbacks"], [])
         self.assertIn("remaining", context["capacity"])
 
     def test_unknown_theme_query_parameter_falls_back_without_session_mutation(self) -> None:
@@ -394,4 +394,3 @@ class MainlineContextTests(TestCase):
         ctx = observer_context(full_plan_nodes=True)
         self.assertGreaterEqual(len(ctx["plan_nodes"]), 65)
         self.assertTrue(any(str(getattr(n, "node_id", "")) == "node-full-065" for n in ctx["plan_nodes"]))
-

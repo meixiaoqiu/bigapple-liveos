@@ -85,7 +85,7 @@ def seed_members(*, now, mark) -> dict[str, Member]:
                     "skills": {"cleaning": 70, "warehouse": 41, "公共卫生": 68, "仓储": 54},
                 },
                 "created_at": now,
-                "metadata": {"seed": True, "note": "演示成员，发起过申诉"},
+                "metadata": {"seed": True, "note": "演示成员，发起过事件反馈"},
             },
         )
     )
@@ -118,7 +118,7 @@ def seed_members(*, now, mark) -> dict[str, Member]:
                     },
                 },
                 "created_at": now,
-                "metadata": {"seed": True, "note": "演示被暂停成员，涉及异常任务和申诉"},
+                "metadata": {"seed": True, "note": "演示被暂停成员，涉及异常任务和事件反馈"},
             },
         )
     )

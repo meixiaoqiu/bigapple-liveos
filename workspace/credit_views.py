@@ -15,7 +15,7 @@ from core.exceptions import DomainError
 from core.credit_services import (
     cancel_redemption_order,
     create_redemption_order,
-    dispute_redemption_order,
+    report_redemption_order_issue,
     ensure_system_accounts,
     fulfill_redemption_order,
     transfer_member_credits,
@@ -103,8 +103,8 @@ def redemption_orders_page(request: HttpRequest) -> HttpResponse:
         return _create_order(member, request)
     if request.method == "POST" and "cancel" in request.POST:
         return _cancel_order(member, request)
-    if request.method == "POST" and "dispute" in request.POST:
-        return _dispute_order(member, request)
+    if request.method == "POST" and "report_issue" in request.POST:
+        return _report_order_issue(member, request)
 
     return _redemption_list(member, request)
 
@@ -161,19 +161,19 @@ def _cancel_order(member, request):
     return world_redirect(request, "workspace-credits-redemption")
 
 
-def _dispute_order(member, request):
-    order_id = request.POST.get("dispute", "").strip()
+def _report_order_issue(member, request):
+    order_id = request.POST.get("report_issue", "").strip()
     order = RedemptionOrder.objects.filter(order_id=order_id, member=member).first()
     if order is None:
         messages.error(request, "未找到可申诉的订单。")
         return _redemption_list(member, request)
-    reason = request.POST.get("dispute_reason", "").strip()[:256]
+    reason = request.POST.get("issue_reason", "").strip()[:256]
     try:
-        dispute_redemption_order(order=order, reason=reason)
+        report_redemption_order_issue(order=order, reason=reason)
     except DomainError as exc:
         messages.error(request, str(exc))
         return _redemption_list(member, request)
-    messages.success(request, f"订单 {order_id} 已提交申诉。")
+    messages.success(request, f"订单 {order_id} 已报告履约问题。")
     return world_redirect(request, "workspace-credits-redemption")
 
 

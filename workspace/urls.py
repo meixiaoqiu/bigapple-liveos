@@ -71,11 +71,6 @@ urlpatterns = [
         name="workspace-task-detail",
     ),
     path(
-        "disputes/",
-        world_scoped_view(views.workspace_create_dispute),
-        name="workspace-create-dispute",
-    ),
-    path(
         "applications/",
         world_scoped_view(views.workspace_applications_review),
         name="workspace-applications-review",

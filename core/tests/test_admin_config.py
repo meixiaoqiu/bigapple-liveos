@@ -26,6 +26,7 @@ from simulation.admin_runs import SimulationTurnAdmin
 from core.models import (
     CapacityAssessment,
     Event,
+    EventFeedback,
     LedgerEntry,
     Member,
     Organization,
@@ -48,6 +49,7 @@ from core.models import (
     SimulationRun,
     SimulationTurn,
 )
+from core.admin_operations import EventFeedbackAdmin
 from core.tests.helpers import create_member, electorate_rule_fields
 
 
@@ -79,6 +81,16 @@ class AdminConfigTests(TestCase):
 
         self.assertNotIn("member_no", admin.get_readonly_fields(self.request, None))
         self.assertIn("member_no", admin.get_readonly_fields(self.request, self.member))
+
+    def test_event_feedback_admin_is_read_only(self) -> None:
+        admin = EventFeedbackAdmin(EventFeedback, self.site)
+
+        self.assertFalse(admin.has_add_permission(self.request))
+        self.assertFalse(admin.has_delete_permission(self.request))
+        self.assertEqual(
+            set(admin.get_readonly_fields(self.request)),
+            {field.name for field in EventFeedback._meta.fields},
+        )
 
     def test_member_kind_virtual_and_single_role_field_are_removed(self) -> None:
         field_names = {field.name for field in Member._meta.fields}
@@ -120,7 +132,7 @@ class AdminConfigTests(TestCase):
         self.assertIn("RoleAssignment", all_model_names)
         self.assertIn("Proposal", all_model_names)
         self.assertIn("Task", all_model_names)
-        self.assertIn("Dispute", all_model_names)
+        self.assertIn("EventFeedback", all_model_names)
         self.assertIn("Resource", all_model_names)
         self.assertIn("SupplierQuote", all_model_names)
         self.assertIn("ProjectPlan", all_model_names)
@@ -139,7 +151,7 @@ class AdminConfigTests(TestCase):
         self.assertNotIn("SimulationRunDisposition", model_names)
         self.assertNotIn("Proposal", model_names)
         self.assertNotIn("Task", model_names)
-        self.assertNotIn("Dispute", model_names)
+        self.assertNotIn("EventFeedback", model_names)
 
     def test_simulation_admin_index_exposes_simulation_archive_and_lab_models(self) -> None:
         app_list = django_admin.site.get_app_list(self.request)

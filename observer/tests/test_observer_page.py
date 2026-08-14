@@ -246,7 +246,7 @@ class ObserverPageTests(TestCase):
         self.assertContains(response, "当前容量")
         self.assertContains(response, "任务完成率")
         self.assertContains(response, "资源预警")
-        self.assertContains(response, "未关闭申诉")
+        self.assertContains(response, "核实中反馈")
         self.assertContains(response, "事件时间线")
         self.assertContains(response, "午餐任务验收通过")
         self.assertContains(response, "高负载角色")

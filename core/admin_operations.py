@@ -5,7 +5,7 @@ from __future__ import annotations
 from django.contrib import admin
 
 from .admin_support import ImmutableHistoryAdminMixin, NoDeleteAdminMixin, StablePrimaryKeyAdminMixin
-from .models import Dispute, Resource, ResourceTransaction, SupplierQuote, Task
+from .models import EventFeedback, Resource, ResourceTransaction, SupplierQuote, Task
 
 
 @admin.register(Task)
@@ -220,32 +220,38 @@ class ResourceTransactionAdmin(ImmutableHistoryAdminMixin, admin.ModelAdmin):
         ("时间和扩展", {"fields": ("occurred_at", "created_at", "metadata")}),
     )
 
-@admin.register(Dispute)
-class DisputeAdmin(StablePrimaryKeyAdminMixin, NoDeleteAdminMixin, admin.ModelAdmin):
-    stable_primary_key = "dispute_id"
+@admin.register(EventFeedback)
+class EventFeedbackAdmin(StablePrimaryKeyAdminMixin, NoDeleteAdminMixin, admin.ModelAdmin):
+    stable_primary_key = "feedback_id"
     list_display = (
-        "dispute_id",
-        "dispute_type",
+        "feedback_id",
+        "feedback_type",
         "status",
-        "claimant_member",
-        "respondent_member",
-        "related_task",
+        "submitted_by",
+        "subject_member",
+        "assigned_handler",
         "submitted_at",
-        "resolved_at",
+        "closed_at",
     )
-    list_filter = ("dispute_type", "status")
-    search_fields = ("dispute_id", "claimant_member__member_no", "facts")
-    autocomplete_fields = ("claimant_member", "respondent_member", "related_task", "related_ledger_entry")
-    list_select_related = ("claimant_member", "respondent_member", "related_task", "related_ledger_entry")
+    list_filter = ("feedback_type", "status", "submitter_visibility")
+    search_fields = ("feedback_id", "submitted_by__member_no", "statement", "related_event__event_id")
+    autocomplete_fields = ("submitted_by", "subject_member", "assigned_handler", "responded_by", "concluded_by")
+    raw_id_fields = ("related_event", "resolution_event")
+    list_select_related = ("related_event", "submitted_by", "subject_member", "assigned_handler")
     date_hierarchy = "submitted_at"
-    ordering = ("status", "-submitted_at", "dispute_id")
+    ordering = ("status", "-submitted_at", "feedback_id")
     list_per_page = 50
-    readonly_fields = ("submitted_at",)
+    actions = None
     fieldsets = (
-        ("申诉身份", {"fields": ("dispute_id", "dispute_type", "status")}),
-        ("当事人", {"fields": ("claimant_member", "respondent_member")}),
-        ("关联对象", {"fields": ("related_task", "related_ledger_entry")}),
-        ("事实和证据", {"fields": ("facts", "evidence_refs")}),
-        ("处理", {"fields": ("handler", "reviewer", "resolution", "appeal_path", "resolved_at")}),
-        ("时间和扩展", {"fields": ("submitted_at", "metadata")}),
+        ("反馈身份", {"fields": ("feedback_id", "related_event", "feedback_type", "status")}),
+        ("当事人", {"fields": ("submitted_by", "subject_member", "submitter_visibility", "privacy_reason")}),
+        ("事实和证据", {"fields": ("statement", "requested_outcome", "evidence_refs")}),
+        ("处理", {"fields": ("assigned_handler", "response_statement", "responded_by", "responded_at", "conclusion", "conclusion_reason", "resolution_event", "concluded_by")}),
+        ("时间和扩展", {"fields": ("submitted_at", "verification_started_at", "concluded_at", "closed_at", "metadata")}),
     )
+
+    def has_add_permission(self, request):
+        return False
+
+    def get_readonly_fields(self, request, obj=None):
+        return tuple(field.name for field in self.model._meta.fields)

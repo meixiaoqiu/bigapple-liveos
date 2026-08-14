@@ -14,7 +14,7 @@ from django.utils import timezone
 from core.credit_services import ensure_system_accounts, issue_credits_to_pool, lock_task_credit_budget
 from core.member_roles import ROLE_COVENANTER
 from core.openfga_client import OpenFGARequestError
-from core.models import CapacityAssessment, Dispute, Event, LedgerEntry, Member, Resource, Task
+from core.models import CapacityAssessment, Event, EventFeedback, LedgerEntry, Member, Resource, Task
 from core.tests.helpers import create_administrator_member, create_member, login_as_member
 
 
@@ -98,7 +98,7 @@ class ApiWorkflowTests(TestCase):
                 "task_gap": 18,
                 "average_satisfaction": 61,
                 "average_fatigue": 67,
-                "open_disputes": 0,
+                "active_feedbacks": 0,
                 "exit_risk_members": 9,
             },
             reasons=["食堂承载接近风险阈值。"],
@@ -339,21 +339,10 @@ class ApiWorkflowTests(TestCase):
             self.api(f"/tasks/{self.task.task_id}/claim"),
             {"member_no": "member-does-not-exist"},
         )
-        dispute_status, dispute_payload = self.post_json(
-            self.api("/disputes"),
-            {
-                "claimant_member_no": "member-does-not-exist",
-                "dispute_type": Dispute.DisputeType.TASK_REVIEW,
-                "facts": "枚举防护测试。",
-            },
-        )
-
         self.assertEqual(existing_status, 403)
         self.assertEqual(missing_status, 403)
-        self.assertEqual(dispute_status, 403)
         self.assertEqual(existing_payload["code"], "permission_denied")
         self.assertEqual(missing_payload["code"], "permission_denied")
-        self.assertEqual(dispute_payload["code"], "permission_denied")
 
     def test_public_human_operator_event_summary_uses_title_only(self) -> None:
         now = timezone.now()
@@ -380,20 +369,16 @@ class ApiWorkflowTests(TestCase):
         self.assertNotIn("involved_member_ids", public_event)
         self.assertNotIn("payload", public_event)
 
-    def test_create_dispute_api_server_manages_identity_and_status(self) -> None:
+    def test_create_event_feedback_api_server_manages_identity_and_status(self) -> None:
         login_as_member(self.client, self.member)
+        target = Event.objects.create(event_id="event-feedback-api", event_type=Event.EventType.TASK, simulation_day=1, severity=Event.Severity.INFO, title="可反馈事件", summary="可反馈事件", occurred_at=timezone.now(), generated_by=Event.GeneratedBy.LIVE_OS, visibility=Event.Visibility.PUBLIC)
 
         status, payload = self.post_json(
-            self.api("/disputes"),
+            self.api("/event-feedbacks"),
             {
-                "dispute_id": "dispute-forged",
-                "claimant_member_no": self.member.member_no,
-                "dispute_type": Dispute.DisputeType.TASK_REVIEW,
-                "status": Dispute.Status.RESOLVED,
-                "facts": "伪造状态测试。",
-                "handler": actor(),
-                "reviewer": actor(),
-                "appeal_path": "forged",
+                "feedback_id": "feedback-forged", "related_event_id": target.event_id,
+                "feedback_type": EventFeedback.FeedbackType.REVIEW,
+                "status": EventFeedback.Status.CLOSED, "statement": "伪造状态测试。",
                 "submitted_at": timezone.now().isoformat(),
             },
         )
@@ -401,37 +386,69 @@ class ApiWorkflowTests(TestCase):
         self.assertEqual(payload["code"], "invalid_request")
 
         status, payload = self.post_json(
-            self.api("/disputes"),
+            self.api("/event-feedbacks"),
             {
-                "claimant_member_no": self.member.member_no,
-                "dispute_type": Dispute.DisputeType.TASK_REVIEW,
-                "related_task_id": self.task.task_id,
-                "facts": "午餐任务验收标准需要复核。",
+                "related_event_id": target.event_id,
+                "feedback_type": EventFeedback.FeedbackType.REVIEW,
+                "statement": "午餐任务验收标准需要复核。",
                 "evidence_refs": ["event-0001"],
             },
         )
         self.assertEqual(status, 201)
-        self.assertNotEqual(payload["dispute_id"], "dispute-forged")
-        self.assertEqual(payload["status"], Dispute.Status.SUBMITTED)
-        self.assertEqual(payload["claimant_member_no"], self.member.member_no)
-        self.assertNotIn("handler", payload)
-        self.assertNotIn("reviewer", payload)
+        self.assertNotEqual(payload["feedback_id"], "feedback-forged")
+        self.assertEqual(payload["status"], EventFeedback.Status.SUBMITTED)
+        self.assertEqual(payload["submitted_by_member_no"], self.member.member_no)
 
-    def test_basic_member_cannot_create_dispute_through_api(self) -> None:
-        basic = create_member("api-basic-dispute")
+    def test_basic_member_can_create_event_feedback_through_api(self) -> None:
+        basic = create_member("api-basic-feedback")
         login_as_member(self.client, basic)
+        target = Event.objects.create(event_id="event-basic-feedback", event_type=Event.EventType.SYSTEM, simulation_day=1, severity=Event.Severity.INFO, title="公开事件", summary="公开事件", occurred_at=timezone.now(), generated_by=Event.GeneratedBy.LIVE_OS, visibility=Event.Visibility.PUBLIC)
 
         status, payload = self.post_json(
-            self.api("/disputes"),
+            self.api("/event-feedbacks"),
             {
-                "claimant_member_no": basic.member_no,
-                "dispute_type": Dispute.DisputeType.TASK_REVIEW,
-                "facts": "基础成员不能创建申诉。",
+                "related_event_id": target.event_id,
+                "feedback_type": EventFeedback.FeedbackType.OPINION,
+                "statement": "基础成员可以反馈公开事件。",
             },
         )
 
-        self.assertEqual(status, 403)
-        self.assertEqual(payload["code"], "permission_denied")
+        self.assertEqual(status, 201)
+
+    def test_event_feedback_api_rejects_malformed_payload_shapes(self) -> None:
+        login_as_member(self.client, self.member)
+        target = Event.objects.create(
+            event_id="event-feedback-invalid-json", event_type=Event.EventType.SYSTEM,
+            simulation_day=1, severity=Event.Severity.INFO, title="严格校验", summary="严格校验",
+            occurred_at=timezone.now(), generated_by=Event.GeneratedBy.LIVE_OS,
+            visibility=Event.Visibility.PUBLIC,
+        )
+        base = {
+            "related_event_id": target.event_id,
+            "feedback_type": EventFeedback.FeedbackType.REVIEW,
+            "statement": "校验输入。",
+        }
+        invalid_payloads = [
+            {**base, "unknown": True},
+            {**base, "evidence_refs": "event-1"},
+            {**base, "evidence_refs": [""]},
+            {**base, "metadata": []},
+            {**base, "statement": ["错误类型"]},
+        ]
+
+        for payload_to_send in invalid_payloads:
+            with self.subTest(payload=payload_to_send):
+                status, payload = self.post_json(self.api("/event-feedbacks"), payload_to_send)
+                self.assertEqual(status, 400)
+                self.assertEqual(payload["code"], "invalid_request")
+
+        response = self.client.post(
+            self.api("/event-feedbacks"),
+            data='["not-an-object"]',
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["code"], "invalid_request")
 
     def test_events_api_filters_internal_events_by_default(self) -> None:
         now = timezone.now()
@@ -444,7 +461,7 @@ class ApiWorkflowTests(TestCase):
             summary="公开事件。",
             involved_member_ids=[self.member.member_no],
             related_task=self.task,
-            related_dispute_id="dispute-private-0001",
+            related_feedback_id="feedback-private-0001",
             occurred_at=now,
             generated_by=Event.GeneratedBy.LIVE_OS,
             visibility=Event.Visibility.PUBLIC,
@@ -452,10 +469,10 @@ class ApiWorkflowTests(TestCase):
         )
         Event.objects.create(
             event_id="event-internal-0001",
-            event_type=Event.EventType.DISPUTE,
+            event_type=Event.EventType.EVENT_FEEDBACK,
             simulation_day=1,
             severity=Event.Severity.WARNING,
-            title="内部申诉事件",
+            title="内部反馈事件",
             summary="内部事件。",
             involved_member_ids=[self.member.member_no],
             occurred_at=now,
@@ -473,7 +490,7 @@ class ApiWorkflowTests(TestCase):
         public_event = public_response.json()[0]
         self.assertEqual(public_event["related_task_id"], self.task.task_id)
         self.assertNotIn("involved_member_ids", public_event)
-        self.assertNotIn("related_dispute_id", public_event)
+        self.assertNotIn("related_feedback_id", public_event)
         self.assertNotIn("payload", public_event)
 
         internal_response = self.client.get(
@@ -589,18 +606,13 @@ class ApiWorkflowTests(TestCase):
             task=self.task, member=self.member, amount=10, ledger_entry=le,
             reviewed_by=self.reviewer,
         )
-        Dispute.objects.create(
-            dispute_id="dispute-0001",
-            dispute_type=Dispute.DisputeType.TASK_REVIEW,
-            status=Dispute.Status.IN_REVIEW,
-            claimant_member=self.member,
-            related_task=self.task,
-            facts="成员申请复核任务验收标准。",
+        EventFeedback.objects.create(
+            feedback_id="feedback-0001", related_event=event,
+            feedback_type=EventFeedback.FeedbackType.REVIEW,
+            status=EventFeedback.Status.VERIFYING,
+            submitted_by=self.member,
+            statement="成员申请复核任务验收标准。",
             evidence_refs=[event.event_id],
-            handler=actor(),
-            reviewer={},
-            resolution="",
-            appeal_path="standard-review-appeal",
             submitted_at=now,
         )
 
@@ -619,9 +631,8 @@ class ApiWorkflowTests(TestCase):
         self.assertNotIn("task_history", payload)
         self.assertEqual(payload["recent_ledger_entries"][0]["ledger_entry_id"], "ledger-0001")
         self.assertNotIn("recent_events", payload)
-        self.assertEqual(payload["open_disputes"][0]["dispute_id"], "dispute-0001")
-        self.assertEqual(payload["dispute_history"][0]["dispute_id"], "dispute-0001")
-        self.assertNotIn("reviewer", payload["dispute_history"][0])
+        self.assertEqual(payload["open_feedbacks"][0]["feedback_id"], "feedback-0001")
+        self.assertEqual(payload["feedback_history"][0]["feedback_id"], "feedback-0001")
         self.assertNotIn("resource_warnings", payload)
         self.assertEqual(payload["task_counts"][Task.Status.OPEN], 1)
         self.assertEqual(payload["task_counts"][Task.Status.CLAIMED], 1)
@@ -1006,7 +1017,7 @@ class RedemptionOrderApiTests(TestCase):
         frozen = CreditAccount.objects.get(account_type=CreditAccount.Type.FROZEN)
         froz_before = credit_balance(frozen)
         resp = self.client.post(
-            self.api(f"/redemption-orders/{order_id}/dispute"),
+            self.api(f"/redemption-orders/{order_id}/issue"),
             {"reason": "wrong item"}, content_type="application/json",
         )
         self.assertIn(resp.status_code, [200, 201])
@@ -1342,11 +1353,11 @@ class RedemptionOrderPageTest(TestCase):
         self.assertIsNotNone(order)
         resp = self.client.post(
             "/workspace/credits/redemption/",
-            {"dispute": order.order_id, "dispute_reason": "wrong"},
+            {"report_issue": order.order_id, "issue_reason": "wrong"},
             follow=True,
         )
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "已提交申诉")
+        self.assertContains(resp, "已报告履约问题")
         order.refresh_from_db()
         self.assertEqual(order.status, RedemptionOrder.Status.DISPUTED)
 

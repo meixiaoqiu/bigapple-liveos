@@ -177,14 +177,14 @@ def cancel_redemption_order_view(request: HttpRequest, order_id: str, **_kwargs)
 
 
 @require_POST
-def dispute_redemption_order_view(request: HttpRequest, order_id: str, **_kwargs) -> JsonResponse:
+def report_redemption_order_issue_view(request: HttpRequest, order_id: str, **_kwargs) -> JsonResponse:
     order = get_object_or_404(RedemptionOrder, order_id=order_id)
     denied = require_full_workspace_member_json(request, order.member.member_no)
     if denied:
         return denied
     current_member = _mfr(request)
     if current_member is None or current_member.member_no != order.member.member_no:
-        return JsonResponse({"error": "只能申诉本人的兑换订单。"}, status=403)
+        return JsonResponse({"error": "只能报告本人兑换订单的履约问题。"}, status=403)
 
     body, err = _parse_body(request)
     if err:
@@ -193,10 +193,10 @@ def dispute_redemption_order_view(request: HttpRequest, order_id: str, **_kwargs
     if not isinstance(reason, str):
         return JsonResponse({"error": "reason 必须是字符串。"}, status=400)
 
-    from core.credit_services import dispute_redemption_order as _dispute_ro
+    from core.credit_services import report_redemption_order_issue
     from core.exceptions import DomainError
     try:
-        order = _dispute_ro(order=order, reason=str(reason)[:256])
+        order = report_redemption_order_issue(order=order, reason=str(reason)[:256])
     except DomainError as exc:
         return JsonResponse({"error": str(exc)}, status=400)
     return JsonResponse(_order_to_contract(order))

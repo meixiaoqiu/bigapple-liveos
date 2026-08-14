@@ -89,7 +89,7 @@ def record_resource_adjustment(
         summary=f"{resource_label}库存从 {old_stock} {unit_label} 调整为 {new_stock} {unit_label}。{cleaned_reason}",
         involved_member_ids=[operator["actor_id"]] if operator.get("actor_id") else [],
         related_task=None,
-        related_dispute_id="",
+        related_feedback_id="",
         occurred_at=now,
         generated_by=Event.GeneratedBy.HUMAN_OPERATOR,
         visibility=Event.Visibility.PUBLIC,

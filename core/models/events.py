@@ -38,9 +38,13 @@ class SystemEvent(models.Model):
         TASK_SUBMITTED = "task_submitted", "任务已提交"
         TASK_REVIEWED = "task_reviewed", "任务已验收"
         TASK_CLOSED = "task_closed", "任务已关闭"
-        DISPUTE_CREATED = "dispute_created", "申诉已提交"
-        DISPUTE_REVIEW_STARTED = "dispute_review_started", "申诉已受理"
-        DISPUTE_RESOLVED = "dispute_resolved", "申诉已处理"
+        EVENT_FEEDBACK_SUBMITTED = "event_feedback_submitted", "事件反馈已提交"
+        EVENT_FEEDBACK_VERIFICATION_STARTED = "event_feedback_verification_started", "事件反馈已开始核实"
+        EVENT_FEEDBACK_RESPONSE_REQUESTED = "event_feedback_response_requested", "事件反馈已请求回应"
+        EVENT_FEEDBACK_RESPONDED = "event_feedback_responded", "事件反馈已回应"
+        EVENT_FEEDBACK_CONCLUDED = "event_feedback_concluded", "事件反馈已形成结论"
+        EVENT_FEEDBACK_CLOSED = "event_feedback_closed", "事件反馈已结束"
+        EVENT_FEEDBACK_WITHDRAWN = "event_feedback_withdrawn", "事件反馈已撤回"
         RESOURCE_ADJUSTED = "resource_adjusted", "资源已调整"
         SUPPLIER_OFFER_SUBMITTED = "supplier_offer_submitted", "供给报价已提交"
         SUPPLIER_OFFER_ACCEPTED = "supplier_offer_accepted", "供给报价已采纳"
@@ -124,7 +128,7 @@ class Event(models.Model):
         TASK = "task", "任务"
         LEDGER = "ledger", "账本"
         RESOURCE = "resource", "资源"
-        DISPUTE = "dispute", "申诉"
+        EVENT_FEEDBACK = "event_feedback", "事件反馈"
         CAPACITY = "capacity", "容量"
         GOVERNANCE = "governance", "治理"
         RANDOM_INCIDENT = "random_incident", "随机事件"
@@ -168,7 +172,7 @@ class Event(models.Model):
         related_name="events",
         verbose_name="关联任务",
     )
-    related_dispute_id = models.CharField("关联申诉ID", max_length=64, blank=True)
+    related_feedback_id = models.CharField("关联反馈ID", max_length=64, blank=True)
     occurred_at = models.DateTimeField("发生时间")
     generated_by = models.CharField("生成来源", max_length=32, choices=GeneratedBy.choices)
     visibility = models.CharField("可见性", max_length=16, choices=Visibility.choices)

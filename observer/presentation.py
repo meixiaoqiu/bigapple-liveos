@@ -33,7 +33,7 @@ RISK_LABELS = {
     "task_gap": "任务缺口",
     "average_satisfaction": "平均满意度",
     "average_fatigue": "平均疲劳值",
-    "open_disputes": "未关闭申诉",
+    "active_feedbacks": "核实中反馈",
     "exit_risk_members": "退出风险人数",
 }
 
@@ -92,8 +92,8 @@ def dashboard_tags_for_event(event: Event) -> list[str]:
     tags = [event.get_generated_by_display()]
     if event.related_task_id:
         tags.append(f"任务 {event.related_task_id}")
-    if event.related_dispute_id:
-        tags.append(f"申诉 {event.related_dispute_id}")
+    if event.related_feedback_id:
+        tags.append(f"反馈 {event.related_feedback_id}")
     if event.involved_member_ids:
         tags.append(f"成员 {len(event.involved_member_ids)}")
     return tags

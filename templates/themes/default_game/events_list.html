@@ -40,7 +40,7 @@
             <div class="flex flex-wrap items-center gap-2 text-xs text-base-content/60">
               <span>{{ event.generated_by }}</span>
               {% if event.related_task_id %}<span>任务 {{ event.related_task_id }}</span>{% endif %}
-              {% if event.related_dispute_id %}<span>申诉 {{ event.related_dispute_id }}</span>{% endif %}
+              {% if event.related_feedback_id %}<span>反馈 {{ event.related_feedback_id }}</span>{% endif %}
             </div>
           {% endif %}
         </div>

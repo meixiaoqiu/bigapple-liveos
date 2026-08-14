@@ -8,7 +8,7 @@ from django.db.models import Count, Q, Sum
 
 from core.models import (
     CapacityAssessment,
-    Dispute,
+    EventFeedback,
     Event,
     LedgerEntry,
     Member,
@@ -110,8 +110,8 @@ def observer_context(*, full_plan_nodes: bool = False) -> dict[str, Any]:
         for value, label in Task.Status.choices
         if task_counts.get(value, 0)
     ]
-    open_disputes = Dispute.objects.exclude(
-        status__in=[Dispute.Status.RESOLVED, Dispute.Status.REJECTED, Dispute.Status.REVERSED]
+    active_feedbacks = EventFeedback.objects.exclude(
+        status__in=[EventFeedback.Status.CLOSED, EventFeedback.Status.WITHDRAWN]
     ).count()
     bottleneck_rows = []
     risk_rows = []
@@ -228,7 +228,7 @@ def observer_context(*, full_plan_nodes: bool = False) -> dict[str, Any]:
         "contributors": Member.objects.filter(status=Member.Status.PENDING_REVIEW).count(),
         "total_tasks": Task.objects.count(),
         "task_completion_rate": task_completion_rate(),
-        "open_disputes": open_disputes,
+        "active_feedbacks": active_feedbacks,
 
         "latest_day": latest.simulation_day if latest else 1,
     }

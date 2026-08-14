@@ -16,7 +16,7 @@ from django.core.management.base import CommandError
 
 from core.exceptions import DomainError
 from core.models import (
-    Dispute,
+    EventFeedback,
     Event,
     LedgerEntry,
     Member,
@@ -64,7 +64,7 @@ COUNT_TABLES: OrderedDict[str, type] = OrderedDict([
     ("Resource", Resource),
     ("ResourceTransaction", ResourceTransaction),
     ("LedgerEntry", LedgerEntry),
-    ("Dispute", Dispute),
+    ("EventFeedback", EventFeedback),
 ])
 
 
