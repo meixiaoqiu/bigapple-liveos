@@ -10,7 +10,7 @@
     <p class="text-sm"><strong>提交人：</strong>{% if show_submitter %}{{ feedback.submitted_by.member_no }}{% else %}身份受限{% endif %}</p>
     {% if show_private_content and feedback.requested_outcome %}<p class="text-sm"><strong>期望结果：</strong>{{ feedback.requested_outcome }}</p>{% endif %}
     {% if show_private_content and feedback.response_statement %}<div class="alert"><span><strong>相关方回应：</strong>{{ feedback.response_statement }}</span></div>{% endif %}
-    {% if feedback.conclusion %}<div class="alert alert-info"><span><strong>结论：</strong>{{ feedback.get_conclusion_display }}。{{ feedback.conclusion_reason }}</span></div>{% endif %}
+    {% if feedback.conclusion %}<div class="alert alert-info"><span><strong>结论：</strong>{{ feedback.get_conclusion_display }}。{{ feedback.conclusion_reason }}{% if feedback.concluded_by_id %}<br><strong>结论责任人：</strong>{{ feedback.concluded_by.member_no }}{% endif %}</span></div>{% endif %}
     {% if feedback.resolution_event_id %}<a class="link" href="{% world_url 'observer-event-detail' feedback.resolution_event_id %}">查看结果事件</a>{% endif %}
     <a class="link" href="{% world_url 'observer-event-detail' feedback.related_event_id %}">返回原事件</a>
   </div></article>

@@ -62,3 +62,23 @@ class EventFeedbackPageTests(TestCase):
         party = self.client.get(f"/event-feedbacks/{feedback.feedback_id}/")
         self.assertContains(party, "secret-123")
         self.assertContains(party, "回应中也包含医疗隐私")
+
+    def test_public_conclusion_displays_named_responsible_member(self):
+        handler = create_member("feedback-public-concluder")
+        feedback = EventFeedback.objects.create(
+            feedback_id="feedback-public-conclusion", related_event=self.event,
+            feedback_type=EventFeedback.FeedbackType.CORRECTION,
+            status=EventFeedback.Status.CONCLUDED,
+            submitted_by=self.member, statement="原始内容不公开。",
+            conclusion=EventFeedback.Conclusion.CONFIRMED,
+            conclusion_reason="经核实，事件摘要需要后续纠正。",
+            concluded_by=handler,
+            concluded_at=timezone.now(), submitted_at=timezone.now(),
+        )
+
+        response = self.client.get(f"/event-feedbacks/{feedback.feedback_id}/")
+
+        self.assertContains(response, "结论责任人")
+        self.assertContains(response, handler.member_no)
+        self.assertContains(response, "经核实，事件摘要需要后续纠正")
+        self.assertNotContains(response, "原始内容不公开")
