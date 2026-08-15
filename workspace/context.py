@@ -16,6 +16,7 @@ from core.access import is_finance_reviewer, member_can_administer
 from core.authorization_services import AuthorizationService
 from core.application_services import _application_role_gap_label
 from core.identity_display import member_identity_display
+from core.governance_setup import DELIBERATOR_EXAM_MANAGE_PERMISSION
 from core.models import (
     CapacityAssessment,
     EventFeedback,
@@ -123,6 +124,9 @@ def workspace_context(member_no: str) -> dict[str, Any]:
         "member": member,
         "identity_display": member_identity_display(member),
         "is_governance": member_can_administer(member),
+        "can_manage_deliberator_exam": AuthorizationService().member_has_permission(
+            member, DELIBERATOR_EXAM_MANAGE_PERMISSION,
+        ),
         "is_finance": is_finance_reviewer(member),
         "is_merchant_operator": MerchantProfile.objects.filter(
             operator_member=member,

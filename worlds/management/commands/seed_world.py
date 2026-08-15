@@ -62,6 +62,9 @@ class Command(BaseCommand):
                 raise CommandError(f"Unsupported world seed template: {template}")
             if bootstrap_administrator is not None and template != "zero_start":
                 self._ensure_simulation_bootstrap_administrator(world, bootstrap_administrator)
+            from core.deliberator_exam_services import ensure_simulation_exam_baseline
+
+            ensure_simulation_exam_baseline(world_type=world.world_type)
         finally:
             reset_current_world(token)
 

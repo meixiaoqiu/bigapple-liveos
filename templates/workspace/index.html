@@ -60,6 +60,13 @@
               </div>
             {% endif %}
 
+            {% if can_manage_deliberator_exam %}
+              <div class="rounded-box border border-primary-content/30 p-3">
+                <h2 class="mb-2 text-sm font-bold">考试维护</h2>
+                <a class="btn btn-sm" href="{% world_url 'workspace-deliberator-exam-configuration' %}">执衡者考试配置</a>
+              </div>
+            {% endif %}
+
             {% if is_governance or is_finance or is_merchant_operator %}
               <div class="rounded-box border border-primary-content/30 p-3" aria-labelledby="workspace-nav-operations">
                 <h2 class="mb-2 text-sm font-bold" id="workspace-nav-operations">运营管理</h2>

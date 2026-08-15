@@ -5,6 +5,6 @@
 <p>有效守约者通过资格考试后，将立即取得一年执衡者任期。执衡者可以按选民规则参与守约者准入申请等提案表决。</p>
 {% if messages %}{% for message in messages %}<div class="alert {% if message.tags == 'success' %}alert-success{% else %}alert-error{% endif %}"><span>{{ message }}</span></div>{% endfor %}{% endif %}
 {% if has_active_term %}<div class="alert alert-success"><span>你当前已有有效执衡者任期，无需重复申请。</span></div>
-{% else %}<form method="post">{% csrf_token %}<button class="btn btn-primary" type="submit">开始资格考试</button></form>{% endif %}
+{% else %}{% if not exam_ready %}<div class="alert alert-info"><span>{{ exam_unavailable_message }}</span></div>{% endif %}<form method="post">{% csrf_token %}<button class="btn btn-primary" type="submit" {% if not exam_ready %}disabled{% endif %}>开始资格考试</button></form>{% endif %}
 {% if latest_attempt %}<div class="rounded-lg border border-base-300 p-4"><p>最近考试：{{ latest_attempt.get_status_display }}</p>{% if latest_attempt.score != None %}<p>得分 {{ latest_attempt.score }} / {{ latest_attempt.total_points }}，及格线 {{ latest_attempt.passing_score }}</p>{% endif %}<a class="link link-primary" href="{% world_url 'workspace-deliberator-exam-attempt' latest_attempt.attempt_id %}">查看考试</a></div>{% endif %}
 <a class="btn btn-ghost" href="{% world_url 'workspace-page' %}">返回成员工作台</a></div></section></main></body></html>

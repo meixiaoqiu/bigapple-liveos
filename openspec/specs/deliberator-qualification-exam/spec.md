@@ -30,7 +30,37 @@
 
 #### Scenario: 有效题目不足
 - **WHEN** 当前政策要求抽取的题数大于已发布有效题目数
-- **THEN** 系统拒绝开始考试，向成员显示题库暂不可用，且不创建空白或可提交的考试尝试
+- **THEN** 系统返回 `insufficient_questions`，拒绝开始考试，统一显示“执衡者资格考试暂未开放，请稍后再试”，且不创建空白或可提交的考试尝试
+
+#### Scenario: 没有生效政策
+- **WHEN** 当前 world 没有生效的考试政策
+- **THEN** 系统返回 `no_active_policy`，申请页禁用开始按钮并统一显示暂未开放提示
+
+#### Scenario: 页面加载后配置发生变化
+- **WHEN** 申请页加载时考试可用，但提交开始请求前政策失效或题目数量不足
+- **THEN** 开始考试服务重新判断可用性并失败关闭，不创建考试尝试
+
+### Requirement: 仿真世界重置后必须具备最小考试基线
+系统 SHALL 在 simulation world 初始化或重置到 `zero_start` 时幂等确保一题明确标识为仿真用途的已发布题目和一项单题政策；已有可用考试配置、题目、政策和考试历史 MUST NOT 被覆盖。real world MUST NOT 自动发布示例考试。
+
+#### Scenario: 仿真世界清空后重置
+- **WHEN** simulation world 的业务数据被清空并重新执行 `seed_world --template zero_start`
+- **THEN** 系统创建最小考试基线，合格守约者可以开始考试
+
+#### Scenario: 重复执行仿真种子
+- **WHEN** 对同一 simulation world 重复执行初始化
+- **THEN** 系统不重复创建基线题目或政策，也不覆盖已有可用配置
+
+### Requirement: 业务管理员必须能够从 workspace 完成首次考试配置
+系统 SHALL 提供 world-scoped 的最小配置页，使具有 `governance.manage_deliberator_exam` 明确权限的当前有效成员可以创建并发布单选题，以及发布抽题数量与及格百分比政策。Django `is_staff` 或 `is_superuser` 本身不得获得该入口。
+
+#### Scenario: 有权管理员完成首次配置
+- **WHEN** 有权管理员从 workspace 发布至少一道题及一项有效政策
+- **THEN** 当前 world 无需重启即可开始考试
+
+#### Scenario: 无业务权限的技术管理员访问
+- **WHEN** 用户只有 Django staff 或 superuser 标记而没有考试维护权限
+- **THEN** 系统拒绝访问和写入
 
 ### Requirement: 每次考试必须由服务端随机组卷并保存快照
 系统 SHALL 从当前 world 的已发布有效题目中无重复随机抽取当前政策要求的题数，并保存题目、选项、分值、政策版本和及格线快照。客户端 MUST NOT 选择题目、提交正确答案、指定分数或决定是否通过。

@@ -6,12 +6,12 @@
   <div class="navbar-end gap-2">
     {% for item in runtime_nav.items %}
       {% if item.method == "post" %}
-        <form method="post" action="{{ item.url }}" class="inline">
+        <form method="post" action="{{ item.url }}" class="inline shrink-0">
           {% csrf_token %}
-          <button type="submit" class="btn btn-sm btn-ghost">{{ item.label }}</button>
+          <button type="submit" class="btn btn-sm btn-ghost whitespace-nowrap">{{ item.label }}</button>
         </form>
       {% else %}
-        <a class="btn btn-sm btn-ghost" href="{{ item.url }}">{{ item.label }}</a>
+        <a class="btn btn-sm btn-ghost shrink-0 whitespace-nowrap" href="{{ item.url }}">{{ item.label }}</a>
       {% endif %}
     {% endfor %}
   </div>

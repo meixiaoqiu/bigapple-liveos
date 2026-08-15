@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import secrets
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 
 from django.db import IntegrityError, transaction
 from django.utils import timezone
@@ -19,6 +20,90 @@ from .governance_setup import DELIBERATOR_EXAM_MANAGE_PERMISSION
 from .member_roles import ROLE_COVENANTER, ROLE_DELIBERATOR, ensure_catalog_role, member_has_role
 from .models import DeliberatorExamAttempt, DeliberatorExamPolicy, DeliberatorExamQuestion, Member, RoleAssignment, SystemEvent
 from .role_assignment_services import create_role_assignment
+
+
+EXAM_UNAVAILABLE_MESSAGE = "执衡者资格考试暂未开放，请稍后再试"
+SIMULATION_BASELINE_QUESTION_ID = "delib-question-simulation-baseline"
+
+
+@dataclass(frozen=True)
+class DeliberatorExamReadiness:
+    """Describe whether a new exam can be started without changing authority state."""
+
+    code: str
+    published_question_count: int
+    required_question_count: int | None
+
+    @property
+    def ready(self) -> bool:
+        return self.code == "ready"
+
+
+def deliberator_exam_readiness() -> DeliberatorExamReadiness:
+    """Return the stable readiness state shared by pages and exam creation."""
+    policy = DeliberatorExamPolicy.objects.filter(
+        status=DeliberatorExamPolicy.Status.ACTIVE,
+    ).order_by("-version").first()
+    published_count = DeliberatorExamQuestion.objects.filter(
+        status=DeliberatorExamQuestion.Status.PUBLISHED,
+    ).count()
+    if policy is None:
+        return DeliberatorExamReadiness("no_active_policy", published_count, None)
+    if published_count < policy.question_count:
+        return DeliberatorExamReadiness("insufficient_questions", published_count, policy.question_count)
+    return DeliberatorExamReadiness("ready", published_count, policy.question_count)
+
+
+@transaction.atomic
+def ensure_simulation_exam_baseline(*, world_type: str) -> dict[str, object]:
+    """Ensure a simulation-only minimal exam without replacing usable configuration."""
+    from worlds.models import WorldRegistry
+
+    if world_type != WorldRegistry.WorldType.SIMULATION:
+        raise DomainError("考试仿真基线只能用于仿真世界。")
+    readiness = deliberator_exam_readiness()
+    if readiness.ready:
+        return {"created_question": False, "created_policy": False, "readiness": readiness}
+
+    question, created_question = DeliberatorExamQuestion.objects.get_or_create(
+        question_id=SIMULATION_BASELINE_QUESTION_ID,
+        version=1,
+        defaults={
+            "prompt": "仿真基线：执衡者应如何参与社区议事？",
+            "options_json": [
+                {"id": "a", "text": "按规则履行投票和表达意见的义务"},
+                {"id": "b", "text": "可以任意缺席且无需承担责任"},
+            ],
+            "correct_option_id": "a",
+            "explanation": "该题仅用于仿真世界功能验证。",
+            "points": 1,
+            "status": DeliberatorExamQuestion.Status.PUBLISHED,
+            "published_at": timezone.now(),
+        },
+    )
+    if not created_question and question.status != DeliberatorExamQuestion.Status.PUBLISHED:
+        question.status = DeliberatorExamQuestion.Status.PUBLISHED
+        question.published_at = timezone.now()
+        question.save(update_fields=("status", "published_at", "updated_at"))
+
+    created_policy = False
+    if not DeliberatorExamPolicy.objects.filter(status=DeliberatorExamPolicy.Status.ACTIVE).exists():
+        latest = DeliberatorExamPolicy.objects.order_by("-version").first()
+        policy = DeliberatorExamPolicy(
+            version=(latest.version + 1 if latest else 1),
+            question_count=1,
+            passing_percent=100,
+            status=DeliberatorExamPolicy.Status.ACTIVE,
+            published_at=timezone.now(),
+        )
+        policy.full_clean()
+        policy.save()
+        created_policy = True
+    return {
+        "created_question": created_question,
+        "created_policy": created_policy,
+        "readiness": deliberator_exam_readiness(),
+    }
 
 
 def _assert_exam_candidate(member: Member, *, at_time=None) -> None:
@@ -212,12 +297,15 @@ def start_deliberator_exam(
 ) -> DeliberatorExamAttempt:
     """Create a private server-selected exam snapshot for an eligible member."""
     _assert_exam_candidate(member)
+    readiness = deliberator_exam_readiness()
+    if not readiness.ready:
+        raise DomainError(EXAM_UNAVAILABLE_MESSAGE)
     policy = DeliberatorExamPolicy.objects.select_for_update().filter(status=DeliberatorExamPolicy.Status.ACTIVE).order_by("-version").first()
-    if policy is None:
-        raise DomainError("执衡者考试政策尚未发布。")
+    if policy is None:  # policy may change after the readiness query
+        raise DomainError(EXAM_UNAVAILABLE_MESSAGE)
     questions = list(DeliberatorExamQuestion.objects.filter(status=DeliberatorExamQuestion.Status.PUBLISHED).order_by("question_id", "-version"))
     if len(questions) < policy.question_count:
-        raise DomainError("执衡者考试题库暂不可用，请联系管理员维护。")
+        raise DomainError(EXAM_UNAVAILABLE_MESSAGE)
     selected = list((sampler or secrets.SystemRandom().sample)(questions, policy.question_count))
     snapshot = [{
         "snapshot_id": f"q{index + 1}", "question_id": item.question_id,

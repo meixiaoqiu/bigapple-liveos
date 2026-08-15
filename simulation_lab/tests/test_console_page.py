@@ -13,6 +13,8 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from core.models import (
+    DeliberatorExamPolicy,
+    DeliberatorExamQuestion,
     Event,
     LedgerEntry,
     Member,
@@ -1588,6 +1590,8 @@ class SimulationLabResetWorldTests(TestCase):
         self.assertTrue(Member.objects.filter(member_no="founder-0001").exists())
         self.assertTrue(ProjectPlan.objects.filter(plan_id="plan-zero-start").exists())
         self.assertTrue(PlanRevision.objects.filter(revision_id="plan-zero-start-rev-v0_0_1").exists())
+        self.assertEqual(DeliberatorExamQuestion.objects.filter(status="published").count(), 1)
+        self.assertEqual(DeliberatorExamPolicy.objects.filter(status="active").count(), 1)
 
         # No SimulationRun or SimulationTurn should have been created by reset
         self.assertEqual(SimulationRun.objects.count(), 0)

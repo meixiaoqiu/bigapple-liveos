@@ -537,6 +537,12 @@ class ObserverPageTests(TestCase):
         self.assertContains(response, "/u/nav-member-01/")
         self.assertContains(response, "/workspace/")
         self.assertContains(response, 'method="post" action="/logout/"', html=False)
+        self.assertContains(
+            response,
+            '<button type="submit" class="btn btn-sm btn-ghost whitespace-nowrap">退出</button>',
+            html=True,
+        )
+        self.assertContains(response, "shrink-0 whitespace-nowrap")
         self.assertNotContains(response, 'href="/logout/"')
         self.assertNotContains(response, "/register/")
         self.assertNotContains(response, "/login/")

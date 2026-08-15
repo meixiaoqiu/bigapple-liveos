@@ -12,3 +12,8 @@
 
 - [x] 3.1 运行 Tailwind 构建并更新编译后的主题 CSS
 - [x] 3.2 运行相关 Workspace 测试、Django check、OpenSpec strict validation 和两个仓库的 `git diff --check`
+
+## 4. 公共页头换行回归修复
+
+- [x] 4.1 禁止公共运行时页头的链接与提交按钮在标签内部换行，并增加模板回归测试
+- [x] 4.2 重新构建 Tailwind CSS，运行相关测试、OpenSpec strict validation 和 `git diff --check`

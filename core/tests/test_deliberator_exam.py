@@ -12,6 +12,8 @@ from core.deliberation_services import apply_for_deliberator_term
 from core.deliberator_exam_services import (
     create_exam_question,
     copy_exam_question_to_draft,
+    deliberator_exam_readiness,
+    ensure_simulation_exam_baseline,
     member_exam_view,
     publish_exam_policy,
     replace_exam_question,
@@ -30,6 +32,7 @@ from core.role_assignment_services import create_role_assignment
 from core.tests.helpers import create_member
 from core.tests.helpers import ensure_login_user_for_member
 from core.admin_deliberator_exams import DeliberatorExamAttemptAdmin, DeliberatorExamQuestionAdmin
+from worlds.models import WorldRegistry
 
 
 class DeliberatorExamTests(TestCase):
@@ -205,9 +208,42 @@ class DeliberatorExamTests(TestCase):
     def test_insufficient_question_bank_fails_without_attempt(self):
         self.policy.question_count = 2
         self.policy.save(update_fields=("question_count",))
-        with self.assertRaisesRegex(DomainError, "题库暂不可用"):
+        self.assertEqual(deliberator_exam_readiness().code, "insufficient_questions")
+        with self.assertRaisesRegex(DomainError, "暂未开放"):
             start_deliberator_exam(member=self.member)
         self.assertFalse(DeliberatorExamAttempt.objects.exists())
+
+    def test_readiness_distinguishes_missing_policy_and_ready(self):
+        self.assertEqual(deliberator_exam_readiness().code, "ready")
+        self.policy.delete()
+        result = deliberator_exam_readiness()
+        self.assertEqual(result.code, "no_active_policy")
+        self.assertIsNone(result.required_question_count)
+
+    def test_simulation_baseline_is_idempotent_and_real_is_rejected(self):
+        DeliberatorExamPolicy.objects.all().delete()
+        DeliberatorExamQuestion.objects.all().delete()
+        first = ensure_simulation_exam_baseline(world_type=WorldRegistry.WorldType.SIMULATION)
+        second = ensure_simulation_exam_baseline(world_type=WorldRegistry.WorldType.SIMULATION)
+        self.assertTrue(first["created_question"])
+        self.assertTrue(first["created_policy"])
+        self.assertFalse(second["created_question"])
+        self.assertFalse(second["created_policy"])
+        self.assertEqual(DeliberatorExamQuestion.objects.count(), 1)
+        self.assertEqual(DeliberatorExamPolicy.objects.count(), 1)
+        with self.assertRaisesRegex(DomainError, "只能用于仿真世界"):
+            ensure_simulation_exam_baseline(world_type=WorldRegistry.WorldType.REAL)
+
+    def test_simulation_baseline_preserves_usable_configuration_and_history(self):
+        attempt = start_deliberator_exam(member=self.member)
+        original_policy_id = self.policy.pk
+        original_question_id = self.question.pk
+        result = ensure_simulation_exam_baseline(world_type=WorldRegistry.WorldType.SIMULATION)
+        self.assertFalse(result["created_question"])
+        self.assertFalse(result["created_policy"])
+        self.assertTrue(DeliberatorExamPolicy.objects.filter(pk=original_policy_id, status="active").exists())
+        self.assertTrue(DeliberatorExamQuestion.objects.filter(pk=original_question_id, status="published").exists())
+        self.assertTrue(DeliberatorExamAttempt.objects.filter(pk=attempt.pk).exists())
 
     def test_qualification_loss_during_exam_is_retained_as_invalidated(self):
         attempt = start_deliberator_exam(member=self.member)

@@ -53,11 +53,11 @@ ROLE_USAGE_CATALOG: dict[str, dict[str, str]] = {
         "category": "授权查询",
         "reason": "OpenFGA 工作台授权前以 Django 当前守约者任命否决陈旧 tuple。",
     },
-    "core/deliberator_exam_services.py:30": {
+    "core/deliberator_exam_services.py:115": {
         "category": "权威事实查询",
         "reason": "开始或提交执衡者考试时确认当前守约者资格。",
     },
-    "core/deliberator_exam_services.py:32": {
+    "core/deliberator_exam_services.py:117": {
         "category": "权威事实查询",
         "reason": "阻止已有有效任期的成员重复参加执衡者考试。",
     },
@@ -161,7 +161,7 @@ ROLE_USAGE_CATALOG: dict[str, dict[str, str]] = {
         "category": "权威事实查询",
         "reason": "盘点角色是否满足守约者资格前置条件。",
     },
-    "workspace/deliberator_exam_views.py:33": {
+    "workspace/deliberator_exam_views.py:46": {
         "category": "显示查询",
         "reason": "执衡者考试首页显示当前成员是否已有有效任期。",
     },

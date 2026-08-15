@@ -9,6 +9,7 @@ from . import credit_views, deliberator_exam_views, task_views, views, finance_v
 urlpatterns = [
     path("", world_scoped_view(views.workspace_page), name="workspace-page"),
     path("deliberator-exam/", world_scoped_view(deliberator_exam_views.deliberator_exam_home), name="workspace-deliberator-exam"),
+    path("deliberator-exam/configuration/", world_scoped_view(deliberator_exam_views.deliberator_exam_configuration), name="workspace-deliberator-exam-configuration"),
     path("deliberator-exam/<str:attempt_id>/", world_scoped_view(deliberator_exam_views.deliberator_exam_attempt), name="workspace-deliberator-exam-attempt"),
     path(
         "credits/transfer/",
