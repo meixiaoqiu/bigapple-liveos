@@ -172,6 +172,51 @@ class WorkspacePageTests(TestCase):
         self.assertNotContains(response, "申诉状态")
         self.assertNotContains(response, "个人任务历史")
 
+    def test_workspace_navigation_groups_personal_links_without_empty_duty_groups(self) -> None:
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        navigation = content.split('<nav class="grid gap-3 md:grid-cols-3"', 1)[1].split("</nav>", 1)[0]
+        self.assertIn("个人功能", navigation)
+        self.assertNotIn("治理职责", navigation)
+        self.assertNotIn("运营管理", navigation)
+        self.assertIn('href="/workspace/tasks/"', navigation)
+        self.assertIn('href="/workspace/finance/claims/"', navigation)
+        self.assertIn('href="/workspace/deliberator-exam/"', navigation)
+        self.assertIn('href="/workspace/credits/transfer/"', navigation)
+        self.assertIn('href="/workspace/credits/redemption/"', navigation)
+        self.assertIn('href="/workspace/profile/"', navigation)
+        self.assertNotIn("btn-accent", navigation)
+
+    @patch("workspace.context.member_can_administer", return_value=True)
+    @patch("workspace.work_item_context.member_can_administer", return_value=True)
+    def test_workspace_navigation_groups_governance_and_operations_links(
+        self,
+        _work_item_permission,
+        _context_permission,
+    ) -> None:
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        navigation = content.split('<nav class="grid gap-3 md:grid-cols-3"', 1)[1].split("</nav>", 1)[0]
+        self.assertIn("个人功能", navigation)
+        self.assertIn("治理职责", navigation)
+        self.assertIn("运营管理", navigation)
+        self.assertIn('href="/workspace/applications/"', navigation)
+        self.assertIn('href="/workspace/recruitment/"', navigation)
+        self.assertIn('href="/workspace/finance/reviewer-appointments/"', navigation)
+        self.assertIn('href="/workspace/proposals/"', navigation)
+        self.assertIn('href="/workspace/tasks/new/"', navigation)
+        self.assertIn('href="/workspace/tasks/review/"', navigation)
+        self.assertIn('href="/workspace/credits/redemption/review/"', navigation)
+        self.assertIn('href="/workspace/credits/budgets/"', navigation)
+        self.assertIn('href="/workspace/credits/merchant-settlements/"', navigation)
+        self.assertIn('href="/workspace/inventory/"', navigation)
+        self.assertIn('href="/workspace/procurement/"', navigation)
+        self.assertNotIn("btn-accent", navigation)
+
     def test_member_can_open_own_task_detail(self) -> None:
         response = self.client.get("/workspace/tasks/task-0003/")
         self.assertEqual(response.status_code, 200)
