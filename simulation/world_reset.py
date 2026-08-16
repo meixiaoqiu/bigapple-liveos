@@ -24,9 +24,6 @@ from core.models import (
     PartnerApplication,
     PlanNode,
     PlanRevision,
-    Proposal,
-    ProposalExecution,
-    ProposalVote,
     ProjectPlan,
     Resource,
     ResourceTransaction,
@@ -50,9 +47,6 @@ COUNT_TABLES: OrderedDict[str, type] = OrderedDict([
     ("auth.User", None),  # handled specially
     ("MemberApplication", MemberApplication),
     ("PartnerApplication", PartnerApplication),
-    ("Proposal", Proposal),
-    ("ProposalVote", ProposalVote),
-    ("ProposalExecution", ProposalExecution),
     ("SimulationRun", SimulationRun),
     ("SimulationTurn", SimulationTurn),
     ("Event", Event),
@@ -106,7 +100,7 @@ def reset_simulation_world_to_zero_start(
     Note: This function does NOT run run_zero_start_simulation. The world
     after reset will have only the zero-start baseline: one founder member,
     one ProjectPlan, and one published PlanRevision with no SimulationRun,
-    SimulationTurn, or application/proposal history.
+    SimulationTurn 或报名决策历史。
 
     Raises:
         DomainError: if validation fails (wrong world type, status, etc.)

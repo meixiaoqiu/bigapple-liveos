@@ -8,11 +8,15 @@ import sys
 from pathlib import Path
 
 from check_role_usage import check_role_usage_catalog
+from check_legacy_proposal import check_legacy_proposal_residuals
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONTRACTS_ROOT = (ROOT / "../bigapple-docs/static/technical-contracts").resolve()
 CONTRACTS_ROOT = Path(os.environ.get("BIG_APPLE_CONTRACTS_ROOT", str(DEFAULT_CONTRACTS_ROOT))).resolve()
+DEFAULT_DOCS_ROOT = (ROOT / "../bigapple-docs").resolve()
+configured_docs_root = Path(os.environ.get("BIG_APPLE_DOCS_ROOT", str(DEFAULT_DOCS_ROOT))).resolve()
+DOCS_ROOT = configured_docs_root if configured_docs_root.exists() else CONTRACTS_ROOT
 
 REQUIRED_CONTRACT_FILES = [
     "schemas/member.schema.json",
@@ -20,24 +24,29 @@ REQUIRED_CONTRACT_FILES = [
     "schemas/ledger-entry.schema.json",
     "schemas/resource.schema.json",
     "schemas/event.schema.json",
-    "schemas/dispute.schema.json",
+    "schemas/event-feedback.schema.json",
     "schemas/ruleset.schema.json",
     "schemas/capacity-assessment.schema.json",
     "openapi/live-os.v0.1.openapi.json",
 ]
 
+IGNORED_SOURCE_DIRECTORIES = {
+    ".git", ".venv", ".codex", ".agents", "venv", "__pycache__",
+    "node_modules", "static", "staticfiles", "temp", "var",
+}
+
+
+def source_files(*suffixes: str):
+    for directory, child_directories, file_names in os.walk(ROOT):
+        child_directories[:] = [name for name in child_directories if name not in IGNORED_SOURCE_DIRECTORIES]
+        for file_name in file_names:
+            path = Path(directory) / file_name
+            if path.suffix in suffixes:
+                yield path
+
 def check_python_syntax() -> list[str]:
     errors: list[str] = []
-    for path in sorted(ROOT.rglob("*.py")):
-        if {
-            ".git",
-            ".venv",
-            "venv",
-            "__pycache__",
-            "node_modules",
-            "staticfiles",
-        }.intersection(path.parts):
-            continue
+    for path in sorted(source_files(".py")):
         try:
             ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         except SyntaxError as exc:
@@ -88,8 +97,8 @@ def check_legacy_role_names() -> list[str]:
     )
     ignored = {".git", ".venv", "node_modules", "openspec", "migrations", "__pycache__"}
     errors: list[str] = []
-    for pattern in ("*.py", "*.html", "*.json", "*.fga"):
-        for path in ROOT.rglob(pattern):
+    for suffix in (".py", ".html", ".json", ".fga"):
+        for path in source_files(suffix):
             if ignored.intersection(path.relative_to(ROOT).parts):
                 continue
             content = path.read_text(encoding="utf-8")
@@ -115,6 +124,7 @@ def main() -> int:
     errors.extend(check_python_syntax())
     errors.extend(check_role_catalog())
     errors.extend(check_legacy_role_names())
+    errors.extend(check_legacy_proposal_residuals(liveos_root=ROOT, docs_root=DOCS_ROOT))
     errors.extend(check_role_usage_catalog())
     if args.check_contracts:
         errors.extend(check_contract_files())

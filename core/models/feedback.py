@@ -3,7 +3,6 @@
 from django.db import models
 
 from .identity import Member
-from .proposals import Proposal
 
 
 def _generate_feedback_id() -> str:
@@ -17,8 +16,7 @@ class CommunityFeedback(models.Model):
 
     Feedback is NOT a governance proposal — it does not change any
     authoritative system state.  Governance members may respond,
-    隐藏不适当内容，或将反馈关联到正式 Proposal
-    for further governance action.  Runtime authorisation still flows
+    隐藏不适当内容；转入统一提案系统的能力迁移期间关闭。Runtime authorisation still flows
     exclusively through RoleAssignment → RolePermission.
     """
 
@@ -77,15 +75,6 @@ class CommunityFeedback(models.Model):
     )
     responded_at = models.DateTimeField(
         "回应时间", null=True, blank=True, help_text="最近一次回应的发生时间。"
-    )
-    linked_proposal = models.ForeignKey(
-        Proposal,
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="community_feedbacks",
-        verbose_name="关联提案",
-        help_text="由此反馈转入的正式治理提案。",
     )
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
     updated_at = models.DateTimeField("更新时间", auto_now=True)

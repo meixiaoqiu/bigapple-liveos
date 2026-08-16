@@ -83,12 +83,10 @@
               <dt class="font-semibold">意向角色</dt>
               <dd>{{ role_gap_label|default:"未记录" }}</dd>
             </div>
-            {% if application.admission_proposal %}
-              <div>
-                <dt class="font-semibold">准入提案</dt>
-                <dd>{{ application.admission_proposal.proposal_no }} · {{ application.admission_proposal.get_status_display }}</dd>
-              </div>
-            {% endif %}
+            <div class="md:col-span-2">
+              <dt class="font-semibold">准入决策</dt>
+              <dd>统一提案流程正在迁移，当前决策操作暂不可用。报名资料已保留。</dd>
+            </div>
             {% if application.decided_at %}
               <div>
                 <dt class="font-semibold">决议时间</dt>

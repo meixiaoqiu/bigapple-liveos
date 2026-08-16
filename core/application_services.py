@@ -1,4 +1,4 @@
-"""Application submission and proposal-driven admission services."""
+"""报名提交服务，以及统一提案迁移期间保留的新审批回调。"""
 
 from __future__ import annotations
 
@@ -15,9 +15,8 @@ from core.db import atomic_for_model
 from core.event_ledger import PUBLIC_LEDGER_SCHEMA, append_event
 from core.event_payloads import _private, member_display_name, public_member_label
 from core.exceptions import DomainError
-from core.electorate_rules import TEMPLATE_COVENANTER, current_electorate_rule_version
-from core.member_roles import ROLE_COVENANTER, ensure_catalog_role, member_has_role
-from core.models import Member, MemberApplication, PartnerApplication, Proposal, SystemEvent
+from core.member_roles import ROLE_COVENANTER, member_has_role
+from core.models import Member, MemberApplication, PartnerApplication, SystemEvent
 
 from .identity_services import register_member
 from .models.applications import ROLE_GAP_LABELS
@@ -161,7 +160,6 @@ def member_application_payload(application: MemberApplication) -> dict[str, Any]
             _private("capability_scores", present=bool(application.capability_scores), reason="能力评分属于隐私"),
             _private("dynamic_answers", present=bool(application.dynamic_answers), reason="动态问答内容属于隐私"),
             _private("document_authority_domains", reason="文件签署域属于隐私"),
-            _private("admission_proposal_id", present=bool(application.admission_proposal_id), reason="准入提案内部ID"),
             _private("frozen_at", reason="冻结时间"),
             _private("submitted_at", reason="提交时间"),
             _private("decided_at", reason="决定时间"),
@@ -260,7 +258,7 @@ def submit_member_application(
 
     The account and ``Member`` are created before admission approval so the
     applicant can enter a restricted workspace. Full member capabilities still
-    require proposal-driven admission.
+    require the unified decision workflow.
     """
 
     if availability_hours_per_week < 0:
@@ -292,7 +290,6 @@ def submit_member_application(
             raise DomainError("当前账号已绑定其他成员编号。")
     active_application_statuses = {
         MemberApplication.Status.SUBMITTED,
-        MemberApplication.Status.ADMISSION_VOTING,
         MemberApplication.Status.ADMITTED,
     }
     if existing_member is not None:
@@ -372,7 +369,6 @@ def submit_member_application(
     application.linked_member = existing_member
     application.save(update_fields=["requested_member_no", "linked_member"])
 
-    # SystemEvent first so seq order reflects: submitted → proposal created → vote → result
     append_event(
         event_type=SystemEvent.EventType.MEMBER_APPLICATION_SUBMITTED,
         aggregate_type="MemberApplication",
@@ -380,22 +376,15 @@ def submit_member_application(
         payload_json=member_application_payload(application),
         occurred_at=now,
     )
-    # Auto-create the member_admission proposal so every application immediately
-    # enters the governance voting pipeline. No manual "review" step exists.
-    create_member_application_admission_proposal(
-        application=application,
-        reason=f"系统自动发起：接纳 {application.applicant_name} 成为大苹果守约者。",
-    )
     _append_member_application_public_event_once(
         event_id=f"member-application-submitted-{application.application_id}",
         title="收到成员报名",
-        summary="收到一名成员报名，准入提案已进入治理表决。",
+        summary="收到一名成员报名；统一提案决策流程迁移期间暂不开放准入表决。",
         severity=Event.Severity.INFO,
         payload={
             "source": "member_application",
             "stage": "submitted",
             "application_id": application.application_id,
-            "proposal_no": application.admission_proposal.proposal_no if application.admission_proposal_id else "",
             "public_applicant_label": public_member_label(
                 application.applicant_name,
                 application.linked_member.member_no if application.linked_member_id else "",
@@ -457,354 +446,15 @@ def submit_partner_application(
 
 
 @atomic_for_model(MemberApplication)
-def create_member_application_admission_proposal(
-    *,
-    application: MemberApplication,
-    proposer_member: Member | None = None,
-    reason: str = "",
-    deadline_at=None,
-) -> Proposal:
-    """Create the governance proposal used to admit a submitted member application."""
-
-    if application.status not in {
-        MemberApplication.Status.SUBMITTED,
-        MemberApplication.Status.ADMISSION_VOTING,
-    }:
-        raise DomainError("只有已提交或准入表决中的报名可以绑定准入提案。")
-    if application.linked_member_id is None:
-        raise DomainError("成员报名尚未绑定最小成员身份。")
-    if application.admission_proposal_id:
-        return application.admission_proposal
-
-    from core.proposals.lifecycle import create_proposal
-
-    body = str(reason or "").strip() or f"接纳 {application.applicant_name} 成为大苹果守约者。"
-    proposal = create_proposal(
-        title=f"接纳成员报名：{application.applicant_name}",
-        body=body,
-        proposal_type=Proposal.ProposalType.MEMBER_ADMISSION,
-        proposer_member=proposer_member,
-        electorate_rule_version=current_electorate_rule_version(TEMPLATE_COVENANTER),
-        pass_ratio=50,
-        quorum_count=None,
-        allow_vote_change=True,
-        deadline_at=deadline_at,
-        payload_json={
-            "action": "admit_member_application",
-            "application_id": application.application_id,
-            "target_member_id": application.linked_member_id,
-            "target_member_no": application.linked_member.member_no,
-            "applicant_name": application.applicant_name,
-            "role_gap": application.role_gap,
-            "reason": body,
-        },
-        status=Proposal.Status.VOTING,
-    )
-    application.admission_proposal = proposal
-    application.status = MemberApplication.Status.ADMISSION_VOTING
-    application.save(update_fields=["admission_proposal", "status"])
-    return proposal
-
-
-@atomic_for_model(MemberApplication)
-def reopen_zero_electorate_member_admissions(*, proposer_member: Member) -> int:
-    """Replace stuck zero-electorate admission proposals after governance is bootstrapped."""
-    from core.proposals.lifecycle import cancel_proposal
-
-    repaired = 0
-    applications = MemberApplication.objects.select_related("admission_proposal", "linked_member").filter(
-        status=MemberApplication.Status.ADMISSION_VOTING,
-        admission_proposal__status=Proposal.Status.VOTING,
-    )
-    for application in applications:
-        old_proposal = application.admission_proposal
-        if old_proposal.eligible_voters_snapshot_json:
-            continue
-        cancel_proposal(proposal=old_proposal, actor_member=proposer_member)
-        application.admission_proposal = None
-        application.save(update_fields=("admission_proposal",))
-        create_member_application_admission_proposal(
-            application=application,
-            proposer_member=proposer_member,
-            reason="首位执衡者产生后重新开启此前无合格选民的准入表决。",
-        )
-        repaired += 1
-    return repaired
-
-
-@atomic_for_model(MemberApplication)
-def admit_member_application_from_proposal(
-    *,
-    application: MemberApplication,
-    proposal: Proposal,
-    executor_member: Member | None = None,
-    execution=None,
-    admitted_at=None,
-) -> MemberApplication:
-    """Apply a passed member-admission proposal to the application and linked member."""
-
-    if proposal.proposal_type != Proposal.ProposalType.MEMBER_ADMISSION:
-        raise DomainError("提案类型不是成员准入。")
-    if proposal.status != Proposal.Status.PASSED:
-        raise DomainError("只有已通过的成员准入提案才能执行。")
-    if application.linked_member_id is None:
-        raise DomainError("成员报名尚未绑定最小成员身份。")
-    if application.admission_proposal_id and application.admission_proposal_id != proposal.pk:
-        raise DomainError("成员报名关联的准入提案不一致。")
-
-    now = admitted_at or timezone.now()
-    member = application.linked_member
-    covenanter_role = ensure_catalog_role(ROLE_COVENANTER)
-    from core.role_assignment_services import create_role_assignment
-
-    assignment = create_role_assignment(
-        member=member,
-        role=covenanter_role,
-        granted_by=executor_member,
-        source_type="proposal",
-        source_proposal=proposal,
-        source_proposal_execution=execution,
-    )
-    member.status = Member.Status.ADMITTED
-    member.metadata = {
-        **(member.metadata or {}),
-        "application_status": MemberApplication.Status.ADMITTED,
-        "latest_application_id": application.application_id,
-        "admission_proposal_id": proposal.pk,
-    }
-    member.profile = {
-        **(member.profile or {}),
-        **_application_member_profile(application),
-        "admission_status": MemberApplication.Status.ADMITTED,
-    }
-    member.save(update_fields=["status", "metadata", "profile"])
-
-    application.status = MemberApplication.Status.ADMITTED
-    application.decided_by = executor_member
-    application.decided_at = now
-    application.admission_proposal = proposal
-    application.metadata = {
-        **(application.metadata or {}),
-        "decision_note": str(proposal.body or "准入提案已执行。").strip(),
-        "decided_by_display": member_display_name(executor_member) if executor_member else "",
-        "covenanter_role_assignment_id": assignment.pk,
-    }
-    application.save(update_fields=["status", "decided_by", "decided_at", "admission_proposal", "metadata"])
-    append_event(
-        event_type=SystemEvent.EventType.MEMBER_APPLICATION_REVIEWED,
-        aggregate_type="MemberApplication",
-        aggregate_id=application.application_id,
-        actor_member=executor_member,
-        payload_json=member_application_payload(application),
-        occurred_at=now,
-    )
-    _append_member_application_public_event_once(
-        event_id=f"member-application-admitted-{application.application_id}",
-        title="新成员已加入",
-        summary=f"成员 {public_member_label(application.applicant_name, member.member_no)} 已通过准入表决并加入社区。",
-        severity=Event.Severity.INFO,
-        payload={
-            "source": "member_application",
-            "stage": "admitted",
-            "application_id": application.application_id,
-            "proposal_no": proposal.proposal_no,
-            "public_member_label": public_member_label(application.applicant_name, member.member_no),
-            "role_gap": application.role_gap,
-            "role_gap_label": _application_role_gap_label(application),
-        },
-        occurred_at=now,
-    )
-    return application
-
-
-@atomic_for_model(MemberApplication)
-def reject_member_application_from_failed_proposal(
-    *,
-    application: MemberApplication,
-    proposal: Proposal,
-    at_time=None,
-) -> MemberApplication:
-    """Reject a member application when its member_admission proposal fails.
-
-    Called from the voting lifecycle when a MEMBER_ADMISSION proposal
-    transitions to FAILED (deadline expired without sufficient yes votes).
-    This is the ONLY path that sets an application to REJECTED — there is
-    管理员不能直接执行独立的“拒绝”操作。
-    """
-
-    if proposal.proposal_type != Proposal.ProposalType.MEMBER_ADMISSION:
-        raise DomainError("提案类型不是成员准入。")
-    if proposal.status != Proposal.Status.FAILED:
-        raise DomainError("只有未通过的成员准入提案才能触发报名拒绝。")
-    if application.status == MemberApplication.Status.REJECTED:
-        return application
-    now = at_time or timezone.now()
-    application.status = MemberApplication.Status.REJECTED
-    application.decided_at = now
-    application.metadata = {
-        **(application.metadata or {}),
-        "decision_note": f"准入提案 {proposal.proposal_no} 未通过（{proposal.get_status_display()}），报名自动拒绝。",
-    }
-    application.save(update_fields=["status", "decided_at", "metadata"])
-    if application.linked_member_id:
-        member = application.linked_member
-        member.status = Member.Status.APPLICATION_REJECTED
-        member.metadata = {
-            **(member.metadata or {}),
-            "application_status": MemberApplication.Status.REJECTED,
-            "latest_application_id": application.application_id,
-        }
-        member.save(update_fields=["status", "metadata"])
-    append_event(
-        event_type=SystemEvent.EventType.MEMBER_APPLICATION_REVIEWED,
-        aggregate_type="MemberApplication",
-        aggregate_id=application.application_id,
-        payload_json=member_application_payload(application),
-        occurred_at=now,
-    )
-    raw_reason = str((application.metadata or {}).get("decision_note", "")).strip()
-    sanitized_reason = raw_reason[:200]
-    _append_member_application_public_event_once(
-        event_id=f"member-application-rejected-{application.application_id}",
-        title="成员报名未通过",
-        summary=f"成员报名 {public_member_label(application.applicant_name, application.linked_member.member_no if application.linked_member_id else '')} 未通过准入表决。",
-        severity=Event.Severity.WARNING,
-        payload={
-            "source": "member_application",
-            "stage": "rejected",
-            "application_id": application.application_id,
-            "proposal_no": proposal.proposal_no,
-            "public_applicant_label": public_member_label(
-                application.applicant_name,
-                application.linked_member.member_no if application.linked_member_id else "",
-            ),
-            "role_gap": application.role_gap,
-            "role_gap_label": _application_role_gap_label(application),
-            "reason": sanitized_reason,
-        },
-        occurred_at=now,
-    )
-    return application
-
-
-@atomic_for_model(MemberApplication)
 def create_approval_proposal_for_application(
     *,
     application: MemberApplication,
     submitted_by: Member,
 ) -> "ApprovalProposal":
-    """Create an ``ApprovalProposal`` for this member application.
-    Idempotent — returns existing if one already exists.
-    """
-    from core.models import ApprovalProposal
-    from core.proposal_services import create_approval_proposal as _create_ap
+    """在统一提案系统承接成员准入前，禁止创建审批提案。"""
+    from core.proposal_migration import raise_proposal_flow_unavailable
 
-    target_id = getattr(application, "application_id", str(application.pk))
-    dedupe = f"member_application:{target_id}:approval"
-    existing = ApprovalProposal.objects.filter(
-        proposal_type=ApprovalProposal.ProposalType.MEMBER_APPLICATION,
-        dedupe_key=dedupe,
-    ).first()
-    if existing:
-        return existing
-
-    return _create_ap(
-        proposal_type=ApprovalProposal.ProposalType.MEMBER_APPLICATION,
-        dedupe_key=dedupe,
-        title=f"成员申请审批：{application.applicant_name}",
-        submitted_by=submitted_by,
-        target_type="member_application",
-        target_id=target_id,
-        summary=_application_role_gap_label(application),
-        approval_tier=ApprovalProposal.Tier.SINGLE,
-    )
-
-
-@atomic_for_model(MemberApplication)
-def admit_member_application_from_approval_proposal(
-    *,
-    proposal,
-    actor: Member,
-) -> MemberApplication:
-    """Execute callback for an approved MEMBER_APPLICATION ``ApprovalProposal``."""
-    from core.models import ApprovalProposal as AP, MemberApplication as MA
-
-    application = MemberApplication.objects.get(
-        **{MA._meta.pk.name: proposal.target_id}
-    )
-    if application.status == MA.Status.ADMITTED:
-        return application
-    if application.status == MA.Status.REJECTED:
-        raise DomainError("该报名已被拒绝。")
-
-    member = application.linked_member
-    from core.member_roles import ROLE_COVENANTER, ensure_catalog_role
-    from core.role_assignment_services import create_role_assignment as _create_ra
-
-    covenanter_role = ensure_catalog_role(ROLE_COVENANTER)
-    _create_ra(
-        member=member,
-        role=covenanter_role,
-        granted_by=actor,
-        source_type="proposal",
-    )
-    member.status = Member.Status.ADMITTED
-    member.metadata = {**(member.metadata or {}),
-                       "application_status": MA.Status.ADMITTED,
-                       "latest_application_id": application.application_id}
-    member.profile = {**(member.profile or {}),
-                      **_application_member_profile(application),
-                      "admission_status": MA.Status.ADMITTED}
-    member.save(update_fields=["status", "metadata", "profile"])
-    application.status = MA.Status.ADMITTED
-    application.decided_by = actor
-    application.decided_at = timezone.now()
-    application.save(update_fields=["status", "decided_by", "decided_at"])
-    append_event(
-        event_type=SystemEvent.EventType.MEMBER_APPLICATION_REVIEWED,
-        aggregate_type="MemberApplication",
-        aggregate_id=application.application_id,
-        actor_member=actor,
-        payload_json=member_application_payload(application),
-        occurred_at=timezone.now(),
-    )
-    return application
-
-
-@atomic_for_model(MemberApplication)
-def reject_member_application_from_approval_proposal(
-    *,
-    proposal,
-    reason: str = "",
-) -> MemberApplication:
-    """Reject callback for a rejected MEMBER_APPLICATION ``ApprovalProposal``."""
-    from core.models import MemberApplication as MA
-
-    application = MemberApplication.objects.get(
-        **{MA._meta.pk.name: proposal.target_id}
-    )
-    if application.status in (MA.Status.REJECTED, MA.Status.ADMITTED):
-        return application
-
-    application.status = MA.Status.REJECTED
-    application.decided_at = timezone.now()
-    application.metadata = {**(application.metadata or {}),
-                            "decision_note": reason or "审批提案已拒绝。"}
-    application.save(update_fields=["status", "decided_at", "metadata"])
-    if application.linked_member_id:
-        member = application.linked_member
-        member.status = Member.Status.APPLICATION_REJECTED
-        member.metadata = {**(member.metadata or {}),
-                           "application_status": MA.Status.REJECTED}
-        member.save(update_fields=["status", "metadata"])
-    append_event(
-        event_type=SystemEvent.EventType.MEMBER_APPLICATION_REVIEWED,
-        aggregate_type="MemberApplication",
-        aggregate_id=application.application_id,
-        payload_json=member_application_payload(application),
-        occurred_at=timezone.now(),
-    )
-    return application
+    raise_proposal_flow_unavailable()
 
 
 @atomic_for_model(PartnerApplication)

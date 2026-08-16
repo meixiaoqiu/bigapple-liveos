@@ -24,7 +24,6 @@ class MemberApplicationAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
         "account_user",
         "can_issue_responsibility_documents",
         "linked_member",
-        "admission_proposal",
         "submitted_at",
         "decided_at",
     )
@@ -42,7 +41,6 @@ class MemberApplicationAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
         "status",
         "account_user",
         "linked_member",
-        "admission_proposal",
         "frozen_at",
         "decided_by",
         "submitted_at",

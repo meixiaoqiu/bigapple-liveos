@@ -318,22 +318,6 @@ class RoleAssignment(models.Model):
         default=SourceType.DIRECT,
         help_text="说明这条角色任命由直接任命、本人申请、提案执行、初始化或系统规则产生。",
     )
-    source_proposal = models.ForeignKey(
-        "Proposal",
-        null=True,
-        blank=True,
-        on_delete=models.PROTECT,
-        related_name="source_role_assignments",
-        verbose_name="来源提案",
-    )
-    source_proposal_execution = models.ForeignKey(
-        "ProposalExecution",
-        null=True,
-        blank=True,
-        on_delete=models.PROTECT,
-        related_name="source_role_assignments",
-        verbose_name="来源提案执行",
-    )
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
     updated_at = models.DateTimeField("更新时间", auto_now=True)
 
@@ -346,7 +330,6 @@ class RoleAssignment(models.Model):
             models.Index(fields=["role", "status"]),
             models.Index(fields=["start_at", "end_at"]),
             models.Index(fields=["source_type"]),
-            models.Index(fields=["source_proposal"]),
         ]
 
     def __str__(self) -> str:

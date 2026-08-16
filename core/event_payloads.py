@@ -14,8 +14,6 @@ from .models import (
     ApprovalProposal,
     LedgerEntry,
     Member,
-    Proposal,
-    ProposalVote,
     Resource,
     RoleAssignment,
     SupplierQuote,
@@ -272,124 +270,6 @@ def resource_adjustment_payload(
     )
 
 
-def proposal_payload(proposal: Proposal) -> dict[str, Any]:
-    proposer_label = _public_member_label(
-        _member_label(proposal.proposer_member), proposal.proposer_member.member_no
-    ) if proposal.proposer_member_id else ""
-    ref = _public_ref("proposal", proposal.proposal_no) if proposal.proposal_no else _public_ref(
-        "proposal", proposal.proposal_type, proposal.title
-    )
-    facts: dict[str, Any] = {
-        "proposal_no": proposal.proposal_no or "",
-        "proposal_type": proposal.proposal_type,
-        "title": proposal.title,
-        "status": proposal.status,
-        "proposer_label": proposer_label,
-        "pass_ratio": proposal.pass_ratio,
-        "quorum_count": proposal.quorum_count,
-        "electorate_rule": proposal.electorate_rule_snapshot_json,
-    }
-    if proposal.professional_domain_id:
-        facts["professional_domain_code"] = proposal.professional_domain.code
-        facts["professional_domain_name"] = proposal.professional_domain.name
-    # For member_admission proposals, carry the application_id so
-    # Observer can link proposal / vote / execution events back to the
-    # member application timeline.
-    if proposal.proposal_type == Proposal.ProposalType.MEMBER_ADMISSION:
-        pk = proposal.payload_json or {}
-        app_id = str(pk.get("application_id", "")).strip()
-        if app_id:
-            facts["application_id"] = app_id
-            facts["role_gap"] = str(pk.get("role_gap", ""))
-    return _public_event_payload(
-        subject_type="proposal",
-        subject_ref=ref,
-        subject_label=proposal.proposal_type,
-        action=proposal.status,
-        stage=proposal.status,
-        summary=f"提案 {proposal.proposal_no or '无编号'}「{proposal.title}」{proposal.get_status_display()}。",
-        public_facts=facts,
-        private_commitments=[
-            _private("proposal_id", reason="提案内部ID"),
-            _private("proposer_member_no", reason="提案人编号属于隐私"),
-            _private("proposer_member_id", reason="提案人内部ID"),
-            _private("proposer_role_assignment_id", reason="提案人角色任命内部ID"),
-            _private("organization_id", reason="组织内部ID"),
-            _private("payload", present=bool(proposal.payload_json), reason="提案payload不公开"),
-            _private("result", present=bool(proposal.result_json), reason="投票结果详情不公开"),
-        ],
-    )
-
-
-def proposal_vote_payload(vote: ProposalVote, *, previous_choice: str | None = None) -> dict[str, Any]:
-    proposal = vote.proposal
-    voter = vote.voter_member
-    # Prefer public profile name, fallback to display_name / member_no / username
-    profile = getattr(voter, "public_profile", None)
-    if profile and profile.is_visible and profile.public_name:
-        voter_public_name = profile.public_name
-    else:
-        voter_public_name = voter.display_name or voter.member_no or (voter.user.get_username() if voter.user_id else "") or "执衡者"
-    ref = _public_ref("proposal", proposal.proposal_no) if proposal.proposal_no else _public_ref(
-        "proposal", proposal.proposal_type, proposal.title
-    )
-    choice = str(vote.choice)
-    choice_label = dict(ProposalVote.Choice.choices).get(choice, choice)
-    facts: dict[str, Any] = {
-        "proposal_no": proposal.proposal_no or "",
-        "proposal_type": proposal.proposal_type,
-        "title": proposal.title,
-        "vote_choice": choice,
-        "vote_choice_label": choice_label,
-        "voter_public_name": voter_public_name,
-    }
-    if vote.reason:
-        facts["reason"] = vote.reason
-    if previous_choice:
-        facts["previous_vote_choice"] = previous_choice
-        facts["is_vote_change"] = True
-    else:
-        facts["is_vote_change"] = False
-    if proposal.proposal_type == Proposal.ProposalType.MEMBER_ADMISSION:
-        pk = proposal.payload_json or {}
-        app_id = str(pk.get("application_id", "")).strip()
-        if app_id:
-            facts["application_id"] = app_id
-    return _public_event_payload(
-        subject_type="proposal_vote",
-        subject_ref=ref,
-        subject_label=proposal.proposal_type,
-        action=choice,
-        stage=proposal.status,
-        summary=f"提案 {proposal.proposal_no or '无编号'} 收到投票：{choice_label}（{voter_public_name}）。",
-        public_facts=facts,
-        private_commitments=[
-            _private("proposal_id", reason="提案内部ID"),
-            _private("voter_member_id", reason="投票人内部ID"),
-            _private("voter_role_assignment_id", reason="投票人角色任命内部ID"),
-        ],
-    )
-
-
-def proposal_execution_payload(proposal: Proposal, *, action_type: str, execution_status: str) -> dict[str, Any]:
-    base = proposal_payload(proposal)
-    public_facts = dict(base["public_facts"])
-    public_facts["execution_action_type"] = action_type
-    public_facts["execution_status"] = execution_status
-    private_commitments = list(base["private_commitments"])
-    private_commitments.append(_private("execution_result", present=True, reason="执行结果包含内部对象ID"))
-    return _public_event_payload(
-        subject_type="proposal_execution",
-        subject_ref=base["subject"]["ref"],
-        subject_label=proposal.proposal_type,
-        action="executed",
-        stage=proposal.status,
-        summary=f"提案 {proposal.proposal_no} 执行完成：{action_type}。",
-        public_facts=public_facts,
-        private_commitments=private_commitments,
-    )
-
-
 def credential_grant_payload(grant) -> dict[str, Any]:
     template = grant.template
     recipient_label = _public_member_label(
@@ -414,8 +294,6 @@ def credential_grant_payload(grant) -> dict[str, Any]:
         private_commitments=[
             _private("member_id", reason="成员内部ID"),
             _private("grant_id", reason="凭证发放内部ID"),
-            _private("source_proposal_id", present=bool(grant.source_proposal_id), reason="来源提案内部ID"),
-            _private("source_proposal_execution_id", present=bool(grant.source_proposal_execution_id), reason="来源提案执行内部ID"),
         ],
     )
 

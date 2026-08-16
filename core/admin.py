@@ -28,11 +28,6 @@ from .admin_identity import (
     RoleAssignmentAdmin,
     RolePermissionAdmin,
 )
-from .admin_proposals import (
-    ProposalAdmin,
-    ProposalExecutionAdmin,
-    ProposalVoteAdmin,
-)
 from .admin_operations import EventFeedbackAdmin, ResourceAdmin, ResourceTransactionAdmin, SupplierQuoteAdmin, TaskAdmin
 from .admin_finance import (
     AttachmentAdmin,

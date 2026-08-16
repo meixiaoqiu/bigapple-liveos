@@ -235,44 +235,6 @@ def public_member_application_detail(application_id: str) -> dict[str, Any] | No
         | Q(payload_json__application_id=application_id)
     )
 
-    # Collect proposal_nos / proposal_ids from public stage Events to also
-    # find vote/result SystemEvents that only carry proposal_no/proposal_id.
-    _MA_STAGE_PREFIXES = (
-        "member-application-submitted-",
-        "member-application-admitted-",
-        "member-application-rejected-",
-    )
-    proposal_nos: set[str] = set()
-    proposal_ids: set[str] = set()
-    stage_q = Q(
-        visibility=Event.Visibility.PUBLIC,
-        payload__application_id=application_id,
-    )
-    for ev in Event.objects.filter(stage_q):
-        payload = ev.payload or {}
-        is_ma = (
-            payload.get("source") == "member_application"
-            or (ev.event_id or "").startswith(_MA_STAGE_PREFIXES)
-        )
-        if not is_ma:
-            continue
-        pno = str(payload.get("proposal_no", "")).strip()
-        if pno:
-            proposal_nos.add(pno)
-        pid = str(payload.get("proposal_id", "")).strip()
-        if pid:
-            proposal_ids.add(pid)
-
-    if proposal_nos:
-        query |= Q(payload_json__public_facts__proposal_no__in=proposal_nos)
-        query |= Q(payload_json__proposal_no__in=proposal_nos)
-
-    # proposal_id is internal-pk only used for query linkage, never displayed.
-    if proposal_ids:
-        query |= Q(aggregate_type="Proposal", aggregate_id__in=proposal_ids)
-        query |= Q(payload_json__proposal_id__in=proposal_ids)
-        query |= Q(payload_json__public_facts__proposal_id__in=proposal_ids)
-
     # Deduplicate by seq
     seen_seqs: set[int] = set()
     ordered: list[SystemEvent] = []
@@ -350,12 +312,6 @@ _TL_TITLES: dict[str, str] = {
     SystemEvent.EventType.MEMBER_APPLICATION_SUBMITTED: "收到成员报名",
     SystemEvent.EventType.MEMBER_APPLICATION_REVIEWED: "报名审查完成",
     SystemEvent.EventType.MEMBER_CREATED: "成员账号已创建",
-    SystemEvent.EventType.PROPOSAL_CREATED: "准入提案已创建",
-    SystemEvent.EventType.PROPOSAL_VOTE_CAST: "执衡者已投票",
-    SystemEvent.EventType.PROPOSAL_VOTE_CHANGED: "执衡者已改票",
-    SystemEvent.EventType.PROPOSAL_PASSED: "准入提案已通过",
-    SystemEvent.EventType.PROPOSAL_FAILED: "准入提案未通过",
-    SystemEvent.EventType.PROPOSAL_EXECUTED: "准入提案已执行",
     SystemEvent.EventType.ROLE_ASSIGNED: "守约者角色已授予",
 }
 
@@ -629,13 +585,6 @@ def _system_event_filter_for_public_event(event: Event) -> Q:
         query |= Q(aggregate_type="MemberApplication", aggregate_id=application_id)
         query |= Q(payload_json__public_facts__application_id=application_id)
         query |= Q(payload_json__application_id=application_id)
-    proposal_no = str(payload.get("proposal_no") or "").strip()
-    if proposal_no:
-        query |= Q(payload_json__public_facts__proposal_no=proposal_no)
-        query |= Q(payload_json__proposal_no=proposal_no)
-    proposal_id = str(payload.get("proposal_id") or "").strip()
-    if proposal_id:
-        query |= Q(aggregate_type="Proposal", aggregate_id=proposal_id)
     task_id = str(payload.get("task_id") or event.related_task_id or "").strip()
     if task_id:
         query |= Q(aggregate_type="Task", aggregate_id=task_id)

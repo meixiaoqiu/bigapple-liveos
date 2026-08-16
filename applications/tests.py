@@ -2,13 +2,12 @@ from __future__ import annotations
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
-from django.utils import timezone
 
 from core.application_services import submit_member_application
 from core.exceptions import DomainError
 from core.identity_services import ensure_basic_member_for_user, register_participant_account
 from core.member_roles import ROLE_COVENANTER, participation_status
-from core.models import Event, MemberApplication, PartnerApplication, Proposal, SystemEvent
+from core.models import Event, MemberApplication, PartnerApplication, SystemEvent
 from core.models import Member
 from core.tests.helpers import create_member, login_as_member
 from simulation.form_drivers import HttpFormDriver
@@ -173,6 +172,8 @@ class PublicApplicationPageTests(TestCase):
         member = Member.objects.get(member_no="ws-apply-auto")
         self.assertIsNone(participation_status(member))
         self.assertContains(response, 'name="applicant_name"')
+        self.assertContains(response, "统一提案流程迁移期间，投票与准入决策暂不可用")
+        self.assertContains(response, "当前不会进入投票、批准、拒绝或执行流程")
 
     # ── /workspace/apply/ authenticated flow ────────────────────────────
 
@@ -192,7 +193,7 @@ class PublicApplicationPageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         app = MemberApplication.objects.filter(requested_member_no="ws-apply-post").first()
         self.assertIsNotNone(app)
-        self.assertEqual(app.status, MemberApplication.Status.ADMISSION_VOTING)
+        self.assertEqual(app.status, MemberApplication.Status.SUBMITTED)
         self.assertTrue(
             SystemEvent.objects.filter(
                 event_type=SystemEvent.EventType.MEMBER_APPLICATION_SUBMITTED,
@@ -244,39 +245,6 @@ class PublicApplicationPageTests(TestCase):
         response = self.client.get("/workspace/apply/")
         self.assertContains(response, "报名已提交")
         self.assertNotContains(response, 'name="applicant_name"')
-
-    def test_rejected_applicant_can_reapply_from_workspace_apply(self) -> None:
-        self._register("reapply-ws", applicant_name="再次申请者")
-        self.client.post("/workspace/apply/", _apply_post_data(
-            "再次申请者", "reapply-ws@example.test", "第一次。",
-        ), follow=True)
-        first = MemberApplication.objects.get(requested_member_no="reapply-ws")
-        proposal = first.admission_proposal
-        past_time = timezone.now() - timezone.timedelta(hours=2)
-        proposal.start_at = past_time
-        proposal.deadline_at = past_time + timezone.timedelta(hours=1)
-        proposal.save(update_fields=["start_at", "deadline_at"])
-        from core.proposals.voting import evaluate_proposal
-        evaluate_proposal(proposal)
-        first.refresh_from_db()
-        proposal.refresh_from_db()
-        self.assertEqual(proposal.status, Proposal.Status.FAILED)
-        self.assertEqual(first.status, MemberApplication.Status.REJECTED)
-        member = first.linked_member
-        member.refresh_from_db()
-        self.assertEqual(member.status, Member.Status.APPLICATION_REJECTED)
-        self.client.force_login(first.account_user)
-        response = self.client.post("/workspace/apply/", _apply_post_data(
-            "再次申请者", "reapply-ws@example.test", "第二次。",
-            role_gap="life_service",
-            availability_slots=["weekend"],
-        ), follow=True)
-        self.assertEqual(response.status_code, 200)
-        apps = list(MemberApplication.objects.filter(requested_member_no="reapply-ws").order_by("submitted_at"))
-        self.assertEqual(len(apps), 2)
-        self.assertEqual(apps[-1].linked_member, member)
-        member.refresh_from_db()
-        self.assertEqual(member.status, Member.Status.PENDING_REVIEW)
 
     # ── SUSPENDED / EXITED ──────────────────────────────────────────────
 

@@ -62,8 +62,6 @@ def create_role_assignment(
     start_at=None,
     end_at=None,
     source_type: str = RoleAssignment.SourceType.DIRECT,
-    source_proposal=None,
-    source_proposal_execution=None,
     skip_validation: bool = False,
 ) -> RoleAssignment:
     """创建或复用当前角色任命；不隐式创建其他职责或资格。"""
@@ -111,8 +109,6 @@ def create_role_assignment(
             end_at=effective_end_at,
             granted_by=granted_by,
             source_type=source_type,
-            source_proposal=source_proposal,
-            source_proposal_execution=source_proposal_execution,
         )
     definition = catalog_role_definition_for_role(role)
     if definition is not None and definition.display_name == ROLE_COVENANTER:
@@ -120,8 +116,6 @@ def create_role_assignment(
 
         issue_covenanter_number(
             member,
-            source_proposal=source_proposal,
-            source_proposal_execution=source_proposal_execution,
             issued_by=granted_by,
         )
     if created:

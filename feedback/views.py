@@ -12,12 +12,12 @@ from core.access import member_can_administer
 from core.exceptions import DomainError
 from core.feedback_services import (
     hide_feedback,
-    link_feedback_to_proposal,
     respond_to_feedback,
     submit_feedback,
 )
 from core.identity_services import ensure_basic_member_for_user
-from core.models import CommunityFeedback, Member, Proposal
+from core.models import CommunityFeedback, Member
+from core.proposal_migration import PROPOSAL_FLOW_UNAVAILABLE_MESSAGE
 from live_os.access import is_authenticated, member_for_request
 from observer.member_profiles import public_member_identity as _identity
 
@@ -68,9 +68,7 @@ def feedback_create(request: HttpRequest) -> HttpResponse:
 @require_GET
 def feedback_detail(request: HttpRequest, feedback_id: str) -> HttpResponse:
     feedback = get_object_or_404(
-        CommunityFeedback.objects.select_related(
-            "author_member", "responded_by", "linked_proposal",
-        ),
+        CommunityFeedback.objects.select_related("author_member", "responded_by"),
         feedback_id=feedback_id,
     )
     if feedback.status == CommunityFeedback.Status.HIDDEN:
@@ -109,15 +107,7 @@ def feedback_respond(request: HttpRequest, feedback_id: str) -> HttpResponse:
             )
             messages.success(request, "反馈已隐藏。")
         elif action == "link":
-            proposal_no = request.POST.get("proposal_no", "").strip()
-            if not proposal_no:
-                messages.error(request, "请提供提案编号。")
-                return redirect("feedback-detail", feedback_id=feedback_id)
-            proposal = get_object_or_404(Proposal, proposal_no=proposal_no)
-            link_feedback_to_proposal(
-                feedback=feedback, proposal=proposal, actor_member=member,
-            )
-            messages.success(request, f"已关联提案 {proposal_no}。")
+            messages.error(request, PROPOSAL_FLOW_UNAVAILABLE_MESSAGE)
         else:
             form = FeedbackResponseForm(request.POST)
             if not form.is_valid():

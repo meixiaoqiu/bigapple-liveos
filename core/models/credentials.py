@@ -139,22 +139,6 @@ class CredentialGrant(models.Model):
         default=SourceType.SYSTEM,
         help_text="记录该凭证的授予来源。",
     )
-    source_proposal = models.ForeignKey(
-        "Proposal",
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="credential_grants",
-        verbose_name="来源提案",
-    )
-    source_proposal_execution = models.ForeignKey(
-        "ProposalExecution",
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="credential_grants",
-        verbose_name="来源提案执行",
-    )
     metadata = models.JSONField("扩展数据", default=dict, blank=True)
     dedupe_key = models.CharField(
         "去重键",

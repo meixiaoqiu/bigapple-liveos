@@ -101,22 +101,6 @@ class Task(models.Model):
         default=SourceType.DIRECT,
         help_text="说明任务由直接运营、提案执行、计划派生、仿真或系统规则产生。",
     )
-    source_proposal = models.ForeignKey(
-        "Proposal",
-        null=True,
-        blank=True,
-        on_delete=models.PROTECT,
-        related_name="source_tasks",
-        verbose_name="来源提案",
-    )
-    source_proposal_execution = models.ForeignKey(
-        "ProposalExecution",
-        null=True,
-        blank=True,
-        on_delete=models.PROTECT,
-        related_name="source_tasks",
-        verbose_name="来源提案执行",
-    )
     rule_version = models.CharField("规则版本", max_length=32)
     created_at = models.DateTimeField("创建时间")
     due_at = models.DateTimeField("截止时间", null=True, blank=True)
@@ -133,7 +117,6 @@ class Task(models.Model):
             models.Index(fields=["task_type"]),
             models.Index(fields=["assignee_member"]),
             models.Index(fields=["source_type"]),
-            models.Index(fields=["source_proposal"]),
         ]
         constraints = [
             models.CheckConstraint(

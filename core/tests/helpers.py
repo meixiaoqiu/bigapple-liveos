@@ -12,21 +12,6 @@ from core.member_roles import (
 from core.models import Member
 
 
-def electorate_rule_fields(proposal_type: str, *, template_code: str = "covenanter_matter", parameters=None) -> dict:
-    """返回直接创建 Proposal 的规范规则字段。"""
-
-    from core.electorate_rules import current_electorate_rule_version, ensure_electorate_rule_baseline, rule_snapshot_for_proposal
-
-    ensure_electorate_rule_baseline()
-    version = current_electorate_rule_version(template_code)
-    snapshot = rule_snapshot_for_proposal(
-        proposal_type=proposal_type,
-        rule_version=version,
-        parameters=parameters,
-    )
-    return {"electorate_rule_version": version, "electorate_rule_snapshot_json": snapshot}
-
-
 def grant_administrator_role(member: Member):
     from core.role_assignment_services import create_role_assignment
 

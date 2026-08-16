@@ -16,9 +16,11 @@ from core.models import (
 )
 from core.proposal_services import (
     approve_proposal,
+    create_approval_proposal,
     execute_proposal,
     reject_proposal,
 )
+from core.proposal_migration import ProposalFlowUnavailable
 from core.tests.helpers import (
     create_administrator_member,
     create_member,
@@ -58,6 +60,13 @@ class WorkspaceApplicationsReviewTests(TestCase):
         self.assertEqual(review.status_code, 200)
         self.assertContains(review, "审核测试报名者")
 
+    def test_empty_review_list_still_explains_fail_closed_state(self) -> None:
+        review = self.client.get("/workspace/applications/")
+
+        self.assertEqual(review.status_code, 200)
+        self.assertContains(review, "统一提案流程正在迁移")
+        self.assertContains(review, "不提供投票、批准、拒绝或执行操作")
+
     def test_regular_form_member_cannot_see_entry_and_gets_403(self) -> None:
         member = create_member("mem-regular-0001", role_name=ROLE_COVENANTER, status=Member.Status.ADMITTED)
         login_as_member(self.client, member)
@@ -90,105 +99,115 @@ class WorkspaceApplicationsReviewTests(TestCase):
         response = self.client.post("/workspace/proposals/1/execute/", {})
         self.assertEqual(response.status_code, 404)
 
-    # --- 创建 ApprovalProposal ------------------------------------
+    # --- 成员准入在统一提案迁移期间失败关闭 -----------------------
 
-    def test_governance_can_create_approval_proposal(self) -> None:
+    def _raw_member_application_proposal(
+        self, application: MemberApplication, *, status: str,
+    ) -> ApprovalProposal:
+        return ApprovalProposal.objects.create(
+            proposal_id=f"member-application-proposal-{status}",
+            proposal_type=ApprovalProposal.ProposalType.MEMBER_APPLICATION,
+            dedupe_key=f"member-application:{application.application_id}:{status}",
+            title="成员准入测试提案",
+            submitted_by=self.governance,
+            target_type="member_application",
+            target_id=application.application_id,
+            status=status,
+        )
+
+    def test_member_application_proposal_creation_fails_closed(self) -> None:
         application = _submit_application()
-        ap = create_approval_proposal_for_application(
-            application=application, submitted_by=self.governance,
-        )
-        self.assertEqual(ap.proposal_type, ApprovalProposal.ProposalType.MEMBER_APPLICATION)
-        self.assertEqual(ap.status, ApprovalProposal.Status.SUBMITTED)
-        self.assertTrue(ap.target_id)
 
-    def test_create_approval_proposal_idempotent(self) -> None:
+        with self.assertRaises(ProposalFlowUnavailable):
+            create_approval_proposal_for_application(
+                application=application, submitted_by=self.governance,
+            )
+
+        self.assertFalse(
+            ApprovalProposal.objects.filter(
+                proposal_type=ApprovalProposal.ProposalType.MEMBER_APPLICATION,
+            ).exists()
+        )
+
+    def test_generic_proposal_service_cannot_create_member_application_proposal(self) -> None:
         application = _submit_application()
-        ap1 = create_approval_proposal_for_application(
-            application=application, submitted_by=self.governance,
-        )
-        ap2 = create_approval_proposal_for_application(
-            application=application, submitted_by=self.governance,
-        )
-        self.assertEqual(ap1.pk, ap2.pk)
 
-    # --- approve / reject / execute --------------------------------
+        with self.assertRaises(ProposalFlowUnavailable):
+            create_approval_proposal(
+                proposal_type=ApprovalProposal.ProposalType.MEMBER_APPLICATION,
+                dedupe_key=f"member-application:{application.application_id}:generic",
+                title="不得创建的成员准入提案",
+                submitted_by=self.governance,
+                target_type="member_application",
+                target_id=application.application_id,
+            )
 
-    def test_governance_approve_single_tier(self) -> None:
+        self.assertFalse(
+            ApprovalProposal.objects.filter(
+                proposal_type=ApprovalProposal.ProposalType.MEMBER_APPLICATION,
+            ).exists()
+        )
+
+    def test_existing_member_application_proposal_cannot_be_approved(self) -> None:
         application = _submit_application()
-        ap = create_approval_proposal_for_application(
-            application=application, submitted_by=self.governance,
+        proposal = self._raw_member_application_proposal(
+            application, status=ApprovalProposal.Status.SUBMITTED,
         )
-        approve_proposal(proposal=ap, approved_by=self.governance, role="governance")
-        ap.refresh_from_db()
-        self.assertEqual(ap.status, ApprovalProposal.Status.APPROVED)
 
-    def test_execute_admits_member(self) -> None:
-        application = _submit_application()
-        ap = create_approval_proposal_for_application(
-            application=application, submitted_by=self.governance,
-        )
-        approve_proposal(proposal=ap, approved_by=self.governance, role="governance")
-        execute_proposal(proposal=ap, actor=self.governance)
+        with self.assertRaises(ProposalFlowUnavailable):
+            approve_proposal(
+                proposal=proposal, approved_by=self.governance, role="governance",
+            )
 
+        proposal.refresh_from_db()
         application.refresh_from_db()
-        member = application.linked_member
-        member.refresh_from_db()
-        self.assertEqual(application.status, MemberApplication.Status.ADMITTED)
-        self.assertEqual(member.status, Member.Status.ADMITTED)
-        self.assertIn(ROLE_COVENANTER, member.active_role_names())
+        self.assertEqual(proposal.status, ApprovalProposal.Status.SUBMITTED)
+        self.assertEqual(application.status, MemberApplication.Status.SUBMITTED)
+        self.assertFalse(ApprovalDecision.objects.filter(proposal=proposal).exists())
 
-    def test_reject_sets_application_rejected(self) -> None:
+    def test_existing_member_application_proposal_cannot_be_rejected(self) -> None:
         application = _submit_application()
-        ap = create_approval_proposal_for_application(
-            application=application, submitted_by=self.governance,
+        proposal = self._raw_member_application_proposal(
+            application, status=ApprovalProposal.Status.SUBMITTED,
         )
-        reject_proposal(proposal=ap, rejected_by=self.governance, role="governance")
+
+        with self.assertRaises(ProposalFlowUnavailable):
+            reject_proposal(
+                proposal=proposal, rejected_by=self.governance, role="governance",
+            )
+
+        proposal.refresh_from_db()
         application.refresh_from_db()
-        self.assertEqual(application.status, MemberApplication.Status.REJECTED)
+        self.assertEqual(proposal.status, ApprovalProposal.Status.SUBMITTED)
+        self.assertEqual(application.status, MemberApplication.Status.SUBMITTED)
+        self.assertIsNone(application.decided_by)
+        self.assertFalse(ApprovalDecision.objects.filter(proposal=proposal).exists())
 
-    def test_execute_idempotent(self) -> None:
+    def test_existing_member_application_proposal_cannot_be_executed(self) -> None:
         application = _submit_application()
-        ap = create_approval_proposal_for_application(
-            application=application, submitted_by=self.governance,
+        proposal = self._raw_member_application_proposal(
+            application, status=ApprovalProposal.Status.APPROVED,
         )
-        approve_proposal(proposal=ap, approved_by=self.governance, role="governance")
-        execute_proposal(proposal=ap, actor=self.governance)
-        # Second execution should be idempotent
-        execute_proposal(proposal=ap, actor=self.governance)
+
+        with self.assertRaises(ProposalFlowUnavailable):
+            execute_proposal(proposal=proposal, actor=self.governance)
+
+        proposal.refresh_from_db()
         application.refresh_from_db()
-        self.assertEqual(application.status, MemberApplication.Status.ADMITTED)
-
-    def test_unapproved_cannot_execute(self) -> None:
-        application = _submit_application()
-        ap = create_approval_proposal_for_application(
-            application=application, submitted_by=self.governance,
-        )
-        from core.exceptions import DomainError
-        with self.assertRaises(DomainError):
-            execute_proposal(proposal=ap, actor=self.governance)
-
-    # --- 普通成员权限 ---------------------------------------------
-
-    def test_regular_member_cannot_approve(self) -> None:
-        application = _submit_application()
-        ap = create_approval_proposal_for_application(
-            application=application, submitted_by=self.governance,
-        )
-        regular = create_member("mem-reg-000x", role_name=ROLE_COVENANTER, status=Member.Status.ADMITTED)
-        from core.exceptions import DomainError
-        with self.assertRaises(DomainError):
-            approve_proposal(proposal=ap, approved_by=regular, role="governance")
+        application.linked_member.refresh_from_db()
+        self.assertEqual(proposal.status, ApprovalProposal.Status.APPROVED)
+        self.assertEqual(application.status, MemberApplication.Status.SUBMITTED)
+        self.assertNotEqual(application.linked_member.status, Member.Status.ADMITTED)
+        self.assertNotIn(ROLE_COVENANTER, application.linked_member.active_role_names())
 
     # --- 审核详情页 -----------------------------------------------
 
     def test_detail_page_shows_application_info(self) -> None:
         application = _submit_application()
-        ap = create_approval_proposal_for_application(
-            application=application, submitted_by=self.governance,
-        )
         response = self.client.get(f"/workspace/applications/{application.application_id}/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "成员准入提案")
+        self.assertContains(response, "准入决策")
+        self.assertContains(response, "统一提案流程正在迁移")
 
     # --- 角色显示 -------------------------------------------------
 

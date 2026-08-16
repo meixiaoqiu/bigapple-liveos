@@ -218,17 +218,17 @@ class PublicEventsBrowserTests(TestCase):
 
     def test_subject_ref_shown_aggregate_id_hidden(self):
         """Page must show public subject_ref, not internal aggregate_id."""
-        payload = _v2_payload(proposal_no="0007")
-        payload["subject"]["ref"] = "proposal:0007"
+        payload = _v2_payload(application_id="app-public-0007")
+        payload["subject"]["ref"] = "member_application:app-public-0007"
         self._create_ledger_event(
             payload_json=payload,
-            aggregate_type="Proposal",
-            aggregate_id="internal-proposal-pk-123",
+            aggregate_type="MemberApplication",
+            aggregate_id="internal-application-pk-123",
         )
-        event = self._create_public_event(payload={"proposal_no": "0007"})
+        event = self._create_public_event(payload={"application_id": "app-public-0007"})
         response = self.client.get(self.event_detail_url(event.event_id))
-        self.assertContains(response, "proposal:0007")
-        self.assertNotContains(response, "internal-proposal-pk-123")
+        self.assertContains(response, "member_application:app-public-0007")
+        self.assertNotContains(response, "internal-application-pk-123")
 
     # ---- JS hash verification (no JSON.stringify re-encoding) ----------
 
@@ -654,27 +654,6 @@ class PublicEventsBrowserTests(TestCase):
         # No separate stage-list or audit section titles
         self.assertNotContains(response, "阶段时间线")
 
-    def test_timeline_shows_voter_public_identity(self):
-        """Vote audit payload must show voter public name and choice."""
-        payload = _v2_payload()
-        payload["public_facts"]["vote_choice_label"] = "反对"
-        payload["public_facts"]["voter_public_name"] = "wzy"
-        payload["public_facts"]["reason"] = "能力不匹配"
-        self._create_ledger_event(
-            payload_json=payload,
-            event_type=SystemEvent.EventType.PROPOSAL_VOTE_CAST,
-            aggregate_type="MemberApplication",
-            aggregate_id="app-vote-1",
-        )
-        self._create_public_event(
-            event_id="member-application-submitted-app-vote",
-            payload={"source": "member_application", "stage": "submitted", "application_id": "app-vote-1"},
-        )
-        response = self.client.get("/member-applications/app-vote-1/")
-        self.assertContains(response, "wzy")
-        self.assertContains(response, "反对")
-        self.assertContains(response, "能力不匹配")
-
     def test_timeline_applicant_remains_deidentified(self):
         """Applicant must stay de-identified in timeline display."""
         payload = _v2_payload()
@@ -828,124 +807,6 @@ class PublicEventsBrowserTests(TestCase):
         self.assertContains(response, "timeline-end timeline-box")
         self.assertContains(response, "w-full max-w-none")
         self.assertContains(response, "max-w-6xl")
-
-    # ---- proposal_no linkage ----------------------------------------------
-
-    def test_proposal_no_links_vote_system_event_to_timeline(self):
-        """Vote SystemEvent with only proposal_no (no application_id) must appear."""
-        vote_payload = _v2_payload(vote_choice_label="反对", voter_public_name="wzy", reason="理由测试")
-        vote_payload["public_facts"]["proposal_no"] = "0007"
-        self._create_ledger_event(
-            event_type=SystemEvent.EventType.PROPOSAL_VOTE_CAST,
-            aggregate_type="ProposalVote",
-            aggregate_id="vote-no-app",
-            payload_json=vote_payload,
-        )
-        self._create_public_event(
-            event_id="member-application-rejected-app-link",
-            payload={"source": "member_application", "stage": "rejected",
-                     "application_id": "app-legacy-link", "proposal_no": "0007"},
-        )
-        response = self.client.get("/member-applications/app-legacy-link/")
-        self.assertContains(response, "执衡者已投票")
-        self.assertContains(response, "wzy")
-        self.assertContains(response, "反对")
-        self.assertContains(response, "理由测试")
-
-    def test_dedup_when_event_matches_multiple_conditions(self):
-        """SystemEvent matching both application_id and proposal_no must not duplicate."""
-        payload = _v2_payload(vote_choice_label="反对", voter_public_name="wzy")
-        payload["public_facts"]["application_id"] = "app-dup-1"
-        payload["public_facts"]["proposal_no"] = "0009"
-        self._create_ledger_event(
-            event_type=SystemEvent.EventType.PROPOSAL_VOTE_CAST,
-            aggregate_type="MemberApplication",
-            aggregate_id="app-dup-1",
-            payload_json=payload,
-        )
-        self._create_public_event(
-            event_id="member-application-submitted-app-dup",
-            payload={"source": "member_application", "stage": "submitted",
-                     "application_id": "app-dup-1", "proposal_no": "0009"},
-        )
-        response = self.client.get("/member-applications/app-dup-1/")
-        content = response.content.decode()
-        self.assertEqual(content.count("执衡者已投票"), 1,
-                         "Vote event must appear exactly once")
-
-    def test_event_id_prefix_triggers_proposal_no_linkage(self):
-        """Stage Event without source but with member-application-rejected- prefix
-        and proposal_no must still link vote SystemEvent."""
-        vote_payload = _v2_payload(vote_choice_label="反对", voter_public_name="wzy")
-        vote_payload["public_facts"]["proposal_no"] = "0010"
-        self._create_ledger_event(
-            event_type=SystemEvent.EventType.PROPOSAL_VOTE_CAST,
-            aggregate_type="ProposalVote",
-            aggregate_id="vote-nosource",
-            payload_json=vote_payload,
-        )
-        self._create_public_event(
-            event_id="member-application-rejected-app-nosource",
-            payload={"application_id": "app-nosource", "proposal_no": "0010", "stage": "rejected"},
-        )
-        response = self.client.get("/member-applications/app-nosource/")
-        self.assertContains(response, "wzy")
-
-    def test_proposal_id_linkage_hides_pk_in_page(self):
-        """proposal_id used for internal linkage must not appear in HTML."""
-        prop_payload = _v2_payload(proposal_no="0011")
-        self._create_ledger_event(
-            event_type=SystemEvent.EventType.PROPOSAL_CREATED,
-            aggregate_type="Proposal",
-            aggregate_id="prop-pk-999",
-            payload_json=prop_payload,
-        )
-        self._create_public_event(
-            event_id="member-application-submitted-app-pid",
-            payload={"source": "member_application", "stage": "submitted",
-                     "application_id": "app-pid", "proposal_id": "prop-pk-999",
-                     "proposal_no": "0011"},
-        )
-        response = self.client.get("/member-applications/app-pid/")
-        content = response.content.decode()
-        self.assertNotIn("prop-pk-999", content)
-        self.assertNotIn("proposal_id", content)
-
-    # ---- proposal_id hiding ---------------------------------------------
-
-    def test_real_member_admission_flow_shows_timeline_with_proposal_and_vote(self):
-        """End-to-end: submit → proposal created → timeline shows core events."""
-        from core.application_services import submit_member_application
-        from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ensure_catalog_role
-        from core.role_assignment_services import create_role_assignment
-
-        # 在创建申请前准备执衡者投票人，供投票人快照使用。
-        covenanter_role = ensure_catalog_role(ROLE_COVENANTER)
-        deliberator_role = ensure_catalog_role(ROLE_DELIBERATOR)
-        create_role_assignment(member=self.member, role=covenanter_role)
-        create_role_assignment(member=self.member, role=deliberator_role)
-
-        # Submit real member application
-        app = submit_member_application(
-            applicant_name="Integration Test Applicant",
-            contact="int-test@example.com",
-            motivation="Integration test.",
-            role_gap="life_service",
-            account_username="inttestuser",
-            account_password="TestPass123!",
-        )
-        proposal = app.admission_proposal
-
-        response = self.client.get(f"/member-applications/{app.application_id}/")
-        self.assertEqual(response.status_code, 200)
-
-        # Core timeline entries
-        self.assertContains(response, "收到成员报名")
-        self.assertContains(response, "准入提案已创建")
-        # No duplicate "准入提案已创建" (would indicate duplicate PROPOSAL_CREATED events)
-        content = response.content.decode()
-        self.assertEqual(content.count("准入提案已创建"), 1,
-                         "准入提案已创建 must appear exactly once in timeline")
 
     def test_proposal_id_hidden(self):
         event = self._create_public_event(payload={"proposal_id": "pk-123", "proposal_no": "0007"})

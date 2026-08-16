@@ -33,25 +33,6 @@
       }
     },
     {
-      "type": "proposal",
-      "relations": {
-        "platform": {"this": {}},
-        "eligible_member": {"this": {}},
-        "can_vote": {
-          "difference": {
-            "base": {"computedUserset": {"relation": "eligible_member"}},
-            "subtract": {"tupleToUserset": {"tupleset": {"relation": "platform"}, "computedUserset": {"relation": "frozen_member"}}}
-          }
-        }
-      },
-      "metadata": {
-        "relations": {
-          "platform": {"directly_related_user_types": [{"type": "platform"}]},
-          "eligible_member": {"directly_related_user_types": [{"type": "member"}]}
-        }
-      }
-    },
-    {
       "type": "role",
       "relations": {"assignee": {"this": {}}},
       "metadata": {

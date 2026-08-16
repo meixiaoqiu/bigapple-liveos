@@ -7,9 +7,8 @@ from base64 import urlsafe_b64encode
 from dataclasses import dataclass
 
 from django.conf import settings
-from django.core.exceptions import ValidationError
 
-from .models import Member, ProfessionalDomain, Proposal, Resource
+from .models import Member, ProfessionalDomain, Resource
 from .openfga_client import OpenFGAClient, OpenFGARequestError
 from .permission_services import legacy_member_has_permission, permission_requires_covenanter
 from worlds.models import WorldRegistry
@@ -19,7 +18,7 @@ from worlds.state import get_current_world
 logger = logging.getLogger(__name__)
 
 
-OPENFGA_AUTHORIZATION_MODEL_VERSION = "2026-08-12-administrator-role-v1"
+OPENFGA_AUTHORIZATION_MODEL_VERSION = "2026-08-16"
 
 
 @dataclass(frozen=True)
@@ -58,14 +57,6 @@ def openfga_professional_domain_object(domain: ProfessionalDomain | int) -> str:
 
     domain_id = domain.pk if isinstance(domain, ProfessionalDomain) else domain
     return f"professional_domain:{domain_id}"
-
-
-def openfga_proposal_object(proposal: Proposal) -> str:
-    """返回通用 OpenFGA 提案对象。"""
-
-    if not proposal.pk or not proposal.electorate_rule_version_id:
-        raise ValueError("Proposal electorate rule is unavailable")
-    return f"proposal:{proposal.pk}"
 
 
 def permission_object_type(permission_code: str) -> str:
@@ -251,50 +242,6 @@ class AuthorizationService:
         except OpenFGARequestError as exc:
             logger.warning("OpenFGA workspace access check failed: %s", exc)
             return WorkspaceAccessDecision(allowed=False, reason="authorization_unavailable")
-
-    def member_can_vote_on_proposal(self, *, member: Member, proposal, at_time=None) -> bool:
-        """检查成员当前是否可对指定提案投票，不能只依赖创建时快照。"""
-
-        from .proposals.voters import member_is_currently_eligible_to_vote
-
-        try:
-            currently_eligible = member_is_currently_eligible_to_vote(
-                member=member,
-                proposal=proposal,
-                at_time=at_time,
-            )
-        except (ValidationError, ValueError, TypeError):
-            logger.warning("Proposal electorate rule cannot be evaluated; voting denied")
-            return False
-        if not currently_eligible:
-            return False
-        backend = authorization_backend()
-        if backend == "legacy":
-            return True
-        if backend == "openfga":
-            context = openfga_context_for_world_kind()
-            if not context.store_id or not context.authorization_model_id:
-                logger.warning("%s OpenFGA proposal-voting model is unavailable; voting denied", context.world_kind)
-                return False
-            try:
-                object_ = openfga_proposal_object(proposal)
-            except ValueError:
-                logger.warning("Unknown proposal electorate policy; voting denied")
-                return False
-            client = self.client or OpenFGAClient(context.api_url)
-            try:
-                return client.check(
-                    store_id=context.store_id,
-                    authorization_model_id=context.authorization_model_id,
-                    user=openfga_member_user(member),
-                    relation="can_vote",
-                    object_=object_,
-                )
-            except OpenFGARequestError as exc:
-                logger.warning("OpenFGA proposal-voting check failed: %s", exc)
-                return False
-        logger.error("Unknown authorization backend %s; proposal voting denied", backend)
-        return False
 
     def _openfga_member_has_permission(
         self,

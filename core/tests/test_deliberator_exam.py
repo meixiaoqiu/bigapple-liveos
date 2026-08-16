@@ -7,7 +7,6 @@ from django.test import TestCase
 from django.test import RequestFactory
 from django.contrib import admin
 
-from core.application_services import submit_member_application
 from core.deliberation_services import apply_for_deliberator_term
 from core.deliberator_exam_services import (
     create_exam_question,
@@ -25,9 +24,6 @@ from core.exceptions import DomainError
 from core.governance_setup import ensure_administrator_role
 from core.member_roles import ROLE_COVENANTER, ROLE_DELIBERATOR, ensure_catalog_role, member_has_role
 from core.models import DeliberatorExamAttempt, DeliberatorExamPolicy, DeliberatorExamQuestion, SystemEvent
-from core.models import Proposal, ProposalVote
-from core.proposals.execution import execute_proposal
-from core.proposals.voting import cast_proposal_vote
 from core.role_assignment_services import create_role_assignment
 from core.tests.helpers import create_member
 from core.tests.helpers import ensure_login_user_for_member
@@ -304,45 +300,3 @@ class DeliberatorExamTests(TestCase):
             self.member.role_assignments.filter(role__name=ROLE_DELIBERATOR, status="active").count(),
             1,
         )
-
-    def test_first_exam_pass_unlocks_member_admission_without_granting_finance(self):
-        attempt = start_deliberator_exam(member=self.member)
-        submit_deliberator_exam(member=self.member, attempt=attempt, answers={"q1": "a"})
-        application = submit_member_application(
-            applicant_name="新申请人",
-            contact="new@example.test",
-            motivation="参与社区",
-            role_gap="ai_engineer",
-            requested_member_no="new-covenanter",
-        )
-
-        proposal = application.admission_proposal
-        self.assertEqual(proposal.status, Proposal.Status.VOTING)
-        cast_proposal_vote(proposal=proposal, voter_member=self.member, choice=ProposalVote.Choice.YES)
-        proposal.refresh_from_db()
-        self.assertEqual(proposal.status, Proposal.Status.PASSED)
-        execute_proposal(proposal=proposal, executor_member=self.member)
-
-        application.refresh_from_db()
-        admitted = application.linked_member
-        self.assertTrue(member_has_role(admitted, ROLE_COVENANTER))
-        self.assertFalse(admitted.role_assignments.filter(role__role_permissions__permission__code="finance.review").exists())
-
-    def test_first_exam_reopens_application_created_with_zero_electorate(self):
-        application = submit_member_application(
-            applicant_name="先报名者",
-            contact="before-exam@example.test",
-            motivation="在首位执衡者产生前报名",
-            role_gap="ai_engineer",
-            requested_member_no="before-exam-applicant",
-        )
-        old_proposal_id = application.admission_proposal_id
-        self.assertEqual(application.admission_proposal.eligible_voters_snapshot_json, [])
-
-        attempt = start_deliberator_exam(member=self.member)
-        submit_deliberator_exam(member=self.member, attempt=attempt, answers={"q1": "a"})
-
-        application.refresh_from_db()
-        self.assertNotEqual(application.admission_proposal_id, old_proposal_id)
-        self.assertEqual(application.admission_proposal.eligible_voters_snapshot_json, [self.member.pk])
-        self.assertEqual(Proposal.objects.get(pk=old_proposal_id).status, Proposal.Status.CANCELLED)

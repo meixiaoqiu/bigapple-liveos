@@ -12,6 +12,15 @@ from django.test import SimpleTestCase, override_settings
 from core.authorization_services import OPENFGA_AUTHORIZATION_MODEL_VERSION
 
 class OpenFGABootstrapCommandTests(SimpleTestCase):
+    def test_runtime_version_matches_fga_model_declaration(self) -> None:
+        model_path = Path(settings.BASE_DIR) / "openfga" / "bigapple.authorization-model.fga"
+        first_line = model_path.read_text(encoding="utf-8").splitlines()[0]
+
+        self.assertEqual(
+            first_line,
+            f"# 大苹果角色与财务职责授权模型 v{OPENFGA_AUTHORIZATION_MODEL_VERSION}",
+        )
+
     @override_settings(
         OPENFGA_SIM_API_URL="http://openfga-sim:8082",
         OPENFGA_SIM_STORE_NAME="big-apple-simulation0001",

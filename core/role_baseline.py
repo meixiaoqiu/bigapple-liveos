@@ -6,18 +6,11 @@ from django.db import transaction
 from django.utils import timezone
 
 from .deliberator_exam_services import start_deliberator_exam, submit_deliberator_exam
-from .electorate_rules import ensure_electorate_rule_baseline
 from .governance_setup import ensure_administrator_role
 from .member_roles import ROLE_COVENANTER, ensure_catalog_role
 from .models import (
     Member,
     MemberProfessionalQualification,
-    ElectorateRuleTemplate,
-    ElectorateRuleVersion,
-    Proposal,
-    ProposalTypeElectorateRule,
-    ProposalExecution,
-    ProposalVote,
     Role,
     RoleAssignment,
     RolePermission,
@@ -52,12 +45,6 @@ def clear_role_permission_baseline() -> dict[str, int]:
         DeliberatorExamAttempt.objects.all().delete()
         DeliberatorExamPolicy.objects.all().delete()
         DeliberatorExamQuestion.objects.all().delete()
-        ProposalVote.objects.all().delete()
-        ProposalExecution.objects.all().delete()
-        Proposal.objects.all().delete()
-        ProposalTypeElectorateRule.objects.all().delete()
-        ElectorateRuleVersion.objects.all().delete()
-        ElectorateRuleTemplate.objects.all().delete()
         qualification_count, _ = MemberProfessionalQualification.objects.all().delete()
         role_event_count, _ = SystemEvent.objects.filter(
             event_type__in=(SystemEvent.EventType.ROLE_ASSIGNED, SystemEvent.EventType.ROLE_REVOKED)
@@ -81,7 +68,6 @@ def load_role_permission_baseline() -> dict[str, int]:
 
     now = timezone.now()
     ensure_catalog_roles()
-    ensure_electorate_rule_baseline()
     ensure_administrator_role()
     domains = {
         code: ensure_professional_domain(code=code, name=name, description=description)

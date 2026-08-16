@@ -65,8 +65,6 @@ class MemberRoleAssignmentInline(NoDeleteInlineMixin, admin.TabularInline):
         "role",
         "status",
         "source_type",
-        "source_proposal",
-        "source_proposal_execution",
         "start_at",
         "end_at",
         "granted_by",
@@ -74,9 +72,9 @@ class MemberRoleAssignmentInline(NoDeleteInlineMixin, admin.TabularInline):
         "created_at",
         "updated_at",
     )
-    autocomplete_fields = ("role", "source_proposal", "source_proposal_execution", "granted_by", "revoked_by")
+    autocomplete_fields = ("role", "granted_by", "revoked_by")
     readonly_fields = (
-        "role", "status", "source_type", "source_proposal", "source_proposal_execution",
+        "role", "status", "source_type",
         "start_at", "end_at", "granted_by", "revoked_by", "created_at", "updated_at",
     )
     show_change_link = True
@@ -102,8 +100,6 @@ class RoleAssignmentInline(NoDeleteInlineMixin, admin.TabularInline):
         "member",
         "status",
         "source_type",
-        "source_proposal",
-        "source_proposal_execution",
         "start_at",
         "end_at",
         "granted_by",
@@ -111,9 +107,9 @@ class RoleAssignmentInline(NoDeleteInlineMixin, admin.TabularInline):
         "created_at",
         "updated_at",
     )
-    autocomplete_fields = ("member", "source_proposal", "source_proposal_execution", "granted_by", "revoked_by")
+    autocomplete_fields = ("member", "granted_by", "revoked_by")
     readonly_fields = (
-        "member", "status", "source_type", "source_proposal", "source_proposal_execution",
+        "member", "status", "source_type",
         "start_at", "end_at", "granted_by", "revoked_by", "created_at", "updated_at",
     )
     show_change_link = True
@@ -243,16 +239,12 @@ class RoleAssignmentAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
         "role__name",
         "role__organization__name",
         "granted_by__display_name",
-        "source_proposal__proposal_no",
-        "source_proposal__title",
     )
-    autocomplete_fields = ("member", "role", "source_proposal", "source_proposal_execution", "granted_by", "revoked_by")
+    autocomplete_fields = ("member", "role", "granted_by", "revoked_by")
     list_select_related = (
         "member",
         "role",
         "role__organization",
-        "source_proposal",
-        "source_proposal_execution",
         "granted_by",
         "revoked_by",
     )
@@ -260,8 +252,8 @@ class RoleAssignmentAdmin(NoDeleteAdminMixin, admin.ModelAdmin):
     ordering = ("-start_at", "member__member_no")
     list_per_page = 100
     readonly_fields = (
-        "member", "role", "status", "source_type", "source_proposal",
-        "source_proposal_execution", "start_at", "end_at", "granted_by",
+        "member", "role", "status", "source_type",
+        "start_at", "end_at", "granted_by",
         "revoked_by", "created_at", "updated_at",
     )
 
@@ -344,8 +336,8 @@ class CredentialGrantAdmin(admin.ModelAdmin):
     list_select_related = ("template", "member")
     readonly_fields = (
         "grant_id", "template", "member", "serial_no", "display_no", "title",
-        "status", "issued_at", "issued_by", "source_type", "source_proposal",
-        "source_proposal_execution", "metadata", "created_at", "updated_at",
+        "status", "issued_at", "issued_by", "source_type",
+        "metadata", "created_at", "updated_at",
     )
 
     def has_add_permission(self, request):

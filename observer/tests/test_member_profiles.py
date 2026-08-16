@@ -12,7 +12,7 @@ from core.credential_services import (
     issue_covenanter_number,
 )
 from core.models import CredentialTemplate, Member, MemberPublicProfile, Permission, Role, RolePermission, RoleAssignment
-from core.tests.helpers import create_member, electorate_rule_fields
+from core.tests.helpers import create_member
 
 
 class MemberProfileTests(TestCase):
@@ -183,109 +183,6 @@ class MemberProfileTests(TestCase):
         )
         response = self.client.get("/u/test-recent/")
         self.assertContains(response, "成员执行了测试操作")
-
-    def test_member_profile_shows_vote_details_in_activity(self):
-        from core.event_ledger import PUBLIC_LEDGER_SCHEMA, append_event
-        from core.models import SystemEvent
-        member = self._create_member("vote-actor", "投票演员")
-        payload = {
-            "schema": PUBLIC_LEDGER_SCHEMA,
-            "subject": {"type": "proposal_vote", "ref": "proposal:0001", "label": "准入提案"},
-            "action": "vote",
-            "stage": "voting",
-            "summary": "执衡者对提案 0001 投了反对票。",
-            "public_facts": {
-                "proposal_no": "0001",
-                "vote_choice_label": "反对",
-                "vote_choice": "no",
-                "reason": "技能不匹配",
-            },
-            "private_commitments": [],
-        }
-        append_event(
-            event_type=SystemEvent.EventType.PROPOSAL_VOTE_CAST,
-            aggregate_type="ProposalVote",
-            aggregate_id="vote-99",
-            actor_member=member,
-            payload_json=payload,
-            occurred_at=timezone.now(),
-        )
-        response = self.client.get("/u/vote-actor/")
-        self.assertContains(response, "反对")
-        self.assertContains(response, "技能不匹配")
-        self.assertContains(response, "投票")
-
-    def test_member_application_timeline_links_voter_profile(self):
-        member = self._create_member("voter-01", "投票人")
-        MemberPublicProfile.objects.create(member=member, public_name="王梓尧")
-        from core.event_ledger import PUBLIC_LEDGER_SCHEMA, append_event
-        from core.models import Event, SystemEvent
-        vote_payload = {
-            "schema": PUBLIC_LEDGER_SCHEMA,
-            "subject": {"type": "proposal_vote", "ref": "proposal:0001", "label": "member_admission"},
-            "action": "no",
-            "stage": "voting",
-            "summary": "提案 0001 收到投票：反对（王梓尧）。",
-            "public_facts": {
-                "proposal_no": "0001",
-                "vote_choice_label": "反对",
-                "vote_choice": "no",
-                "voter_public_name": "王梓尧",
-                "application_id": "app-voter-link",
-                "reason": "能力不足",
-            },
-            "private_commitments": [],
-        }
-        append_event(
-            event_type=SystemEvent.EventType.PROPOSAL_VOTE_CAST,
-            aggregate_type="ProposalVote",
-            aggregate_id="vote-1",
-            actor_member=member,
-            payload_json=vote_payload,
-            occurred_at=timezone.now(),
-        )
-        Event.objects.create(
-            event_id="member-application-submitted-app-voter-link",
-            event_type="governance",
-            visibility="public",
-            title="收到成员报名",
-            summary="测试。",
-            payload={"source": "member_application", "stage": "submitted", "application_id": "app-voter-link"},
-            simulation_day=1,
-            occurred_at=timezone.now(),
-            generated_by="live_os",
-            severity="info",
-        )
-        response = self.client.get("/member-applications/app-voter-link/")
-        self.assertContains(response, "/u/voter-01/")
-        self.assertContains(response, "反对")
-        self.assertContains(response, "能力不足")
-
-    def test_proposal_vote_payload_uses_public_profile_name(self):
-        from core.event_payloads import proposal_vote_payload
-        from core.models import Proposal, ProposalVote
-        member = self._create_member("pvoter-01", "原名")
-        MemberPublicProfile.objects.create(member=member, public_name="王梓尧")
-        org = __import__("core.models", fromlist=["Organization"]).Organization.objects.create(name="Test")
-        role = Role.objects.create(name="TestRole", organization=org, status=Role.Status.ACTIVE)
-        proposal = Proposal.objects.create(
-            title="Test", proposal_type=Proposal.ProposalType.MEMBER_ADMISSION,
-            **electorate_rule_fields(Proposal.ProposalType.MEMBER_ADMISSION),
-            status=Proposal.Status.VOTING, pass_ratio=50,
-            start_at=timezone.now(), deadline_at=timezone.now() + timezone.timedelta(days=7),
-            eligible_voters_snapshot_json=[str(member.pk)],
-        )
-        vote = ProposalVote.objects.create(
-            proposal=proposal, voter_member=member,
-            choice=ProposalVote.Choice.NO, reason="测试",
-            voted_at=timezone.now(),
-        )
-        payload = proposal_vote_payload(vote)
-        facts = payload["public_facts"]
-        self.assertEqual(facts["voter_public_name"], "王梓尧")
-        flat = str(payload)
-        self.assertNotIn("avatar_url", flat)
-        self.assertNotIn("bio", flat)
 
     def test_page_does_not_contain_sensitive_fields(self):
         from core.member_roles import ROLE_COVENANTER

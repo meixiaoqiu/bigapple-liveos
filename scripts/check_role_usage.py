@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import os
 import json
 import sys
 from collections import defaultdict
@@ -29,27 +30,27 @@ ROLE_USAGE_CATEGORIES = {
 # 每项均以 ``相对路径:行号`` 为键。分类说明是本次角色迁移的静态盘点基线，
 # 新增直接角色判断必须同时更新此目录并接受代码审查。
 ROLE_USAGE_CATALOG: dict[str, dict[str, str]] = {
-    "core/admin_identity.py:243": {
+    "core/admin_identity.py:239": {
         "category": "显示查询",
         "reason": "Django Admin 的任命历史搜索字段。",
     },
-    "core/admin_identity.py:302": {
+    "core/admin_identity.py:294": {
         "category": "显示查询",
         "reason": "Django Admin 的角色权限搜索字段。",
     },
-    "core/admin_identity.py:305": {
+    "core/admin_identity.py:297": {
         "category": "显示查询",
         "reason": "Django Admin 的角色权限排序字段。",
     },
-    "core/application_services.py:301": {
+    "core/application_services.py:298": {
         "category": "权威事实查询",
         "reason": "阻止已具守约者资格的账号重复提交成员报名。",
     },
-    "core/authorization_services.py:219": {
+    "core/authorization_services.py:210": {
         "category": "授权查询",
         "reason": "兼容授权后端下的完整工作台访问判定。",
     },
-    "core/authorization_services.py:229": {
+    "core/authorization_services.py:220": {
         "category": "授权查询",
         "reason": "OpenFGA 工作台授权前以 Django 当前守约者任命否决陈旧 tuple。",
     },
@@ -69,19 +70,19 @@ ROLE_USAGE_CATALOG: dict[str, dict[str, str]] = {
         "category": "显示查询",
         "reason": "身份展示投影读取规范角色对应的当前任命。",
     },
-    "core/management/commands/openfga_rebuild_tuples.py:105": {
+    "core/management/commands/openfga_rebuild_tuples.py:101": {
         "category": "权威事实查询",
         "reason": "从当前守约者资格、议事职责和维护职责重建 OpenFGA 关系。",
     },
-    "core/management/commands/openfga_rebuild_tuples.py:125": {
+    "core/management/commands/openfga_rebuild_tuples.py:121": {
         "category": "授权查询",
         "reason": "投影当前有效管理员任命，不读取任意角色任命。",
     },
-    "core/management/commands/openfga_rebuild_tuples.py:124": {
+    "core/management/commands/openfga_rebuild_tuples.py:120": {
         "category": "授权查询",
         "reason": "管理员 tuple 仅接受同时满足前置资格的当前职责事实。",
     },
-    "core/management/commands/openfga_rebuild_tuples.py:161": {
+    "core/management/commands/openfga_rebuild_tuples.py:157": {
         "category": "授权查询",
         "reason": "只投影管理员的显式权限绑定。",
     },
@@ -129,23 +130,15 @@ ROLE_USAGE_CATALOG: dict[str, dict[str, str]] = {
         "category": "授权查询",
         "reason": "筛选可用于专业提案授权的当前守约者。",
     },
-    "core/electorate_rules.py:122": {
-        "category": "授权查询",
-        "reason": "贡献者派生状态通过排除当前守约者资格计算。",
-    },
-    "core/electorate_rules.py:128": {
-        "category": "授权查询",
-        "reason": "通用 catalog_role 选择器按目录角色事实计算选民集合。",
-    },
-    "core/management/commands/openfga_rebuild_tuples.py:145": {
+    "core/management/commands/openfga_rebuild_tuples.py:141": {
         "category": "授权查询",
         "reason": "只投影规范财务组织中的基线财务角色任命。",
     },
-    "core/management/commands/openfga_rebuild_tuples.py:146": {
+    "core/management/commands/openfga_rebuild_tuples.py:142": {
         "category": "授权查询",
         "reason": "财务职责 tuple 持有人必须持续具备守约者资格。",
     },
-    "core/management/commands/openfga_rebuild_tuples.py:180": {
+    "core/management/commands/openfga_rebuild_tuples.py:176": {
         "category": "授权查询",
         "reason": "只投影规范财务角色的 finance 权限绑定。",
     },
@@ -157,7 +150,7 @@ ROLE_USAGE_CATALOG: dict[str, dict[str, str]] = {
         "category": "权威事实查询",
         "reason": "校验动态角色的守约者资格前置条件。",
     },
-    "core/role_audit.py:308": {
+    "core/role_audit.py:289": {
         "category": "权威事实查询",
         "reason": "盘点角色是否满足守约者资格前置条件。",
     },
@@ -165,13 +158,9 @@ ROLE_USAGE_CATALOG: dict[str, dict[str, str]] = {
         "category": "显示查询",
         "reason": "执衡者考试首页显示当前成员是否已有有效任期。",
     },
-    "core/openfga_projection_services.py:140": {
+    "core/openfga_projection_services.py:119": {
         "category": "授权查询",
         "reason": "增量投影仅为持续满足守约者前置条件的当前任命写入 tuple。",
-    },
-    "workspace/finance_role_views.py:49": {
-        "category": "显示查询",
-        "reason": "财务职责任命页面只列出当前有效守约者候选人。",
     },
 }
 
@@ -253,7 +242,11 @@ def discover_role_usages(root: Path = ROOT) -> list[RoleUsage]:
     """返回所有应在角色用途目录中分类的生产代码位置。"""
 
     usages: list[RoleUsage] = []
-    for path in sorted(root.rglob("*.py")):
+    paths: list[Path] = []
+    for directory, child_directories, file_names in os.walk(root):
+        child_directories[:] = [name for name in child_directories if name not in SKIPPED_PATH_PARTS]
+        paths.extend(Path(directory) / name for name in file_names if name.endswith(".py"))
+    for path in sorted(paths):
         relative_path = path.relative_to(root).as_posix()
         if relative_path == "scripts/check_role_usage.py":
             continue

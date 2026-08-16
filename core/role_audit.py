@@ -40,17 +40,6 @@ ROLE_ASSIGNMENT_CREATION_PATHS: tuple[dict[str, Any], ...] = (
         "follow_up_task": "6.2",
     },
     {
-        "id": "member-admission-proposal",
-        "entry_points": (
-            "core.application_services.admit_member_application_from_proposal",
-            "core.proposals.execution.execute_proposal",
-        ),
-        "category": "守约者准入",
-        "direct_role_facts": ("守约者",),
-        "assessment": "准入提案执行后只创建守约者资格。",
-        "follow_up_task": "4.2",
-    },
-    {
         "id": "deliberator-self-application",
         "entry_points": (
             "core.deliberator_exam_services._assert_exam_candidate",
@@ -71,14 +60,6 @@ ROLE_ASSIGNMENT_CREATION_PATHS: tuple[dict[str, Any], ...] = (
         "category": "世界初始化",
         "direct_role_facts": ("守约者", "管理员"),
         "assessment": "初始化只使用可复用的守约者和管理员事实，不创建执衡者任期。",
-        "follow_up_task": "3.3",
-    },
-    {
-        "id": "generic-role-appointment-proposal",
-        "entry_points": ("core.proposals.execution.execute_proposal",),
-        "category": "提案执行",
-        "direct_role_facts": ("提案指定角色",),
-        "assessment": "通用任命必须经角色目录前置条件与授权边界校验。",
         "follow_up_task": "3.3",
     },
 )

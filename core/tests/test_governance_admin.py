@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 from io import StringIO
-import json
 
 from django.contrib.admin.sites import AdminSite
-from django.contrib.staticfiles import finders
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -12,7 +10,7 @@ from django.test import RequestFactory, TestCase, override_settings
 from django.utils import timezone
 
 from core.access import user_has_permission
-from core.admin import SystemEventAdmin, MemberAdmin, ProposalAdmin, RoleAdmin
+from core.admin import SystemEventAdmin, MemberAdmin, RoleAdmin
 from core.event_ledger import PUBLIC_LEDGER_SCHEMA
 
 _v2 = lambda action="manual": {
@@ -28,9 +26,9 @@ from core.event_ledger import append_event
 from core.governance_setup import ADMINISTRATION_VIEW_ADMIN_PERMISSION
 from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ROLE_ADMINISTRATOR, ensure_catalog_role
 from core.role_catalog import ROLE_CATALOG_ORGANIZATION_NAME
-from core.models import Permission, SystemEvent, Member, Organization, Proposal, Role, RoleAssignment, RolePermission
+from core.models import Permission, SystemEvent, Member, Organization, Role, RoleAssignment, RolePermission
 from core.role_assignment_services import create_role_assignment
-from core.tests.helpers import create_member, electorate_rule_fields
+from core.tests.helpers import create_member
 
 
 class GovernanceAdminUsabilityTests(TestCase):
@@ -72,72 +70,6 @@ class GovernanceAdminUsabilityTests(TestCase):
         self.assertFalse(admin.has_change_permission(request, event))
         self.assertFalse(admin.has_delete_permission(request, event))
         self.assertEqual(admin.short_event_hash(event), event.event_hash[:12])
-
-    def test_proposal_admin_uses_chinese_role_identity_label_and_filters_by_proposer(self):
-        role = ensure_catalog_role(ROLE_DELIBERATOR)
-        other_role = ensure_catalog_role(ROLE_ADMINISTRATOR)
-        proposer = create_member("member-proposer", role_name=ROLE_COVENANTER)
-        other_member = create_member("member-other", role_name=ROLE_COVENANTER)
-        proposer_assignment = create_role_assignment(member=proposer, role=role)
-        other_assignment = create_role_assignment(member=other_member, role=other_role)
-        proposal = Proposal.objects.create(
-            title="测试提案",
-            proposal_type=Proposal.ProposalType.POLICY,
-            **electorate_rule_fields(Proposal.ProposalType.POLICY),
-            status=Proposal.Status.DRAFT,
-            proposer_member=proposer,
-            organization=role.organization,
-            deadline_at=timezone.now() + timezone.timedelta(days=7),
-        )
-        admin = ProposalAdmin(Proposal, AdminSite())
-        form_class = admin.get_form(self.admin_request(), proposal)
-        form = form_class(instance=proposal)
-        field = form.fields["proposer_role_assignment"]
-
-        self.assertEqual(Proposal._meta.get_field("proposer_role_assignment").verbose_name, "提案时角色身份")
-        self.assertEqual(field.label, "提案时角色身份")
-        self.assertIn(proposer_assignment, field.queryset)
-        self.assertNotIn(other_assignment, field.queryset)
-
-    def test_proposal_admin_role_identity_options_are_limited_to_selected_proposer(self):
-        proposer_role = ensure_catalog_role(ROLE_DELIBERATOR)
-        other_role = ensure_catalog_role(ROLE_ADMINISTRATOR)
-        proposer = create_member("member-proposer-options", role_name=ROLE_COVENANTER)
-        other_member = create_member("member-other-options", role_name=ROLE_COVENANTER)
-        proposer_assignment = create_role_assignment(member=proposer, role=proposer_role)
-        suspended_assignment = create_role_assignment(member=proposer, role=other_role)
-        suspended_assignment.status = RoleAssignment.Status.SUSPENDED
-        suspended_assignment.save(update_fields=["status", "updated_at"])
-        other_assignment = create_role_assignment(member=other_member, role=other_role)
-        admin = ProposalAdmin(Proposal, AdminSite())
-        request = RequestFactory().get(
-            "/admin/core/proposal/role-assignment-options/",
-            {"member_pk": proposer.pk},
-        )
-        request.user = self.admin_request().user
-
-        response = admin.role_assignment_options(request)
-        payload = json.loads(response.content.decode("utf-8"))
-        returned_ids = {item["id"] for item in payload["results"]}
-
-        self.assertIn(proposer_assignment.pk, returned_ids)
-        self.assertNotIn(suspended_assignment.pk, returned_ids)
-        self.assertNotIn(other_assignment.pk, returned_ids)
-
-    def test_proposal_admin_role_identity_script_waits_for_admin_jquery(self):
-        path = finders.find("core/admin/proposal_role_assignment_filter.js")
-
-        self.assertIsNotNone(path)
-        with open(path, encoding="utf-8") as script_file:
-            script = script_file.read()
-
-        self.assertIn("/admin/core/proposal/role-assignment-options/", script)
-        self.assertIn("function boot()", script)
-        self.assertIn('typeof django.jQuery === "function"', script)
-        self.assertIn("bindProposalRoleAssignmentFilter(adminJQuery)", script)
-        self.assertIn("bindProposalRoleAssignmentFilter(globalJQuery)", script)
-        self.assertIn('$(document).on("change select2:select"', script)
-
 
 class GrantAdministratorCommandTests(TestCase):
     def _covenanter(self, member_no: str, user=None):

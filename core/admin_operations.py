@@ -30,11 +30,9 @@ class TaskAdmin(StablePrimaryKeyAdminMixin, NoDeleteAdminMixin, admin.ModelAdmin
         "assignee_member__member_no",
         "plan_node__title",
         "plan_node__code",
-        "source_proposal__proposal_no",
-        "source_proposal__title",
     )
-    autocomplete_fields = ("assignee_member", "plan_node", "source_proposal", "source_proposal_execution")
-    list_select_related = ("assignee_member", "plan_node", "source_proposal", "source_proposal_execution")
+    autocomplete_fields = ("assignee_member", "plan_node")
+    list_select_related = ("assignee_member", "plan_node")
     date_hierarchy = "created_at"
     ordering = ("status", "due_at", "task_id")
     list_per_page = 50
@@ -70,7 +68,7 @@ class TaskAdmin(StablePrimaryKeyAdminMixin, NoDeleteAdminMixin, admin.ModelAdmin
                 )
             },
         ),
-        ("来源", {"fields": ("source_type", "source_proposal", "source_proposal_execution")}),
+        ("来源", {"fields": ("source_type",)}),
         ("规则和扩展", {"fields": ("rule_version", "metadata")}),
         ("时间", {"fields": ("created_at",)}),
     )

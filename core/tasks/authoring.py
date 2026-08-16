@@ -29,8 +29,6 @@ def create_task_draft(
     created_by: dict,
     due_at=None,
     source_type: str = Task.SourceType.DIRECT,
-    source_proposal=None,
-    source_proposal_execution=None,
 ) -> Task:
     """Create an operator-managed draft task before it is opened for claiming."""
 
@@ -67,8 +65,6 @@ def create_task_draft(
         created_at=now,
         due_at=due_at,
         source_type=source_type,
-        source_proposal=source_proposal,
-        source_proposal_execution=source_proposal_execution,
         metadata={"source": "control_task_authoring", "created_by": created_by},
     )
     append_event(

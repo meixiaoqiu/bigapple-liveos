@@ -1,4 +1,4 @@
-# 大苹果管理员正式命名、通用选民规则与财务职责授权模型 v2026-08-12
+# 大苹果角色与财务职责授权模型 v2026-08-16
 model
   schema 1.1
 
@@ -14,12 +14,6 @@ type platform
 type professional_domain
   relations
     define qualified_member: [member]
-
-type proposal
-  relations
-    define platform: [platform]
-    define eligible_member: [member]
-    define can_vote: eligible_member but not frozen_member from platform
 
 type role
   relations

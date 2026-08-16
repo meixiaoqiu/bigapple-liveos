@@ -117,91 +117,10 @@
 
     <section class="card bg-base-100 shadow">
       <div class="card-body gap-4">
-        <h2 class="card-title">成员准入提案</h2>
-        {% if admission_proposal %}
-          <dl class="grid gap-3 text-sm md:grid-cols-2">
-            <div>
-              <dt class="font-semibold">提案编号</dt>
-              <dd class="font-mono text-xs">{{ admission_proposal.proposal_no }}</dd>
-            </div>
-            <div>
-              <dt class="font-semibold">提案状态</dt>
-              <dd>
-                <span class="badge badge-outline">{{ admission_proposal.status_label }}</span>
-              </dd>
-            </div>
-            <div>
-              <dt class="font-semibold">通过比例</dt>
-              <dd>{{ admission_proposal.pass_ratio }}%（严格超过阈值）</dd>
-            </div>
-            <div>
-              <dt class="font-semibold">截止时间</dt>
-              <dd>{{ admission_proposal.deadline_at|date:"Y-m-d H:i" }}</dd>
-            </div>
-            <div>
-              <dt class="font-semibold">所需赞成票</dt>
-              <dd>{{ admission_proposal.required_yes }} 票</dd>
-            </div>
-            <div>
-              <dt class="font-semibold">投票人数</dt>
-              <dd>{{ admission_proposal.participated }} / {{ admission_proposal.eligible }}</dd>
-            </div>
-          </dl>
-
-          <div class="grid gap-2 sm:grid-cols-2">
-            <div class="stat bg-base-200 rounded">
-              <div class="stat-title">赞成</div>
-              <div class="stat-value text-success">{{ admission_proposal.yes }}</div>
-            </div>
-            <div class="stat bg-base-200 rounded">
-              <div class="stat-title">反对</div>
-              <div class="stat-value text-error">{{ admission_proposal.no }}</div>
-            </div>
-          </div>
-
-          {% if admission_proposal.votes %}
-            <div class="overflow-x-auto">
-              <table class="table table-zebra">
-                <thead>
-                  <tr><th>投票人</th><th>选项</th><th>理由</th><th>时间</th></tr>
-                </thead>
-                <tbody>
-                  {% for vote in admission_proposal.votes %}
-                    <tr>
-                      <td class="font-mono text-xs">{{ vote.voter_member_no }}</td>
-                      <td><span class="badge badge-outline">{{ vote.choice_label }}</span></td>
-                      <td class="text-sm">{{ vote.reason|default:"—" }}</td>
-                      <td class="text-xs">{{ vote.voted_at|date:"Y-m-d H:i" }}</td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          {% endif %}
-
-          {% if admission_proposal.status == "voting" and admission_proposal.viewer_is_eligible %}
-
-          {% elif admission_proposal.status == "voting" and not admission_proposal.viewer_is_eligible %}
-            <div class="alert alert-info">
-              <span>提案正在表决中，但你不在当前提案的投票资格范围内。</span>
-            </div>
-          {% endif %}
-
-          {% if admission_proposal.status == "passed" and not admission_proposal.executed_at %}
-            <div class="alert alert-success">
-              <span>提案已通过，可执行以正式接纳该成员。</span>
-            </div>
-
-          {% elif admission_proposal.executed_at %}
-            <div class="alert alert-info">
-              <span>提案已于 {{ admission_proposal.executed_at|date:"Y-m-d H:i" }} 执行，成员已接纳。</span>
-            </div>
-          {% endif %}
-        {% else %}
-          <div class="alert alert-warning">
-            <span>准入提案缺失。请通过后台检查该报名的提案关联状态。</span>
-          </div>
-        {% endif %}
+        <h2 class="card-title">准入决策</h2>
+        <div class="alert alert-warning">
+          <span>统一提案流程正在迁移，当前投票、批准、拒绝和执行操作暂不可用。报名资料已保留。</span>
+        </div>
       </div>
     </section>
   </main>

@@ -8,6 +8,7 @@ from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from core.credential_services import ensure_builtin_credential_templates
+from core.exceptions import DomainError
 from core.member_roles import ROLE_COVENANTER
 from core.models import (
     ApprovalProposal,
@@ -98,6 +99,24 @@ class WorkItemContextTests(TestCase):
         execute_proposal(proposal=p, actor=self.governor)
         items = build_member_work_items(self.governor)
         self.assertGreater(len(items["receipt_pending"]), 0)
+
+    def test_regular_member_cannot_execute_approved_proposal(self):
+        proposal = create_approval_proposal(
+            proposal_type=ApprovalProposal.ProposalType.PROCUREMENT_ACCEPTANCE,
+            dedupe_key="test:wi:unauthorized-execution",
+            title="执行权限边界测试",
+            submitted_by=self.governor,
+            approval_tier=ApprovalProposal.Tier.SINGLE,
+        )
+        approve_proposal(
+            proposal=proposal, approved_by=self.governor, role="governance",
+        )
+
+        with self.assertRaisesMessage(DomainError, "你无权执行该提案。"):
+            execute_proposal(proposal=proposal, actor=self.regular)
+
+        proposal.refresh_from_db()
+        self.assertEqual(proposal.status, ApprovalProposal.Status.APPROVED)
 
     def test_regular_member_sees_no_governance_items(self):
         create_approval_proposal(

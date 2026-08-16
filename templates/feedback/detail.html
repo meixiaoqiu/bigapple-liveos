@@ -55,16 +55,6 @@
       </section>
     {% endif %}
 
-    {# linked proposal #}
-    {% if feedback.linked_proposal %}
-      <section class="card bg-base-100 shadow">
-        <div class="card-body gap-2">
-          <h2 class="card-title text-base">关联提案</h2>
-          <p class="text-sm">提案 {{ feedback.linked_proposal.proposal_no }}：{{ feedback.linked_proposal.title }}</p>
-        </div>
-      </section>
-    {% endif %}
-
     {# governance response form #}
     {% if is_gov and response_form %}
       <section class="card bg-base-100 shadow">
@@ -90,12 +80,7 @@
 
           <div class="divider text-xs text-base-content/40">其他操作</div>
 
-          <form method="post" action="{% url 'feedback-respond' feedback.feedback_id %}" class="flex flex-wrap gap-2">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="link">
-            <input class="input input-bordered input-sm" type="text" name="proposal_no" placeholder="提案编号">
-            <button class="btn btn-outline btn-sm" type="submit">关联提案</button>
-          </form>
+          <div class="alert alert-warning text-sm"><span>统一提案流程正在迁移，反馈转入提案暂不可用。</span></div>
 
           <form method="post" action="{% url 'feedback-respond' feedback.feedback_id %}">
             {% csrf_token %}
@@ -107,7 +92,7 @@
     {% endif %}
 
     <div class="alert text-sm">
-      <span>公开反馈不会直接形成治理决议；管理员可将其转入正式治理流程。</span>
+      <span>公开反馈不会直接形成治理决议；统一提案流程迁移完成后才能转为正式提案。</span>
     </div>
   </main>
 </body>

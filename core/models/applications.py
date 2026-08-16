@@ -20,14 +20,12 @@ ROLE_GAP_LABELS: dict[str, str] = {
 class MemberApplication(models.Model):
     """A public member application submitted through the real world-scoped entry.
 
-    Statuses reflect the proposal-driven admission lifecycle, not a standalone
-    review state machine.  Former ``candidate`` / ``standby`` have been removed;
-    simulation screening decisions live in ``metadata.screening_status`` only.
+    状态只记录报名资料与最终结果；统一决策流程迁移期间不保存表决中间态。
+    仿真筛选决定仅保存在 ``metadata.screening_status``。
     """
 
     class Status(models.TextChoices):
         SUBMITTED = "submitted", "已提交"
-        ADMISSION_VOTING = "admission_voting", "准入表决中"
         ADMITTED = "admitted", "已接纳"
         REJECTED = "rejected", "已拒绝"
         WITHDREW = "withdrew", "已退出"
@@ -101,15 +99,6 @@ class MemberApplication(models.Model):
         null=True,
         blank=True,
         help_text="报名提交并二次确认的时间；业务入口不提供提交后的撤回或修改。",
-    )
-    admission_proposal = models.ForeignKey(
-        "Proposal",
-        null=True,
-        blank=True,
-        on_delete=models.PROTECT,
-        related_name="member_admission_applications",
-        verbose_name="准入提案",
-        help_text="用于接纳该报名成员的治理提案；通过后仍需显式执行。",
     )
     decided_by = models.ForeignKey(
         Member,

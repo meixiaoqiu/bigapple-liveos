@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 from django.test import TestCase
-from django.utils import timezone
 
 from core.exceptions import DomainError
 from core.feedback_services import (
     hide_feedback,
-    link_feedback_to_proposal,
     respond_to_feedback,
     submit_feedback,
 )
-from core.models import CommunityFeedback, Event, Member, Organization, Proposal, Role
-from core.tests.helpers import create_administrator_member, create_member, electorate_rule_fields, login_as_member
+from core.models import CommunityFeedback, Event, Member
+from core.tests.helpers import create_administrator_member, create_member, login_as_member
 from observer.event_context import public_event_semantic_summary
 
 
@@ -164,23 +162,6 @@ class FeedbackServiceTests(TestCase):
                 visibility=Event.Visibility.PUBLIC,
             ).exists()
         )
-
-    def test_link_feedback_to_proposal(self):
-        gov = create_administrator_member("administrator-link")
-        fb = submit_feedback(author_member=self.member, title="link", category="proposal_seed", body="p")
-        org = Organization.objects.create(name="TestOrg")
-        role = Role.objects.create(name="Test", organization=org, status=Role.Status.ACTIVE)
-        proposal = Proposal.objects.create(
-            title="提案", proposal_type=Proposal.ProposalType.POLICY,
-            **electorate_rule_fields(Proposal.ProposalType.POLICY),
-            status=Proposal.Status.VOTING, proposer_member=gov,
-            start_at=timezone.now(), deadline_at=timezone.now() + timezone.timedelta(days=7),
-            pass_ratio=50, proposal_no="0001",
-        )
-        link_feedback_to_proposal(feedback=fb, proposal=proposal, actor_member=gov)
-        fb.refresh_from_db()
-        self.assertEqual(fb.status, CommunityFeedback.Status.LINKED)
-        self.assertEqual(fb.linked_proposal, proposal)
 
     def test_non_governance_cannot_hide(self):
         fb = submit_feedback(author_member=self.member, title="x", category="other", body="y")

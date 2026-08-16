@@ -10,19 +10,18 @@ from core.authorization_services import (
     openfga_context_for_world_kind,
 )
 from core.governance_setup import ADMINISTRATION_VIEW_ADMIN_PERMISSION
-from core.models import Member, Proposal
+from core.models import Member
 from worlds.command_context import command_world_context
 
 
 class Command(BaseCommand):
-    help = "探测一个 world 中的维护能力或指定提案投票能力。"
+    help = "探测一个 world 中的维护能力。"
 
     def add_arguments(self, parser):
         parser.add_argument("--world-id", default="")
         parser.add_argument("--world-kind", choices=("real", "sim"), default=None)
-        parser.add_argument("--capability", choices=("administration", "proposal_vote"), default="administration")
+        parser.add_argument("--capability", choices=("administration",), default="administration")
         parser.add_argument("--permission-code", default=ADMINISTRATION_VIEW_ADMIN_PERMISSION)
-        parser.add_argument("--proposal-id", type=int, default=None)
         parser.add_argument("--member-no", default="")
         parser.add_argument("--limit", type=int, default=20)
 
@@ -33,7 +32,6 @@ class Command(BaseCommand):
                 raise CommandError(f"{context.world_kind} OpenFGA store 和 authorization model 必须配置。")
 
             capability = options["capability"]
-            proposal = self._proposal_for_capability(capability=capability, proposal_id=options["proposal_id"])
             members = _probe_members(member_no=options["member_no"], limit=options["limit"])
             authorization = AuthorizationService()
             self.stdout.write(
@@ -47,15 +45,11 @@ class Command(BaseCommand):
                 )
             )
             for member in members:
-                if capability == "administration":
-                    allowed = authorization.member_can_administer(
-                        member=member,
-                        permission_code=options["permission_code"],
-                    )
-                    target = options["permission_code"]
-                else:
-                    allowed = authorization.member_can_vote_on_proposal(member=member, proposal=proposal)
-                    target = f"proposal:{proposal.pk}"
+                allowed = authorization.member_can_administer(
+                    member=member,
+                    permission_code=options["permission_code"],
+                )
+                target = options["permission_code"]
                 self.stdout.write(
                     " ".join(
                         [
@@ -66,18 +60,6 @@ class Command(BaseCommand):
                         ]
                     )
                 )
-
-    @staticmethod
-    def _proposal_for_capability(*, capability: str, proposal_id: int | None) -> Proposal | None:
-        if capability != "proposal_vote":
-            return None
-        if proposal_id is None:
-            raise CommandError("探测提案投票能力时必须提供 --proposal-id。")
-        try:
-            return Proposal.objects.get(pk=proposal_id)
-        except Proposal.DoesNotExist as exc:
-            raise CommandError(f"提案不存在：{proposal_id}") from exc
-
 
 def _probe_members(*, member_no: str, limit: int) -> list[Member]:
     checked_member_no = str(member_no or "").strip()

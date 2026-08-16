@@ -13,13 +13,6 @@ from core.models import CredentialGrant, Member, MemberPublicProfile, RoleAssign
 # SystemEvent -> human-readable title
 
 _EVENT_TITLE_MAP: dict[str, str] = {
-    SystemEvent.EventType.PROPOSAL_CREATED: "创建提案",
-    SystemEvent.EventType.PROPOSAL_VOTE_CAST: "投票",
-    SystemEvent.EventType.PROPOSAL_VOTE_CHANGED: "改票",
-    SystemEvent.EventType.PROPOSAL_PASSED: "提案通过",
-    SystemEvent.EventType.PROPOSAL_FAILED: "提案未通过",
-    SystemEvent.EventType.PROPOSAL_CANCELLED: "取消提案",
-    SystemEvent.EventType.PROPOSAL_EXECUTED: "执行提案",
     SystemEvent.EventType.ROLE_ASSIGNED: "角色任命",
     SystemEvent.EventType.ROLE_REVOKED: "角色撤销",
     SystemEvent.EventType.CREDENTIAL_GRANTED: "凭证发放",

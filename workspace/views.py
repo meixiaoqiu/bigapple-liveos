@@ -5,8 +5,8 @@ from __future__ import annotations
 from django.contrib import messages
 from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Q
 from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
@@ -24,9 +24,7 @@ from core.authorization_services import AuthorizationService
 from core.application_services import submit_member_application
 from core.exceptions import DomainError
 from core.identity_services import ensure_basic_member_for_user
-from core.models import Member, MemberApplication, Proposal, ProposalVote, Task
-from core.proposals.execution import execute_proposal
-from core.proposals.voting import cast_proposal_vote
+from core.models import Member, MemberApplication, Task
 from core.tasks.member_workflow import claim_task, submit_labor
 from worlds.routing import world_redirect
 
@@ -53,12 +51,6 @@ ENDED_TASK_STATUSES = (
     Task.Status.CLOSED,
     Task.Status.REVERSED,
 )
-
-
-PROPOSAL_VOTE_CHOICES = {
-    ProposalVote.Choice.YES,
-    ProposalVote.Choice.NO,
-}
 
 
 @require_GET
@@ -349,14 +341,7 @@ def workspace_submit_labor(request: HttpRequest, task_id: str):
 
 
 # --- Member-application review module -------------------------------------------------
-# 管理员专用界面，提供报名列表以及提案、表决和执行流程。
-# proposal/voting/execution pipeline through the workspace. Views stay thin:
-# every state change goes through the service layer so the invariants around
-# proposal-driven admission are preserved.
-#
-# There is NO standalone "review" POST endpoint — admission is governed
-# exclusively through the member_admission proposal lifecycle (vote → pass →
-# execute). Applications are auto-rejected when their admission proposal fails.
+# 管理员专用报名资料视图。统一提案系统迁移完成前不提供准入决策操作。
 
 
 def current_administrator_or_forbidden(request: HttpRequest) -> Member | HttpResponse:
@@ -379,37 +364,9 @@ def current_administrator_or_forbidden(request: HttpRequest) -> Member | HttpRes
 
 def _application_for_review(application_id: str) -> MemberApplication:
     return get_object_or_404(
-        MemberApplication.objects.select_related("linked_member", "account_user", "admission_proposal", "decided_by"),
+        MemberApplication.objects.select_related("linked_member", "account_user", "decided_by"),
         application_id=application_id,
     )
-
-
-def _member_admission_proposal_and_application_or_404(proposal_id: str) -> tuple[Proposal, MemberApplication]:
-    """Return ``(proposal, application)`` where proposal is an active member-admission
-    proposal linked to the application, or raise Http404.
-
-    This is the ONLY helper the vote / execute views may use — they must not look
-    up arbitrary proposals by pk.  If the proposal is not ``MEMBER_ADMISSION`` or
-    no ``MemberApplication`` references it, the call site gets a 404.
-    """
-
-    proposal = get_object_or_404(Proposal, pk=proposal_id)
-    if proposal.proposal_type != Proposal.ProposalType.MEMBER_ADMISSION:
-        from django.http import Http404
-
-        raise Http404("不是成员准入提案。")
-    application = MemberApplication.objects.filter(admission_proposal_id=proposal.pk).first()
-    if application is None:
-        from django.http import Http404
-
-        raise Http404("成员准入提案未关联报名记录。")
-    return proposal, application
-
-
-def _admission_application_redirect(request: HttpRequest, application: MemberApplication):
-    """Redirect to the review detail page for the given application."""
-
-    return world_redirect(request, "workspace-application-detail", application.application_id)
 
 
 @require_GET
@@ -436,53 +393,6 @@ def workspace_application_detail(request: HttpRequest, application_id: str):
         "workspace/applications_review_detail.html",
         application_review_detail_context(member=member, application=application),
     )
-
-
-@require_POST
-def workspace_proposal_vote(request: HttpRequest, proposal_id: str):
-    member = current_administrator_or_forbidden(request)
-    if isinstance(member, HttpResponse):
-        return member
-    proposal, application = _member_admission_proposal_and_application_or_404(proposal_id)
-    choice = str(request.POST.get("choice", "")).strip()
-    reason = str(request.POST.get("reason", "")).strip()
-    if choice not in PROPOSAL_VOTE_CHOICES:
-        messages.error(request, "投票选项无效。")
-        return _admission_application_redirect(request, application)
-    if choice == ProposalVote.Choice.NO and not reason:
-        messages.error(request, "反对准入必须填写理由。")
-        return _admission_application_redirect(request, application)
-    try:
-        cast_proposal_vote(
-            proposal=proposal,
-            voter_member=member,
-            choice=choice,
-            reason=reason,
-        )
-    except (DomainError, DjangoValidationError) as exc:
-        messages.error(request, f"投票失败：{exc}")
-    else:
-        messages.success(request, "已记录投票。")
-    return _admission_application_redirect(request, application)
-
-
-@require_POST
-def workspace_proposal_execute(request: HttpRequest, proposal_id: str):
-    member = current_administrator_or_forbidden(request)
-    if isinstance(member, HttpResponse):
-        return member
-    proposal, application = _member_admission_proposal_and_application_or_404(proposal_id)
-    try:
-        execute_proposal(proposal=proposal, executor_member=member)
-    except (DomainError, DjangoValidationError) as exc:
-        messages.error(request, f"执行准入提案失败：{exc}")
-    else:
-        messages.success(request, "准入提案已执行，成员已接纳。")
-    return _admission_application_redirect(request, application)
-
-
-# Removed _redirect_to_proposal_application (no longer needed — the only valid
-# return from this module is the application detail page).
 
 
 # --- Recruitment-direction maintenance -----------------------------------------

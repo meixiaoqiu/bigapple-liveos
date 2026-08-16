@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 setlocal EnableDelayedExpansion
 
 set "APP_DIR=%~dp0"
@@ -174,7 +175,7 @@ echo.
 echo Applying database migrations...
 
 echo Migrating admin/control database...
-docker compose -f docker-compose.dev.yml run --interactive=false --rm --no-deps big-apple-admin python manage.py migrate --noinput --settings=live_os.settings_admin
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\Invoke-WorldMigration.ps1 -DatabaseAlias default -Service big-apple-admin -SettingsModule live_os.settings_admin
 if errorlevel 1 (
 echo Failed to migrate admin/control database.
 set "EXIT_CODE=1"

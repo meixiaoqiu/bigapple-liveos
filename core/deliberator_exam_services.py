@@ -369,9 +369,6 @@ def submit_deliberator_exam(
             return locked
         locked.status = DeliberatorExamAttempt.Status.PASSED
         locked.role_assignment = assignment
-        from .application_services import reopen_zero_electorate_member_admissions
-
-        reopen_zero_electorate_member_admissions(proposer_member=member)
     else:
         locked.status = DeliberatorExamAttempt.Status.FAILED
     locked.full_clean()

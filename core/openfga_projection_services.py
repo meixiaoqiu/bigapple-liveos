@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import logging
 
-from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from .authorization_services import (
     authorization_backend,
     openfga_context_for_world_kind,
     openfga_member_user,
-    openfga_proposal_object,
     openfga_role_object,
 )
 from .member_roles import (
@@ -21,10 +19,9 @@ from .member_roles import (
     member_allows_role_facts,
     member_has_role,
 )
-from .models import Proposal, Role, RoleAssignment
+from .models import Role, RoleAssignment
 from .role_catalog import catalog_role_definition_for_role
 from .openfga_client import OpenFGAClient, OpenFGARequestError
-from .proposals.voters import eligible_voters_for_rule_snapshot
 
 
 logger = logging.getLogger(__name__)
@@ -66,24 +63,6 @@ def _delete_tuples(tuples: list[dict[str, str]]) -> bool:
         logger.warning("OpenFGA incremental projection deletion failed: %s", exc)
         return False
     return True
-
-
-def project_voting_proposal(proposal: Proposal) -> bool:
-    """Project one newly created voting proposal and its current eligible members."""
-    if proposal.status != Proposal.Status.VOTING:
-        return True
-    context = openfga_context_for_world_kind()
-    proposal_object = openfga_proposal_object(proposal)
-    tuples = [{"user": context.platform_object, "relation": "platform", "object": proposal_object}]
-    try:
-        eligible = eligible_voters_for_rule_snapshot(rule_snapshot=proposal.electorate_rule_snapshot_json)
-    except (ValidationError, ValueError, TypeError):
-        return False
-    tuples.extend(
-        {"user": openfga_member_user(member), "relation": "eligible_member", "object": proposal_object}
-        for member in eligible
-    )
-    return _write_tuples(tuples)
 
 
 def _role_assignment_tuples(assignment: RoleAssignment) -> list[dict[str, str]]:

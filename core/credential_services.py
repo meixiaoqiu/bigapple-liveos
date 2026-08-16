@@ -229,8 +229,6 @@ def _issue_credential_unlocked(
     dedupe_key: str,
     source_type: str = CredentialGrant.SourceType.SYSTEM,
     issued_by: Member | None = None,
-    source_proposal=None,
-    source_proposal_execution=None,
     serial_no: int | None = None,
     title: str = "",
     metadata: dict[str, Any] | None = None,
@@ -256,8 +254,6 @@ def _issue_credential_unlocked(
             source_type=source_type,
             issued_by=issued_by,
             issued_at=timezone.now(),
-            source_proposal=source_proposal,
-            source_proposal_execution=source_proposal_execution,
             metadata=dict(metadata or {}),
         )
     except IntegrityError:
@@ -293,8 +289,6 @@ def issue_credential(
     dedupe_key: str,
     source_type: str = CredentialGrant.SourceType.SYSTEM,
     issued_by: Member | None = None,
-    source_proposal=None,
-    source_proposal_execution=None,
     serial_no: int | None = None,
     title: str = "",
     metadata: dict[str, Any] | None = None,
@@ -309,8 +303,6 @@ def issue_credential(
         dedupe_key=dedupe_key,
         source_type=source_type,
         issued_by=issued_by,
-        source_proposal=source_proposal,
-        source_proposal_execution=source_proposal_execution,
         serial_no=serial_no,
         title=title,
         metadata=metadata,
@@ -321,8 +313,6 @@ def issue_credential(
 def issue_covenanter_number(
     member: Member,
     *,
-    source_proposal=None,
-    source_proposal_execution=None,
     issued_by: Member | None = None,
 ) -> CredentialGrant:
     """Issue or return the existing covenanter number for *member*.
@@ -363,12 +353,8 @@ def issue_covenanter_number(
         template=template,
         member=member,
         dedupe_key=f"covenanter_number:{member.member_no}",
-        source_type=CredentialGrant.SourceType.PROPOSAL_EXECUTION
-        if source_proposal
-        else CredentialGrant.SourceType.SYSTEM,
+        source_type=CredentialGrant.SourceType.SYSTEM,
         issued_by=issued_by,
-        source_proposal=source_proposal,
-        source_proposal_execution=source_proposal_execution,
         serial_no=next_serial,
     )
 

@@ -666,19 +666,19 @@ def simulation_change_set_rows(
         operation.display_metadata = pretty_json(operation.metadata)
         operations_by_change_set.setdefault(operation.change_set_id, []).append(operation)
     for change_set in rows:
-        source_proposal = proposals_by_id.get(change_set.proposal_id)
-        change_set.source_proposal = source_proposal
-        change_set.missing_proposal = change_set.proposal_id and source_proposal is None
+        source_suggestion = proposals_by_id.get(change_set.proposal_id)
+        change_set.source_suggestion = source_suggestion
+        change_set.missing_proposal = change_set.proposal_id and source_suggestion is None
         change_set.display_metadata = pretty_json(change_set.metadata)
         change_set.display_operations = operations_by_change_set.get(change_set.change_set_id, [])
         change_set.is_naturally_absorbed = bool(
             run
             and current_startup_gate is not None
-            and source_proposal
+            and source_suggestion
             and feedback_naturally_absorbed(
                 run=run,
                 current_startup_gate=current_startup_gate,
-                source_failure=source_proposal.source_failure,
+                source_failure=source_suggestion.source_failure,
             )
         )
         change_set.is_next_baseline = (

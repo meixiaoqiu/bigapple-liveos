@@ -7,29 +7,8 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 from .event_ledger import append_event
-from .event_payloads import proposal_payload, role_assignment_payload
-from .models import Proposal, RoleAssignment, SystemEvent
-
-
-@receiver(post_save, sender=Proposal)
-def append_proposal_created_event(
-    sender,
-    instance: Proposal,
-    created: bool,
-    raw: bool = False,
-    **kwargs,
-) -> None:
-    if raw or not created:
-        return
-    append_event(
-        event_type=SystemEvent.EventType.PROPOSAL_CREATED,
-        aggregate_type="Proposal",
-        aggregate_id=str(instance.pk),
-        actor_member=instance.proposer_member,
-        actor_role_assignment=instance.proposer_role_assignment,
-        payload_json=proposal_payload(instance),
-        occurred_at=instance.created_at or timezone.now(),
-    )
+from .event_payloads import role_assignment_payload
+from .models import RoleAssignment, SystemEvent
 
 
 @receiver(pre_save, sender=RoleAssignment)

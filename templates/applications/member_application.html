@@ -2,9 +2,12 @@
 
 {% block title %}成员报名 · 大苹果{% endblock %}
 {% block heading %}守约者报名{% endblock %}
-{% block subtitle %}这里是守约者报名入口，报名后将进入治理表决流程。{% endblock %}
+{% block subtitle %}这里可以提交守约者报名资料；统一提案流程迁移期间，投票与准入决策暂不可用。{% endblock %}
 
 {% block content %}
+  <div class="alert alert-warning mb-6">
+    <span>报名资料会正常保存，但当前不会进入投票、批准、拒绝或执行流程。</span>
+  </div>
   <form class="grid gap-6" method="post" data-draft-key="member_application_draft" data-step-form>
     {% csrf_token %}
     {% if is_reapply and previous_application %}

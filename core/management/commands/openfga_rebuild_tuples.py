@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from django.core.management.base import BaseCommand, CommandError
-from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.utils import timezone
 
@@ -14,17 +13,14 @@ from core.authorization_services import (
     openfga_member_user,
     openfga_permission_object,
     openfga_professional_domain_object,
-    openfga_proposal_object,
     openfga_resource_permission_object,
     openfga_role_object,
 )
-from core.proposals.voters import eligible_voters_for_rule_snapshot
 from core.member_roles import ROLE_DELIBERATOR, ROLE_COVENANTER, ROLE_ADMINISTRATOR, member_role_filter
 from core.models import (
     Member,
     MemberProfessionalQualification,
     ProfessionalDomain,
-    Proposal,
     Role,
     RoleAssignment,
     RolePermission,
@@ -211,35 +207,6 @@ def _project_authorization_tuples(*, platform_object: str):
             "relation": "qualified_member",
             "object": openfga_professional_domain_object(qualification.domain),
         }
-
-    proposals = Proposal.objects.select_related("electorate_rule_version").filter(
-        status=Proposal.Status.VOTING,
-        deadline_at__gt=checked_at,
-    )
-    for proposal in proposals:
-        try:
-            proposal_object = openfga_proposal_object(proposal)
-        except ValueError:
-            continue
-        yield {
-            "user": platform_object,
-            "relation": "platform",
-            "object": proposal_object,
-        }
-        try:
-            eligible_members = eligible_voters_for_rule_snapshot(
-                rule_snapshot=proposal.electorate_rule_snapshot_json,
-                at_time=checked_at,
-            )
-        except (ValidationError, ValueError, TypeError):
-            continue
-        for member in eligible_members:
-            yield {
-                "user": openfga_member_user(member),
-                "relation": "eligible_member",
-                "object": proposal_object,
-            }
-
 
 def _permission_objects_for_role_permission(role_permission: RolePermission):
     permission_code = role_permission.permission.code

@@ -34,6 +34,7 @@ from .models import (
     Member,
     SystemEvent,
 )
+from .proposal_migration import raise_proposal_flow_unavailable
 
 SMALL_PURCHASE_LIMIT = Decimal("500")
 STANDARD_PURCHASE_LIMIT = Decimal("5000")
@@ -220,6 +221,9 @@ def create_approval_proposal(
     if proposal_type not in {v for v, _ in ApprovalProposal.ProposalType.choices}:
         raise DomainError("提案类型无效。")
 
+    if proposal_type == ApprovalProposal.ProposalType.MEMBER_APPLICATION:
+        raise_proposal_flow_unavailable()
+
     if not approval_tier:
         approval_tier = ApprovalProposal.Tier.SINGLE
 
@@ -271,6 +275,9 @@ def approve_proposal(
 ) -> ApprovalProposal:
     """Approve a proposal for one required role-slot."""
     proposal = ApprovalProposal.objects.select_for_update().get(pk=proposal.pk)
+
+    if proposal.proposal_type == ApprovalProposal.ProposalType.MEMBER_APPLICATION:
+        raise_proposal_flow_unavailable()
 
     if proposal.status != ApprovalProposal.Status.SUBMITTED:
         raise DomainError("只能审批状态为'已提交'的提案。")
@@ -341,6 +348,9 @@ def reject_proposal(
     proposal (same validation as ``approve_proposal``)."""
     proposal = ApprovalProposal.objects.select_for_update().get(pk=proposal.pk)
 
+    if proposal.proposal_type == ApprovalProposal.ProposalType.MEMBER_APPLICATION:
+        raise_proposal_flow_unavailable()
+
     if proposal.status != ApprovalProposal.Status.SUBMITTED:
         raise DomainError("只能拒绝状态为'已提交'的提案。")
 
@@ -378,10 +388,6 @@ def reject_proposal(
             _reject_quote(quote=quote, rejected_by=rejected_by, decision_reason=reason)
         except SupplierQuote.DoesNotExist:
             pass
-    elif proposal.proposal_type == ApprovalProposal.ProposalType.MEMBER_APPLICATION:
-        from .application_services import reject_member_application_from_approval_proposal
-        reject_member_application_from_approval_proposal(proposal=proposal, reason=reason)
-
     append_event(
         event_type=SystemEvent.EventType.APPROVAL_PROPOSAL_REJECTED,
         aggregate_type="ApprovalProposal",
@@ -402,19 +408,23 @@ def execute_proposal(
     """Execute an approved proposal. Idempotent."""
     proposal = ApprovalProposal.objects.select_for_update().get(pk=proposal.pk)
 
+    if proposal.proposal_type == ApprovalProposal.ProposalType.MEMBER_APPLICATION:
+        raise_proposal_flow_unavailable()
+
     if proposal.status == ApprovalProposal.Status.EXECUTED:
+        if not (member_can_administer(actor) or is_finance_reviewer(actor)):
+            raise DomainError("你无权执行该提案。")
         return proposal
 
     if proposal.status != ApprovalProposal.Status.APPROVED:
         raise DomainError("只能执行已通过的提案。")
 
+    if not proposal_is_executable_by(actor, proposal):
+        raise DomainError("你无权执行该提案。")
+
     if proposal.proposal_type == ApprovalProposal.ProposalType.PROCUREMENT_ACCEPTANCE:
         from .procurement_services import _execute_procurement_acceptance
         _execute_procurement_acceptance(proposal=proposal, actor=actor)
-    elif proposal.proposal_type == ApprovalProposal.ProposalType.MEMBER_APPLICATION:
-        from .application_services import admit_member_application_from_approval_proposal
-        admit_member_application_from_approval_proposal(proposal=proposal, actor=actor)
-
     proposal.status = ApprovalProposal.Status.EXECUTED
     proposal.executed_at = timezone.now()
     proposal.updated_at = timezone.now()

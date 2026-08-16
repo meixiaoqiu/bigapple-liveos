@@ -14,7 +14,8 @@ from django.utils import timezone
 from .access import member_can_administer
 from .db import atomic_for_model
 from .exceptions import DomainError
-from .models import CommunityFeedback, Event, Member, Proposal
+from .models import CommunityFeedback, Event, Member
+from .proposal_migration import raise_proposal_flow_unavailable
 
 
 def _event_suffix() -> str:
@@ -25,7 +26,6 @@ def _feedback_public_payload(
     feedback: CommunityFeedback,
     *,
     action: str,
-    proposal: Proposal | None = None,
 ) -> dict[str, str]:
     payload = {
         "source": "community_feedback",
@@ -38,8 +38,6 @@ def _feedback_public_payload(
         "title": feedback.title,
         "action_type": action,
     }
-    if proposal is not None:
-        payload["proposal_no"] = proposal.proposal_no
     return payload
 
 
@@ -161,26 +159,10 @@ def hide_feedback(
 def link_feedback_to_proposal(
     *,
     feedback: CommunityFeedback,
-    proposal: Proposal,
+    proposal,
     actor_member: Member,
 ) -> CommunityFeedback:
-    """将反馈关联到正式治理 Proposal。
-
-    *actor_member* must hold governance permission.
-    """
+    """关闭尚未迁移的反馈转提案流程，不得直接改变反馈状态。"""
     if not member_can_administer(actor_member):
         raise DomainError("只有管理员才能将反馈转入治理流程。")
-    feedback.linked_proposal = proposal
-    feedback.status = CommunityFeedback.Status.LINKED
-    feedback.responded_by = actor_member
-    feedback.responded_at = timezone.now()
-    feedback.save(update_fields=[
-        "linked_proposal", "status", "responded_by", "responded_at", "updated_at",
-    ])
-    _write_public_event(
-        f"community-feedback-linked-{feedback.feedback_id}-{_event_suffix()}",
-        "反馈已转入治理流程",
-        f"《{feedback.title}》已关联提案 {proposal.proposal_no}。",
-        payload=_feedback_public_payload(feedback, action="linked", proposal=proposal),
-    )
-    return feedback
+    raise_proposal_flow_unavailable()

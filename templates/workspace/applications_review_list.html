@@ -45,13 +45,9 @@
         <div class="flex flex-wrap items-center justify-between gap-3">
           <h2 class="card-title">报名列表</h2>
           <div class="flex flex-wrap gap-2" role="group" aria-label="准入进度筛选">
-            <a class="btn btn-sm {% if status_filter == 'voting' %}btn-primary{% else %}btn-outline{% endif %}"
-               href="{% world_url 'workspace-applications-review' %}?status=voting">
-              投票中 <span class="badge badge-sm badge-outline ml-1">{{ counts.voting }}</span>
-            </a>
-            <a class="btn btn-sm {% if status_filter == 'passed_pending' %}btn-primary{% else %}btn-outline{% endif %}"
-               href="{% world_url 'workspace-applications-review' %}?status=passed_pending">
-              已通过待执行 <span class="badge badge-sm badge-outline ml-1">{{ counts.passed_pending }}</span>
+            <a class="btn btn-sm {% if status_filter == 'pending' %}btn-primary{% else %}btn-outline{% endif %}"
+               href="{% world_url 'workspace-applications-review' %}?status=pending">
+              待迁移决策 <span class="badge badge-sm badge-outline ml-1">{{ counts.pending }}</span>
             </a>
             <a class="btn btn-sm {% if status_filter == 'admitted' %}btn-primary{% else %}btn-outline{% endif %}"
                href="{% world_url 'workspace-applications-review' %}?status=admitted">
@@ -68,10 +64,11 @@
           </div>
         </div>
 
+        <div class="alert alert-info">
+          <span>统一提案流程正在迁移。当前页面只展示报名资料，不提供投票、批准、拒绝或执行操作。</span>
+        </div>
+
         {% if applications %}
-          <div class="alert alert-info">
-            <span>正式接纳必须通过准入提案投票并执行，不存在独立审核操作。</span>
-          </div>
           <div class="overflow-x-auto">
             <table class="table table-zebra">
               <thead>
@@ -82,7 +79,7 @@
                   <th>状态</th>
                   <th>提交时间</th>
                   <th>关联成员</th>
-                  <th>准入提案</th>
+                  <th>准入决策</th>
                   <th></th>
                 </tr>
               </thead>
@@ -98,12 +95,7 @@
                     <td class="text-xs">{{ app.submitted_at|date:"Y-m-d H:i" }}</td>
                     <td class="font-mono text-xs">{{ app.linked_member_no|default:"—" }}</td>
                     <td>
-                      {% if app.admission_proposal_id %}
-                        <span class="text-xs">{{ app.admission_proposal_no }}</span>
-                        <span class="badge badge-sm badge-outline ml-1">{{ app.admission_proposal_status }}</span>
-                      {% else %}
-                        <span class="text-base-content/40">—</span>
-                      {% endif %}
+                      <span class="badge badge-sm badge-warning">暂不可用</span>
                     </td>
                     <td>
                       <a class="btn btn-sm btn-primary"

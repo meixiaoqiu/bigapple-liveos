@@ -12,14 +12,10 @@ from core.admin import (
     LedgerEntryAdmin,
     MemberAdmin,
     PermissionAdmin,
-    ProposalAdmin,
-    ProposalExecutionAdmin,
-    ProposalVoteAdmin,
     ResourceTransactionAdmin,
     RolePermissionAdmin,
 )
 from core.admin_identity import RolePermissionInline
-from core.admin_proposals import ProposalExecutionInline, ProposalVoteInline
 from simulation.admin_feedback import PlanChangeOperationAdmin, PlanChangeSetAdmin, PlanRevisionProposalAdmin
 from simulation.admin_planning import PlanNodeAdmin, ProjectPlanAdmin
 from simulation.admin_runs import SimulationTurnAdmin
@@ -36,9 +32,6 @@ from core.models import (
     PlanNode,
     PlanRevision,
     PlanRevisionProposal,
-    Proposal,
-    ProposalExecution,
-    ProposalVote,
     ProjectPlan,
     Resource,
     ResourceTransaction,
@@ -50,7 +43,7 @@ from core.models import (
     SimulationTurn,
 )
 from core.admin_operations import EventFeedbackAdmin
-from core.tests.helpers import create_member, electorate_rule_fields
+from core.tests.helpers import create_member
 
 
 class AdminConfigTests(TestCase):
@@ -130,7 +123,7 @@ class AdminConfigTests(TestCase):
         self.assertIn("Member", all_model_names)
         self.assertIn("Role", all_model_names)
         self.assertIn("RoleAssignment", all_model_names)
-        self.assertIn("Proposal", all_model_names)
+        self.assertNotIn("Proposal", all_model_names)
         self.assertIn("Task", all_model_names)
         self.assertIn("EventFeedback", all_model_names)
         self.assertIn("Resource", all_model_names)
@@ -181,7 +174,7 @@ class AdminConfigTests(TestCase):
         self.assertIn("LedgerEntry", model_names)
         self.assertIn("Member", model_names)
         self.assertIn("Task", model_names)
-        self.assertIn("Proposal", model_names)
+        self.assertNotIn("Proposal", model_names)
 
     def test_permission_support_models_are_hidden_from_top_level_admin_menus(self) -> None:
         permission_admin = PermissionAdmin(Permission, self.site)
@@ -275,57 +268,6 @@ class AdminConfigTests(TestCase):
         self.assertFalse(admin.has_change_permission(self.request, entry))
         self.assertFalse(admin.has_delete_permission(self.request, entry))
         self.assertIn("system_event", admin.get_readonly_fields(self.request, entry))
-
-    def test_proposal_votes_and_executions_are_readonly_history(self) -> None:
-        proposal = Proposal.objects.create(
-            title="Admin history proposal",
-            proposal_type=Proposal.ProposalType.POLICY,
-            **electorate_rule_fields(Proposal.ProposalType.POLICY),
-            status=Proposal.Status.VOTING,
-            proposer_member=self.member,
-            deadline_at=self.now + timezone.timedelta(days=7),
-        )
-        vote = ProposalVote.objects.create(
-            proposal=proposal,
-            voter_member=self.member,
-            choice=ProposalVote.Choice.YES,
-            reason="Admin history vote",
-            voted_at=self.now,
-        )
-        execution = ProposalExecution.objects.create(
-            proposal=proposal,
-            executor_member=self.member,
-            action_type=ProposalExecution.ActionType.MANUAL,
-            status=ProposalExecution.Status.SUCCEEDED,
-            payload_json={"action": "manual"},
-            result_json={"ok": True},
-            executed_at=self.now,
-        )
-        proposal_admin = ProposalAdmin(Proposal, self.site)
-        vote_admin = ProposalVoteAdmin(ProposalVote, self.site)
-        execution_admin = ProposalExecutionAdmin(ProposalExecution, self.site)
-
-        self.assertTrue(proposal_admin.has_add_permission(self.request))
-        self.assertFalse(proposal_admin.has_change_permission(self.request, proposal))
-        self.assertFalse(vote_admin.has_add_permission(self.request))
-        self.assertFalse(vote_admin.has_change_permission(self.request, vote))
-        self.assertFalse(vote_admin.has_delete_permission(self.request, vote))
-        self.assertIn("choice", vote_admin.get_readonly_fields(self.request, vote))
-        self.assertFalse(execution_admin.has_add_permission(self.request))
-        self.assertFalse(execution_admin.has_change_permission(self.request, execution))
-        self.assertFalse(execution_admin.has_delete_permission(self.request, execution))
-        self.assertIn("status", execution_admin.get_readonly_fields(self.request, execution))
-
-        vote_inline = ProposalVoteInline(Proposal, self.site)
-        execution_inline = ProposalExecutionInline(Proposal, self.site)
-        self.assertFalse(vote_inline.has_add_permission(self.request, proposal))
-        self.assertFalse(vote_inline.has_delete_permission(self.request, proposal))
-        self.assertIn("choice", vote_inline.get_readonly_fields(self.request, proposal))
-        self.assertIn("reason", vote_inline.get_readonly_fields(self.request, proposal))
-        self.assertFalse(execution_inline.has_add_permission(self.request, proposal))
-        self.assertFalse(execution_inline.has_delete_permission(self.request, proposal))
-        self.assertIn("status", execution_inline.get_readonly_fields(self.request, proposal))
-        self.assertIn("payload_json", execution_inline.get_readonly_fields(self.request, proposal))
 
     def test_resource_transactions_are_readonly_history(self) -> None:
         resource = Resource.objects.create(

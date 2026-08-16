@@ -13,6 +13,11 @@ class StartScriptMigrationTests(TestCase):
 
     def test_start_script_passes_each_fixed_world_configuration(self):
         self.assertIn(
+            "Invoke-WorldMigration.ps1 -DatabaseAlias default "
+            "-Service big-apple-admin -SettingsModule live_os.settings_admin",
+            self.script,
+        )
+        self.assertIn(
             "Invoke-WorldMigration.ps1 -DatabaseAlias realworld "
             "-Service big-apple-real -SettingsModule live_os.settings_real",
             self.script,
@@ -32,12 +37,21 @@ class StartScriptMigrationTests(TestCase):
         self.assertNotIn("--database simulation0001", self.helper)
 
     def test_migration_commands_disable_compose_stdin(self):
-        self.assertEqual(self.script.count("run --interactive=false --rm --no-deps"), 1)
-        self.assertEqual(self.helper.count("run --interactive=false --rm --no-deps"), 2)
+        self.assertEqual(self.script.count("run --interactive=false --rm --no-deps"), 0)
+        self.assertEqual(self.helper.count("run --interactive=false --rm --no-deps"), 3)
         self.assertNotIn("run --rm --no-deps", self.script)
         self.assertNotIn("run --rm --no-deps", self.helper)
 
+    def test_world_migration_uses_utf8_and_ascii_schema_marker(self):
+        self.assertIn("[Console]::OutputEncoding = $utf8NoBom", self.helper)
+        self.assertIn('$legacyProposalSchemaMarker = "LEGACY_PROPOSAL_SCHEMA_DETECTED"', self.helper)
+        self.assertIn("$combinedSchemaOutput.Contains($legacyProposalSchemaMarker)", self.helper)
+        self.assertIn("chcp 65001 >nul", self.script)
+
     def test_helper_rejects_mismatched_world_configuration_before_docker(self):
+        self.assertIn('"default" = @{', self.helper)
+        self.assertIn('Service = "big-apple-admin"', self.helper)
+        self.assertIn('SettingsModule = "live_os.settings_admin"', self.helper)
         self.assertIn('"realworld" = @{', self.helper)
         self.assertIn('Service = "big-apple-real"', self.helper)
         self.assertIn('SettingsModule = "live_os.settings_real"', self.helper)
