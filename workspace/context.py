@@ -28,11 +28,10 @@ from core.models import (
 )
 
 
-# 统一提案系统迁移期间只按报名自身状态展示，不提供决策筛选。
 ADMISSION_FILTER_GROUPS = ("pending", "admitted", "rejected", "all")
 
 ADMISSION_FILTER_LABELS: dict[str, str] = {
-    "pending": "待迁移决策",
+    "pending": "待决议",
     "admitted": "已接纳",
     "rejected": "未通过/已拒绝",
     "all": "全部",
@@ -60,7 +59,7 @@ def workspace_access_decision(member: Member):
 def applicant_workspace_context(member_no: str, *, access_denial_reason: str = "not_authorized") -> dict[str, Any]:
     member = get_object_or_404(Member, member_no=member_no)
     latest_application = (
-        MemberApplication.objects.filter(linked_member=member)
+        MemberApplication.objects.select_related("admission_proposal").filter(linked_member=member)
         .order_by("-submitted_at", "application_id")
         .first()
     )
@@ -80,6 +79,11 @@ def applicant_workspace_context(member_no: str, *, access_denial_reason: str = "
         "can_apply": can_apply,
         "role_gap_label": role_gap_label,
         "authorization_unavailable": access_denial_reason == "authorization_unavailable",
+        "admission_proposal": (
+            latest_application.admission_proposal
+            if latest_application and latest_application.admission_proposal_id
+            else None
+        ),
     }
 
 
@@ -147,6 +151,7 @@ def _application_queryset():
         "linked_member",
         "account_user",
         "decided_by",
+        "admission_proposal",
     )
 
 
@@ -160,16 +165,17 @@ def _application_summary(application: MemberApplication) -> dict[str, Any]:
         "status_label": application.get_status_display(),
         "submitted_at": application.submitted_at,
         "linked_member_no": application.linked_member.member_no if application.linked_member_id else "",
-        "decision_unavailable": application.status in {
-            MemberApplication.Status.SUBMITTED,
-        },
+        "proposal_status": application.admission_proposal.status if application.admission_proposal_id else "",
+        "proposal_status_label": (
+            application.admission_proposal.get_status_display() if application.admission_proposal_id else "尚未建立"
+        ),
     }
 
 
 def applications_review_list_context(*, member: Member, status_filter: str) -> dict[str, Any]:
     """为管理员组装成员报名复核列表。
 
-    未迁移决策统一归入 ``pending``；未知筛选回退到该分组。
+    尚未形成终态的准入决策统一归入 ``pending``；未知筛选回退到该分组。
     """
 
     if status_filter not in ADMISSION_FILTER_GROUPS:
@@ -212,7 +218,7 @@ def _admission_filter_counts() -> dict[str, int]:
 
 
 def application_review_detail_context(*, member: Member, application: MemberApplication) -> dict[str, Any]:
-    """组装报名资料页；统一提案迁移期间不暴露任何准入决策操作。"""
+    """组装管理员可见的报名资料和统一准入提案状态。"""
 
     role_motivation_answers = list(application.dynamic_answers or [])
     return {
@@ -225,7 +231,7 @@ def application_review_detail_context(*, member: Member, application: MemberAppl
         "dynamic_answers": role_motivation_answers,
         "linked_member": application.linked_member,
         "decision_note": (application.metadata or {}).get("decision_note", ""),
-        "proposal_flow_unavailable": True,
+        "admission_proposal": application.admission_proposal if application.admission_proposal_id else None,
     }
 
 

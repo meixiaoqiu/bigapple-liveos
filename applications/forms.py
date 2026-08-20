@@ -128,7 +128,7 @@ class MemberApplicationForm(forms.Form):
         widget=forms.HiddenInput,
     )
     confirm_submit = forms.BooleanField(
-        label="我已确认所填信息真实有效，并理解提交后由组织方审核",
+        label="我已确认所填信息真实有效，并理解提交后将进入统一提案表决流程",
         required=True,
     )
     requested_member_no = forms.CharField(max_length=64, required=False, widget=forms.HiddenInput)

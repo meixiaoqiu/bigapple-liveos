@@ -379,7 +379,7 @@ def submit_member_application(
     _append_member_application_public_event_once(
         event_id=f"member-application-submitted-{application.application_id}",
         title="收到成员报名",
-        summary="收到一名成员报名；统一提案决策流程迁移期间暂不开放准入表决。",
+        summary="收到一名成员报名；系统将按当前 world 已发布的准入政策进入统一提案流程。",
         severity=Event.Severity.INFO,
         payload={
             "source": "member_application",
@@ -393,6 +393,10 @@ def submit_member_application(
             "role_gap_label": _application_role_gap_label(application),
         },
         occurred_at=now,
+    )
+    create_approval_proposal_for_application(
+        application=application,
+        submitted_by=existing_member,
     )
     return application
 
@@ -451,10 +455,34 @@ def create_approval_proposal_for_application(
     application: MemberApplication,
     submitted_by: Member,
 ) -> "ApprovalProposal":
-    """在统一提案系统承接成员准入前，禁止创建审批提案。"""
-    from core.proposal_migration import raise_proposal_flow_unavailable
+    """为报名创建唯一统一准入提案；政策存在时立即冻结并开始表决。"""
 
-    raise_proposal_flow_unavailable()
+    from core.electorate_rule_services import latest_published_rule_for_proposal_type
+    from core.models import ApprovalProposal
+    from core.unified_proposal_services import create_electorate_proposal, start_electorate_voting
+
+    if application.linked_member_id is None or application.linked_member_id != submitted_by.pk:
+        raise DomainError("只能由报名绑定的成员发起准入提案。")
+    rule_version = latest_published_rule_for_proposal_type(ApprovalProposal.ProposalType.MEMBER_APPLICATION)
+    proposal = create_electorate_proposal(
+        proposal_type=ApprovalProposal.ProposalType.MEMBER_APPLICATION,
+        title=f"守约者报名：{application.applicant_name}",
+        summary="一项等待社区按已发布准入政策决定的守约者报名。",
+        public_reason="申请人希望承担守约者义务。",
+        submitted_by=submitted_by,
+        dedupe_key=f"member-application:{application.application_id}",
+        target_type="member_application",
+        target_id=application.application_id,
+        rule_version=rule_version,
+        metadata={"application_id": application.application_id},
+    )
+    if application.admission_proposal_id != proposal.pk:
+        application.admission_proposal = proposal
+        application.save(update_fields=["admission_proposal"])
+    if rule_version is not None and proposal.status == ApprovalProposal.Status.DRAFT:
+        proposal = start_electorate_voting(proposal=proposal)
+        application.admission_proposal = proposal
+    return proposal
 
 
 @atomic_for_model(PartnerApplication)

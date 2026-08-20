@@ -16,6 +16,8 @@ ADMINISTRATION_VIEW_ADMIN_PERMISSION = "governance.view_admin"
 PROFESSIONAL_QUALIFICATION_MANAGE_PERMISSION = "governance.manage_professional_qualifications"
 DELIBERATOR_EXAM_MANAGE_PERMISSION = "governance.manage_deliberator_exam"
 MANAGE_ROLES_PERMISSION = "governance.manage_roles"
+MANAGE_PROPOSAL_POLICIES_PERMISSION = "governance.manage_proposal_policies"
+RESOLVE_PROPOSALS_PERMISSION = "governance.resolve_proposals"
 DEFAULT_ROLE_ASSIGNMENT_DAYS = 36500
 
 BASE_ADMINISTRATION_PERMISSIONS = (
@@ -60,6 +62,18 @@ BASE_ADMINISTRATION_PERMISSIONS = (
         "name": "维护执衡者考试",
         "category": "governance",
         "description": "允许维护执衡者题库和考试政策。",
+    },
+    {
+        "code": MANAGE_PROPOSAL_POLICIES_PERMISSION,
+        "name": "维护提案政策",
+        "category": "governance",
+        "description": "允许发布统一提案使用的版本化选民、阈值、期限和未决处理政策。",
+    },
+    {
+        "code": RESOLVE_PROPOSALS_PERMISSION,
+        "name": "判定提案结果",
+        "category": "governance",
+        "description": "允许在截止后按冻结规则触发统一提案的确定性判定。",
     },
     {
         "code": "governance.view_event_ledger",

@@ -172,8 +172,8 @@ class PublicApplicationPageTests(TestCase):
         member = Member.objects.get(member_no="ws-apply-auto")
         self.assertIsNone(participation_status(member))
         self.assertContains(response, 'name="applicant_name"')
-        self.assertContains(response, "统一提案流程迁移期间，投票与准入决策暂不可用")
-        self.assertContains(response, "当前不会进入投票、批准、拒绝或执行流程")
+        self.assertContains(response, "由统一提案流程完成表决、判定与执行")
+        self.assertContains(response, "尚未发布准入政策时，提案会等待管理员完成配置")
 
     # ── /workspace/apply/ authenticated flow ────────────────────────────
 

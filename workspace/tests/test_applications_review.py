@@ -13,6 +13,8 @@ from core.models import (
     ApprovalDecision,
     Member,
     MemberApplication,
+    ElectorateRuleVersion,
+    ProposalBallot,
 )
 from core.proposal_services import (
     approve_proposal,
@@ -20,6 +22,7 @@ from core.proposal_services import (
     execute_proposal,
     reject_proposal,
 )
+from core.exceptions import DomainError
 from core.proposal_migration import ProposalFlowUnavailable
 from core.tests.helpers import (
     create_administrator_member,
@@ -60,12 +63,12 @@ class WorkspaceApplicationsReviewTests(TestCase):
         self.assertEqual(review.status_code, 200)
         self.assertContains(review, "审核测试报名者")
 
-    def test_empty_review_list_still_explains_fail_closed_state(self) -> None:
+    def test_empty_review_list_explains_unified_proposal_state(self) -> None:
         review = self.client.get("/workspace/applications/")
 
         self.assertEqual(review.status_code, 200)
-        self.assertContains(review, "统一提案流程正在迁移")
-        self.assertContains(review, "不提供投票、批准、拒绝或执行操作")
+        self.assertContains(review, "报名准入由统一提案系统处理")
+        self.assertContains(review, "冻结的选民政策")
 
     def test_regular_form_member_cannot_see_entry_and_gets_403(self) -> None:
         member = create_member("mem-regular-0001", role_name=ROLE_COVENANTER, status=Member.Status.ADMITTED)
@@ -115,19 +118,19 @@ class WorkspaceApplicationsReviewTests(TestCase):
             status=status,
         )
 
-    def test_member_application_proposal_creation_fails_closed(self) -> None:
+    def test_member_application_proposal_is_created_once_and_cannot_be_rebound_to_another_submitter(self) -> None:
         application = _submit_application()
 
-        with self.assertRaises(ProposalFlowUnavailable):
+        with self.assertRaises(DomainError):
             create_approval_proposal_for_application(
                 application=application, submitted_by=self.governance,
             )
 
-        self.assertFalse(
-            ApprovalProposal.objects.filter(
-                proposal_type=ApprovalProposal.ProposalType.MEMBER_APPLICATION,
-            ).exists()
+        self.assertEqual(
+            ApprovalProposal.objects.filter(proposal_type=ApprovalProposal.ProposalType.MEMBER_APPLICATION).count(),
+            1,
         )
+        self.assertEqual(application.admission_proposal_id, application.admission_proposal.pk)
 
     def test_generic_proposal_service_cannot_create_member_application_proposal(self) -> None:
         application = _submit_application()
@@ -142,10 +145,9 @@ class WorkspaceApplicationsReviewTests(TestCase):
                 target_id=application.application_id,
             )
 
-        self.assertFalse(
-            ApprovalProposal.objects.filter(
-                proposal_type=ApprovalProposal.ProposalType.MEMBER_APPLICATION,
-            ).exists()
+        self.assertEqual(
+            ApprovalProposal.objects.filter(proposal_type=ApprovalProposal.ProposalType.MEMBER_APPLICATION).count(),
+            1,
         )
 
     def test_existing_member_application_proposal_cannot_be_approved(self) -> None:
@@ -207,7 +209,8 @@ class WorkspaceApplicationsReviewTests(TestCase):
         response = self.client.get(f"/workspace/applications/{application.application_id}/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "准入决策")
-        self.assertContains(response, "统一提案流程正在迁移")
+        self.assertContains(response, "等待政策配置")
+        self.assertContains(response, "进入统一提案页")
 
     # --- 角色显示 -------------------------------------------------
 
@@ -225,3 +228,60 @@ class WorkspaceApplicationsReviewTests(TestCase):
         response = self.client.get("/workspace/applications/?status=voting")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, application.applicant_name)
+
+    def test_administrator_can_publish_policy_and_activate_waiting_application(self) -> None:
+        application = _submit_application(requested_member_no="policy-ui-applicant")
+
+        response = self.client.post(
+            "/workspace/proposals/member-admission-policy/",
+            {
+                "role_codes": ["administrator"],
+                "approve_threshold": "1",
+                "reject_threshold": "1",
+                "minimum_participation": "1",
+                "voting_duration_hours": "168",
+                "unresolved_outcome": ElectorateRuleVersion.UnresolvedOutcome.EXPIRED,
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "准入政策第 1 版已发布")
+        application.admission_proposal.refresh_from_db()
+        self.assertEqual(application.admission_proposal.status, ApprovalProposal.Status.VOTING)
+
+    def test_non_administrator_cannot_open_policy_page(self) -> None:
+        member = create_member("policy-regular", role_name=ROLE_COVENANTER, status=Member.Status.ADMITTED)
+        login_as_member(self.client, member)
+
+        response = self.client.get("/workspace/proposals/member-admission-policy/")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_snapshot_voter_can_vote_from_unified_proposal_page(self) -> None:
+        application = _submit_application(requested_member_no="vote-ui-applicant")
+        self.client.post(
+            "/workspace/proposals/member-admission-policy/",
+            {
+                "role_codes": ["administrator"],
+                "approve_threshold": "2",
+                "reject_threshold": "2",
+                "minimum_participation": "1",
+                "voting_duration_hours": "168",
+                "unresolved_outcome": "expired",
+            },
+        )
+        proposal = ApprovalProposal.objects.get(pk=application.admission_proposal_id)
+
+        page = self.client.get("/workspace/proposals/")
+        vote = self.client.post(
+            f"/workspace/proposals/{proposal.proposal_id}/vote/",
+            {"choice": "approve", "reason": "愿意共同承担准入责任。"},
+            follow=True,
+        )
+
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, proposal.title)
+        self.assertEqual(vote.status_code, 200)
+        ballot = ProposalBallot.objects.get(proposal=proposal, voter=self.governance)
+        self.assertEqual(ballot.choice, ProposalBallot.Choice.APPROVE)

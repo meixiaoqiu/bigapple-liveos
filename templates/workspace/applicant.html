@@ -70,7 +70,7 @@
           </div>
         {% else %}
           <div class="alert alert-info">
-            <span>审核完成前，此账号只能查看自己的报名状态。正式接纳后会开放完整成员工作台。</span>
+            <span>准入提案执行完成前，此账号只能查看自己的报名状态。正式接纳后会开放完整成员工作台。</span>
           </div>
         {% endif %}
         {% if application %}
@@ -85,7 +85,11 @@
             </div>
             <div class="md:col-span-2">
               <dt class="font-semibold">准入决策</dt>
-              <dd>统一提案流程正在迁移，当前决策操作暂不可用。报名资料已保留。</dd>
+              {% if admission_proposal %}
+                <dd>{{ admission_proposal.get_status_display }}{% if admission_proposal.voting_deadline %} · 表决截止 {{ admission_proposal.voting_deadline|date:"Y-m-d H:i" }}{% endif %}</dd>
+              {% else %}
+                <dd>准入提案尚未建立，请联系管理员检查准入政策与系统状态。</dd>
+              {% endif %}
             </div>
             {% if application.decided_at %}
               <div>

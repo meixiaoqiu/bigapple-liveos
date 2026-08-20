@@ -182,6 +182,26 @@ urlpatterns = [
         name="workspace-approval-proposals",
     ),
     path(
+        "proposals/member-admission-policy/",
+        world_scoped_view(proposal_views.member_admission_policy),
+        name="workspace-member-admission-policy",
+    ),
+    path(
+        "proposals/<str:proposal_id>/vote/",
+        world_scoped_view(proposal_views.electorate_proposal_vote),
+        name="workspace-electorate-proposal-vote",
+    ),
+    path(
+        "proposals/<str:proposal_id>/finalize/",
+        world_scoped_view(proposal_views.electorate_proposal_finalize),
+        name="workspace-electorate-proposal-finalize",
+    ),
+    path(
+        "proposals/<str:proposal_id>/execute/",
+        world_scoped_view(proposal_views.electorate_proposal_execute),
+        name="workspace-electorate-proposal-execute",
+    ),
+    path(
         "approval-proposals/<str:proposal_id>/approve/",
         world_scoped_view(proposal_views.approval_proposal_approve),
         name="workspace-approval-proposal-approve",

@@ -5,7 +5,16 @@ from .applications import MemberApplication, PartnerApplication, ROLE_GAP_LABELS
 from .credentials import CredentialGrant, CredentialTemplate
 from .qualifications import MemberProfessionalQualification, ProfessionalDomain
 from .identity import Member, MemberPublicProfile, Organization, Permission, Role, RoleAssignment, RolePermission
-from .approval_workflow import ApprovalProposal, ApprovalDecision
+from .approval_workflow import (
+    ApprovalDecision,
+    ApprovalProposal,
+    ElectorateRuleTemplate,
+    ElectorateRuleVersion,
+    ProposalBallot,
+    ProposalElectorSnapshot,
+    ProposalExecutionRecord,
+    ProposalResolution,
+)
 from .credits import CreditAccount, CreditTransaction, RedemptionOrder
 from .merchants import MerchantProfile, MerchantSettlementRecord
 from .procurement_challenges import ProcurementChallenge
@@ -53,6 +62,12 @@ __all__ = [
     "MemberProfessionalQualification",
     "ApprovalProposal",
     "ApprovalDecision",
+    "ElectorateRuleTemplate",
+    "ElectorateRuleVersion",
+    "ProposalElectorSnapshot",
+    "ProposalBallot",
+    "ProposalResolution",
+    "ProposalExecutionRecord",
     "ProcurementChallenge",
     "Ruleset",
     "ProjectPlan",

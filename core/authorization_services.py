@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from django.conf import settings
 
 from .models import Member, ProfessionalDomain, Resource
+from .exceptions import DomainError
 from .openfga_client import OpenFGAClient, OpenFGARequestError
 from .permission_services import legacy_member_has_permission, permission_requires_covenanter
 from worlds.models import WorldRegistry
@@ -18,7 +19,7 @@ from worlds.state import get_current_world
 logger = logging.getLogger(__name__)
 
 
-OPENFGA_AUTHORIZATION_MODEL_VERSION = "2026-08-16"
+OPENFGA_AUTHORIZATION_MODEL_VERSION = "2026-08-20"
 
 
 @dataclass(frozen=True)
@@ -182,6 +183,56 @@ class AuthorizationService:
 
     def member_has_full_workspace_access(self, member: Member) -> bool:
         return self.full_workspace_access_decision(member).allowed
+
+    def ensure_authorization_available(self, member: Member) -> None:
+        """确认当前 world 的运行时授权后端可用；失败时明确关闭业务动作。"""
+
+        backend = authorization_backend()
+        if backend == "legacy":
+            return
+        if backend != "openfga":
+            raise DomainError("授权服务配置无效，当前操作已拒绝。")
+        context = openfga_context_for_world_kind()
+        if not context.store_id or not context.authorization_model_id:
+            raise DomainError("授权服务尚未配置完成，当前操作已拒绝。")
+        client = self.client or OpenFGAClient(context.api_url)
+        try:
+            client.check(
+                store_id=context.store_id,
+                authorization_model_id=context.authorization_model_id,
+                user=openfga_member_user(member),
+                relation="covenanter",
+                object_=context.platform_object,
+            )
+        except OpenFGARequestError as exc:
+            raise DomainError("授权服务暂不可用，当前操作已拒绝。") from exc
+
+    def member_has_platform_role(self, member: Member, role_code: str, *, at_time=None) -> bool:
+        """以 Django 生命周期事实收窄后，通过 OpenFGA 校验规范角色关系。"""
+
+        from .member_roles import active_member_role_names
+        from .role_catalog import role_definition_for_code
+
+        definition = role_definition_for_code(role_code)
+        if definition is None:
+            return False
+        if definition.display_name not in active_member_role_names(member, checked_at=at_time):
+            return False
+        if authorization_backend() == "legacy":
+            return True
+        self.ensure_authorization_available(member)
+        context = openfga_context_for_world_kind()
+        client = self.client or OpenFGAClient(context.api_url)
+        try:
+            return bool(client.check(
+                store_id=context.store_id,
+                authorization_model_id=context.authorization_model_id,
+                user=openfga_member_user(member),
+                relation=definition.openfga_relation,
+                object_=context.platform_object,
+            ))
+        except OpenFGARequestError as exc:
+            raise DomainError("授权服务暂不可用，当前操作已拒绝。") from exc
 
     def member_can_administer(
         self,

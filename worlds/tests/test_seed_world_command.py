@@ -13,6 +13,7 @@ from core.access import user_has_permission
 from core.governance_setup import ADMINISTRATION_VIEW_ADMIN_PERMISSION
 from core.models import Member, Task
 from worlds.models import WorldRegistry
+from core.models import ApprovalProposal, ElectorateRuleVersion
 from worlds.state import get_current_world
 
 
@@ -130,6 +131,25 @@ class SeedWorldCommandTests(TestCase):
 
         self.assertEqual(get_user_model().objects.filter(username="sim-administrator").count(), 1)
         self.assertEqual(Member.objects.filter(member_no="sim-administrator").count(), 1)
+
+    def test_zero_start_with_configured_administrator_seeds_one_admission_policy(self) -> None:
+        env = {
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_ENABLED": "true",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_USERNAME": "sim-policy-administrator",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_PASSWORD": "test-password",
+            "BIG_APPLE_SIMULATION_BOOTSTRAP_ADMINISTRATOR_MEMBER_NO": "sim-policy-administrator",
+        }
+
+        with patch.dict(os.environ, env):
+            call_command("seed_world", "simulation0001", "--template", "zero_start", stdout=StringIO())
+            call_command("seed_world", "simulation0001", "--template", "zero_start", stdout=StringIO())
+
+        self.assertEqual(
+            ElectorateRuleVersion.objects.filter(
+                template__proposal_type=ApprovalProposal.ProposalType.MEMBER_APPLICATION,
+            ).count(),
+            1,
+        )
 
     def test_seed_world_rejects_realworld(self) -> None:
         with self.assertRaises(CommandError) as captured:

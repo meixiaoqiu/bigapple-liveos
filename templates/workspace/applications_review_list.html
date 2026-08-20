@@ -47,7 +47,7 @@
           <div class="flex flex-wrap gap-2" role="group" aria-label="准入进度筛选">
             <a class="btn btn-sm {% if status_filter == 'pending' %}btn-primary{% else %}btn-outline{% endif %}"
                href="{% world_url 'workspace-applications-review' %}?status=pending">
-              待迁移决策 <span class="badge badge-sm badge-outline ml-1">{{ counts.pending }}</span>
+              待决策 <span class="badge badge-sm badge-outline ml-1">{{ counts.pending }}</span>
             </a>
             <a class="btn btn-sm {% if status_filter == 'admitted' %}btn-primary{% else %}btn-outline{% endif %}"
                href="{% world_url 'workspace-applications-review' %}?status=admitted">
@@ -64,9 +64,7 @@
           </div>
         </div>
 
-        <div class="alert alert-info">
-          <span>统一提案流程正在迁移。当前页面只展示报名资料，不提供投票、批准、拒绝或执行操作。</span>
-        </div>
+        <div class="alert alert-info"><span>报名准入由统一提案系统处理；投票资格取决于提案开始时冻结的选民政策。</span></div>
 
         {% if applications %}
           <div class="overflow-x-auto">
@@ -95,7 +93,7 @@
                     <td class="text-xs">{{ app.submitted_at|date:"Y-m-d H:i" }}</td>
                     <td class="font-mono text-xs">{{ app.linked_member_no|default:"—" }}</td>
                     <td>
-                      <span class="badge badge-sm badge-warning">暂不可用</span>
+                      <span class="badge badge-sm badge-outline">{{ app.proposal_status_label }}</span>
                     </td>
                     <td>
                       <a class="btn btn-sm btn-primary"

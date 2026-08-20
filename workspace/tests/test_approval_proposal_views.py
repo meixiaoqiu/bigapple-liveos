@@ -71,10 +71,12 @@ class ApprovalProposalViewsTests(TestCase):
 
     # ── permissions ──────────────────────────────────────────
 
-    def test_regular_member_403(self):
+    def test_regular_member_can_open_unified_page_but_cannot_see_fixed_approval_proposals(self):
+        proposal = self._create_test_proposal()
         login_as_member(self.client, self.regular)
         response = self.client.get("/workspace/proposals/")
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, proposal.title)
 
     def test_governance_can_access(self):
         response = self.client.get("/workspace/proposals/")

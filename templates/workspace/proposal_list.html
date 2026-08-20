@@ -19,6 +19,7 @@
           <span class="badge badge-lg">{{ pending_count }} 待处理</span>
           <span class="badge badge-lg">{{ execute_count }} 待执行</span>
         </div>
+        {% if can_manage_proposal_policies %}<a class="btn btn-sm mt-3 self-start" href="{% world_url 'workspace-member-admission-policy' %}">配置守约者准入政策</a>{% endif %}
       </div>
     </header>
 
@@ -100,11 +101,40 @@
     <section class="card bg-base-100 shadow">
       <div class="card-body">
         <h2 class="card-title">最近提案</h2>
-        <div class="overflow-x-auto mt-2">
+        <div class="grid gap-4 mt-2">
+          {% for p in recent %}
+            {% if p.is_electorate %}
+              <article class="card border border-base-300"><div class="card-body gap-3">
+                <div class="flex flex-wrap items-center justify-between gap-2"><h3 class="card-title text-base">{{ p.title }}</h3><span class="badge badge-outline">{{ p.status_label }}</span></div>
+                <p class="text-sm">{{ p.summary }}</p>
+                {% if p.tally %}
+                  <div class="grid gap-2 text-sm md:grid-cols-3">
+                    <span>选民：{{ p.tally.eligible_count }}</span><span>参与：{{ p.tally.participation_count }}</span><span>赞成 / 反对 / 弃权：{{ p.tally.approve_count }} / {{ p.tally.reject_count }} / {{ p.tally.abstain_count }}</span>
+                  </div>
+                {% else %}
+                  <div class="alert alert-warning"><span>授权服务暂不可用，当前无法读取有效票数或执行投票操作。</span></div>
+                {% endif %}
+                {% if p.voting_deadline %}<p class="text-sm">截止：{{ p.voting_deadline|date:"Y-m-d H:i" }}</p>{% endif %}
+                {% if p.eligibility %}<div class="alert {% if p.eligibility.allowed %}alert-success{% else %}alert-info{% endif %}"><span>{{ p.eligibility.message }}</span></div>{% endif %}
+                {% if p.latest_ballot %}<p class="text-sm">你当前的有效选择：{{ p.latest_ballot.get_choice_display }}（第 {{ p.latest_ballot.revision }} 版）</p>{% endif %}
+                {% if p.status == 'voting' and p.eligibility.allowed %}
+                  <form method="post" action="{% world_url 'workspace-electorate-proposal-vote' p.proposal_id %}" class="grid gap-2">{% csrf_token %}
+                    <div class="flex flex-wrap gap-2"><button class="btn btn-sm btn-success" name="choice" value="approve" type="submit">赞成</button><button class="btn btn-sm btn-error" name="choice" value="reject" type="submit">反对</button><button class="btn btn-sm" name="choice" value="abstain" type="submit">弃权</button></div>
+                    <input class="input input-bordered input-sm" name="reason" maxlength="1000" placeholder="意见说明（可选）">
+                  </form>
+                {% endif %}
+                {% if p.can_execute_electorate and p.status == 'approved' %}<form method="post" action="{% world_url 'workspace-electorate-proposal-execute' p.proposal_id %}">{% csrf_token %}<button class="btn btn-sm btn-primary" type="submit">执行已通过提案</button></form>{% endif %}
+                {% if p.can_resolve_electorate and p.status == 'voting' %}<form method="post" action="{% world_url 'workspace-electorate-proposal-finalize' p.proposal_id %}">{% csrf_token %}<button class="btn btn-sm btn-outline" type="submit">截止后判定</button></form>{% endif %}
+              </div></article>
+            {% endif %}
+          {% endfor %}
+        </div>
+        <div class="overflow-x-auto mt-4">
           <table class="table table-zebra text-sm">
             <thead><tr><th>ID</th><th>类型</th><th>标题</th><th>层级</th><th>状态</th><th>已审批</th><th>缺失</th><th>时间</th></tr></thead>
             <tbody>
               {% for p in recent %}
+                {% if not p.is_electorate %}
                 <tr>
                   <td class="font-mono text-xs">{{ p.proposal_id }}</td>
                   <td>{{ p.proposal_type_label }}</td>
@@ -115,6 +145,7 @@
                   <td class="text-error text-xs">{{ p.missing_roles|join:", "|default:"-" }}</td>
                   <td class="text-xs">{{ p.submitted_at|date:"m-d H:i" }}</td>
                 </tr>
+                {% endif %}
               {% empty %}
                 <tr><td colspan="8" class="text-center text-base-content/50">暂无提案</td></tr>
               {% endfor %}

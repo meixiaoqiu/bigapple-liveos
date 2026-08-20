@@ -32,6 +32,10 @@
         <div class="font-bold">报名已提交</div>
         <div class="text-sm">报名编号：{{ application.application_id }}</div>
         <div class="text-sm">当前状态：{{ application.get_status_display }}</div>
+        {% if application.admission_proposal %}
+          <div class="text-sm">准入提案：{{ application.admission_proposal.get_status_display }}</div>
+          {% if application.admission_proposal.voting_deadline %}<div class="text-sm">表决截止：{{ application.admission_proposal.voting_deadline }}</div>{% endif %}
+        {% endif %}
       </div>
     </div>
     {% if application.decided_at %}

@@ -18,6 +18,7 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [Console]::OutputEncoding = $utf8NoBom
 $OutputEncoding = $utf8NoBom
 $legacyProposalSchemaMarker = "LEGACY_PROPOSAL_SCHEMA_DETECTED"
+$inconsistentMigrationHistoryMarker = "INCONSISTENT_MIGRATION_HISTORY_DETECTED"
 
 $allowedConfigurations = @{
     "default" = @{
@@ -85,6 +86,57 @@ if ($schemaExitCode -ne 0) {
 }
 
 foreach ($line in $schemaOutput) {
+    if ($line -is [System.Management.Automation.ErrorRecord]) {
+        Write-Host $line.Exception.Message
+    }
+    else {
+        Write-Host $line
+    }
+}
+
+$ErrorActionPreference = "Continue"
+$historyOutput = @(
+    & docker compose -f docker-compose.dev.yml run --interactive=false --rm --no-deps `
+        $Service python manage.py check_migration_history "--settings=$SettingsModule" 2>&1
+)
+$historyExitCode = $LASTEXITCODE
+$ErrorActionPreference = $previousErrorActionPreference
+
+if ($historyExitCode -ne 0) {
+    $combinedHistoryOutput = $historyOutput -join "`n"
+    if ($combinedHistoryOutput.Contains($inconsistentMigrationHistoryMarker)) {
+        Write-Host ""
+        Write-Host "检测到数据库迁移历史与当前代码依赖图不一致。" -ForegroundColor Yellow
+        Write-Host "失败数据库：$DatabaseAlias" -ForegroundColor Yellow
+        foreach ($line in $historyOutput) {
+            if ($line -is [System.Management.Automation.ErrorRecord]) {
+                Write-Host $line.Exception.Message
+            }
+            else {
+                Write-Host $line
+            }
+        }
+        Write-Host ""
+        Write-Host "本项目尚未上线。确认该数据库数据可丢弃后，可执行："
+        Write-Host "docker compose -f docker-compose.dev.yml run --interactive=false --rm --no-deps big-apple-admin python manage.py reset_world_database --database=$DatabaseAlias --settings=live_os.settings_admin --confirm-reset"
+        Write-Host ""
+        Write-Host "警告：该命令不可恢复，会永久删除 $DatabaseAlias 中的账号、业务数据和迁移历史。" -ForegroundColor Red
+        Write-Host "重置完成后，请重新运行 start.bat；启动脚本不会自动清空数据库。"
+    }
+    else {
+        foreach ($line in $historyOutput) {
+            if ($line -is [System.Management.Automation.ErrorRecord]) {
+                Write-Host $line.Exception.Message
+            }
+            else {
+                Write-Host $line
+            }
+        }
+    }
+    exit $historyExitCode
+}
+
+foreach ($line in $historyOutput) {
     if ($line -is [System.Management.Automation.ErrorRecord]) {
         Write-Host $line.Exception.Message
     }

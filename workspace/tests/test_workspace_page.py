@@ -401,7 +401,7 @@ class WorkspacePageTests(TestCase):
         self.assertContains(response, "/login/?next=/workspace/")
         self.assertNotContains(response, "/observer/")
         self.assertContains(response, "申请守约者")
-        self.assertContains(response, "投票与准入决策暂不可用")
+        self.assertContains(response, "由统一提案流程完成表决、判定与执行")
         # 不应该包含旧的 forbidden 文案
         self.assertNotContains(response, "需要登录并绑定成员身份")
 

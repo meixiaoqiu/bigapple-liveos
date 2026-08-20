@@ -341,7 +341,7 @@ def workspace_submit_labor(request: HttpRequest, task_id: str):
 
 
 # --- Member-application review module -------------------------------------------------
-# 管理员专用报名资料视图。统一提案系统迁移完成前不提供准入决策操作。
+# 管理员专用报名资料与统一准入提案视图。
 
 
 def current_administrator_or_forbidden(request: HttpRequest) -> Member | HttpResponse:
@@ -364,7 +364,9 @@ def current_administrator_or_forbidden(request: HttpRequest) -> Member | HttpRes
 
 def _application_for_review(application_id: str) -> MemberApplication:
     return get_object_or_404(
-        MemberApplication.objects.select_related("linked_member", "account_user", "decided_by"),
+        MemberApplication.objects.select_related(
+            "linked_member", "account_user", "decided_by", "admission_proposal",
+        ),
         application_id=application_id,
     )
 

@@ -1,0 +1,27 @@
+{% load tailwind_tags world_urls %}
+<!doctype html>
+<html lang="zh-Hans" data-theme="bumblebee">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>准入政策 · 大苹果</title>{% tailwind_css %}</head>
+<body class="min-h-screen bg-base-200 text-base-content">
+{% include "partials/runtime_header.html" %}
+<main class="mx-auto grid w-full max-w-4xl gap-6 p-4 lg:p-8">
+  <header class="card bg-primary text-primary-content shadow-xl"><div class="card-body"><h1 class="text-3xl font-bold">守约者准入政策</h1><p>发布新版本只影响此后开始表决的提案；已经开始的提案继续使用其冻结版本。</p></div></header>
+  {% if messages %}{% for message in messages %}<div class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">{{ message }}</div>{% endfor %}{% endif %}
+  {% if current_rule %}<section class="alert alert-info"><span>当前版本：第 {{ current_rule.version }} 版；通过 {{ current_rule.approve_threshold }} 票，反对 {{ current_rule.reject_threshold }} 票，最低参与 {{ current_rule.minimum_participation }} 人，期限 {{ current_rule.voting_duration_hours }} 小时。</span></section>{% endif %}
+  <form method="post" class="card bg-base-100 shadow"><div class="card-body gap-4">{% csrf_token %}
+    <h2 class="card-title">发布新版本</h2>
+    <fieldset class="grid gap-2"><legend class="font-semibold">参与投票的身份</legend>
+      {% for role in role_options %}<label class="label justify-start gap-3"><input class="checkbox" type="checkbox" name="role_codes" value="{{ role.code }}">{{ role.label }}</label>{% endfor %}
+      <label class="label justify-start gap-3"><input class="checkbox" type="checkbox" name="include_contributors">贡献者（派生状态）</label>
+    </fieldset>
+    <div class="grid gap-4 md:grid-cols-2">
+      <label class="form-control"><span class="label-text">通过票数</span><input class="input input-bordered" type="number" min="1" name="approve_threshold" value="1" required></label>
+      <label class="form-control"><span class="label-text">反对票数</span><input class="input input-bordered" type="number" min="1" name="reject_threshold" value="1" required></label>
+      <label class="form-control"><span class="label-text">最低参与人数</span><input class="input input-bordered" type="number" min="0" name="minimum_participation" value="1" required></label>
+      <label class="form-control"><span class="label-text">表决期限（小时）</span><input class="input input-bordered" type="number" min="1" name="voting_duration_hours" value="168" required></label>
+      <label class="form-control"><span class="label-text">到期未决处理</span><select class="select select-bordered" name="unresolved_outcome"><option value="expired">记为过期</option><option value="rejected">记为拒绝</option></select></label>
+    </div>
+    <div class="alert alert-warning">管理员不会因为管理身份自动获得投票权；只有命中本版本选民规则并进入冻结快照的成员可以投票。</div>
+    <div class="card-actions justify-end"><a class="btn" href="{% world_url 'workspace-approval-proposals' %}">返回提案</a><button class="btn btn-primary" type="submit">发布政策版本</button></div>
+  </div></form>
+</main></body></html>

@@ -55,8 +55,8 @@ jobs:
       - name: MySQL authority concurrency tests
         run: >-
           python manage.py test
-          core.tests.test_finance_role_appointments.FinanceReviewerAppointmentConcurrencyTests
           core.tests.test_event_feedback.EventFeedbackConcurrencyTests
+          core.tests.test_unified_proposal_services.UnifiedProposalBallotConcurrencyTests
           --settings=live_os.settings_real
           --verbosity=2
 

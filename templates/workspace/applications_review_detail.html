@@ -118,9 +118,10 @@
     <section class="card bg-base-100 shadow">
       <div class="card-body gap-4">
         <h2 class="card-title">准入决策</h2>
-        <div class="alert alert-warning">
-          <span>统一提案流程正在迁移，当前投票、批准、拒绝和执行操作暂不可用。报名资料已保留。</span>
-        </div>
+        {% if admission_proposal %}
+          <dl class="grid gap-2 text-sm md:grid-cols-2"><div><dt class="font-semibold">提案状态</dt><dd>{{ admission_proposal.get_status_display }}</dd></div><div><dt class="font-semibold">提案编号</dt><dd class="font-mono text-xs">{{ admission_proposal.proposal_id }}</dd></div>{% if admission_proposal.voting_deadline %}<div><dt class="font-semibold">表决截止</dt><dd>{{ admission_proposal.voting_deadline|date:"Y-m-d H:i" }}</dd></div>{% endif %}</dl>
+          <a class="btn btn-primary btn-sm" href="{% world_url 'workspace-approval-proposals' %}">进入统一提案页</a>
+        {% else %}<div class="alert alert-warning"><span>尚未建立准入提案，请检查报名提交日志。</span></div>{% endif %}
       </div>
     </section>
   </main>

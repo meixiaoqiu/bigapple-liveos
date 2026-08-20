@@ -38,7 +38,7 @@ class StartScriptMigrationTests(TestCase):
 
     def test_migration_commands_disable_compose_stdin(self):
         self.assertEqual(self.script.count("run --interactive=false --rm --no-deps"), 0)
-        self.assertEqual(self.helper.count("run --interactive=false --rm --no-deps"), 3)
+        self.assertEqual(self.helper.count("run --interactive=false --rm --no-deps"), 5)
         self.assertNotIn("run --rm --no-deps", self.script)
         self.assertNotIn("run --rm --no-deps", self.helper)
 
@@ -46,6 +46,11 @@ class StartScriptMigrationTests(TestCase):
         self.assertIn("[Console]::OutputEncoding = $utf8NoBom", self.helper)
         self.assertIn('$legacyProposalSchemaMarker = "LEGACY_PROPOSAL_SCHEMA_DETECTED"', self.helper)
         self.assertIn("$combinedSchemaOutput.Contains($legacyProposalSchemaMarker)", self.helper)
+        self.assertIn(
+            '$inconsistentMigrationHistoryMarker = "INCONSISTENT_MIGRATION_HISTORY_DETECTED"',
+            self.helper,
+        )
+        self.assertIn("$combinedHistoryOutput.Contains($inconsistentMigrationHistoryMarker)", self.helper)
         self.assertIn("chcp 65001 >nul", self.script)
 
     def test_helper_rejects_mismatched_world_configuration_before_docker(self):

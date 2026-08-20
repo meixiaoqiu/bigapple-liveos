@@ -134,6 +134,8 @@ ADMINISTRATOR_PERMISSION_CODES: tuple[str, ...] = (
     "governance.manage_permissions",
     "governance.manage_professional_qualifications",
     "governance.manage_deliberator_exam",
+    "governance.manage_proposal_policies",
+    "governance.resolve_proposals",
     "governance.view_event_ledger",
 )
 

@@ -9,7 +9,20 @@ from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 
 from core.event_ledger import PUBLIC_LEDGER_SCHEMA, append_event
-from core.models import Member, Organization, Role, RoleAssignment, SystemEvent
+from core.models import (
+    ApprovalProposal,
+    ElectorateRuleTemplate,
+    ElectorateRuleVersion,
+    Member,
+    Organization,
+    ProposalBallot,
+    ProposalElectorSnapshot,
+    ProposalExecutionRecord,
+    ProposalResolution,
+    Role,
+    RoleAssignment,
+    SystemEvent,
+)
 from worlds.context import WorldContext
 from worlds.models import WorldRegistry
 from worlds.state import reset_current_world, set_current_world
@@ -52,9 +65,30 @@ class WorldDatabaseIsolationTests(TransactionTestCase):
             schema_editor.create_model(Role)
             schema_editor.create_model(RoleAssignment)
             schema_editor.create_model(SystemEvent)
+            schema_editor.create_model(ElectorateRuleTemplate)
+            schema_editor.create_model(ElectorateRuleVersion)
+            schema_editor.create_model(ApprovalProposal)
+            schema_editor.create_model(ProposalElectorSnapshot)
+            schema_editor.create_model(ProposalBallot)
+            schema_editor.create_model(ProposalResolution)
+            schema_editor.create_model(ProposalExecutionRecord)
 
     def drop_member_table(self, alias: str) -> None:
         connection = connections[alias]
+        for model in (
+            ProposalExecutionRecord,
+            ProposalResolution,
+            ProposalBallot,
+            ProposalElectorSnapshot,
+            ApprovalProposal,
+            ElectorateRuleVersion,
+            ElectorateRuleTemplate,
+        ):
+            table_names = connection.introspection.table_names()
+            with suppress(OperationalError):
+                if model._meta.db_table in table_names:
+                    with connection.schema_editor() as schema_editor:
+                        schema_editor.delete_model(model)
         table_names = connection.introspection.table_names()
         with suppress(OperationalError):
             if SystemEvent._meta.db_table in table_names:
@@ -167,3 +201,102 @@ class WorldDatabaseIsolationTests(TransactionTestCase):
 
         self.assertEqual(self.event_payload_world_ids(realworld), {"realworld"})
         self.assertEqual(self.event_payload_world_ids(simulation), {"simulation0001"})
+
+    def create_unified_proposal_facts(self, world: WorldContext, suffix: str) -> None:
+        token = set_current_world(world)
+        try:
+            member = Member.objects.create(
+                member_no=f"proposal-member-{suffix}",
+                display_name=f"提案成员 {suffix}",
+                status=Member.Status.ACTIVE,
+                batch_id="proposal-isolation",
+                joined_simulation_day=1,
+                credit_floor=-100,
+                profile={},
+                created_at=timezone.now(),
+            )
+            organization = Organization.objects.create(name=f"角色目录 {suffix}")
+            role = Role.objects.create(organization=organization, name=f"守约者 {suffix}")
+            RoleAssignment.objects.create(
+                member=member,
+                role=role,
+                start_at=timezone.now(),
+                end_at=timezone.now() + timezone.timedelta(days=365),
+            )
+            template = ElectorateRuleTemplate.objects.create(
+                rule_code=f"member-admission-{suffix}",
+                proposal_type=ApprovalProposal.ProposalType.MEMBER_APPLICATION,
+                name="守约者准入",
+                created_by=member,
+            )
+            version = ElectorateRuleVersion.objects.create(
+                rule_version_id=f"rule-version-{suffix}",
+                template=template,
+                version=1,
+                selector_config={"role_code": "covenanter"},
+                approve_threshold=1,
+                reject_threshold=1,
+                minimum_participation=1,
+                voting_duration_hours=24,
+                unresolved_outcome=ElectorateRuleVersion.UnresolvedOutcome.EXPIRED,
+                published_by=member,
+            )
+            proposal = ApprovalProposal.objects.create(
+                proposal_id=f"proposal-{suffix}",
+                proposal_type=ApprovalProposal.ProposalType.MEMBER_APPLICATION,
+                title="守约者准入提案",
+                status=ApprovalProposal.Status.EXECUTED,
+                strategy_type=ApprovalProposal.StrategyType.ELECTORATE,
+                dedupe_key=f"member-admission:{suffix}",
+                submitted_by=member,
+                electorate_rule_version=version,
+            )
+            ProposalElectorSnapshot.objects.create(
+                proposal=proposal, member=member, rule_version=version,
+            )
+            ProposalBallot.objects.create(
+                ballot_id=f"ballot-{suffix}", proposal=proposal, voter=member, revision=1, choice="approve",
+            )
+            ProposalResolution.objects.create(
+                proposal=proposal,
+                outcome=ProposalResolution.Outcome.APPROVED,
+                reason_code="approve_threshold_reached",
+                evidence={"approve_count": 1},
+                decided_by=member,
+            )
+            ProposalExecutionRecord.objects.create(
+                execution_id=f"execution-{suffix}",
+                proposal=proposal,
+                idempotency_key=f"proposal:{suffix}",
+                executed_by=member,
+                status=ProposalExecutionRecord.Status.SUCCEEDED,
+            )
+        finally:
+            reset_current_world(token)
+
+    def unified_proposal_counts(self, world: WorldContext) -> tuple[int, ...]:
+        token = set_current_world(world)
+        try:
+            return (
+                ElectorateRuleVersion.objects.count(),
+                ApprovalProposal.objects.count(),
+                ProposalElectorSnapshot.objects.count(),
+                ProposalBallot.objects.count(),
+                ProposalResolution.objects.count(),
+                ProposalExecutionRecord.objects.count(),
+                RoleAssignment.objects.count(),
+            )
+        finally:
+            reset_current_world(token)
+
+    def test_unified_proposal_facts_stay_inside_current_world_database(self) -> None:
+        realworld = self.world_context("realworld", "realworld")
+        simulation = self.world_context("simulation0001", "simulation0001")
+
+        self.create_unified_proposal_facts(simulation, "sim")
+        self.assertEqual(self.unified_proposal_counts(simulation), (1, 1, 1, 1, 1, 1, 1))
+        self.assertEqual(self.unified_proposal_counts(realworld), (0, 0, 0, 0, 0, 0, 0))
+
+        self.create_unified_proposal_facts(realworld, "real")
+        self.assertEqual(self.unified_proposal_counts(realworld), (1, 1, 1, 1, 1, 1, 1))
+        self.assertEqual(self.unified_proposal_counts(simulation), (1, 1, 1, 1, 1, 1, 1))

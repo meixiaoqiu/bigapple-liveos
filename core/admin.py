@@ -42,6 +42,15 @@ from .admin_deliberator_exams import (
     DeliberatorExamPolicyAdmin,
     DeliberatorExamQuestionAdmin,
 )
+from .admin_proposals import (
+    ApprovalProposalAdmin,
+    ElectorateRuleTemplateAdmin,
+    ElectorateRuleVersionAdmin,
+    ProposalBallotAdmin,
+    ProposalElectorSnapshotAdmin,
+    ProposalExecutionRecordAdmin,
+    ProposalResolutionAdmin,
+)
 
 
 TECHNICAL_ADMIN_OBJECTS = {

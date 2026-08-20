@@ -27,6 +27,7 @@ REQUIRED_CONTRACT_FILES = [
     "schemas/event-feedback.schema.json",
     "schemas/ruleset.schema.json",
     "schemas/capacity-assessment.schema.json",
+    "schemas/unified-proposal.schema.json",
     "openapi/live-os.v0.1.openapi.json",
 ]
 

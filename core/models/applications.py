@@ -109,6 +109,15 @@ class MemberApplication(models.Model):
         verbose_name="决议人",
         help_text="执行准入提案或拒绝的管理员；不再表示单人审核。",
     )
+    admission_proposal = models.OneToOneField(
+        "ApprovalProposal",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="member_application",
+        verbose_name="准入提案",
+        help_text="由新统一提案系统创建的唯一准入提案；不保存旧提案兼容关系。",
+    )
     submitted_at = models.DateTimeField("提交时间")
     decided_at = models.DateTimeField("决议时间", null=True, blank=True, help_text="准入执行或拒绝的时间。")
     metadata = models.JSONField("扩展数据", default=dict, blank=True)

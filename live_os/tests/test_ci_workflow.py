@@ -12,11 +12,12 @@ class MySQLConcurrencyWorkflowTests(SimpleTestCase):
 
         self.assertIn("mysql-concurrency:", workflow)
         self.assertIn(
-            "core.tests.test_finance_role_appointments.FinanceReviewerAppointmentConcurrencyTests",
-            workflow,
-        )
-        self.assertIn(
             "core.tests.test_event_feedback.EventFeedbackConcurrencyTests",
             workflow,
         )
+        self.assertIn(
+            "core.tests.test_unified_proposal_services.UnifiedProposalBallotConcurrencyTests",
+            workflow,
+        )
+        self.assertNotIn("core.tests.test_finance_role_appointments", workflow)
         self.assertIn("--settings=live_os.settings_real", workflow)

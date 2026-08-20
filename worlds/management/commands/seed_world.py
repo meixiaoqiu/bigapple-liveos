@@ -5,6 +5,7 @@ import os
 from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
 
 from live_os.demo_seed.zero_start import seed_zero_start
 from worlds.context import context_from_registry
@@ -56,6 +57,8 @@ class Command(BaseCommand):
                         founder_member_no=bootstrap_administrator["member_no"],
                         founder_display_name=bootstrap_administrator["display_name"],
                     )
+                    with transaction.atomic(using=database_alias):
+                        self._ensure_simulation_admission_policy(bootstrap_administrator["member_no"])
                 else:
                     seed_zero_start()
             else:  # pragma: no cover - argparse choices prevent this.
@@ -143,6 +146,38 @@ class Command(BaseCommand):
             world_administrator_display_name=config["display_name"],
             stdout=self.stdout,
             stderr=self.stderr,
+        )
+
+    def _ensure_simulation_admission_policy(self, member_no: str) -> None:
+        """为显式启用管理员的仿真基线幂等发布最小准入测试政策。"""
+
+        from core.electorate_rule_services import (
+            create_electorate_rule_template,
+            latest_published_rule_for_proposal_type,
+            publish_electorate_rule_version,
+        )
+        from core.models import ApprovalProposal, ElectorateRuleVersion, Member
+
+        proposal_type = ApprovalProposal.ProposalType.MEMBER_APPLICATION
+        if latest_published_rule_for_proposal_type(proposal_type) is not None:
+            return
+        actor = Member.objects.get(member_no=member_no)
+        template = create_electorate_rule_template(
+            proposal_type=proposal_type,
+            rule_code="member-admission",
+            name="守约者准入",
+            description="仿真零起点基线使用的明确测试政策。",
+            created_by=actor,
+        )
+        publish_electorate_rule_version(
+            template=template,
+            selector_config={"role_code": "administrator"},
+            approve_threshold=1,
+            reject_threshold=1,
+            minimum_participation=1,
+            voting_duration_hours=168,
+            unresolved_outcome=ElectorateRuleVersion.UnresolvedOutcome.EXPIRED,
+            published_by=actor,
         )
 
     def _env_bool(self, key: str, *, default: bool) -> bool:

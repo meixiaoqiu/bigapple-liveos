@@ -30,3 +30,14 @@ def require_full_workspace_member(request: HttpRequest) -> Member | HttpResponse
     if not decision.allowed:
         return page_forbidden(full_workspace_denial_message(decision.reason))
     return member
+
+
+def require_workspace_member(request: HttpRequest) -> Member | HttpResponseForbidden:
+    """要求登录账号绑定有效 Member，但不要求守约者资格。"""
+
+    if not is_authenticated(request):
+        return page_forbidden("需要登录。")
+    member = member_for_request(request)
+    if member is None:
+        return page_forbidden("需要绑定成员身份。")
+    return member

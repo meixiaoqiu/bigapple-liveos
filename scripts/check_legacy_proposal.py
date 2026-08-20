@@ -8,12 +8,11 @@ from pathlib import Path
 FORBIDDEN_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("旧模型 ProposalVote", re.compile(r"\bProposalVote\b")),
     ("旧模型 ProposalExecution", re.compile(r"\bProposalExecution\b")),
-    ("旧选民规则模型", re.compile(r"\b(?:ElectorateRuleTemplate|ElectorateRuleVersion|ProposalTypeElectorateRule)\b")),
-    ("旧成员报名字段", re.compile(r"\badmission_proposal\b")),
+    ("旧提案类型选民规则模型", re.compile(r"\bProposalTypeElectorateRule\b")),
     ("旧提案执行来源字段", re.compile(r"\bsource_proposal_execution\b")),
     ("旧提案来源字段", re.compile(r"\bsource_proposal\b")),
     ("旧领域模块", re.compile(r"\bcore\.(?:proposals|electorate_rules)\b")),
-    ("旧数据库表", re.compile(r"\bcore_(?:proposal|proposalvote|proposalexecution|electorateruletemplate|electorateruleversion|proposaltypeelectoraterule)\b")),
+    ("旧数据库表", re.compile(r"\bcore_(?:proposal|proposalvote|proposalexecution|proposaltypeelectoraterule)\b")),
 )
 
 SCAN_SUFFIXES = {".py", ".html", ".json", ".fga", ".md", ".yaml", ".yml"}

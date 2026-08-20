@@ -46,13 +46,17 @@ ROLE_USAGE_CATALOG: dict[str, dict[str, str]] = {
         "category": "权威事实查询",
         "reason": "阻止已具守约者资格的账号重复提交成员报名。",
     },
-    "core/authorization_services.py:210": {
+    "core/authorization_services.py:261": {
         "category": "授权查询",
         "reason": "兼容授权后端下的完整工作台访问判定。",
     },
-    "core/authorization_services.py:220": {
+    "core/authorization_services.py:271": {
         "category": "授权查询",
         "reason": "OpenFGA 工作台授权前以 Django 当前守约者任命否决陈旧 tuple。",
+    },
+    "core/authorization_services.py:219": {
+        "category": "授权查询",
+        "reason": "OpenFGA 角色关系检查前以 Django 当前任命事实收窄，防止陈旧 tuple 恢复权限。",
     },
     "core/deliberator_exam_services.py:115": {
         "category": "权威事实查询",

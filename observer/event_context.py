@@ -313,6 +313,14 @@ _TL_TITLES: dict[str, str] = {
     SystemEvent.EventType.MEMBER_APPLICATION_REVIEWED: "报名审查完成",
     SystemEvent.EventType.MEMBER_CREATED: "成员账号已创建",
     SystemEvent.EventType.ROLE_ASSIGNED: "守约者角色已授予",
+    SystemEvent.EventType.APPROVAL_PROPOSAL_SUBMITTED: "准入提案已建立",
+    SystemEvent.EventType.PROPOSAL_VOTING_STARTED: "准入表决已开始",
+    SystemEvent.EventType.PROPOSAL_BALLOT_CAST: "实名票据已提交",
+    SystemEvent.EventType.APPROVAL_PROPOSAL_APPROVED: "准入提案已通过",
+    SystemEvent.EventType.APPROVAL_PROPOSAL_REJECTED: "准入提案未通过",
+    SystemEvent.EventType.PROPOSAL_EXPIRED: "准入提案已过期",
+    SystemEvent.EventType.APPROVAL_PROPOSAL_EXECUTED: "守约者准入已执行",
+    SystemEvent.EventType.PROPOSAL_EXECUTION_FAILED: "准入执行失败",
 }
 
 

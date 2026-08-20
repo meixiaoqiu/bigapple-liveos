@@ -439,11 +439,6 @@ def approval_proposal_payload(
     actor: Member | None = None,
 ) -> dict[str, Any]:
     """Build a public-safe event payload for an ApprovalProposal action."""
-    from .proposal_services import (
-        proposal_approved_roles,
-        proposal_missing_roles,
-        proposal_required_roles,
-    )
     actor_label = _public_member_label(
         actor.display_name or "", actor.member_no,
     ) if actor else ""
@@ -451,30 +446,98 @@ def approval_proposal_payload(
         proposal.submitted_by.display_name or "",
         proposal.submitted_by.member_no,
     )
-    return _public_event_payload(
-        subject_type="approval_proposal",
-        subject_ref=_public_ref("approval-proposal", proposal.proposal_id),
-        subject_label=proposal.title,
-        action=action,
-        stage=proposal.status,
-        summary=f"提案 {proposal.proposal_id}（{proposal.title}）{action}。",
-        public_facts={
-            "approval_proposal_id": proposal.proposal_id,
-            "ap_type": proposal.proposal_type,
-            "ap_title": proposal.title,
-            "ap_summary": proposal.summary,
-            "ap_status": proposal.status,
+    public_title = proposal.title
+    public_summary = proposal.summary
+    member_application = None
+    if proposal.proposal_type == ApprovalProposal.ProposalType.MEMBER_APPLICATION:
+        from .models import MemberApplication
+
+        member_application = MemberApplication.objects.select_related("linked_member").filter(
+            application_id=proposal.target_id,
+        ).first()
+        public_title = "守约者准入提案"
+        public_summary = "社区正在按已发布政策决定一项守约者报名。"
+    public_facts = {
+        "approval_proposal_id": proposal.proposal_id,
+        "ap_type": proposal.proposal_type,
+        "ap_title": public_title,
+        "ap_summary": public_summary,
+        "ap_status": proposal.status,
+        "ap_strategy_type": proposal.strategy_type,
+        "ap_target_type": proposal.target_type,
+        "ap_submitted_by_display": submitted_label,
+        "ap_actor_display": actor_label,
+    }
+    if member_application is not None:
+        public_facts.update({
+            "application_id": member_application.application_id,
+            "public_applicant_label": _public_member_label(
+                member_application.applicant_name,
+                member_application.linked_member.member_no if member_application.linked_member_id else "",
+            ),
+            "role_gap": member_application.role_gap,
+        })
+    if proposal.strategy_type == ApprovalProposal.StrategyType.ELECTORATE:
+        from .unified_proposal_services import proposal_tally
+
+        tally = proposal_tally(proposal)
+        rule = proposal.electorate_rule_version
+        public_facts.update({
+            "ap_rule_code": rule.template_id if rule else "",
+            "ap_rule_version": rule.version if rule else None,
+            "ap_voting_deadline": _iso(proposal.voting_deadline),
+            "ap_eligible_count": tally.eligible_count,
+            "ap_participation_count": tally.participation_count,
+            "ap_approve_count": tally.approve_count,
+            "ap_reject_count": tally.reject_count,
+            "ap_abstain_count": tally.abstain_count,
+        })
+    else:
+        from .proposal_services import (
+            proposal_approved_roles,
+            proposal_missing_roles,
+            proposal_required_roles,
+        )
+
+        public_facts.update({
             "ap_approval_tier": proposal.approval_tier,
-            "ap_target_type": proposal.target_type,
-            "ap_target_id": proposal.target_id,
-            "ap_submitted_by_display": submitted_label,
-            "ap_actor_display": actor_label,
             "ap_required_roles": proposal_required_roles(proposal),
             "ap_approved_roles": proposal_approved_roles(proposal),
             "ap_missing_roles": proposal_missing_roles(proposal),
-        },
+        })
+    return _public_event_payload(
+        subject_type="approval_proposal",
+        subject_ref=_public_ref("approval-proposal", proposal.proposal_id),
+        subject_label=public_title,
+        action=action,
+        stage=proposal.status,
+        summary=f"提案 {proposal.proposal_id}（{public_title}）{action}。",
+        public_facts=public_facts,
         private_commitments=[
             _private("metadata", present=bool(proposal.metadata), reason="元数据"),
+        ],
+    )
+
+
+def electorate_rule_payload(rule_version, *, actor: Member) -> dict[str, Any]:
+    """构造不泄露内部选择器配置的规则发布事件。"""
+
+    return _public_event_payload(
+        subject_type="electorate_rule_version",
+        subject_ref=_public_ref("electorate-rule", rule_version.rule_version_id),
+        subject_label=rule_version.template.name,
+        action="published",
+        stage="published",
+        summary=f"选民规则 {rule_version.template.name} 已发布新版本。",
+        public_facts={
+            "rule_code": rule_version.template_id,
+            "rule_version": rule_version.version,
+            "proposal_type": rule_version.template.proposal_type,
+            "published_by_display": _public_member_label(actor.display_name or "", actor.member_no),
+            "published_at": _iso(rule_version.published_at),
+        },
+        private_commitments=[
+            _private("selector_config", present=True, reason="内部选民选择器配置"),
         ],
     )
 
