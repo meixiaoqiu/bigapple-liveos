@@ -1,4 +1,4 @@
-{% load tailwind_tags world_urls %}
+{% load static tailwind_tags world_urls %}
 <!doctype html>
 <html lang="zh-Hans" data-theme="bumblebee">
 <head>
@@ -8,91 +8,111 @@
   {% tailwind_css %}
 </head>
 <body class="min-h-screen bg-base-200 text-base-content">
-  {% include "partials/runtime_header.html" %}
-  <main class="mx-auto grid w-full max-w-7xl gap-6 p-4 lg:p-8">
-    <header class="card bg-primary text-primary-content shadow-xl">
-      <div class="card-body gap-4">
-        <div class="grid gap-5">
+  <div class="mx-auto min-h-screen w-full max-w-[480px] bg-white" data-workspace-shell="app">
+    <div class="w-full" data-workspace-shell="header">
+      {% include "partials/runtime_header.html" %}
+    </div>
+    <main class="grid w-full gap-6 p-4" data-workspace-shell="main">
+    <header class="pt-2" data-workspace-section="welcome">
+      <div class="text-sm text-base-content/60">你好，</div>
+      <h1 class="text-3xl font-bold tracking-normal">欢迎回到工作台</h1>
+    </header>
+
+    <section class="card bg-base-100 border border-base-300 shadow-none" aria-labelledby="workspace-status-summary-title">
+      <div class="card-body">
+        <h2 class="sr-only" id="workspace-status-summary-title">状态摘要</h2>
+        <div class="grid grid-cols-2 gap-4">
           <div>
-            <div class="text-sm opacity-80">
-              {% if request.world %}当前世界：{{ request.world.world_id }}{% else %}当前世界{% endif %}
-            </div>
-            <h1 class="text-3xl font-bold tracking-normal">成员工作台</h1>
-            <div class="mt-2 flex flex-wrap gap-2">
-              <span class="badge badge-primary-content badge-outline">{{ member.member_no }}</span>
-              {% if identity_display.membership %}
-                <span class="badge badge-primary-content badge-outline">{{ identity_display.membership.name }}</span>
-              {% elif identity_display.derived_status %}
-                <span class="badge badge-primary-content badge-outline">{{ identity_display.derived_status.name }}</span>
-              {% endif %}
-              {% for duty in identity_display.duties %}
-                <span class="badge badge-primary-content badge-outline">{{ duty.name }}</span>
-              {% endfor %}
-              <span class="badge badge-primary-content badge-outline">模拟第 {{ simulation_day }} 天</span>
+            <div class="text-sm text-base-content/60">成员状态</div>
+            <div class="mt-1 text-lg font-semibold">{{ member.get_status_display }}</div>
+            <div class="mt-1 text-sm text-base-content/65">
+              {% if identity_display.membership %}{{ identity_display.membership.name }}{% elif identity_display.derived_status %}{{ identity_display.derived_status.name }}{% else %}暂无可用身份{% endif %}
             </div>
           </div>
-          <nav class="grid gap-3 md:grid-cols-3" aria-label="成员工作台导航">
-            <div class="rounded-box border border-primary-content/30 p-3" aria-labelledby="workspace-nav-personal">
-              <h2 class="mb-2 text-sm font-bold" id="workspace-nav-personal">个人功能</h2>
-              <div class="flex flex-wrap gap-2">
-                <a class="btn btn-sm" href="{% world_url 'workspace-tasks' %}">任务中心</a>
-                <a class="btn btn-sm" href="{% world_url 'workspace-finance-list' %}">财务 / 报销</a>
-                <a class="btn btn-sm" href="{% world_url 'workspace-deliberator-exam' %}">申请执衡者</a>
-                <a class="btn btn-sm" href="{% world_url 'workspace-credits-transfer' %}">积分转账</a>
-                <a class="btn btn-sm" href="{% world_url 'workspace-credits-redemption' %}">兑换订单</a>
-                <a class="btn btn-sm" href="{% world_url 'workspace-public-profile' %}">公开资料</a>
-              </div>
-            </div>
-
-            {% if is_governance or is_finance %}
-              <div class="rounded-box border border-primary-content/30 p-3" aria-labelledby="workspace-nav-governance">
-                <h2 class="mb-2 text-sm font-bold" id="workspace-nav-governance">治理职责</h2>
-                <div class="flex flex-wrap gap-2">
-                  {% if is_governance %}
-                    <a class="btn btn-sm" href="{% world_url 'workspace-applications-review' %}">成员报名审核</a>
-                    <a class="btn btn-sm" href="{% world_url 'workspace-recruitment' %}">招募方向</a>
-                    <a class="btn btn-sm" href="{% world_url 'workspace-finance-reviewer-appointments' %}">财务职责</a>
-                  {% endif %}
-                  {% if is_governance or is_finance %}
-                    <a class="btn btn-sm" href="{% world_url 'workspace-approval-proposals' %}">待处理提案</a>
-                  {% endif %}
-                </div>
-              </div>
-            {% endif %}
-
-            {% if can_manage_deliberator_exam %}
-              <div class="rounded-box border border-primary-content/30 p-3">
-                <h2 class="mb-2 text-sm font-bold">考试维护</h2>
-                <a class="btn btn-sm" href="{% world_url 'workspace-deliberator-exam-configuration' %}">执衡者考试配置</a>
-              </div>
-            {% endif %}
-
-            {% if is_governance or is_finance or is_merchant_operator %}
-              <div class="rounded-box border border-primary-content/30 p-3" aria-labelledby="workspace-nav-operations">
-                <h2 class="mb-2 text-sm font-bold" id="workspace-nav-operations">运营管理</h2>
-                <div class="flex flex-wrap gap-2">
-                  {% if is_governance %}
-                    <a class="btn btn-sm" href="{% world_url 'workspace-tasks-manage' %}">创建任务</a>
-                    <a class="btn btn-sm" href="{% world_url 'workspace-tasks-review' %}">任务验收</a>
-                    <a class="btn btn-sm" href="{% world_url 'workspace-credits-review' %}">兑换履约</a>
-                    <a class="btn btn-sm" href="{% world_url 'workspace-credits-budgets' %}">积分预算</a>
-                  {% endif %}
-                  {% if is_governance or is_merchant_operator %}
-                    <a class="btn btn-sm" href="{% world_url 'workspace-credits-settlements' %}">商户结算</a>
-                  {% endif %}
-                  {% if is_governance %}
-                    <a class="btn btn-sm" href="{% world_url 'workspace-inventory' %}">资源库存</a>
-                  {% endif %}
-                  {% if is_governance or is_finance %}
-                    <a class="btn btn-sm" href="{% world_url 'workspace-procurement' %}">采购管理</a>
-                  {% endif %}
-                </div>
-              </div>
-            {% endif %}
-          </nav>
+          <div>
+            <div class="text-sm text-base-content/60">当前积分</div>
+            <div class="mt-1 text-lg font-semibold">{{ credit_balance }}</div>
+            <div class="mt-1 text-sm text-base-content/65">积分下限 {{ member.credit_floor }}</div>
+          </div>
         </div>
       </div>
-    </header>
+    </section>
+
+    <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-base-content/65" data-workspace-section="identity-meta">
+      <span>{{ member.member_no }}</span>
+      <span aria-hidden="true">·</span>
+      {% if request.world %}<span>当前世界：{{ request.world.world_id }}</span>{% else %}<span>当前世界</span>{% endif %}
+      <span aria-hidden="true">·</span>
+      <span>模拟第 {{ simulation_day }} 天</span>
+      {% for duty in identity_display.duties %}
+        <span aria-hidden="true">·</span>
+        <span>{{ duty.name }}</span>
+      {% endfor %}
+    </div>
+
+    <nav class="grid gap-6" aria-labelledby="workspace-quick-actions-title" data-workspace-section="quick-actions">
+      <h2 class="border-b border-base-300 pb-2 text-xl font-semibold" id="workspace-quick-actions-title">快捷操作</h2>
+
+      <section class="grid gap-3" aria-labelledby="workspace-nav-personal">
+        <h3 class="text-sm font-semibold text-base-content/65" id="workspace-nav-personal">个人功能</h3>
+        <div class="grid grid-cols-3 gap-3">
+          <a class="flex min-h-24 flex-col items-center justify-center gap-3 rounded-lg border border-base-300 bg-base-100 px-2 py-4 text-center text-sm font-medium transition-colors hover:border-base-content/40 hover:bg-base-200" href="{% world_url 'workspace-tasks' %}"><i class="size-7" data-lucide="clipboard-list" aria-hidden="true"></i><span>任务中心</span></a>
+          <a class="flex min-h-24 flex-col items-center justify-center gap-3 rounded-lg border border-base-300 bg-base-100 px-2 py-4 text-center text-sm font-medium transition-colors hover:border-base-content/40 hover:bg-base-200" href="{% world_url 'workspace-finance-list' %}"><i class="size-7" data-lucide="receipt-text" aria-hidden="true"></i><span>财务 / 报销</span></a>
+          <a class="flex min-h-24 flex-col items-center justify-center gap-3 rounded-lg border border-base-300 bg-base-100 px-2 py-4 text-center text-sm font-medium transition-colors hover:border-base-content/40 hover:bg-base-200" href="{% world_url 'workspace-deliberator-exam' %}"><i class="size-7" data-lucide="gavel" aria-hidden="true"></i><span>申请执衡者</span></a>
+          <a class="flex min-h-24 flex-col items-center justify-center gap-3 rounded-lg border border-base-300 bg-base-100 px-2 py-4 text-center text-sm font-medium transition-colors hover:border-base-content/40 hover:bg-base-200" href="{% world_url 'workspace-credits-transfer' %}"><i class="size-7" data-lucide="arrow-left-right" aria-hidden="true"></i><span>积分转账</span></a>
+          <a class="flex min-h-24 flex-col items-center justify-center gap-3 rounded-lg border border-base-300 bg-base-100 px-2 py-4 text-center text-sm font-medium transition-colors hover:border-base-content/40 hover:bg-base-200" href="{% world_url 'workspace-credits-redemption' %}"><i class="size-7" data-lucide="gift" aria-hidden="true"></i><span>兑换订单</span></a>
+          <a class="flex min-h-24 flex-col items-center justify-center gap-3 rounded-lg border border-base-300 bg-base-100 px-2 py-4 text-center text-sm font-medium transition-colors hover:border-base-content/40 hover:bg-base-200" href="{% world_url 'workspace-public-profile' %}"><i class="size-7" data-lucide="contact" aria-hidden="true"></i><span>公开资料</span></a>
+        </div>
+      </section>
+
+      {% if is_governance or is_finance %}
+        <section class="grid gap-3" aria-labelledby="workspace-nav-governance">
+          <h3 class="text-sm font-semibold text-base-content/65" id="workspace-nav-governance">治理职责</h3>
+          <div class="grid grid-cols-3 gap-3">
+            {% if is_governance %}
+              <a class="flex min-h-24 flex-col items-center justify-center gap-3 rounded-lg border border-base-300 bg-base-100 px-2 py-4 text-center text-sm font-medium transition-colors hover:border-base-content/40 hover:bg-base-200" href="{% world_url 'workspace-applications-review' %}"><i class="size-7" data-lucide="user-check" aria-hidden="true"></i><span>成员报名审核</span></a>
+              <a class="flex min-h-24 flex-col items-center justify-center gap-3 rounded-lg border border-base-300 bg-base-100 px-2 py-4 text-center text-sm font-medium transition-colors hover:border-base-content/40 hover:bg-base-200" href="{% world_url 'workspace-recruitment' %}"><i class="size-7" data-lucide="megaphone" aria-hidden="true"></i><span>招募方向</span></a>
+              <a class="flex min-h-24 flex-col items-center justify-center gap-3 rounded-lg border border-base-300 bg-base-100 px-2 py-4 text-center text-sm font-medium transition-colors hover:border-base-content/40 hover:bg-base-200" href="{% world_url 'workspace-finance-reviewer-appointments' %}"><i class="size-7" data-lucide="badge-dollar-sign" aria-hidden="true"></i><span>财务职责</span></a>
+            {% endif %}
+            {% if is_governance or is_finance %}
+              <a class="flex min-h-24 flex-col items-center justify-center gap-3 rounded-lg border border-base-300 bg-base-100 px-2 py-4 text-center text-sm font-medium transition-colors hover:border-base-content/40 hover:bg-base-200" href="{% world_url 'workspace-approval-proposals' %}"><i class="size-7" data-lucide="file-check-2" aria-hidden="true"></i><span>待处理提案</span></a>
+            {% endif %}
+          </div>
+        </section>
+      {% endif %}
+
+      {% if can_manage_deliberator_exam %}
+        <section class="grid gap-3" aria-labelledby="workspace-nav-exam">
+          <h3 class="text-sm font-semibold text-base-content/65" id="workspace-nav-exam">考试维护</h3>
+          <div class="grid grid-cols-3 gap-3">
+            <a class="flex min-h-24 flex-col items-center justify-center gap-3 rounded-lg border border-base-300 bg-base-100 px-2 py-4 text-center text-sm font-medium transition-colors hover:border-base-content/40 hover:bg-base-200" href="{% world_url 'workspace-deliberator-exam-configuration' %}"><i class="size-7" data-lucide="settings" aria-hidden="true"></i><span>执衡者考试配置</span></a>
+          </div>
+        </section>
+      {% endif %}
+
+      {% if is_governance or is_finance or is_merchant_operator %}
+        <section class="grid gap-3" aria-labelledby="workspace-nav-operations">
+          <h3 class="text-sm font-semibold text-base-content/65" id="workspace-nav-operations">运营管理</h3>
+          <div class="grid grid-cols-3 gap-3">
+            {% if is_governance %}
+              <a class="flex min-h-24 flex-col items-center justify-center gap-3 rounded-lg border border-base-300 bg-base-100 px-2 py-4 text-center text-sm font-medium transition-colors hover:border-base-content/40 hover:bg-base-200" href="{% world_url 'workspace-tasks-manage' %}"><i class="size-7" data-lucide="list-plus" aria-hidden="true"></i><span>创建任务</span></a>
+              <a class="flex min-h-24 flex-col items-center justify-center gap-3 rounded-lg border border-base-300 bg-base-100 px-2 py-4 text-center text-sm font-medium transition-colors hover:border-base-content/40 hover:bg-base-200" href="{% world_url 'workspace-tasks-review' %}"><i class="size-7" data-lucide="clipboard-check" aria-hidden="true"></i><span>任务验收</span></a>
+              <a class="flex min-h-24 flex-col items-center justify-center gap-3 rounded-lg border border-base-300 bg-base-100 px-2 py-4 text-center text-sm font-medium transition-colors hover:border-base-content/40 hover:bg-base-200" href="{% world_url 'workspace-credits-review' %}"><i class="size-7" data-lucide="package-check" aria-hidden="true"></i><span>兑换履约</span></a>
+              <a class="flex min-h-24 flex-col items-center justify-center gap-3 rounded-lg border border-base-300 bg-base-100 px-2 py-4 text-center text-sm font-medium transition-colors hover:border-base-content/40 hover:bg-base-200" href="{% world_url 'workspace-credits-budgets' %}"><i class="size-7" data-lucide="wallet-cards" aria-hidden="true"></i><span>积分预算</span></a>
+            {% endif %}
+            {% if is_governance or is_merchant_operator %}
+              <a class="flex min-h-24 flex-col items-center justify-center gap-3 rounded-lg border border-base-300 bg-base-100 px-2 py-4 text-center text-sm font-medium transition-colors hover:border-base-content/40 hover:bg-base-200" href="{% world_url 'workspace-credits-settlements' %}"><i class="size-7" data-lucide="landmark" aria-hidden="true"></i><span>商户结算</span></a>
+            {% endif %}
+            {% if is_governance %}
+              <a class="flex min-h-24 flex-col items-center justify-center gap-3 rounded-lg border border-base-300 bg-base-100 px-2 py-4 text-center text-sm font-medium transition-colors hover:border-base-content/40 hover:bg-base-200" href="{% world_url 'workspace-inventory' %}"><i class="size-7" data-lucide="warehouse" aria-hidden="true"></i><span>资源库存</span></a>
+            {% endif %}
+            {% if is_governance or is_finance %}
+              <a class="flex min-h-24 flex-col items-center justify-center gap-3 rounded-lg border border-base-300 bg-base-100 px-2 py-4 text-center text-sm font-medium transition-colors hover:border-base-content/40 hover:bg-base-200" href="{% world_url 'workspace-procurement' %}"><i class="size-7" data-lucide="shopping-cart" aria-hidden="true"></i><span>采购管理</span></a>
+            {% endif %}
+          </div>
+        </section>
+      {% endif %}
+    </nav>
 
     {% if messages %}
       <section class="grid gap-2" aria-label="操作结果">
@@ -115,7 +135,7 @@
           <span class="badge badge-primary badge-outline">{{ work_items.matters.total_active }} 项进行中</span>
         </div>
 
-        <div class="grid gap-5 xl:grid-cols-3">
+        <div class="grid gap-5">
           {% include "workspace/partials/matter_group.html" with title="需要我处理" items=work_items.matters.action_required tone="warning" empty_text="当前没有需要你立即处理的事务。" %}
           {% include "workspace/partials/matter_group.html" with title="等待他人" items=work_items.matters.waiting tone="info" empty_text="当前没有等待其他处理方的事务。" %}
           {% include "workspace/partials/matter_group.html" with title="最近结束" items=work_items.matters.recently_ended tone="success" empty_text="近期没有已结束的相关事务。" %}
@@ -138,7 +158,7 @@
                 <span class="badge badge-error ml-1">{{ work_items.total_overdue }} 超期</span>
               {% endif %}
             </h2>
-            <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 mt-2">
+            <div class="mt-2 grid gap-2">
               {% if work_items.approval_pending %}
                 <a class="btn btn-sm btn-outline btn-warning justify-start" href="{% world_url 'workspace-approval-proposals' %}">
                   待审批 ({{ work_items.approval_pending_count }})
@@ -170,20 +190,7 @@
       {% endif %}
     {% endif %}
 
-    <section class="stats stats-vertical bg-base-100 shadow md:stats-horizontal" aria-label="成员核心状态">
-      <div class="stat">
-        <div class="stat-title">成员状态</div>
-        <div class="stat-value text-primary">{{ member.get_status_display }}</div>
-        <div class="stat-desc">
-          {% if identity_display.membership %}{{ identity_display.membership.name }}{% elif identity_display.derived_status %}{{ identity_display.derived_status.name }}{% else %}暂无可用身份{% endif %}
-          {% for duty in identity_display.duties %} · {{ duty.name }}{% endfor %}
-        </div>
-      </div>
-      <div class="stat">
-        <div class="stat-title">当前积分</div>
-        <div class="stat-value">{{ credit_balance }}</div>
-        <div class="stat-desc">积分下限 {{ member.credit_floor }}</div>
-      </div>
+    <section class="stats stats-vertical bg-base-100 shadow" aria-label="成员核心状态">
       <div class="stat">
         <div class="stat-title">可用积分</div>
         <div class="stat-value text-success">{{ available_credit_balance }}</div>
@@ -234,6 +241,9 @@
 
     </section>
 
-  </main>
+    </main>
+  </div>
+  <script src="{% static 'js/dist/lucide.min.js' %}"></script>
+  <script>window.lucide?.createIcons();</script>
 </body>
 </html>

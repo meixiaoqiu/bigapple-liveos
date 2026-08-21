@@ -8,6 +8,7 @@ from django.test import TestCase, override_settings
 from django.urls import resolve
 from django.utils import timezone
 
+from core.governance_setup import DELIBERATOR_EXAM_MANAGE_PERMISSION
 from core.member_roles import ROLE_COVENANTER
 from core.models import (
     CapacityAssessment,
@@ -16,6 +17,7 @@ from core.models import (
     LedgerEntry,
     Member,
     MemberApplication,
+    MerchantProfile,
     RoleAssignment,
     Resource,
     Task,
@@ -172,12 +174,94 @@ class WorkspacePageTests(TestCase):
         self.assertNotContains(response, "申诉状态")
         self.assertNotContains(response, "个人任务历史")
 
+    def test_workspace_page_uses_centered_480px_portrait_shell(self) -> None:
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn(
+            'class="mx-auto min-h-screen w-full max-w-[480px] bg-white" data-workspace-shell="app"',
+            content,
+        )
+        self.assertIn(
+            'class="w-full" data-workspace-shell="header"',
+            content,
+        )
+        self.assertIn(
+            'class="grid w-full gap-6 p-4" data-workspace-shell="main"',
+            content,
+        )
+        self.assertIn('<body class="min-h-screen bg-base-200 text-base-content">', content)
+        self.assertNotIn("md:grid-cols-3", content)
+        self.assertNotIn("xl:grid-cols-3", content)
+        self.assertNotIn("lg:grid-cols-4", content)
+        self.assertNotIn("md:stats-horizontal", content)
+        self.assertIn("任务中心", content)
+        self.assertIn("我的事务", content)
+        self.assertIn("成员核心状态", content)
+        self.assertIn("近期积分流水", content)
+
+    def test_workspace_page_renders_welcome_header_without_primary_hero(self) -> None:
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn("你好，", content)
+        self.assertIn("欢迎回到工作台", content)
+        self.assertIn('data-workspace-section="welcome"', content)
+        # 旧黄色英雄卡的整块主色背景与重阴影不再出现在顶部欢迎区
+        self.assertNotIn("bg-primary text-primary-content", content)
+
+    def test_workspace_page_renders_status_summary_from_authoritative_context(self) -> None:
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        self.assertIn('aria-labelledby="workspace-status-summary-title"', content)
+        self.assertIn("状态摘要", content)
+        # 左列：成员状态 + 身份辅助
+        self.assertIn(self.member.get_status_display(), content)
+        # 右列：当前积分（authoritative credit_balance）
+        self.assertIn("当前积分", content)
+        self.assertIn("积分下限 -300", content)
+        # 身份元数据与 world / 模拟日继续可见
+        self.assertIn('data-workspace-section="identity-meta"', content)
+        self.assertIn("mem-0001", content)
+        self.assertIn("模拟第 7 天", content)
+
+    def test_workspace_page_metrics_appear_exactly_once_each(self) -> None:
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        # 四项指标各自只有一个主要展示；成员状态与当前积分不再出现在后部 stats 区
+        self.assertEqual(content.count("成员状态"), 1)
+        self.assertEqual(content.count("当前积分"), 1)
+        self.assertEqual(content.count("可用积分"), 1)
+        # 历史贡献只作为核心状态区的 stat 标题出现一次（流水表内的“历史贡献积分”不计入）
+        self.assertEqual(content.count('<div class="stat-title">历史贡献</div>'), 1)
+        self.assertIn('aria-label="成员核心状态"', content)
+
+    def test_workspace_page_does_not_inject_design_sample_interactions(self) -> None:
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        # 不提前实现设计稿示例通知或底部导航；快捷操作只使用现有真实入口
+        self.assertNotIn("通知", content)
+        self.assertNotIn("bottom-nav", content)
+        self.assertNotIn("Material Symbols", content)
+        # 顶部改造后现有业务模块仍在
+        self.assertIn("我的事务", content)
+        self.assertIn("近期积分流水", content)
+
     def test_workspace_navigation_groups_personal_links_without_empty_duty_groups(self) -> None:
         response = self.client.get("/workspace/")
 
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
-        navigation = content.split('<nav class="grid gap-3 md:grid-cols-3"', 1)[1].split("</nav>", 1)[0]
+        navigation = content.split('data-workspace-section="quick-actions"', 1)[1].split("</nav>", 1)[0]
+        self.assertIn("快捷操作", navigation)
         self.assertIn("个人功能", navigation)
         self.assertNotIn("治理职责", navigation)
         self.assertNotIn("运营管理", navigation)
@@ -187,7 +271,53 @@ class WorkspacePageTests(TestCase):
         self.assertIn('href="/workspace/credits/transfer/"', navigation)
         self.assertIn('href="/workspace/credits/redemption/"', navigation)
         self.assertIn('href="/workspace/profile/"', navigation)
+        self.assertIn('class="grid grid-cols-3 gap-3"', navigation)
+        self.assertNotIn("btn btn-sm", navigation)
         self.assertNotIn("btn-accent", navigation)
+
+        personal_labels = [
+            "任务中心",
+            "财务 / 报销",
+            "申请执衡者",
+            "积分转账",
+            "兑换订单",
+            "公开资料",
+        ]
+        positions = [navigation.find(label) for label in personal_labels]
+        self.assertTrue(all(position >= 0 for position in positions))
+        self.assertEqual(positions, sorted(positions))
+
+    def test_workspace_quick_actions_use_local_decorative_icons(self) -> None:
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        navigation = content.split('data-workspace-section="quick-actions"', 1)[1].split("</nav>", 1)[0]
+        self.assertIn('data-lucide="clipboard-list" aria-hidden="true"', navigation)
+        self.assertIn('data-lucide="receipt-text" aria-hidden="true"', navigation)
+        self.assertIn('data-lucide="gavel" aria-hidden="true"', navigation)
+        self.assertIn('src="/static/js/dist/lucide.min.js"', content)
+        self.assertIn("window.lucide?.createIcons();", content)
+        self.assertNotIn("https://unpkg.com", content)
+        self.assertNotIn("https://cdn.jsdelivr.net", content)
+
+    def test_workspace_navigation_sits_after_welcome_and_status_summary(self) -> None:
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        welcome_pos = content.find('data-workspace-section="welcome"')
+        summary_pos = content.find('aria-labelledby="workspace-status-summary-title"')
+        nav_pos = content.find('data-workspace-section="quick-actions"')
+        self.assertGreater(welcome_pos, -1)
+        self.assertGreater(summary_pos, -1)
+        self.assertGreater(nav_pos, -1)
+        self.assertLess(welcome_pos, summary_pos)
+        self.assertLess(summary_pos, nav_pos)
+        # 对普通守约者可见的“个人功能”分组位于欢迎区与状态摘要之后
+        personal_pos = content.find('id="workspace-nav-personal"')
+        self.assertGreater(personal_pos, -1)
+        self.assertGreater(personal_pos, nav_pos)
 
     @patch("workspace.context.member_can_administer", return_value=True)
     @patch("workspace.work_item_context.member_can_administer", return_value=True)
@@ -200,7 +330,7 @@ class WorkspacePageTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
-        navigation = content.split('<nav class="grid gap-3 md:grid-cols-3"', 1)[1].split("</nav>", 1)[0]
+        navigation = content.split('data-workspace-section="quick-actions"', 1)[1].split("</nav>", 1)[0]
         self.assertIn("个人功能", navigation)
         self.assertIn("治理职责", navigation)
         self.assertIn("运营管理", navigation)
@@ -215,7 +345,75 @@ class WorkspacePageTests(TestCase):
         self.assertIn('href="/workspace/credits/merchant-settlements/"', navigation)
         self.assertIn('href="/workspace/inventory/"', navigation)
         self.assertIn('href="/workspace/procurement/"', navigation)
+        self.assertIn('data-lucide="user-check" aria-hidden="true"', navigation)
+        self.assertIn('data-lucide="shopping-cart" aria-hidden="true"', navigation)
         self.assertNotIn("btn-accent", navigation)
+
+    @patch("workspace.context.is_finance_reviewer", return_value=True)
+    def test_workspace_quick_actions_for_finance_only_member(
+        self,
+        _finance_permission,
+    ) -> None:
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        navigation = content.split('data-workspace-section="quick-actions"', 1)[1].split("</nav>", 1)[0]
+        self.assertIn("治理职责", navigation)
+        self.assertIn('href="/workspace/proposals/"', navigation)
+        self.assertNotIn('href="/workspace/applications/"', navigation)
+        self.assertNotIn('href="/workspace/recruitment/"', navigation)
+        self.assertNotIn('href="/workspace/finance/reviewer-appointments/"', navigation)
+        self.assertIn("运营管理", navigation)
+        self.assertIn('href="/workspace/procurement/"', navigation)
+        self.assertNotIn('href="/workspace/tasks/new/"', navigation)
+        self.assertNotIn('href="/workspace/tasks/review/"', navigation)
+        self.assertNotIn('href="/workspace/credits/merchant-settlements/"', navigation)
+
+    def test_workspace_quick_actions_for_merchant_operator_only(self) -> None:
+        MerchantProfile.objects.create(
+            merchant_id="merchant-workspace-only",
+            display_name="仅结算商户",
+            operator_member=self.member,
+            merchant_type=MerchantProfile.Type.CASH_SETTLEMENT,
+            settlement_rate=Decimal("0.5000"),
+        )
+
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        navigation = content.split('data-workspace-section="quick-actions"', 1)[1].split("</nav>", 1)[0]
+        self.assertNotIn("治理职责", navigation)
+        self.assertIn("运营管理", navigation)
+        self.assertIn('href="/workspace/credits/merchant-settlements/"', navigation)
+        self.assertNotIn('href="/workspace/tasks/new/"', navigation)
+        self.assertNotIn('href="/workspace/tasks/review/"', navigation)
+        self.assertNotIn('href="/workspace/credits/budgets/"', navigation)
+        self.assertNotIn('href="/workspace/inventory/"', navigation)
+        self.assertNotIn('href="/workspace/procurement/"', navigation)
+
+    @patch("workspace.context.AuthorizationService.member_has_permission")
+    def test_workspace_quick_actions_for_exam_manager_only(
+        self,
+        member_has_permission,
+    ) -> None:
+        member_has_permission.side_effect = (
+            lambda _member, permission_code, **_kwargs:
+            permission_code == DELIBERATOR_EXAM_MANAGE_PERMISSION
+        )
+
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        navigation = content.split('data-workspace-section="quick-actions"', 1)[1].split("</nav>", 1)[0]
+        self.assertIn("考试维护", navigation)
+        self.assertIn('href="/workspace/deliberator-exam/configuration/"', navigation)
+        self.assertNotIn("治理职责", navigation)
+        self.assertNotIn("运营管理", navigation)
+        self.assertNotIn('href="/workspace/proposals/"', navigation)
+        self.assertNotIn('href="/workspace/procurement/"', navigation)
 
     def test_member_can_open_own_task_detail(self) -> None:
         response = self.client.get("/workspace/tasks/task-0003/")
