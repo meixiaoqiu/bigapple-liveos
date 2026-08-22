@@ -535,7 +535,7 @@ class WorkspaceDashboardTests(TestCase):
         )
         response = self.client.get("/workspace/")
         content = response.content.decode()
-        old_modules = ["待处理事项", "近期积分流水"]
+        old_modules = ["待处理事项"]
         matter_position = content.index("我的事务")
         for title in old_modules:
             self.assertIn(title, content)
@@ -544,6 +544,8 @@ class WorkspaceDashboardTests(TestCase):
         self.assertNotIn("个人任务历史", content)
         self.assertNotIn("资源预警", content)
         self.assertNotIn("相关事件", content)
+        self.assertNotIn("成员核心状态", content)
+        self.assertNotIn("近期积分流水", content)
         self.assertNotIn("申诉状态", content)
         self.assertNotIn("<h2 class=\"card-title\">当前任务</h2>", content)
         self.assertNotIn("<h2 class=\"card-title\">可领取任务</h2>", content)

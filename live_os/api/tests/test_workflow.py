@@ -1378,14 +1378,16 @@ class RedemptionOrderPageTest(TestCase):
         )
         self.assertEqual(resp.status_code, 403)
 
-    def test_workspace_page_shows_credit_stats(self):
-        """Workspace index shows current/available/lifetime credit stats for covenanter."""
+    def test_workspace_page_hides_credit_stats_but_keeps_credit_actions(self):
+        """Workspace index omits credit summaries while keeping credit action entry points."""
         login_as_member(self.client, self.member)
         resp = self.client.get("/workspace/")
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "当前积分")
-        self.assertContains(resp, "可用积分")
-        self.assertContains(resp, "历史贡献")
+        self.assertNotContains(resp, "当前积分")
+        self.assertNotContains(resp, "可用积分")
+        self.assertNotContains(resp, "历史贡献")
+        self.assertContains(resp, "积分转账")
+        self.assertContains(resp, "兑换订单")
 
     def test_workspace_shows_fulfill_link_for_governance(self):
         """Governance member sees 兑换履约 and 商户结算 nav entries."""

@@ -160,11 +160,12 @@ class WorkspacePageTests(TestCase):
         self.assertContains(response, "成员工作台")
         self.assertContains(response, "mem-0001")
         self.assertContains(response, "模拟第 7 天")
-        self.assertContains(response, "当前积分")
-        self.assertContains(response, "10")
         self.assertContains(response, "准备今日午餐")
         self.assertContains(response, "任务中心")
-        self.assertContains(response, "历史贡献积分")
+        self.assertNotContains(response, "当前积分")
+        self.assertNotContains(response, "可用积分")
+        self.assertNotContains(response, "历史贡献积分")
+        self.assertNotContains(response, "近期积分流水")
         self.assertNotContains(response, "资源预警")
         self.assertNotContains(response, "相关事件")
         self.assertContains(response, "复核 · feedback-0001")
@@ -198,8 +199,8 @@ class WorkspacePageTests(TestCase):
         self.assertNotIn("md:stats-horizontal", content)
         self.assertIn("任务中心", content)
         self.assertIn("我的事务", content)
-        self.assertIn("成员核心状态", content)
-        self.assertIn("近期积分流水", content)
+        self.assertNotIn("成员核心状态", content)
+        self.assertNotIn("近期积分流水", content)
 
     def test_workspace_page_renders_welcome_header_without_primary_hero(self) -> None:
         response = self.client.get("/workspace/")
@@ -212,35 +213,38 @@ class WorkspacePageTests(TestCase):
         # 旧黄色英雄卡的整块主色背景与重阴影不再出现在顶部欢迎区
         self.assertNotIn("bg-primary text-primary-content", content)
 
-    def test_workspace_page_renders_status_summary_from_authoritative_context(self) -> None:
+    def test_workspace_page_renders_member_status_without_financial_summary(self) -> None:
         response = self.client.get("/workspace/")
 
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
         self.assertIn('aria-labelledby="workspace-status-summary-title"', content)
         self.assertIn("状态摘要", content)
-        # 左列：成员状态 + 身份辅助
+        # 状态摘要只保留成员状态与身份辅助，不展示财务指标。
         self.assertIn(self.member.get_status_display(), content)
-        # 右列：当前积分（authoritative credit_balance）
-        self.assertIn("当前积分", content)
-        self.assertIn("积分下限 -300", content)
+        self.assertNotIn("当前积分", content)
+        self.assertNotIn("积分下限 -300", content)
         # 身份元数据与 world / 模拟日继续可见
         self.assertIn('data-workspace-section="identity-meta"', content)
         self.assertIn("mem-0001", content)
         self.assertIn("模拟第 7 天", content)
 
-    def test_workspace_page_metrics_appear_exactly_once_each(self) -> None:
+    def test_workspace_page_removes_financial_metrics_and_ledger(self) -> None:
         response = self.client.get("/workspace/")
 
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
-        # 四项指标各自只有一个主要展示；成员状态与当前积分不再出现在后部 stats 区
+        # Workspace 首页不再承担成员财务摘要或积分流水展示。
         self.assertEqual(content.count("成员状态"), 1)
-        self.assertEqual(content.count("当前积分"), 1)
-        self.assertEqual(content.count("可用积分"), 1)
-        # 历史贡献只作为核心状态区的 stat 标题出现一次（流水表内的“历史贡献积分”不计入）
-        self.assertEqual(content.count('<div class="stat-title">历史贡献</div>'), 1)
-        self.assertIn('aria-label="成员核心状态"', content)
+        self.assertNotIn("当前积分", content)
+        self.assertNotIn("可用积分", content)
+        self.assertNotIn("历史贡献", content)
+        self.assertNotIn("近期积分流水", content)
+        self.assertNotIn('aria-label="成员核心状态"', content)
+        self.assertNotIn("credit_balance", response.context)
+        self.assertNotIn("available_credit_balance", response.context)
+        self.assertNotIn("lifetime_contribution", response.context)
+        self.assertNotIn("recent_ledger_entries", response.context)
 
     def test_workspace_page_does_not_inject_design_sample_interactions(self) -> None:
         response = self.client.get("/workspace/")
@@ -251,9 +255,9 @@ class WorkspacePageTests(TestCase):
         self.assertNotIn("通知", content)
         self.assertNotIn("bottom-nav", content)
         self.assertNotIn("Material Symbols", content)
-        # 顶部改造后现有业务模块仍在
+        # 顶部改造后核心工作模块仍在，已确认删除的财务摘要不再出现。
         self.assertIn("我的事务", content)
-        self.assertIn("近期积分流水", content)
+        self.assertNotIn("近期积分流水", content)
 
     def test_workspace_matter_tabs_order_counts_and_aria(self) -> None:
         response = self.client.get("/workspace/")
@@ -415,9 +419,9 @@ class WorkspacePageTests(TestCase):
         # 迁移期说明保留在事务区段内，语义不变
         self.assertIn("迁移期说明：未确认的原有 Workspace 模块继续保留", content)
         self.assertIn("已确认迁移的任务功能请进入任务中心", content)
-        # “我的事务”之后仍保留待处理事项、核心状态、近期积分流水等旧模块
-        self.assertIn("成员核心状态", content)
-        self.assertIn("近期积分流水", content)
+        # 已确认删除的财务摘要模块不再受迁移期保留说明约束。
+        self.assertNotIn("成员核心状态", content)
+        self.assertNotIn("近期积分流水", content)
 
     @patch("workspace.work_item_context.build_member_matters")
     def test_workspace_matter_empty_group_renders_lightweight_empty_state(self, build_matters) -> None:
@@ -682,7 +686,8 @@ class WorkspacePageTests(TestCase):
         self.assertIn('data-workspace-compact-header', content)
         self.assertIn('data-workspace-nav-menu', content)
         # 品牌文字与首页目标来自 runtime_nav 上下文
-        self.assertIn("大苹果社区动态", content)
+        self.assertIn("大苹果社区", content)
+        self.assertNotIn("大苹果社区动态", content)
         self.assertIn('href="/"', content)
         # 原生折叠结构，默认收起（无 open 属性）
         self.assertIn("<details", content)
@@ -726,13 +731,13 @@ class WorkspacePageTests(TestCase):
         self.assertNotIn("未读", content)
         self.assertNotIn("bottom-nav", content)
         self.assertNotIn('aria-label="头像"', content)
-        # 欢迎区、状态摘要、快捷操作、我的事务等现有模块保留
+        # 欢迎区、成员状态摘要、快捷操作和我的事务继续保留。
         self.assertIn('data-workspace-section="welcome"', content)
         self.assertIn('aria-labelledby="workspace-status-summary-title"', content)
         self.assertIn('data-workspace-section="quick-actions"', content)
         self.assertIn('data-workspace-section="matters"', content)
-        self.assertIn("成员核心状态", content)
-        self.assertIn("近期积分流水", content)
+        self.assertNotIn("成员核心状态", content)
+        self.assertNotIn("近期积分流水", content)
 
     def test_workspace_subpages_still_use_shared_runtime_header(self) -> None:
         response = self.client.get("/workspace/tasks/")

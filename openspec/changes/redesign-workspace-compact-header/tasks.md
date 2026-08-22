@@ -4,6 +4,7 @@
 - [x] 1.2 在菜单中按 `runtime_nav.items` 原顺序循环全部项目，GET 项保留链接，POST 项保留带 CSRF 的表单，不硬编码身份或入口列表
 - [x] 1.3 仅将完整成员首页 `templates/workspace/index.html` 切换到专用 partial，确认共享 `templates/partials/runtime_header.html` 及其他调用页面没有修改
 - [x] 1.4 为页头和右对齐菜单面板设置紧凑白底、分隔线、可视焦点、画布内宽度及层级样式，确保 Lucide 未增强时菜单标识仍可理解
+- [x] 1.5 将共享 `runtime_nav.brand_label` 统一为用户确认的“大苹果社区”，不改变导航项目构建、权限、顺序、URL 或请求方法
 
 ## 2. 回归覆盖
 
@@ -18,4 +19,4 @@
 - [x] 3.2 运行 Tailwind build 并提交更新后的 `theme/static/css/dist/styles.css`，确认没有意外改写 Lucide 生成资源版本
 - [x] 3.3 在窄屏和宽屏人工检查默认收起、展开边界、键盘展开/收起、焦点顺序、长品牌和菜单项目换行，不产生横向溢出
 - [x] 3.4 运行 Workspace 定向测试、项目检查、Django check、迁移漂移检查、OpenSpec strict validation 及 LiveOS 与 docs 两个仓库的 `git diff --check`
-- [x] 3.5 审查最终 diff，确认未修改 `live_os/runtime_nav.py`、共享 `runtime_header.html`、view、模型、领域服务、URL、权限判断或技术契约
+- [x] 3.5 审查最终 diff，确认 `live_os/runtime_nav.py` 仅修改品牌文案，且未修改共享 `runtime_header.html`、view、模型、领域服务、URL、权限判断、导航行为或技术契约

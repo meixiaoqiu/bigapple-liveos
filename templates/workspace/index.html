@@ -21,18 +21,13 @@
     <section class="card bg-base-100 border border-base-300 shadow-none" aria-labelledby="workspace-status-summary-title">
       <div class="card-body">
         <h2 class="sr-only" id="workspace-status-summary-title">状态摘要</h2>
-        <div class="grid grid-cols-2 gap-4">
+        <div>
           <div>
             <div class="text-sm text-base-content/60">成员状态</div>
             <div class="mt-1 text-lg font-semibold">{{ member.get_status_display }}</div>
             <div class="mt-1 text-sm text-base-content/65">
               {% if identity_display.membership %}{{ identity_display.membership.name }}{% elif identity_display.derived_status %}{{ identity_display.derived_status.name }}{% else %}暂无可用身份{% endif %}
             </div>
-          </div>
-          <div>
-            <div class="text-sm text-base-content/60">当前积分</div>
-            <div class="mt-1 text-lg font-semibold">{{ credit_balance }}</div>
-            <div class="mt-1 text-sm text-base-content/65">积分下限 {{ member.credit_floor }}</div>
           </div>
         </div>
       </div>
@@ -192,57 +187,6 @@
         </section>
       {% endif %}
     {% endif %}
-
-    <section class="stats stats-vertical bg-base-100 shadow" aria-label="成员核心状态">
-      <div class="stat">
-        <div class="stat-title">可用积分</div>
-        <div class="stat-value text-success">{{ available_credit_balance }}</div>
-        <div class="stat-desc">可消费/转账/兑换</div>
-      </div>
-      <div class="stat">
-        <div class="stat-title">历史贡献</div>
-        <div class="stat-value text-info">{{ lifetime_contribution }}</div>
-        <div class="stat-desc">累计任务奖励</div>
-      </div>
-    </section>
-
-    <section class="grid gap-6">
-      <div class="card bg-base-100 shadow">
-        <div class="card-body">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <h2 class="card-title">近期积分流水</h2>
-            <span class="badge badge-outline">{{ recent_ledger_entries|length }} 条</span>
-          </div>
-          {% if recent_ledger_entries %}
-            <div class="overflow-x-auto">
-              <table class="table table-zebra">
-                <thead>
-                  <tr>
-                    <th>序号</th>
-                    <th>变化</th>
-                    <th>类型</th>
-                    <th>原因</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for entry in recent_ledger_entries %}
-                    <tr>
-                      <td>{{ entry.immutable_sequence }}</td>
-                      <td><span class="font-mono">{{ entry.amount }}</span></td>
-                      <td>{{ entry.get_entry_type_display }}</td>
-                      <td>{{ entry.reason }}</td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          {% else %}
-            <div class="alert">暂无积分流水</div>
-          {% endif %}
-        </div>
-      </div>
-
-    </section>
 
     </main>
   </div>

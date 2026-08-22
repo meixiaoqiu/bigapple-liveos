@@ -87,12 +87,11 @@ def applicant_workspace_context(member_no: str, *, access_denial_reason: str = "
     }
 
 
-def workspace_context(member_no: str) -> dict[str, Any]:
+def workspace_context(
+    member_no: str, *, include_financial_summary: bool = True,
+) -> dict[str, Any]:
     member = get_object_or_404(Member, member_no=member_no)
     latest = CapacityAssessment.objects.order_by("-simulation_day", "-created_at").first()
-    recent_ledger_entries = list(
-        LedgerEntry.objects.filter(member=member).order_by("-system_event__seq", "-created_at", "ledger_entry_id")[:10]
-    )
     all_member_feedbacks = EventFeedback.objects.filter(
         Q(submitted_by=member) | Q(subject_member=member) | Q(assigned_handler=member)
     ).select_related("related_event", "submitted_by", "subject_member", "assigned_handler", "concluded_by")
@@ -105,17 +104,7 @@ def workspace_context(member_no: str) -> dict[str, Any]:
         row["status"]: row["count"]
         for row in visible_tasks.values("status").annotate(count=Count("task_id")).order_by("status")
     }
-    from core.credit_services import (
-        member_available_credit_balance,
-        member_credit_balance,
-        member_lifetime_contribution,
-    )
-
-    credit_balance = member_credit_balance(member)
-    available_credit_balance = member_available_credit_balance(member)
-    lifetime_contribution = member_lifetime_contribution(member)
-
-    return {
+    context = {
         "simulation_day": latest.simulation_day if latest else 1,
         "member": member,
         "identity_display": member_identity_display(member),
@@ -128,15 +117,29 @@ def workspace_context(member_no: str) -> dict[str, Any]:
             operator_member=member,
             merchant_type=MerchantProfile.Type.CASH_SETTLEMENT,
         ).exists(),
-        "credit_balance": credit_balance,
-        "available_credit_balance": available_credit_balance,
-        "lifetime_contribution": lifetime_contribution,
-        "recent_ledger_entries": recent_ledger_entries,
         "open_feedbacks": open_feedbacks,
         "feedback_history": feedback_history,
         "task_counts": task_counts,
         "work_items": _member_work_items(member),
     }
+    if include_financial_summary:
+        from core.credit_services import (
+            member_available_credit_balance,
+            member_credit_balance,
+            member_lifetime_contribution,
+        )
+
+        context.update({
+            "credit_balance": member_credit_balance(member),
+            "available_credit_balance": member_available_credit_balance(member),
+            "lifetime_contribution": member_lifetime_contribution(member),
+            "recent_ledger_entries": list(
+                LedgerEntry.objects.filter(member=member).order_by(
+                    "-system_event__seq", "-created_at", "ledger_entry_id",
+                )[:10]
+            ),
+        })
+    return context
 
 
 def _member_work_items(member):

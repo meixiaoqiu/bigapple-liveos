@@ -165,7 +165,11 @@ def workspace_page(request: HttpRequest):
             "workspace/applicant.html",
             applicant_workspace_context(member.member_no, access_denial_reason=decision.reason),
         )
-    return render(request, "workspace/index.html", workspace_context(member.member_no))
+    return render(
+        request,
+        "workspace/index.html",
+        workspace_context(member.member_no, include_financial_summary=False),
+    )
 
 
 @require_GET
