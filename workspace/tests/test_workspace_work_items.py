@@ -550,4 +550,4 @@ class WorkspaceDashboardTests(TestCase):
         self.assertNotIn("<h2 class=\"card-title\">当前任务</h2>", content)
         self.assertNotIn("<h2 class=\"card-title\">可领取任务</h2>", content)
         self.assertIn("任务中心", content)
-        self.assertContains(response, "迁移期说明")
+        self.assertNotContains(response, "迁移期说明")

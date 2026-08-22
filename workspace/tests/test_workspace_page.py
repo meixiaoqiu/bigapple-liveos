@@ -220,14 +220,19 @@ class WorkspacePageTests(TestCase):
         content = response.content.decode()
         self.assertIn('aria-labelledby="workspace-status-summary-title"', content)
         self.assertIn("状态摘要", content)
-        # 状态摘要只保留成员状态与身份辅助，不展示财务指标。
+        # 状态摘要合并成员身份和当前运行环境，不展示财务指标。
         self.assertIn(self.member.get_status_display(), content)
         self.assertNotIn("当前积分", content)
         self.assertNotIn("积分下限 -300", content)
-        # 身份元数据与 world / 模拟日继续可见
+        # 身份元数据、world 和模拟日均收进同一张状态卡。
         self.assertIn('data-workspace-section="identity-meta"', content)
         self.assertIn("mem-0001", content)
+        self.assertIn("当前世界", content)
         self.assertIn("模拟第 7 天", content)
+        summary = content.split('aria-labelledby="workspace-status-summary-title"', 1)[1].split("</section>", 1)[0]
+        self.assertIn('data-workspace-section="identity-meta"', summary)
+        self.assertIn("realworld", summary)
+        self.assertNotIn('data-workspace-section="identity-meta"', content.split("</section>", 1)[1].split('data-workspace-section="quick-actions"', 1)[0])
 
     def test_workspace_page_removes_financial_metrics_and_ledger(self) -> None:
         response = self.client.get("/workspace/")
@@ -322,7 +327,7 @@ class WorkspacePageTests(TestCase):
         if next_group_id is not None:
             end = content.find(f'id="matter-panel-{next_group_id}"')
         else:
-            end = content.find("迁移期说明", start)
+            end = content.find("</section>", start)
         self.assertGreater(end, -1)
         return content[start:end]
 
@@ -411,15 +416,13 @@ class WorkspacePageTests(TestCase):
         self.assertNotIn("https://unpkg.com", content)
         self.assertNotIn("https://cdn.jsdelivr.net", content)
 
-    def test_workspace_matter_empty_group_and_migration_note(self) -> None:
+    def test_workspace_removes_migration_note_and_confirmed_financial_modules(self) -> None:
         response = self.client.get("/workspace/")
 
         self.assertEqual(response.status_code, 200)
         content = response.content.decode()
-        # 迁移期说明保留在事务区段内，语义不变
-        self.assertIn("迁移期说明：未确认的原有 Workspace 模块继续保留", content)
-        self.assertIn("已确认迁移的任务功能请进入任务中心", content)
-        # 已确认删除的财务摘要模块不再受迁移期保留说明约束。
+        self.assertNotIn("迁移期说明", content)
+        self.assertNotIn("未确认的原有 Workspace 模块继续保留", content)
         self.assertNotIn("成员核心状态", content)
         self.assertNotIn("近期积分流水", content)
 
@@ -803,7 +806,8 @@ class WorkspacePageTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.wsgi_request.world_id, "simulation0001")
-        self.assertContains(response, "当前世界：simulation0001")
+        self.assertContains(response, "当前世界")
+        self.assertContains(response, "simulation0001")
         self.assertContains(response, "/workspace/tasks/")
         self.assertContains(response, "/workspace/tasks/task-0001/")
         self.assertNotContains(response, "/workspace/disputes/")

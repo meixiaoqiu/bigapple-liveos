@@ -21,7 +21,7 @@
     <section class="card bg-base-100 border border-base-300 shadow-none" aria-labelledby="workspace-status-summary-title">
       <div class="card-body">
         <h2 class="sr-only" id="workspace-status-summary-title">状态摘要</h2>
-        <div>
+        <div class="grid grid-cols-2 gap-4">
           <div>
             <div class="text-sm text-base-content/60">成员状态</div>
             <div class="mt-1 text-lg font-semibold">{{ member.get_status_display }}</div>
@@ -29,21 +29,21 @@
               {% if identity_display.membership %}{{ identity_display.membership.name }}{% elif identity_display.derived_status %}{{ identity_display.derived_status.name }}{% else %}暂无可用身份{% endif %}
             </div>
           </div>
+          <div>
+            <div class="text-sm text-base-content/60">当前世界</div>
+            <div class="mt-1 break-all text-lg font-semibold">{% if request.world %}{{ request.world.world_id }}{% else %}暂未明确{% endif %}</div>
+            <div class="mt-1 text-sm text-base-content/65">模拟第 {{ simulation_day }} 天</div>
+          </div>
+        </div>
+        <div class="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-base-300 pt-3 text-sm text-base-content/65" data-workspace-section="identity-meta">
+          <span class="font-medium text-base-content">{{ member.member_no }}</span>
+          {% for duty in identity_display.duties %}
+            <span aria-hidden="true">·</span>
+            <span>{{ duty.name }}</span>
+          {% endfor %}
         </div>
       </div>
     </section>
-
-    <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-base-content/65" data-workspace-section="identity-meta">
-      <span>{{ member.member_no }}</span>
-      <span aria-hidden="true">·</span>
-      {% if request.world %}<span>当前世界：{{ request.world.world_id }}</span>{% else %}<span>当前世界</span>{% endif %}
-      <span aria-hidden="true">·</span>
-      <span>模拟第 {{ simulation_day }} 天</span>
-      {% for duty in identity_display.duties %}
-        <span aria-hidden="true">·</span>
-        <span>{{ duty.name }}</span>
-      {% endfor %}
-    </div>
 
     <nav class="grid gap-6" aria-labelledby="workspace-quick-actions-title" data-workspace-section="quick-actions">
       <h2 class="border-b border-base-300 pb-2 text-xl font-semibold" id="workspace-quick-actions-title">快捷操作</h2>
@@ -140,9 +140,6 @@
         {% include "workspace/partials/matter_group.html" with group_id="recently_ended" tab_id="matter-tab-recently_ended" title="最近结束" items=work_items.matters.recently_ended tone="success" empty_text="近期没有已结束的相关事务。" detail_label="查看详情" %}
       </div>
 
-      <div class="rounded-lg border border-base-300 px-3 py-2 text-sm text-base-content/65">
-        <span>迁移期说明：未确认的原有 Workspace 模块继续保留，已确认迁移的任务功能请进入任务中心。</span>
-      </div>
     </section>
 
     {% if is_governance or is_finance %}
