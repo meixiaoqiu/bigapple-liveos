@@ -16,7 +16,7 @@ from live_os.access import is_authenticated, member_for_request
 def build_runtime_nav(request: HttpRequest) -> dict[str, Any]:
     """Return unified nav context for the current request."""
     items: list[dict[str, Any]] = []
-    brand_label = "大苹果社区动态"
+    brand_label = "大苹果社区"
     home_url = "/"
 
     if is_authenticated(request):

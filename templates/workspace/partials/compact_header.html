@@ -1,0 +1,24 @@
+<header class="relative flex items-center justify-between gap-3 border-b border-base-300 bg-base-100 px-4 py-2" data-workspace-compact-header>
+  <div class="min-w-0">
+    <a class="btn btn-ghost inline-flex h-auto min-h-0 truncate px-2 py-1 text-lg font-bold leading-none" href="{{ runtime_nav.home_url }}">{{ runtime_nav.brand_label }}</a>
+  </div>
+
+  <details class="group relative shrink-0" data-workspace-nav-menu>
+    <summary class="btn btn-ghost btn-sm gap-2" aria-label="页面导航">
+      <span data-lucide="menu" class="h-4 w-4" aria-hidden="true"></span>
+      <span>菜单</span>
+    </summary>
+    <nav class="absolute right-0 z-50 mt-1 w-max max-w-[calc(100vw-2rem)] rounded-lg border border-base-300 bg-base-100 p-1 shadow-lg" aria-label="页面导航菜单">
+      {% for item in runtime_nav.items %}
+        {% if item.method == "post" %}
+          <form method="post" action="{{ item.url }}" class="w-full">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-ghost btn-sm w-full justify-start whitespace-normal text-left">{{ item.label }}</button>
+          </form>
+        {% else %}
+          <a class="btn btn-ghost btn-sm w-full justify-start whitespace-normal text-left" href="{{ item.url }}">{{ item.label }}</a>
+        {% endif %}
+      {% endfor %}
+    </nav>
+  </details>
+</header>

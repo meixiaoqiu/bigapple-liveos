@@ -673,6 +673,119 @@ class WorkspacePageTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(Task.objects.get(task_id="task-0002").status, Task.Status.OPEN)
 
+    def test_workspace_home_uses_compact_header_with_brand_and_native_menu(self) -> None:
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        # 专用紧凑页头存在，且不在横向铺开全部导航
+        self.assertIn('data-workspace-compact-header', content)
+        self.assertIn('data-workspace-nav-menu', content)
+        # 品牌文字与首页目标来自 runtime_nav 上下文
+        self.assertIn("大苹果社区动态", content)
+        self.assertIn('href="/"', content)
+        # 原生折叠结构，默认收起（无 open 属性）
+        self.assertIn("<details", content)
+        self.assertIn("<summary", content)
+        self.assertNotIn("<details open", content)
+        # 菜单触发器有可访问名称与文字 fallback
+        self.assertIn('aria-label="页面导航"', content)
+        self.assertIn("菜单", content)
+        # 不显示共享页头的横向 navbar 结构
+        self.assertNotIn('navbar bg-base-100 shadow-sm', content)
+
+    def test_workspace_home_menu_preserves_runtime_nav_order_and_methods(self) -> None:
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        menu = content.split('aria-label="页面导航菜单"', 1)[1].split("</nav>", 1)[0]
+        labels = ["首页", "事件流", "财务", "资源库存", "我的主页", "工作台", "退出"]
+        positions = [menu.find(label) for label in labels]
+        self.assertTrue(all(pos >= 0 for pos in positions), f"missing nav items: {labels}")
+        self.assertEqual(positions, sorted(positions))
+        # 各入口指向现有 URL 与方法
+        self.assertIn('href="/"', menu)
+        self.assertIn('href="/events/"', menu)
+        self.assertIn('href="/finance/"', menu)
+        self.assertIn('href="/resources/"', menu)
+        self.assertIn('href="/u/mem-0001/"', menu)
+        self.assertIn('href="/workspace/"', menu)
+        # 退出为带 CSRF 的 POST 表单，不是 GET 链接
+        self.assertIn('method="post" action="/logout/"', menu)
+        self.assertIn("csrfmiddlewaretoken", menu)
+        self.assertNotIn('href="/logout/"', menu)
+
+    def test_workspace_home_compact_header_adds_no_unwired_features(self) -> None:
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        # 不新增通知铃铛、未读数量、头像菜单或底部导航
+        self.assertNotIn("通知", content)
+        self.assertNotIn("未读", content)
+        self.assertNotIn("bottom-nav", content)
+        self.assertNotIn('aria-label="头像"', content)
+        # 欢迎区、状态摘要、快捷操作、我的事务等现有模块保留
+        self.assertIn('data-workspace-section="welcome"', content)
+        self.assertIn('aria-labelledby="workspace-status-summary-title"', content)
+        self.assertIn('data-workspace-section="quick-actions"', content)
+        self.assertIn('data-workspace-section="matters"', content)
+        self.assertIn("成员核心状态", content)
+        self.assertIn("近期积分流水", content)
+
+    def test_workspace_subpages_still_use_shared_runtime_header(self) -> None:
+        response = self.client.get("/workspace/tasks/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        # 任务中心等子页面继续使用共享页头，不出现专用紧凑页头
+        self.assertIn('navbar bg-base-100 shadow-sm', content)
+        self.assertNotIn('data-workspace-compact-header', content)
+        self.assertNotIn('data-workspace-nav-menu', content)
+
+    def test_applicant_workspace_still_uses_shared_runtime_header(self) -> None:
+        now = timezone.now()
+        applicant = create_member(member_no="pending-applicant", status=Member.Status.PENDING_REVIEW)
+        user = login_as_member(self.client, applicant)
+        applicant.user = user
+        applicant.save(update_fields=["user"])
+        MemberApplication.objects.create(
+            application_id="member-application-pending",
+            applicant_name="待审核申请者",
+            contact="pending@example.test",
+            motivation="等待审核。",
+            role_gap="ai_engineer",
+            availability_slots=["weekend"],
+            capability_scores={"文档": 70},
+            requested_member_no=applicant.member_no,
+            account_user=user,
+            linked_member=applicant,
+            submitted_at=now,
+            frozen_at=now,
+            metadata={},
+        )
+
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "workspace/applicant.html")
+        content = response.content.decode()
+        # 报名工作台继续使用共享页头，不出现专用紧凑页头
+        self.assertIn('navbar bg-base-100 shadow-sm', content)
+        self.assertNotIn('data-workspace-compact-header', content)
+        self.assertNotIn('data-workspace-nav-menu', content)
+
+    def test_other_runtime_pages_still_use_shared_runtime_header(self) -> None:
+        response = self.client.get("/finance/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        # 公开运行时页面（财务）继续使用共享页头，不出现专用紧凑页头
+        self.assertIn('navbar bg-base-100 shadow-sm', content)
+        self.assertNotIn('data-workspace-compact-header', content)
+        self.assertNotIn('data-workspace-nav-menu', content)
+
     @override_settings(
         SITE_FIXED_WORLD=True,
         SITE_WORLD_ID="simulation0001",
