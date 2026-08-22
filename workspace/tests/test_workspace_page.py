@@ -255,6 +255,189 @@ class WorkspacePageTests(TestCase):
         self.assertIn("我的事务", content)
         self.assertIn("近期积分流水", content)
 
+    def test_workspace_matter_tabs_order_counts_and_aria(self) -> None:
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        tablist = content.split('role="tablist"', 1)[1].split("</div>", 1)[0]
+        # 三个标签按“需要我处理”“等待他人”“最近结束”顺序排列
+        self.assertIn('id="matter-tab-action_required"', tablist)
+        self.assertIn('id="matter-tab-waiting"', tablist)
+        self.assertIn('id="matter-tab-recently_ended"', tablist)
+        action_pos = tablist.find('id="matter-tab-action_required"')
+        waiting_pos = tablist.find('id="matter-tab-waiting"')
+        ended_pos = tablist.find('id="matter-tab-recently_ended"')
+        self.assertLess(action_pos, waiting_pos)
+        self.assertLess(waiting_pos, ended_pos)
+        # 每个标签有稳定 ARIA 关联、选中状态与数量
+        self.assertIn('aria-controls="matter-panel-action_required"', tablist)
+        self.assertIn('aria-controls="matter-panel-waiting"', tablist)
+        self.assertIn('aria-controls="matter-panel-recently_ended"', tablist)
+        self.assertIn('aria-selected="true"', tablist)
+        self.assertIn('data-workspace-tab="action_required"', tablist)
+        self.assertIn('data-workspace-tab="waiting"', tablist)
+        self.assertIn('data-workspace-tab="recently_ended"', tablist)
+        # 数量反映投影列表长度（本 fixture：action 1 项任务，waiting 1 项反馈，recently 1 项任务）
+        self.assertIn('data-workspace-count="1"', tablist)
+
+    def test_workspace_matter_panels_render_without_hidden_and_facts_intact(self) -> None:
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        # 三个面板初始不带 hidden，无脚本时全部可读
+        self.assertIn('id="matter-panel-action_required"', content)
+        self.assertIn('id="matter-panel-waiting"', content)
+        self.assertIn('id="matter-panel-recently_ended"', content)
+        self.assertIn('role="tabpanel"', content)
+        self.assertIn('aria-labelledby="matter-tab-action_required"', content)
+        self.assertIn('aria-labelledby="matter-tab-waiting"', content)
+        self.assertIn('aria-labelledby="matter-tab-recently_ended"', content)
+        # 面板初始无 hidden 属性（渐进增强脚本负责初始化后隐藏）
+        self.assertNotIn('id="matter-panel-action_required" hidden', content)
+        self.assertNotIn('id="matter-panel-waiting" hidden', content)
+        self.assertNotIn('id="matter-panel-recently_ended" hidden', content)
+        # 事务事实完整保留：稳定 ID、类型、标题、责任、处理方、下一步、更新时间、目标 URL
+        self.assertIn('data-matter-id="task:task-0001"', content)
+        self.assertIn("准备今日午餐", content)
+        self.assertIn('data-matter-id="event-feedback:feedback-0001"', content)
+        self.assertIn("/workspace/tasks/task-0001/", content)
+        self.assertIn("/event-feedbacks/feedback-0001/", content)
+        self.assertIn("责任：", content)
+        self.assertIn("当前处理：", content)
+        self.assertIn("下一步：", content)
+        self.assertIn("更新：", content)
+        # 行动分组使用“进入处理”，等待与结束分组使用“查看详情”
+        self.assertIn("进入处理", content)
+        self.assertIn("查看详情", content)
+
+    def _panel_body(self, content: str, group_id: str, next_group_id: str | None) -> str:
+        start = content.find(f'id="matter-panel-{group_id}"')
+        self.assertGreater(start, -1, f"missing panel {group_id}")
+        if next_group_id is not None:
+            end = content.find(f'id="matter-panel-{next_group_id}"')
+        else:
+            end = content.find("迁移期说明", start)
+        self.assertGreater(end, -1)
+        return content[start:end]
+
+    def test_workspace_matter_panels_group_items_correctly(self) -> None:
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+
+        action = self._panel_body(content, "action_required", "waiting")
+        waiting = self._panel_body(content, "waiting", "recently_ended")
+        ended = self._panel_body(content, "recently_ended", None)
+
+        # task-0001（CLAIMED）在“需要我处理”
+        self.assertIn('data-matter-id="task:task-0001"', action)
+        # feedback-0001（VERIFYING，提交人视角）在“等待他人”
+        self.assertIn('data-matter-id="event-feedback:feedback-0001"', waiting)
+        # task-0003（ACCEPTED）在“最近结束”
+        self.assertIn('data-matter-id="task:task-0003"', ended)
+        self.assertIn("清理公共厨房", ended)
+        # 每个事项只属于一个面板
+        self.assertNotIn('data-matter-id="task:task-0003"', action)
+        self.assertNotIn('data-matter-id="task:task-0003"', waiting)
+        self.assertNotIn('data-matter-id="task:task-0001"', ended)
+        self.assertNotIn('data-matter-id="event-feedback:feedback-0001"', action)
+
+    def test_workspace_matter_panel_omits_detail_button_without_target_url(self) -> None:
+        with patch("workspace.work_item_context.build_member_matters") as build_matters:
+            build_matters.return_value = {
+                "action_required": [
+                    {
+                        "id": "task:task-no-url",
+                        "type_label": "任务",
+                        "is_overdue": False,
+                        "status_label": "已领取",
+                        "title": "无详情链接的任务",
+                        "responsible": "mem-0001",
+                        "current_handler": "mem-0001",
+                        "action_label": "提交劳动",
+                        "updated_at": timezone.now(),
+                        "target_url": "",
+                    }
+                ],
+                "waiting": [],
+                "recently_ended": [],
+                "total_active": 1,
+            }
+            response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        panel = self._panel_body(content, "action_required", "waiting")
+        # 无 target_url 时不生成详情按钮
+        self.assertNotIn("进入处理", panel)
+        self.assertNotIn("查看详情", panel)
+        self.assertNotIn("btn btn-sm btn-outline", panel)
+        # 事务事实仍保留
+        self.assertIn("无详情链接的任务", panel)
+
+    def test_workspace_matter_tablist_initially_hidden(self) -> None:
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        # 标签控制条初始带 hidden（脚本成功后移除）；面板初始不带 hidden
+        self.assertIn('data-workspace-tablist hidden', content)
+        # 脚本在初始化成功后显式移除控制条的 hidden
+        self.assertIn("tablist.hidden = false", content)
+        self.assertNotIn('id="matter-panel-action_required" hidden', content)
+
+    def test_workspace_matter_tabs_progressive_enhancement_script(self) -> None:
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        # 渐进增强脚本存在并实现方向键、Home、End、aria-selected、tabindex、hidden 同步
+        self.assertIn('data-workspace-tablist', content)
+        self.assertIn("ArrowRight", content)
+        self.assertIn("ArrowLeft", content)
+        self.assertIn('event.key === "Home"', content)
+        self.assertIn('event.key === "End"', content)
+        self.assertIn('setAttribute("aria-selected"', content)
+        self.assertIn('setAttribute("tabindex"', content)
+        self.assertIn("panel.hidden", content)
+        # 不引入外部依赖
+        self.assertNotIn("https://unpkg.com", content)
+        self.assertNotIn("https://cdn.jsdelivr.net", content)
+
+    def test_workspace_matter_empty_group_and_migration_note(self) -> None:
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        # 迁移期说明保留在事务区段内，语义不变
+        self.assertIn("迁移期说明：未确认的原有 Workspace 模块继续保留", content)
+        self.assertIn("已确认迁移的任务功能请进入任务中心", content)
+        # “我的事务”之后仍保留待处理事项、核心状态、近期积分流水等旧模块
+        self.assertIn("成员核心状态", content)
+        self.assertIn("近期积分流水", content)
+
+    @patch("workspace.work_item_context.build_member_matters")
+    def test_workspace_matter_empty_group_renders_lightweight_empty_state(self, build_matters) -> None:
+        build_matters.return_value = {
+            "action_required": [],
+            "waiting": [],
+            "recently_ended": [],
+            "total_active": 0,
+        }
+        response = self.client.get("/workspace/")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        # 空分组使用轻量单行空状态，不再有大体积空卡片容器
+        self.assertIn("当前没有需要你立即处理的事务。", content)
+        self.assertIn("当前没有等待其他处理方的事务。", content)
+        self.assertIn("近期没有已结束的相关事务。", content)
+        self.assertIn('data-workspace-count="0"', content)
+        self.assertNotIn("card-actions", content)
+
     def test_workspace_navigation_groups_personal_links_without_empty_duty_groups(self) -> None:
         response = self.client.get("/workspace/")
 

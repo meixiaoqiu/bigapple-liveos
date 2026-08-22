@@ -1,6 +1,40 @@
 @import "tailwindcss";
 @plugin "daisyui" {
-  themes: corporate --default, bumblebee, light, dark --prefersdark;
+  themes: corporate --default, bumblebee, light, dark --prefersdark, bigapple;
+}
+@plugin "daisyui/theme" {
+  name: "bigapple";
+  default: false;
+  prefersdark: false;
+  color-scheme: light;
+  --color-base-100: oklch(100% 0 0);
+  --color-base-200: oklch(100% 0 0);
+  --color-base-300: oklch(92% 0.002 250);
+  --color-base-content: oklch(20% 0 0);
+  --color-primary: oklch(0% 0 0);
+  --color-primary-content: oklch(100% 0 0);
+  --color-secondary: oklch(44% 0.01 260);
+  --color-secondary-content: oklch(100% 0 0);
+  --color-accent: oklch(0% 0 0);
+  --color-accent-content: oklch(100% 0 0);
+  --color-neutral: oklch(44% 0.01 260);
+  --color-neutral-content: oklch(100% 0 0);
+  --color-info: oklch(60% 0.12 250);
+  --color-info-content: oklch(100% 0 0);
+  --color-success: oklch(65% 0.2 150);
+  --color-success-content: oklch(100% 0 0);
+  --color-warning: oklch(75% 0.16 80);
+  --color-warning-content: oklch(20% 0.05 80);
+  --color-error: oklch(70% 0.19 22);
+  --color-error-content: oklch(100% 0 0);
+  --radius-selector: 0.5rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
 }
 
 /* 扫描 Django 模板、Python 和 JS 文件中的 Tailwind class，生成最终 CSS。 */

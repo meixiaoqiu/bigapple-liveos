@@ -1,36 +1,29 @@
-<section class="rounded-box border border-base-300 bg-base-200/50 p-4" aria-label="{{ title }}">
-  <div class="mb-3 flex items-center justify-between gap-2">
-    <h3 class="font-bold">{{ title }}</h3>
-    <span class="badge badge-{{ tone }} badge-outline">{{ items|length }}</span>
-  </div>
+<section id="matter-panel-{{ group_id }}" class="grid gap-3" role="tabpanel" aria-labelledby="{{ tab_id }}" data-workspace-panel="{{ group_id }}" aria-label="{{ title }}">
+  <h3 class="text-base font-semibold" data-matter-group-title data-matter-group="{{ group_id }}">{{ title }}</h3>
   {% if items %}
-    <div class="grid gap-3">
-      {% for item in items %}
-        <article class="card border border-base-300 bg-base-100" data-matter-id="{{ item.id }}">
-          <div class="card-body gap-3 p-4">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <span class="badge badge-outline">{{ item.type_label }}</span>
-              <span class="badge {% if item.is_overdue %}badge-error{% else %}badge-{{ tone }}{% endif %} badge-outline">{{ item.status_label }}</span>
-            </div>
-            <div>
-              <h4 class="font-bold leading-6">{{ item.title }}</h4>
-              <p class="mt-1 font-mono text-xs text-base-content/55">{{ item.id }}</p>
-            </div>
-            <dl class="grid gap-1 text-sm text-base-content/70">
-              <div><dt class="inline font-semibold text-base-content">责任：</dt><dd class="inline">{{ item.responsible }}</dd></div>
-              <div><dt class="inline font-semibold text-base-content">当前处理：</dt><dd class="inline">{{ item.current_handler }}</dd></div>
-              <div><dt class="inline font-semibold text-base-content">下一步：</dt><dd class="inline">{{ item.action_label }}</dd></div>
-              <div><dt class="inline font-semibold text-base-content">更新：</dt><dd class="inline">{{ item.updated_at|date:"Y-m-d H:i" }}</dd></div>
-            </dl>
-            {% if item.target_url %}
-              <div class="card-actions justify-end">
-                <a class="btn btn-sm btn-outline btn-primary" href="{{ item.target_url }}">进入处理</a>
-              </div>
-            {% endif %}
+    {% for item in items %}
+      <article class="grid gap-2 rounded-lg border border-base-300 bg-base-100 p-3" data-matter-id="{{ item.id }}">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span class="badge badge-outline">{{ item.type_label }}</span>
+          <span class="badge {% if item.is_overdue %}badge-error{% else %}badge-{{ tone }}{% endif %} badge-outline">{{ item.status_label }}</span>
+        </div>
+        <div>
+          <h4 class="font-semibold leading-6">{{ item.title }}</h4>
+          <p class="mt-0.5 font-mono text-xs text-base-content/55">{{ item.id }}</p>
+        </div>
+        <dl class="grid gap-1 text-sm text-base-content/70">
+          <div><dt class="inline font-semibold text-base-content">责任：</dt><dd class="inline">{{ item.responsible }}</dd></div>
+          <div><dt class="inline font-semibold text-base-content">当前处理：</dt><dd class="inline">{{ item.current_handler }}</dd></div>
+          <div><dt class="inline font-semibold text-base-content">下一步：</dt><dd class="inline">{{ item.action_label }}</dd></div>
+          <div><dt class="inline font-semibold text-base-content">更新：</dt><dd class="inline">{{ item.updated_at|date:"Y-m-d H:i" }}</dd></div>
+        </dl>
+        {% if item.target_url %}
+          <div class="mt-2">
+            <a class="btn btn-sm btn-outline w-full" href="{{ item.target_url }}">{{ detail_label }}</a>
           </div>
-        </article>
-      {% endfor %}
-    </div>
+        {% endif %}
+      </article>
+    {% endfor %}
   {% else %}
     <p class="text-sm leading-6 text-base-content/60">{{ empty_text }}</p>
   {% endif %}

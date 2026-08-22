@@ -1,6 +1,6 @@
 {% load static tailwind_tags world_urls %}
 <!doctype html>
-<html lang="zh-Hans" data-theme="bumblebee">
+<html lang="zh-Hans" data-theme="bigapple">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -124,26 +124,29 @@
       </section>
     {% endif %}
 
-    <section class="card bg-base-100 shadow-xl" aria-labelledby="workspace-matters-title">
-      <div class="card-body gap-5">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p class="text-sm font-semibold text-primary">统一工作视图</p>
-            <h2 class="card-title text-2xl" id="workspace-matters-title">我的事务</h2>
-            <p class="mt-1 text-sm text-base-content/65">这里只汇总现有业务状态；具体规则和操作仍由各业务模块负责。</p>
-          </div>
-          <span class="badge badge-primary badge-outline">{{ work_items.matters.total_active }} 项进行中</span>
+    <section class="grid gap-4" aria-labelledby="workspace-matters-title" data-workspace-section="matters">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-base-300 pb-2">
+        <div>
+          <h2 class="text-xl font-semibold" id="workspace-matters-title">我的事务</h2>
         </div>
+        <span class="badge badge-primary badge-outline">{{ work_items.matters.total_active }} 项进行中</span>
+      </div>
+      <p class="text-sm text-base-content/65">这里只汇总现有业务状态；具体规则和操作仍由各业务模块负责。</p>
 
-        <div class="grid gap-5">
-          {% include "workspace/partials/matter_group.html" with title="需要我处理" items=work_items.matters.action_required tone="warning" empty_text="当前没有需要你立即处理的事务。" %}
-          {% include "workspace/partials/matter_group.html" with title="等待他人" items=work_items.matters.waiting tone="info" empty_text="当前没有等待其他处理方的事务。" %}
-          {% include "workspace/partials/matter_group.html" with title="最近结束" items=work_items.matters.recently_ended tone="success" empty_text="近期没有已结束的相关事务。" %}
-        </div>
+      <div class="flex w-full border-b border-base-300" role="tablist" aria-label="事务分组" data-workspace-tablist hidden>
+        <button type="button" class="flex-1 border-b-2 border-primary py-2 text-center text-sm font-medium text-primary outline-none focus-visible:ring-2 focus-visible:ring-base-content/50" role="tab" id="matter-tab-action_required" aria-controls="matter-panel-action_required" aria-selected="true" data-workspace-tab="action_required" data-workspace-count="{{ work_items.matters.action_required|length }}">需要我处理 <span class="badge badge-sm">{{ work_items.matters.action_required|length }}</span></button>
+        <button type="button" class="flex-1 border-b-2 border-transparent py-2 text-center text-sm text-base-content/60 outline-none hover:text-base-content focus-visible:ring-2 focus-visible:ring-base-content/50" role="tab" id="matter-tab-waiting" aria-controls="matter-panel-waiting" aria-selected="false" data-workspace-tab="waiting" data-workspace-count="{{ work_items.matters.waiting|length }}">等待他人 <span class="badge badge-sm">{{ work_items.matters.waiting|length }}</span></button>
+        <button type="button" class="flex-1 border-b-2 border-transparent py-2 text-center text-sm text-base-content/60 outline-none hover:text-base-content focus-visible:ring-2 focus-visible:ring-base-content/50" role="tab" id="matter-tab-recently_ended" aria-controls="matter-panel-recently_ended" aria-selected="false" data-workspace-tab="recently_ended" data-workspace-count="{{ work_items.matters.recently_ended|length }}">最近结束 <span class="badge badge-sm">{{ work_items.matters.recently_ended|length }}</span></button>
+      </div>
 
-        <div class="alert">
-          <span>迁移期说明：未确认的原有 Workspace 模块继续保留，已确认迁移的任务功能请进入任务中心。</span>
-        </div>
+      <div class="grid gap-4" data-workspace-tabpanels>
+        {% include "workspace/partials/matter_group.html" with group_id="action_required" tab_id="matter-tab-action_required" title="需要我处理" items=work_items.matters.action_required tone="warning" empty_text="当前没有需要你立即处理的事务。" detail_label="进入处理" %}
+        {% include "workspace/partials/matter_group.html" with group_id="waiting" tab_id="matter-tab-waiting" title="等待他人" items=work_items.matters.waiting tone="info" empty_text="当前没有等待其他处理方的事务。" detail_label="查看详情" %}
+        {% include "workspace/partials/matter_group.html" with group_id="recently_ended" tab_id="matter-tab-recently_ended" title="最近结束" items=work_items.matters.recently_ended tone="success" empty_text="近期没有已结束的相关事务。" detail_label="查看详情" %}
+      </div>
+
+      <div class="rounded-lg border border-base-300 px-3 py-2 text-sm text-base-content/65">
+        <span>迁移期说明：未确认的原有 Workspace 模块继续保留，已确认迁移的任务功能请进入任务中心。</span>
       </div>
     </section>
 
@@ -245,5 +248,84 @@
   </div>
   <script src="{% static 'js/dist/lucide.min.js' %}"></script>
   <script>window.lucide?.createIcons();</script>
+  <script>
+    (function () {
+      "use strict";
+      var tablist = document.querySelector('[data-workspace-tablist]');
+      if (!tablist) { return; }
+      var tabs = Array.prototype.slice.call(
+        tablist.querySelectorAll('[data-workspace-tab]')
+      );
+      var panels = Array.prototype.slice.call(
+        document.querySelectorAll('[role="tabpanel"][data-workspace-panel]')
+      );
+      if (tabs.length === 0 || panels.length === 0) { return; }
+
+      var selectedClasses = ["border-primary", "text-primary"];
+      var idleClasses = ["border-transparent", "text-base-content/60"];
+
+      function activate(index, shouldFocus) {
+        var selected = tabs[index];
+        if (!selected) { return; }
+        tabs.forEach(function (tab, i) {
+          var isSelected = i === index;
+          tab.setAttribute("aria-selected", isSelected ? "true" : "false");
+          tab.setAttribute("tabindex", isSelected ? "0" : "-1");
+          selectedClasses.forEach(function (cls) {
+            tab.classList.toggle(cls, isSelected);
+          });
+          idleClasses.forEach(function (cls) {
+            tab.classList.toggle(cls, !isSelected);
+          });
+          var panel = document.getElementById(tab.getAttribute("aria-controls"));
+          if (panel) {
+            if (isSelected) {
+              panel.hidden = false;
+            } else {
+              panel.hidden = true;
+            }
+          }
+        });
+        if (shouldFocus) {
+          selected.focus();
+        }
+      }
+
+      // 脚本可用时由标签承担分组名称，隐藏面板内重复的组标题
+      Array.prototype.slice.call(
+        document.querySelectorAll("[data-matter-group-title]")
+      ).forEach(function (heading) {
+        heading.hidden = true;
+      });
+
+      // 初始化成功后显示标签控制条（初始带 hidden，避免无脚本时出现不可操作的标签按钮）
+      tablist.hidden = false;
+
+      tabs.forEach(function (tab, i) {
+        tab.addEventListener("click", function (event) {
+          event.preventDefault();
+          activate(i, false);
+        });
+        tab.addEventListener("keydown", function (event) {
+          var next;
+          if (event.key === "ArrowRight") {
+            next = (i + 1) % tabs.length;
+          } else if (event.key === "ArrowLeft") {
+            next = (i - 1 + tabs.length) % tabs.length;
+          } else if (event.key === "Home") {
+            next = 0;
+          } else if (event.key === "End") {
+            next = tabs.length - 1;
+          } else {
+            return;
+          }
+          event.preventDefault();
+          activate(next, true);
+        });
+      });
+
+      activate(0, false);
+    })();
+  </script>
 </body>
 </html>
