@@ -56,6 +56,7 @@ jobs:
         run: >-
           python manage.py test
           core.tests.test_event_feedback.EventFeedbackConcurrencyTests
+          core.tests.test_task_funding.TaskFundingConcurrencyTests
           core.tests.test_unified_proposal_services.UnifiedProposalBallotConcurrencyTests
           --settings=live_os.settings_real
           --verbosity=2

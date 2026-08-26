@@ -19,5 +19,9 @@ class MySQLConcurrencyWorkflowTests(SimpleTestCase):
             "core.tests.test_unified_proposal_services.UnifiedProposalBallotConcurrencyTests",
             workflow,
         )
+        self.assertIn(
+            "core.tests.test_task_funding.TaskFundingConcurrencyTests",
+            workflow,
+        )
         self.assertNotIn("core.tests.test_finance_role_appointments", workflow)
         self.assertIn("--settings=live_os.settings_real", workflow)

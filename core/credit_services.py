@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, router, transaction
 from django.db.models import Sum
 from django.utils import timezone
 
@@ -288,9 +288,10 @@ def post_credit_transaction(
             return existing
 
     now = created_at or timezone.now()
+    database = router.db_for_write(CreditTransaction)
     try:
-        with transaction.atomic():
-            txn = CreditTransaction.objects.create(
+        with transaction.atomic(using=database):
+            txn = CreditTransaction.objects.using(database).create(
                 transaction_id=_new_id("ct"),
                 transaction_type=transaction_type,
                 source_account=source_account,
@@ -310,7 +311,7 @@ def post_credit_transaction(
                 transaction_hash=transaction_hash or "",
                 created_at=now,
             )
-        _emit_credit_event(txn)
+            _emit_credit_event(txn)
         return txn
     except IntegrityError:
         if dedupe_key is not None:
@@ -415,8 +416,14 @@ def lock_task_credit_budget(
     balance is NOT re-checked.
     """
     dedupe_key = _normalise_idem_key(idempotency_key)
-    pool = _pool(CreditAccount.Type.ISSUANCE_POOL)
-    task_locked_acct = _pool(CreditAccount.Type.TASK_LOCKED)
+    pool = CreditAccount.objects.select_for_update().filter(
+        account_type=CreditAccount.Type.ISSUANCE_POOL
+    ).first()
+    task_locked_acct = CreditAccount.objects.select_for_update().filter(
+        account_type=CreditAccount.Type.TASK_LOCKED
+    ).first()
+    if pool is None or task_locked_acct is None:
+        raise DomainError("任务预算系统账户不存在，请先调用 ensure_system_accounts()。")
 
     if dedupe_key is not None:
         existing = CreditTransaction.objects.filter(

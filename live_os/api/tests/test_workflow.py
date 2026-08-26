@@ -1730,6 +1730,8 @@ class CreditBudgetsPageTests(TestCase):
         resp = self.client.get("/workspace/credits/budgets/")
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "积分预算")
+        self.assertContains(resp, "Budget test task")
+        self.assertContains(resp, self.task.task_id)
 
     def test_normal_member_budgets_403(self):
         login_as_member(self.client, self.normal)
@@ -1983,7 +1985,7 @@ class TaskManagePageTests(TestCase):
         task.refresh_from_db()
         self.assertEqual(task.status, Task.Status.OPEN)
 
-    def test_publish_with_points_no_budget_fails(self):
+    def test_publish_with_points_no_budget_automatically_locks_and_succeeds(self):
         from core.tasks.authoring import create_task_draft
         from decimal import Decimal
         task = create_task_draft(
@@ -1996,9 +1998,68 @@ class TaskManagePageTests(TestCase):
         resp = self.client.post(
             f"/workspace/tasks/{task.task_id}/publish/", {"reason": ""}, follow=True,
         )
-        self.assertContains(resp, "预算")
+        self.assertContains(resp, "已发布为开放领取，自动补锁 30 积分预算")
         task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.OPEN)
+        from core.credit_services import task_locked_credit_balance
+        self.assertEqual(task_locked_credit_balance(task), 30)
+
+    def test_create_and_publish_intent_locks_budget_and_opens_task(self):
+        from core.models import CreditTransaction
+        login_as_member(self.client, self.gov)
+
+        resp = self.client.post(
+            "/workspace/tasks/new/",
+            {
+                "title": "One step funded task",
+                "task_type": "public_cleaning",
+                "standard_minutes": "60",
+                "base_points": "30",
+                "intent": "fund_and_publish",
+                "initiated_by": self.normal.member_no,
+            },
+            follow=True,
+        )
+
+        self.assertContains(resp, "已锁定 30 积分预算并发布")
+        task = Task.objects.get(title="One step funded task")
+        self.assertEqual(task.status, Task.Status.OPEN)
+        lock = CreditTransaction.objects.get(
+            transaction_type=CreditTransaction.Type.LOCK,
+            related_task=task,
+        )
+        self.assertEqual(lock.amount, 30)
+        self.assertEqual(lock.initiated_by, self.gov)
+
+    def test_create_and_publish_with_insufficient_pool_keeps_draft(self):
+        from core.models import CreditTransaction
+        CreditTransaction.objects.filter(
+            transaction_type=CreditTransaction.Type.ISSUANCE
+        ).delete()
+        login_as_member(self.client, self.gov)
+
+        resp = self.client.post(
+            "/workspace/tasks/new/",
+            {
+                "title": "Insufficient funded task",
+                "task_type": "public_cleaning",
+                "standard_minutes": "60",
+                "base_points": "30",
+                "intent": "fund_and_publish",
+            },
+            follow=True,
+        )
+
+        self.assertContains(resp, "已保存为草稿")
+        self.assertContains(resp, "还差 30 积分")
+        task = Task.objects.get(title="Insufficient funded task")
         self.assertEqual(task.status, Task.Status.DRAFT)
+        self.assertFalse(
+            CreditTransaction.objects.filter(
+                transaction_type=CreditTransaction.Type.LOCK,
+                related_task=task,
+            ).exists()
+        )
 
     def test_publish_with_points_and_budget_succeeds(self):
         from core.tasks.authoring import create_task_draft

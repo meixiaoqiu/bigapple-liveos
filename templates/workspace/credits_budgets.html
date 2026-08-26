@@ -54,8 +54,11 @@
     <input type="hidden" name="idempotency_key" value="{{ lock_key }}">
     <div class="flex gap-4 items-end">
       <div class="form-control flex-1">
-        <label class="label"><span class="label-text">任务 ID</span></label>
-        <input type="text" name="task_id" class="input input-bordered" placeholder="task-qa-01" required>
+        <label class="label"><span class="label-text">任务</span></label>
+        <select name="task_id" class="select select-bordered" required>
+          <option value="">选择有积分任务</option>
+          {% for task in budget_tasks %}<option value="{{ task.task_id }}">{{ task.title }} · {{ task.get_status_display }}（{{ task.task_id|truncatechars:18 }}）</option>{% endfor %}
+        </select>
       </div>
       <div class="form-control flex-1">
         <label class="label"><span class="label-text">积分数量</span></label>
@@ -78,8 +81,11 @@
     <input type="hidden" name="idempotency_key" value="{{ unlock_key }}">
     <div class="flex gap-4 items-end">
       <div class="form-control flex-1">
-        <label class="label"><span class="label-text">任务 ID</span></label>
-        <input type="text" name="task_id" class="input input-bordered" placeholder="task-qa-01" required>
+        <label class="label"><span class="label-text">任务</span></label>
+        <select name="task_id" class="select select-bordered" required>
+          <option value="">选择有积分任务</option>
+          {% for task in budget_tasks %}<option value="{{ task.task_id }}">{{ task.title }} · {{ task.get_status_display }}（{{ task.task_id|truncatechars:18 }}）</option>{% endfor %}
+        </select>
       </div>
       <div class="form-control flex-1">
         <label class="label"><span class="label-text">退回数量</span></label>

@@ -451,6 +451,11 @@ def _budgets_page(member, request):
     ctx["unlock_key"] = f"budget-unlock:{uuid4().hex}"
     ctx["pool_balance"] = credit_balance(pool) if pool else 0
     ctx["task_locked_balance"] = credit_balance(task_locked) if task_locked else 0
+    ctx["budget_tasks"] = list(
+        Task.objects.filter(base_points__gt=0)
+        .exclude(status__in=[Task.Status.CLOSED, Task.Status.REVERSED])
+        .order_by("title", "task_id")[:100]
+    )
 
     # Recent records (pool None guard for pre-initialization state)
     ctx["recent_issuance"] = list(
@@ -472,9 +477,9 @@ def _budgets_page(member, request):
 
     # Tasks with locked budget
     all_tasks = list(
-        Task.objects.filter(
-            status__in=["open", "claimed", "in_progress", "pending_review"],
-        ).order_by("task_id")[:50]
+        Task.objects.filter(base_points__gt=0)
+        .exclude(status__in=[Task.Status.CLOSED, Task.Status.REVERSED])
+        .order_by("task_id")[:50]
     )
     task_budgets = []
     for t in all_tasks:

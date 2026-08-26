@@ -11,9 +11,9 @@ from django.views.decorators.http import require_http_methods
 from worlds.routing import world_redirect
 from live_os.access import page_forbidden
 from core.access import member_can_administer
-from core.credit_services import ensure_system_accounts, task_locked_credit_balance
+from core.credit_services import credit_balance, ensure_system_accounts, task_locked_credit_balance
 from core.exceptions import DomainError
-from core.models import Member, Task
+from core.models import CreditAccount, Member, Task
 from workspace.access import require_full_workspace_member
 from workspace.context import workspace_context
 
@@ -59,6 +59,10 @@ def _handle_create(member, request):
     standard_minutes_str = request.POST.get("standard_minutes", "").strip()
     base_points_str = request.POST.get("base_points", "0").strip()
     requires_review = request.POST.get("requires_review", "true").strip().lower() in ("1", "true", "on", "yes")
+    intent = request.POST.get("intent", "save_draft").strip()
+    if intent not in {"save_draft", "fund_and_publish"}:
+        messages.error(request, "无效的任务创建操作。")
+        return _task_manage_page(member, request)
 
     # Validate
     if not title:
@@ -87,24 +91,49 @@ def _handle_create(member, request):
         return _task_manage_page(member, request)
 
     try:
-        from core.tasks.authoring import create_task_draft
-        task = create_task_draft(
-            title=title,
-            task_type=task_type,
-            standard_minutes=standard_minutes,
-            base_points=base_points,
-            role_coefficient=Decimal("1.0"),
-            failure_consequence="",
-            can_be_delayed=True,
-            requires_review=requires_review,
-            rule_version="ruleset-v0.1.0",
-            created_by=_actor_ref(member),
-        )
+        task_fields = {
+            "title": title,
+            "task_type": task_type,
+            "standard_minutes": standard_minutes,
+            "base_points": base_points,
+            "role_coefficient": Decimal("1.0"),
+            "failure_consequence": "",
+            "can_be_delayed": True,
+            "requires_review": requires_review,
+            "rule_version": "ruleset-v0.1.0",
+            "created_by": _actor_ref(member),
+        }
+        if intent == "fund_and_publish":
+            from core.tasks.funding import create_task_with_funding
+
+            result = create_task_with_funding(
+                publisher=_actor_ref(member),
+                initiated_by=member,
+                task_fields=task_fields,
+            )
+            task = result.task
+        else:
+            from core.tasks.authoring import create_task_draft
+
+            task = create_task_draft(**task_fields)
     except DomainError as exc:
         messages.error(request, str(exc))
         return _task_manage_page(member, request)
 
-    messages.success(request, f"任务 {task.task_id} 已创建为草稿。")
+    if intent == "fund_and_publish" and result.published:
+        messages.success(
+            request,
+            f"任务 {task.task_id} 已锁定 {result.budget.shortfall} 积分预算并发布。",
+        )
+    elif intent == "fund_and_publish":
+        messages.warning(
+            request,
+            f"任务 {task.task_id} 已保存为草稿，但发行池余额不足："
+            f"预计奖励 {result.budget.expected_reward}，已锁定 {result.budget.locked_budget}，"
+            f"发行池可用 {result.budget.pool_balance}，还差 {result.budget.pool_deficit} 积分。",
+        )
+    else:
+        messages.success(request, f"任务 {task.task_id} 已创建为草稿。")
     return world_redirect(request, "workspace-tasks-manage")
 
 
@@ -123,13 +152,29 @@ def task_publish_page(request: HttpRequest, task_id: str) -> HttpResponse:
         return world_redirect(request, "workspace-tasks-manage")
 
     try:
-        from core.tasks.authoring import publish_task
-        publish_task(task=task, publisher=_actor_ref(member))
+        from core.tasks.funding import fund_and_publish_task
+
+        result = fund_and_publish_task(
+            task=task,
+            publisher=_actor_ref(member),
+            initiated_by=member,
+        )
     except DomainError as exc:
         messages.error(request, str(exc))
         return world_redirect(request, "workspace-tasks-manage")
 
-    messages.success(request, f"任务 {task_id} 已发布为开放领取。")
+    if result.published:
+        messages.success(
+            request,
+            f"任务 {task_id} 已发布为开放领取，自动补锁 {result.budget.shortfall} 积分预算。",
+        )
+    else:
+        messages.warning(
+            request,
+            f"任务 {task_id} 仍为草稿：预计奖励 {result.budget.expected_reward}，"
+            f"已锁定 {result.budget.locked_budget}，发行池可用 {result.budget.pool_balance}，"
+            f"还差 {result.budget.pool_deficit} 积分。",
+        )
     return world_redirect(request, "workspace-tasks-manage")
 
 
@@ -138,22 +183,35 @@ def task_publish_page(request: HttpRequest, task_id: str) -> HttpResponse:
 
 def _task_manage_page(member, request):
     from django.shortcuts import render
+    from core.tasks.funding import task_budget_status
 
     tasks = list(
         Task.objects.exclude(status__in=["closed", "cancelled"])
         .order_by("-created_at")[:50]
     )
+    pool = CreditAccount.objects.filter(
+        account_type=CreditAccount.Type.ISSUANCE_POOL
+    ).first()
+    pool_balance = credit_balance(pool) if pool else 0
     task_rows = []
     for t in tasks:
+        locked_budget = task_locked_credit_balance(t)
+        budget = task_budget_status(
+            t,
+            locked_budget=locked_budget,
+            pool_balance=pool_balance,
+        )
         task_rows.append({
             "task": t,
-            "locked_budget": task_locked_credit_balance(t),
+            "locked_budget": locked_budget,
+            "budget": budget,
         })
 
     ctx = workspace_context(member.member_no)
     ctx["member"] = member
     ctx["task_rows"] = task_rows
     ctx["task_types"] = [v for v, _ in Task.TaskType.choices]
+    ctx["pool_balance"] = pool_balance
     return render(request, "workspace/tasks_manage.html", ctx)
 
 

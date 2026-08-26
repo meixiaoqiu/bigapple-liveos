@@ -7,12 +7,15 @@
 
 {% if messages %}<div class="grid gap-2">{% for msg in messages %}<div class="alert alert-{{ msg.tags|default:'info' }}">{{ msg }}</div>{% endfor %}</div>{% endif %}
 
-<div class="alert text-sm">有积分奖励的任务请先在<a class="link link-primary" href="{% world_url 'workspace-credits-budgets' %}">积分预算</a>页发行并锁定足够预算，再在此页发布。</div>
+<div class="alert text-sm">
+  发布时系统会按预计奖励自动锁定所需预算。当前公共发行池余额：<strong>{{ pool_balance }}</strong>；
+  余额不足时任务会保留为草稿，不会自动发行积分。可前往<a class="link link-primary" href="{% world_url 'workspace-credits-budgets' %}">积分预算</a>补充发行或维护预算。
+</div>
 
 {# ── create form ─────────────────────────────────────────────── #}
 <form method="post" class="card bg-base-100 shadow">
   <div class="card-body gap-4">
-    <h2 class="card-title text-base">创建任务草稿</h2>
+    <h2 class="card-title text-base">创建任务</h2>
     {% csrf_token %}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div class="form-control">
@@ -46,7 +49,8 @@
       </div>
     </div>
     <div class="card-actions">
-      <button class="btn btn-primary" type="submit">创建草稿</button>
+      <button class="btn btn-ghost" type="submit" name="intent" value="save_draft">保存草稿</button>
+      <button class="btn btn-primary" type="submit" name="intent" value="fund_and_publish">锁定预算并发布</button>
     </div>
   </div>
 </form>
@@ -58,7 +62,7 @@
     {% if task_rows %}
       <div class="overflow-x-auto">
         <table class="table table-sm">
-          <thead><tr><th>任务ID</th><th>标题</th><th>类型</th><th>工时</th><th>积分</th><th>锁定预算</th><th>状态</th><th>操作</th></tr></thead>
+          <thead><tr><th>任务ID</th><th>标题</th><th>类型</th><th>工时</th><th>预计奖励</th><th>预算</th><th>状态</th><th>操作</th></tr></thead>
           <tbody>
           {% for row in task_rows %}
             <tr>
@@ -66,9 +70,12 @@
               <td>{{ row.task.title|default:"-" }}</td>
               <td>{{ row.task.get_task_type_display }}</td>
               <td>{{ row.task.standard_minutes }} 分钟</td>
-              <td class="font-semibold">{{ row.task.base_points }}</td>
-              <td class="font-semibold {% if row.task.base_points > 0 %}{% if row.locked_budget > 0 %}text-success{% else %}text-error{% endif %}{% endif %}">
-                {{ row.locked_budget }}
+              <td class="font-semibold">{{ row.budget.expected_reward }}</td>
+              <td class="text-xs">
+                <div>已锁 {{ row.locked_budget }}</div>
+                {% if row.task.status == "draft" and row.budget.shortfall > 0 %}
+                  <div class="{% if row.budget.can_fund %}text-success{% else %}text-error{% endif %}">待锁 {{ row.budget.shortfall }}</div>
+                {% endif %}
               </td>
               <td>
                 {% if row.task.status == "draft" %}<span class="badge badge-ghost">草稿</span>
@@ -82,9 +89,12 @@
               </td>
               <td>
                 {% if row.task.status == "draft" %}
-                  <form method="post" action="{% world_url 'workspace-tasks-publish' row.task.task_id %}" class="inline" onsubmit="return confirm('确定发布该任务？')">
+                  {% if not row.budget.can_fund %}
+                    <div class="mb-1 text-xs text-error">发行池还差 {{ row.budget.pool_deficit }}</div>
+                  {% endif %}
+                  <form method="post" action="{% world_url 'workspace-tasks-publish' row.task.task_id %}" class="inline" onsubmit="return confirm('系统将自动补锁预算并发布，确定继续？')">
                     {% csrf_token %}
-                    <button class="btn btn-xs btn-primary" type="submit">发布</button>
+                    <button class="btn btn-xs btn-primary" type="submit">补锁并发布</button>
                   </form>
                 {% endif %}
               </td>

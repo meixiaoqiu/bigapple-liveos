@@ -5,7 +5,16 @@ from django.contrib.sessions.models import Session
 from django.core.exceptions import ImproperlyConfigured
 from django.test import SimpleTestCase, override_settings
 
-from core.models import Member, SimulationRunDisposition, SimulationSnapshot, SimulationSnapshotItem
+from core.models import (
+    CreditAccount,
+    CreditTransaction,
+    Member,
+    SimulationRunDisposition,
+    SimulationSnapshot,
+    SimulationSnapshotItem,
+    SystemEvent,
+    Task,
+)
 from worlds.context import WorldContext
 from worlds.db import WorldDatabaseRouter
 from worlds.models import WorldRegistry
@@ -48,6 +57,27 @@ class WorldDatabaseRouterTests(SimpleTestCase):
             self.assertEqual(self.router.db_for_read(get_user_model()), "simulation0001")
         finally:
             reset_current_world(token)
+
+    def test_funded_publication_models_follow_each_world_context(self) -> None:
+        for world_id, world_type, alias in (
+            ("realworld", WorldRegistry.WorldType.REAL, "realworld"),
+            ("simulation0001", WorldRegistry.WorldType.SIMULATION, "simulation0001"),
+        ):
+            with self.subTest(alias=alias):
+                token = set_current_world(
+                    WorldContext(
+                        world_id=world_id,
+                        world_type=world_type,
+                        database_alias=alias,
+                        database_name=f"dev_big_{world_id}",
+                    )
+                )
+                try:
+                    for model in (Task, CreditAccount, CreditTransaction, SystemEvent):
+                        self.assertEqual(self.router.db_for_write(model), alias)
+                        self.assertNotEqual(self.router.db_for_write(model), "default")
+                finally:
+                    reset_current_world(token)
 
     def test_auth_models_use_control_database_without_world_context(self) -> None:
         self.assertEqual(self.router.db_for_read(get_user_model()), "default")

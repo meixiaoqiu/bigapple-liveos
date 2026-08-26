@@ -95,10 +95,10 @@ def publish_task(*, task: Task, publisher: dict) -> Task:
 
     # Require locked budget when the task awards points
     if task.base_points > 0:
-        from decimal import Decimal
         from core.credit_services import task_locked_credit_balance
+        from core.tasks.funding import task_expected_reward
 
-        reward = int((Decimal(task.base_points) * task.role_coefficient).to_integral_value())
+        reward = task_expected_reward(task)
         locked = task_locked_credit_balance(task)
         if locked < reward:
             raise DomainError(
